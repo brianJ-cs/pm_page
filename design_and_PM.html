@@ -24,6 +24,34 @@
     --ruler-bg:#eef1f6; --ruler-line:#d5dbe6;
     --ruler-tick:#9aa3b2; --ruler-label:#7a8494;
     --align:#8b3dff;           /* Canva-ish alignment guide */
+
+    /* ---- 顏色代號：照「做什麼用」取名，不照「是什麼顏色」 --------------------
+       之前顏色是一路寫下來的，光是「淡藍色的互動底」就有六個相近的值，
+       「接近白的底」也有六個 —— 沒有人選過它們，它們只是長出來的。
+       改皮膚、加深色模式、查為什麼這行字看不見，都是從這裡開始。
+       規則：新的顏色一律先在這裡取個名字，不要再往下面塞 hex。 */
+    --surface:#ffffff;         /* 卡片、面板、紙 */
+    --surface-2:#fafbfd;       /* 次一層的底（欄位、內凹的區塊） */
+    --surface-3:#f1f4fb;       /* 淺色底上的 hover */
+    --line-strong:#c9d6e2;     /* 比 --line 明顯一點的分隔線 */
+    --ink-strong:#101828;      /* 最黑的字（便利貼、標題強調） */
+    --ink-dim:#4b5566;         /* 次一級的字 */
+    --grip:#e7ebf3;            /* ⋮⋮ 這類把手的底 */
+    --grip-hover:#d8deea;
+
+    /* 藍色＝「你正在點的東西」：分頁、選取、放下去的位置。東西本身不用藍。 */
+    --accent:#4a6fdc;          /* ＝ --blue，語意名 */
+    --accent-strong:#3f61c6;   /* 按下去／hover 的深藍 */
+    --accent-tint:#eef2fc;     /* 淡藍底 */
+    --accent-tint-2:#e2e9fa;   /* 淡藍底的 hover */
+    --accent-line:#ccd8f5;     /* 淡藍框 */
+    --accent-ink:#cfd9f2;      /* 深色底上的藍字 */
+    --accent-ink-strong:#2b3a5c;
+
+    /* 三個狀態色。紅只用在「還沒處理／價格」，綠只用在「好了」，黃只用在「注意」 */
+    --ok:#17663a; --ok-ink:#17663a; --ok-tint:#e6f6ea;
+    --warn:#f5a623; --warn-line:#f0dcae; --warn-tint:#fff3e0;
+    --danger:#d92d20; --danger-ink:#b42318; --danger-tint:#fdeceb;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height: 80%;}
@@ -40,11 +68,11 @@
   .bar{display:flex;align-items:center;gap:12px;min-height:38px}
   .tab{
     font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;
-    border:1px solid #ccd8f5;border-radius:999px;padding:7px 22px;
-    background:#eef2fc;color:var(--blue);
+    border:1px solid var(--accent-line);border-radius:999px;padding:7px 22px;
+    background:var(--accent-tint);color:var(--blue);
   }
-  .tab:hover{background:#e2e9fa}
-  .tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
+  .tab:hover{background:var(--accent-tint-2)}
+  .tab.active{background:var(--blue);border-color:var(--blue);color:var(--surface)}
 
   .bar .right{margin-left:auto;display:flex;align-items:center;gap:16px}
 
@@ -52,14 +80,14 @@
   .hist{display:flex;gap:6px;margin-left:6px}
   .btn.icon{
     position:relative;padding:7px 13px 11px;font-size:17px;line-height:1;
-    color:var(--blue);border-color:#ccd8f5;background:#eef2fc;
+    color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint);
   }
   /* same corner-key treatment as the tool rail, so the two read as one system */
   .btn.icon[data-key]::after{
     content:attr(data-key);position:absolute;right:3px;bottom:2px;
     font-size:8.5px;font-weight:800;line-height:1;opacity:.62;
   }
-  .btn.icon:hover:not(:disabled){background:#e2e9fa}
+  .btn.icon:hover:not(:disabled){background:var(--accent-tint-2)}
   .btn.icon:disabled{opacity:.38;cursor:not-allowed;background:var(--card)}
   /* 鎖定鈕浮在工具列右邊、版面上方：手在工具那一帶，鎖定也就在手邊 —— 不必
      為了鎖一張版把視線拉到畫面最上面那條去。 */
@@ -67,18 +95,18 @@
     position:absolute;left:calc(100% + 14px);top:2px;z-index:20;white-space:nowrap;
     font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer;
     border:1px solid var(--blue);border-radius:8px;padding:8px 18px;
-    background:var(--blue);color:#fff;display:none;
+    background:var(--blue);color:var(--surface);display:none;
     box-shadow:0 4px 12px rgba(0,0,0,.28);
   }
-  #confirmBtn:hover{background:#3f61c6}
-  #confirmBtn.is-confirmed{background:#fff;color:var(--green-ink);border-color:var(--green-rule)}
+  #confirmBtn:hover{background:var(--accent-strong)}
+  #confirmBtn.is-confirmed{background:var(--surface);color:var(--green-ink);border-color:var(--green-rule)}
 
   .toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;color:var(--muted);cursor:pointer;user-select:none}
   .toggle input{position:absolute;opacity:0;pointer-events:none}
   .track{width:42px;height:23px;border-radius:999px;background:#cfd6e3;position:relative;transition:background .16s}
   .track::after{
     content:"";position:absolute;top:2px;left:2px;width:19px;height:19px;border-radius:50%;
-    background:#fff;box-shadow:0 1px 3px rgba(30,40,60,.3);transition:transform .16s;
+    background:var(--surface);box-shadow:0 1px 3px rgba(30,40,60,.3);transition:transform .16s;
   }
   .toggle input:checked + .track{background:var(--blue)}
   .toggle input:checked + .track::after{transform:translateX(19px)}
@@ -125,7 +153,7 @@
   .modebar.show .handle{opacity:0}
   /* the back button lives on blue now, so it has to read as white-on-blue */
   .modebar .back{
-    background:transparent;border-color:rgba(255,255,255,.5);color:#fff;
+    background:transparent;border-color:rgba(255,255,255,.5);color:var(--surface);
     padding:4px 12px;font-size:13px;
   }
   .modebar .back:hover{background:rgba(255,255,255,.16)}
@@ -135,24 +163,24 @@
   }
   .modebar .seg button{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
-    border:0;padding:5px 20px;background:transparent;color:#fff;
+    border:0;padding:5px 20px;background:transparent;color:var(--surface);
   }
   .modebar .seg button + button{border-left:1px solid rgba(255,255,255,.55)}
   .modebar .seg button:hover{background:rgba(255,255,255,.16)}
-  .modebar .seg button.active{background:#fff;color:var(--blue)}
+  .modebar .seg button.active{background:var(--surface);color:var(--blue)}
   /* 換 PM：每個 PM 管的品類不一樣，所以身分後面還要說是「哪一位」 */
-  .modebar .pmpick{display:none;align-items:center;gap:6px;color:#fff;font-size:13px;font-weight:800}
+  .modebar .pmpick{display:none;align-items:center;gap:6px;color:var(--surface);font-size:13px;font-weight:800}
   .modebar .pmpick.on{display:flex}
   .modebar .pmpick select{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
     border:1px solid rgba(255,255,255,.55);border-radius:999px;
-    padding:4px 10px;background:rgba(255,255,255,.12);color:#fff;
+    padding:4px 10px;background:rgba(255,255,255,.12);color:var(--surface);
   }
   .modebar .pmpick select option{color:var(--ink)}
   .modebar .pmpick .mini{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;line-height:1;
     border:1px solid rgba(255,255,255,.55);border-radius:999px;
-    padding:4px 9px;background:transparent;color:#fff;
+    padding:4px 9px;background:transparent;color:var(--surface);
   }
   .modebar .pmpick .mini:hover{background:rgba(255,255,255,.16)}
 
@@ -163,19 +191,19 @@
     border:1px solid var(--line);border-radius:8px;padding:7px 16px;
     background:var(--card);color:var(--ink);
   }
-  .btn:hover{background:#f7f9fd}
-  .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  .btn:hover{background:var(--surface-2)}
+  .btn.primary{background:var(--blue);border-color:var(--blue);color:var(--surface)}
   /* 清空資料：測試用的東西，站在角落、講清楚它很危險，但不要搶匯入的位置 */
-  .btn.danger{margin-left:auto;color:#b42318;border-color:#f0c2bd;background:#fdeceb}
+  .btn.danger{margin-left:auto;color:var(--danger-ink);border-color:#f0c2bd;background:var(--danger-tint)}
   .btn.danger:hover{background:#fbdad7}
-  .btn.primary:hover{background:#3f61c6}
-  .btn.back{padding:6px 14px;font-size:13.5px;color:var(--blue);border-color:#ccd8f5;background:#eef2fc}
-  .btn.back:hover{background:#e2e9fa}
+  .btn.primary:hover{background:var(--accent-strong)}
+  .btn.back{padding:6px 14px;font-size:13.5px;color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint)}
+  .btn.back:hover{background:var(--accent-tint-2)}
   .btn.open{
     margin-left:14px;padding:6px 16px;font-size:13.5px;
-    color:#fff;background:var(--blue);border-color:var(--blue);
+    color:var(--surface);background:var(--blue);border-color:var(--blue);
   }
-  .btn.open:hover{background:#3f61c6}
+  .btn.open:hover{background:var(--accent-strong)}
 
   #view-plans{flex-direction:column}
   #planList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
@@ -187,26 +215,26 @@
   .plan-name{font-size:20px;font-weight:800}
   .pill{
     font-size:14px;font-weight:800;border:1px solid var(--line);border-radius:6px;
-    padding:3px 10px;color:var(--muted);background:#fafbfd;
+    padding:3px 10px;color:var(--muted);background:var(--surface-2);
   }
-  .pill.tag{color:var(--blue);border-color:#ccd8f5;background:#eef2fc}
-  .pill.count{color:var(--amber);border-color:#f0dcae;background:var(--amber-bg)}
+  .pill.tag{color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint)}
+  .pill.count{color:var(--amber);border-color:var(--warn-line);background:var(--amber-bg)}
   .plan-out{margin-left:auto;font-size:16px;font-weight:800;color:var(--muted)}
   .plan-out b{color:var(--ink)}
   .stage-row{display:flex;gap:8px;flex-wrap:wrap}
   .stage-chip{
     min-width:86px;text-align:center;border:1px solid var(--line);border-radius:8px;
-    padding:8px 12px 7px;background:#fafbfd;
+    padding:8px 12px 7px;background:var(--surface-2);
   }
   .stage-chip .n{font-size:15px;font-weight:800;color:#5d6675}
   .stage-chip .d{font-size:13.5px;color:var(--muted);margin-top:2px}
-  .stage-chip.done{background:var(--green-bg,#e6f6ea);border-color:#cdeeda}
+  .stage-chip.done{background:var(--green-bg,var(--ok-tint));border-color:#cdeeda}
   .stage-chip.done .n,.stage-chip.done .d{color:#2e8b57}
-  .stage-chip.now{background:var(--amber-bg);border-color:#f0dcae;position:relative}
+  .stage-chip.now{background:var(--amber-bg);border-color:var(--warn-line);position:relative}
   .stage-chip.now .n,.stage-chip.now .d{color:var(--amber)}
   .stage-chip.now::after{
     content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;
-    border-radius:50%;background:#f5a623;
+    border-radius:50%;background:var(--warn);
   }
   .empty-hint{color:var(--muted);text-align:center;margin-top:60px;font-size:18px}
   #editorChrome{display:flex;flex-direction:column;gap:11px}
@@ -221,7 +249,17 @@
   /* 同一欄兩種左邊：設計看小地圖，PM 看品類樹 */
   #boardSide.pm #sheetSide{display:none}
   #boardSide:not(.pm) #pmTree{display:none}
-  #boardMain{flex:1;min-width:0;display:flex;flex-direction:column}
+  #boardMain{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+  /* 浮在版面左上角，貼著左欄：白底小藥丸，壓在淺色畫布上才讀得清楚 */
+  #markWrap{
+    position:absolute;top:8px;left:10px;z-index:40;
+    gap:8px;font-size:12.5px;color:var(--ink);
+    background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:999px;
+    padding:5px 12px 5px 8px;box-shadow:0 3px 10px rgba(16,24,40,.14);
+  }
+  #markWrap .track{width:34px;height:19px}
+  #markWrap .track::after{width:15px;height:15px}
+  #markWrap input:checked + .track::after{transform:translateX(15px)}
   /* 總覽：借用 落版 的格子，只是這裡不編輯，純粹挑一格 */
   #boardOverview{flex:1;min-height:0;display:none;align-items:stretch}
   #boardOverview.on{display:flex}
@@ -249,7 +287,7 @@
   #boardOverview{cursor:grab;user-select:none}
   #boardOverview.panning{cursor:grabbing}
   #boardOverview.panning .cell{cursor:grabbing}
-  #boardOverview .cell:hover{outline:2px solid var(--blue);outline-offset:-2px;background:#eef2fc}
+  #boardOverview .cell:hover{outline:2px solid var(--blue);outline-offset:-2px;background:var(--accent-tint)}
   /* 那一格裡面跑的就是拼板本人（2cell-product-pick.html 的畫布模式），照這一格
      的大小把 540×420 整個縮進去。所以這不是縮圖，是同一塊畫布 —
      旁邊面板勾了什麼，這裡當場就長出來。
@@ -266,7 +304,7 @@
      還沒拼的格子沒有東西可看，字就是它唯一的身分，一直留著。 */
   #boardOverview .cell.filled{font-size:0}
   #boardOverview.words .cell.filled{
-    font-size:calc(10px * var(--z));text-shadow:0 0 3px #fff,0 0 3px #fff;
+    font-size:calc(10px * var(--z));text-shadow:0 0 3px var(--surface),0 0 3px var(--surface);
   }
   /* 編輯那一格 = 貼在那一格右邊的一塊版面，不是另外開的視窗：它跟著版面一起
      捲動、一起平移，所以它永遠黏在那一格旁邊。擋住旁邊幾格沒關係。 */
@@ -274,7 +312,7 @@
     position:fixed;z-index:150;display:none;flex-direction:column;gap:6px;
     overscroll-behavior:contain;
     pointer-events:auto;                 /* 總覽把整張版關掉了，這塊要開回來 */
-    background:#fff;border:2px solid var(--blue);border-radius:10px;
+    background:var(--surface);border:2px solid var(--blue);border-radius:10px;
     box-shadow:0 6px 22px rgba(31,62,166,.18);padding:8px;
   }
   #boardStage.on{display:flex;animation:pop-in .14s ease-out both}
@@ -287,10 +325,10 @@
     border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--muted);
     line-height:1;padding:5px 10px;
   }
-  #boardStage .close:hover{background:#f7f9fd;color:var(--ink)}
+  #boardStage .close:hover{background:var(--surface-2);color:var(--ink)}
   /* 面板開著的時候，被拼的那一格自己亮起來，兩邊才對得上 */
-  #boardOverview .cell.editing{outline:3px solid var(--blue);outline-offset:-3px;background:#eef2fc}
-  #boardFrame{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
+  #boardOverview .cell.editing{outline:3px solid var(--blue);outline-offset:-3px;background:var(--accent-tint)}
+  #boardFrame{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
 
   /* ---- 標記／留言（貼紙欄 + 意見欄）------------------------------------------
      照 block-comment-demo / block-review-demo 那兩支的做法搬過來：貼紙是實體，
@@ -302,7 +340,7 @@
   #boardRail{
     position:absolute;top:var(--rail-top,60px);right:0;bottom:0;z-index:60;
     width:var(--railw,340px);display:flex;flex-direction:column;gap:7px;
-    background:#fff;border-left:2px solid var(--line);
+    background:var(--surface);border-left:2px solid var(--line);
     padding:10px 12px;overflow:visible;
     transition:width .14s ease;
   }
@@ -315,14 +353,13 @@
   /* 書籤獨立撐滿整條欄位的高度，才會停在畫面的正中央 */
   #boardRail .fold-bar{position:absolute;left:0;top:0;bottom:0;width:0;align-self:auto}
   #railHead{flex:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-  /* 收貼紙的開關站在標題那一行的最右邊：它管的就是下面這些貼紙 */
-  #railHead #markWrap{margin-left:auto;font-size:12.5px;gap:6px}
+
   #railTitle{font-size:14px;font-weight:800;color:var(--ink)}
   #railSub{font-size:11.5px;font-weight:800;color:var(--muted);width:100%}
   #railBack{
     font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;display:none;
     border:2px solid var(--blue);border-radius:9px;padding:5px 10px;
-    background:#eef2fc;color:var(--blue);
+    background:var(--accent-tint);color:var(--blue);
   }
   #railBack.on{display:block}
   /* 類型篩選：一顆一種，數字是還沒處理的 */
@@ -331,10 +368,10 @@
   .lg{
     flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
-    border:2px solid var(--line);border-radius:999px;padding:4px 5px;background:#fff;color:#4b5566;
+    border:2px solid var(--line);border-radius:999px;padding:4px 5px;background:var(--surface);color:var(--ink-dim);
   }
   .lg:hover{border-color:var(--lc)}
-  .lg.on{background:var(--lc);border-color:var(--lc);color:#101828}
+  .lg.on{background:var(--lc);border-color:var(--lc);color:var(--ink-strong)}
   .lg.zero{opacity:.45}
 
   /* 貼紙欄：拖一張下去就是一則 */
@@ -348,7 +385,7 @@
   .stick{
     position:relative;flex:1 1 0;min-width:0;aspect-ratio:1/1;
     font-family:inherit;font-size:13px;font-weight:800;
-    cursor:grab;border:0;border-radius:1px;color:#101828;
+    cursor:grab;border:0;border-radius:1px;color:var(--ink-strong);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
     user-select:none;
     background-image:linear-gradient(160deg,rgba(255,255,255,.55),rgba(0,0,0,.06));
@@ -364,10 +401,10 @@
   .stick .ico{font-size:21px;line-height:1}
   .stick:hover{transform:rotate(0deg) scale(1.03)}
   .stick:active{cursor:grabbing}
-  .stick.armed{outline:3px solid #101828;outline-offset:2px;transform:rotate(0deg)}
+  .stick.armed{outline:3px solid var(--ink-strong);outline-offset:2px;transform:rotate(0deg)}
   #armHint{
     display:none;flex:none;font-size:13.5px;font-weight:800;color:#8a4b00;
-    background:#fff3e0;border:2px solid #f0c98a;border-radius:10px;padding:7px 9px;
+    background:var(--warn-tint);border:2px solid var(--warn-line);border-radius:10px;padding:7px 9px;
   }
   #armHint.on{display:block}
 
@@ -379,22 +416,22 @@
   }
   .icard{
     border:2px solid var(--line);border-left:10px solid var(--nc,#98a2b3);
-    border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;
+    border-radius:10px;padding:10px 12px;background:var(--surface);cursor:pointer;
   }
-  .icard:hover{background:#f7f9fd}
+  .icard:hover{background:var(--surface-2)}
   .icard.sel{border-color:var(--blue);box-shadow:0 0 0 3px rgba(74,111,220,.22)}
   .icard.done{background:#f6f8fa}
   .icard .chead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .icard .who{font-size:15px;font-weight:800;color:var(--ink)}
   .icard .where{
     font-size:13px;font-weight:800;color:var(--blue);
-    background:#eef2fc;border-radius:999px;padding:2px 9px;
+    background:var(--accent-tint);border-radius:999px;padding:2px 9px;
   }
   .icard .state{
     margin-left:auto;font-size:14px;font-weight:800;padding:3px 10px;border-radius:999px;
-    background:#fde8e6;color:#b42318;
+    background:var(--danger-tint);color:var(--danger-ink);
   }
-  .icard.done .state{background:#e6f6ea;color:#17663a}
+  .icard.done .state{background:var(--ok-tint);color:var(--ok-ink)}
   .icard .kind{font-size:16px;font-weight:800;color:var(--nc,#374151);margin-top:6px;
     display:flex;align-items:center;gap:6px}
   .icard .kind .ico{font-size:20px;line-height:1}
@@ -417,17 +454,17 @@
   .icard .acts{display:flex;gap:8px;margin-top:8px}
   .icard .acts button{
     flex:1;font-family:inherit;font-size:16px;font-weight:800;cursor:pointer;min-height:48px;
-    border:2px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);
+    border:2px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);
   }
-  .icard .acts .send{background:var(--blue);border-color:var(--blue);color:#fff}
-  .icard .acts .ok{border-color:#17663a;color:#17663a}
-  .icard .acts .ok:hover{background:#e6f6ea}
-  .icard .acts .del{border-color:#b42318;color:#b42318}
-  .icard .acts .del:hover{background:#fde8e6}
+  .icard .acts .send{background:var(--blue);border-color:var(--blue);color:var(--surface)}
+  .icard .acts .ok{border-color:var(--ok-ink);color:var(--ok-ink)}
+  .icard .acts .ok:hover{background:var(--ok-tint)}
+  .icard .acts .del{border-color:var(--danger-ink);color:var(--danger-ink)}
+  .icard .acts .del:hover{background:var(--danger-tint)}
   #railEmpty{font-size:17px;font-weight:800;color:var(--muted);text-align:center;padding:26px 8px}
   .icard .owned{
-    font-size:14.5px;font-weight:800;color:#8a4b00;background:#fff3e0;
-    border:2px solid #f0c98a;border-radius:9px;padding:8px 10px;margin-bottom:8px;
+    font-size:14.5px;font-weight:800;color:#8a4b00;background:var(--warn-tint);
+    border:2px solid var(--warn-line);border-radius:9px;padding:8px 10px;margin-bottom:8px;
   }
 
   /* ---- 格子上的貼紙：貼在放下去的那個位置，大到掃一眼就看得到 ---- */
@@ -443,7 +480,7 @@
     width:30px;height:30px;border-radius:0;
     transform:translate(-50%,-50%) rotate(var(--rot,-2.5deg)) scale(var(--zs));
     display:flex;align-items:center;justify-content:center;
-    font-style:normal;font-size:15px;font-weight:800;color:#101828;
+    font-style:normal;font-size:15px;font-weight:800;color:var(--ink-strong);
     /* 紙：左上受光、右下沉，中間有一點點紙的紋路 */
     background-image:
       linear-gradient(155deg,rgba(255,255,255,.62) 0%,rgba(255,255,255,.10) 42%,rgba(0,0,0,.09) 100%);
@@ -482,7 +519,7 @@
   /* 別人的便利貼：看得到、點得開，但搬不動 */
   .cmk.theirs{cursor:pointer}
   .cmk.done{opacity:.4}
-  .cmk.sel{outline:3px solid #101828;outline-offset:1px}
+  .cmk.sel{outline:3px solid var(--ink-strong);outline-offset:1px}
   /* 格子本身 overflow:hidden，而且最邊上那排格子外面就是版面邊界 —
      所以這顆數字貼在格子「裡面」的角落，不掛在外面，才不會被切掉。 */
   .cnb{
@@ -492,13 +529,13 @@
        它是一個提示，不是版面的一部分，湊近看不該變成一顆紅球。 */
     transform:scale(min(1, var(--z,1)));transform-origin:100% 0;
     min-width:20px;height:20px;padding:0 5px;border-radius:999px;
-    background:#d92d20;color:#fff;font-size:12px;font-weight:800;
+    background:var(--danger);color:var(--surface);font-size:12px;font-weight:800;
     display:flex;align-items:center;justify-content:center;
-    border:2px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.3);
+    border:2px solid var(--surface);box-shadow:0 2px 5px rgba(0,0,0,.3);
   }
   #boardOverview.nomarks .cmk,#boardOverview.nomarks .cnb{display:none}
   /* 拖著貼紙經過時，那一格自己站出來 */
-  #boardOverview .cell.drop{outline:4px solid #f5a623;outline-offset:-4px;background:#fff6e6}
+  #boardOverview .cell.drop{outline:4px solid var(--warn);outline-offset:-4px;background:#fff6e6}
   #boardOverview.arming .cell{cursor:copy}
   /* 意見欄點到某一格：其他格子讓開 */
   #boardOverview .cell.focus{outline:4px solid var(--blue);outline-offset:-4px}
@@ -519,8 +556,8 @@
     display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
     padding:5px 6px;border-radius:7px;font-size:13.5px;font-weight:800;color:var(--ink);
   }
-  #pmTree .pt-type:hover{background:#f1f4fb}
-  #pmTree .pt-type.open{background:#eef2fc;color:var(--blue)}
+  #pmTree .pt-type:hover{background:var(--surface-3)}
+  #pmTree .pt-type.open{background:var(--accent-tint);color:var(--blue)}
   #pmTree .pt-type .caret{font-size:10px;color:var(--muted);width:10px;flex:none}
   #pmTree .pt-type .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #pmTree .pt-type .n{font-size:12px;color:var(--muted);font-weight:800}
@@ -528,10 +565,10 @@
   #pmTree .pt-type.open + .pt-kids{display:block}
   #pmTree .pt-blk{
     display:flex;align-items:center;gap:6px;cursor:pointer;
-    padding:4px 8px;border-radius:6px;font-size:13px;color:#4b5566;
+    padding:4px 8px;border-radius:6px;font-size:13px;color:var(--ink-dim);
   }
-  #pmTree .pt-blk:hover{background:#f1f4fb}
-  #pmTree .pt-blk.active{background:var(--blue);color:#fff}
+  #pmTree .pt-blk:hover{background:var(--surface-3)}
+  #pmTree .pt-blk.active{background:var(--blue);color:var(--surface)}
   #pmTree .pt-blk .n{margin-left:auto;font-size:11.5px;font-weight:800;opacity:.85}
   #pmTree .pt-sep{
     font-size:11.5px;font-weight:800;color:var(--muted);
@@ -569,23 +606,31 @@
   .ruler-marker-x{top:0;bottom:0;width:1px}
   .ruler-marker-y{left:0;right:0;height:1px}
   .ruler-marker::after{
-    content:attr(data-val);position:absolute;background:var(--blue);color:#fff;
+    content:attr(data-val);position:absolute;background:var(--blue);color:var(--surface);
     font-size:10px;font-weight:800;padding:1px 5px;border-radius:3px;white-space:nowrap;
   }
   .ruler-marker-x::after{top:2px;left:3px}
   .ruler-marker-y::after{left:2px;top:3px}
 
-  .board-ws{grid-column:2;grid-row:2;position:relative;background:#fff;box-shadow:0 0 0 1px var(--rule);overflow:hidden}
+  .board-ws{grid-column:2;grid-row:2;position:relative;background:var(--surface);box-shadow:0 0 0 1px var(--rule);overflow:hidden}
 
   .split-container{display:flex;width:100%;height:100%;overflow:hidden}
   .fold{width:2px;background:#5b6472;flex:none}
   .window-node{
-    box-sizing:border-box;border:1px solid rgba(90,60,40,.45);position:relative;
+    box-sizing:border-box;border:1px solid var(--line-strong);position:relative;
+    background:var(--surface);
     display:flex;align-items:center;justify-content:center;overflow:hidden;
   }
+  .window-node.unowned{background:#e9ecf2;border-color:#cdd4e0}
+  .window-node.handed{background:#dff0e5;border-color:var(--green-rule)}
+  .window-node.unowned .region-label div,
+  .window-node.unowned .region-label .cnt{color:#98a1b2}
+  .window-node.handed .region-label div,
+  .window-node.handed .region-label .cnt{color:var(--green-ink)}
   .region-label{pointer-events:none;text-align:center;padding:2px}
-  .region-label div{font-weight:800;color:#5a4a3c;line-height:1.4;overflow-wrap:anywhere}
-  .region-label .cnt{color:var(--accent)}
+  .region-label div{font-weight:800;color:var(--ink);line-height:1.4;overflow-wrap:anywhere}
+  /* 支數用紅的，跟小地圖同一套：數量是「還有多少要處理」，不是可以點的東西 */
+  .region-label .cnt{color:var(--danger-ink)}
 
   /* z-index keeps the bar (and its fat hit area) above BOTH siblings —
      without it the following sibling paints over half the grab zone */
@@ -614,13 +659,13 @@
   /* tool hint, after dm-block-zoom.html's #hint */
   #toolHint{
     flex:none;display:none;align-items:center;gap:9px;
-    background:#e8efff;border:1px solid #b9cdf6;border-left:5px solid var(--blue);
-    color:#2b3a5c;font-size:13px;font-weight:800;letter-spacing:.02em;
+    background:var(--accent-tint);border:1px solid var(--accent-line);border-left:5px solid var(--blue);
+    color:var(--accent-ink-strong);font-size:13px;font-weight:800;letter-spacing:.02em;
     padding:5px 14px;border-radius:8px;
     box-shadow:0 2px 8px rgba(74,111,220,.14);
   }
   #toolHint .ico{
-    flex:none;width:24px;height:24px;border-radius:6px;background:var(--blue);color:#fff;
+    flex:none;width:24px;height:24px;border-radius:6px;background:var(--blue);color:var(--surface);
     display:flex;align-items:center;justify-content:center;font-size:14px;
   }
   #toolHint b{color:var(--blue)}
@@ -630,9 +675,9 @@
   #toolHint .hint-name{
     flex:none;display:inline-flex;align-items:center;gap:6px;
     color:var(--blue);font-weight:800;
-    padding-right:12px;border-right:1px solid #b9cdf6;
+    padding-right:12px;border-right:1px solid var(--accent-line);
   }
-  #toolHint .hint-main{font-weight:800;color:#2b3a5c}
+  #toolHint .hint-main{font-weight:800;color:var(--accent-ink-strong)}
   #toolHint .hint-keys{
     margin-left:auto;display:flex;align-items:center;gap:14px;
     font-size:13px;font-weight:800;color:#6d7c9e;white-space:nowrap;
@@ -640,7 +685,7 @@
   #toolHint .hint-keys b{color:var(--blue);font-variant-numeric:tabular-nums}
   #toolHint kbd{
     font-family:inherit;font-size:11.5px;font-weight:800;line-height:1;
-    background:#fff;color:var(--blue);border:1px solid #b9cdf6;
+    background:var(--surface);color:var(--blue);border:1px solid var(--accent-line);
     border-bottom-width:2px;border-radius:5px;padding:3px 6px;margin-right:5px;
   }
   #toolHint.pop{animation:hintPop .18s ease-out}
@@ -648,7 +693,7 @@
 
   #tip{
     position:fixed;z-index:99;pointer-events:none;display:none;
-    background:var(--ink);color:#fff;font-size:12.5px;font-weight:800;
+    background:var(--ink);color:var(--surface);font-size:12.5px;font-weight:800;
     padding:4px 9px;border-radius:6px;white-space:nowrap;
     box-shadow:0 2px 8px rgba(30,40,60,.3);
   }
@@ -682,7 +727,7 @@
     position:absolute;top:50%;transform:translateY(-50%);z-index:8;
     width:20px;height:74px;padding:0;cursor:pointer;
     font-family:inherit;font-size:12px;font-weight:800;line-height:1;
-    border:2px solid var(--line);background:#f2f4f8;color:#4b5566;
+    border:2px solid var(--line);background:var(--bg);color:var(--ink-dim);
     display:flex;align-items:center;justify-content:center;
     box-shadow:2px 0 6px rgba(16,24,40,.12);
   }
@@ -699,37 +744,42 @@
   .fold-tab .n{
     position:absolute;top:-10px;left:50%;transform:translateX(-50%);
     min-width:20px;padding:1px 5px;border-radius:999px;
-    background:#d92d20;color:#fff;font-size:12px;font-weight:800;
+    background:var(--danger);color:var(--surface);font-size:12px;font-weight:800;
   }
   .fold-tab .n.zero{display:none}
   .mini-label{font-size:14px;font-weight:800;color:var(--ink);letter-spacing:.08em}
   /* 270 的欄寬扣掉捲軸和內距，剩 252 — 版面比例照舊（350:248），高度跟著縮 */
-  .mini-page{position:relative;width:252px;height:179px;border:2px solid var(--ink);background:#fff;flex:none}
+  .mini-page{position:relative;width:252px;height:179px;border:2px solid var(--ink);background:var(--surface);flex:none}
   .mini-split{display:flex;width:100%;height:100%;overflow:hidden}
   .mini-fold{width:3px;background:#3d444f;flex:none}
+/* 小地圖是一張進度表，不是裝飾：底色只講這一塊走到哪了。
+   灰＝還沒人管　白＝設計手上　綠＝已交出給 PM。三個都不搶眼 ——
+   整個畫面上最有顏色的東西應該是版面本身和貼在上面的便利貼。 */
   .mini-blk{
-    border:1.5px solid #7a736a;background:var(--pink);cursor:pointer;overflow:hidden;
+    border:1.5px solid var(--line-strong);background:var(--surface);cursor:pointer;overflow:hidden;
     display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
-    font-size:13px;font-weight:700;color:#4a453f;line-height:1.28;user-select:none;
+    font-size:13px;font-weight:700;color:var(--ink);line-height:1.28;user-select:none;
     transition:background .12s,border-color .12s;padding:2px;
   }
-  .mini-blk .cnt{color:var(--accent);font-weight:800}
-  .mini-blk:hover{background:#f6ece6;border-color:var(--ink);color:var(--ink)}
-  .mini-blk.active{background:var(--blue);border-color:#2f4b96;color:#fff;z-index:2}
-  .mini-blk.active .cnt{color:#ffd8cd}
-  /* 按了確認的變綠色 */
-  .mini-blk.confirmed{background:var(--green);border-color:var(--green-rule);color:var(--green-ink)}
+  .mini-blk .cnt{color:var(--danger-ink);font-weight:800}
+  .mini-blk:hover{background:var(--surface-3);border-color:var(--accent);color:var(--ink)}
+  /* 還沒指派 PM：整塊灰掉，一眼看得出這一塊還沒有人管 */
+  .mini-blk.unowned{background:#e9ecf2;border-color:#cdd4e0;color:#98a1b2}
+  .mini-blk.unowned .cnt{color:#98a1b2}
+  /* 選中：藍框，底色照舊 —— 換掉底色就看不出它本來是什麼狀態了 */
+  .mini-blk.active{outline:3px solid var(--blue);outline-offset:-3px;
+                   border-color:#2f4b96;z-index:2}
+  /* 已交出給 PM（＝按了確認鎖定）：綠底，這一塊就不在設計手上了 */
+  .mini-blk.confirmed{background:#dff0e5;border-color:var(--green-rule);color:var(--green-ink)}
   .mini-blk.confirmed .cnt{color:var(--green-ink)}
   /* confirmed AND selected: keep the green fill, ring it in blue */
-  .mini-blk.active.confirmed{background:var(--green);color:var(--green-ink);
-    outline:3px solid var(--blue);outline-offset:-3px;border-color:var(--green-rule)}
-  .mini-blk.active.confirmed .cnt{color:var(--green-ink)}
+  .mini-blk.active.confirmed{border-color:var(--green-rule)}
 
   /* --- 工具 rail --- */
   #toolRail{
     position:relative;                 /* 鎖定鈕貼著它的右邊站 */
     flex:none;width:58px;margin:2px 18px 10px;border-radius:8px;
-    background:var(--blue);color:#fff;display:flex;flex-direction:column;align-items:center;
+    background:var(--blue);color:var(--surface);display:flex;flex-direction:column;align-items:center;
     gap:8px;padding:12px 0 10px;user-select:none;
   }
   .rail-title{
@@ -739,7 +789,7 @@
   .tool{
     position:relative;
     width:40px;height:40px;border-radius:8px;font-family:inherit;font-size:18px;
-    border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.14);color:#fff;
+    border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.14);color:var(--surface);
     cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;
   }
   /* the 快捷鍵 tucked in the corner, PS-style — present but never competing
@@ -749,7 +799,7 @@
     font-size:9px;font-weight:800;line-height:1;letter-spacing:0;opacity:.7;
   }
   .tool:hover{background:rgba(255,255,255,.28)}
-  .tool.active{background:#fff;color:var(--blue);border-color:#fff;font-weight:800}
+  .tool.active{background:var(--surface);color:var(--blue);border-color:var(--surface);font-weight:800}
   .zoom-val{margin-top:auto;font-size:10.5px;font-weight:800;opacity:.92;font-variant-numeric:tabular-nums}
 
   /* --- main area --- */
@@ -764,6 +814,7 @@
   /* 站在畫布正上方的中間：左上角是鎖定鈕的位置，兩個疊在一起會互相蓋掉。
      中間這個位置在任何縮放下都是同一個地方 —— 它釘在畫布上，不在版面上。 */
   #blockHead{
+    color:var(--ink);              /* 紙上的字是黑的（它不在 #sheetMain 裡面） */
     position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:12;
     display:flex;align-items:center;gap:12px;max-width:calc(100% - 24px);
     background:var(--bg);border-radius:8px;padding:3px 12px 5px;
@@ -774,7 +825,7 @@
   .pm-of{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
     border:1px solid var(--line);border-radius:7px;padding:4px 8px;
-    background:#fff;color:var(--ink);
+    background:var(--surface);color:var(--ink);
   }
   .pm-of:hover{border-color:var(--blue)}
   .lockBadge{
@@ -783,20 +834,20 @@
   }
   .mh-num{
     font-family:inherit;font-size:14px;font-weight:800;width:68px;text-align:center;
-    border:1px solid #c3ced8;border-radius:6px;padding:4px 6px;background:#fff;color:var(--ink);
+    border:1px solid var(--line-strong);border-radius:6px;padding:4px 6px;background:var(--surface);color:var(--ink);
   }
   .mh-num:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
-  .mh-num:disabled{background:#f3f5f9;color:var(--muted);cursor:not-allowed}
+  .mh-num:disabled{background:var(--surface-3);color:var(--muted);cursor:not-allowed}
   .mh-x-sep{font-size:14px;font-weight:800;color:var(--muted)}
   /* fixed 刊頭 width: shown as plain text, styled like a disabled field */
-  .mh-fixed{font-size:14px;font-weight:800;color:var(--muted);background:#f3f5f9;
+  .mh-fixed{font-size:14px;font-weight:800;color:var(--muted);background:var(--surface-3);
     border:1px solid var(--line);border-radius:6px;padding:4px 10px;cursor:default}
   #addMasthead{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
     border:1px dashed var(--blue);border-radius:7px;padding:5px 12px;
-    background:#eef2fc;color:var(--blue);
+    background:var(--accent-tint);color:var(--blue);
   }
-  #addMasthead:hover{background:#e2e9fa}
+  #addMasthead:hover{background:var(--accent-tint-2)}
 
   /* 版面本身：卡片相接成一塊完整的方塊，四周才留邊 */
   #board{display:flex;flex-direction:column;gap:var(--gap);margin:15px auto;
@@ -806,31 +857,33 @@
   /* ⋮⋮ 是操作用的把手，不是版面的一部分 —— 留一點縫，讓卡片那一塊自己是完整的 */
   .grip{
     flex:none;width:14px;margin-right:6px;border-radius:4px;
-    background:#e7ebf3;color:var(--muted);
+    background:var(--grip);color:var(--muted);
     display:flex;align-items:center;justify-content:center;cursor:grab;
     font-size:10px;line-height:1;user-select:none;touch-action:none;
   }
-  .grip:hover{background:#d8deea;color:var(--ink)}
+  .grip:hover{background:var(--grip-hover);color:var(--ink)}
   /* 刊頭的把手：橫帶時就是左邊那條 ⋮⋮；站著時轉成直的貼在外側 */
   .mh-move.v{
     position:absolute;top:0;bottom:0;width:16px;z-index:6;
-    background:#e7ebf3;color:var(--muted);cursor:grab;
+    background:var(--grip);color:var(--muted);cursor:grab;
     display:flex;align-items:center;justify-content:center;
     font-size:10px;line-height:1;letter-spacing:2px;user-select:none;touch-action:none;
     writing-mode:vertical-rl;
   }
-  .mh-move.v:hover{background:#d8deea;color:var(--ink)}
+  .mh-move.v:hover{background:var(--grip-hover);color:var(--ink)}
   .masthead.side.at-left .mh-move.v{left:0}
   .masthead.side.at-right .mh-move.v{right:0}
   #board.locked .mh-move.v{display:none}
   /* 拖到某一塊落點上：那一塊自己亮起來，放手就是它 */
-  .mh-zone.hot{background:var(--blue);color:#fff;border-style:solid}
+  .mh-zone.hot{background:var(--blue);color:var(--surface);border-style:solid}
+  /* 挑位置的時候版位標題先淡掉：「上」那一塊就站在它的位置上 */
+  #sheetPane.placing #blockHead{opacity:.12;pointer-events:none}
 
   /* product cards — .sq/.g2 two-tone carried over from dm-block-zoom.html */
   /* card type scaled up to dm-block-zoom.html's .sq baseline (10px) and its
      2px hover outline, so the labels stay readable at 8-to-10 columns */
   .cell{
-    flex:1 1 0;min-width:0;background:#fff;border:1px solid #c9d6e2;border-radius:3px;
+    flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--line-strong);border-radius:3px;
     padding:5px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;
     font-size:calc(10px * var(--z));line-height:1.3;text-align:center;overflow:hidden;
     touch-action:none;user-select:none;
@@ -876,7 +929,7 @@
   #sheetMain.tool-copy .cell{cursor:copy;user-select:none}
   #sheetMain.tool-copy .cell.copy-sel{outline:3px solid var(--blue);outline-offset:-3px}
   /* 手上拿著的那一格：虛線一直留著，才知道等一下貼的是誰 */
-  #sheetMain.tool-copy .cell.copy-src{outline:3px dashed #17663a;outline-offset:-3px}
+  #sheetMain.tool-copy .cell.copy-src{outline:3px dashed var(--ok-ink);outline-offset:-3px}
   .cell.copy-flash{animation:cellFlash .35s ease-out}
   @keyframes cellFlash{from{background:#fff2b8}to{background:transparent}}
 
@@ -884,7 +937,7 @@
   .row.masthead-row{gap:var(--gap)}
   .masthead{
     flex:1 1 0;min-width:0;position:relative;
-    border:2px dashed #b9c6d6;border-radius:6px;background:#fafbfd;
+    border:2px dashed #b9c6d6;border-radius:6px;background:var(--surface-2);
     display:flex;align-items:center;justify-content:center;
     color:var(--muted);font-weight:800;text-align:center;overflow:hidden;
     /* 這行字是說明，不是版面的一部分：它寫的是「這個框有多大」，所以框變大變小
@@ -899,9 +952,9 @@
   .masthead .mh-label{flex:0 1 auto;min-width:0;max-width:100%;font-weight:800}
   .masthead .mh-sub{display:inline}
   .masthead.tight .mh-sub{display:none}
-  .masthead.hasimg{border-style:solid;border-color:#c9d6e2;background:#fff}
+  .masthead.hasimg{border-style:solid;border-color:var(--line-strong);background:var(--surface)}
   .masthead img{width:100%;height:100%;object-fit:contain;display:block}
-  .masthead.dropping{border-color:var(--blue);background:#eef2fc;color:var(--blue)}
+  .masthead.dropping{border-color:var(--blue);background:var(--accent-tint);color:var(--blue)}
   /* pull the bottom edge to set 刊頭長度; mirrors the number field */
   .mh-grab{
     position:absolute;left:0;right:0;bottom:0;height:10px;cursor:ns-resize;z-index:4;
@@ -948,7 +1001,7 @@
     display:flex;align-items:center;justify-content:center;
     font-size:17px;font-weight:800;color:var(--blue);user-select:none;
   }
-  .mh-zone:hover{background:var(--blue);color:#fff;border-style:solid}
+  .mh-zone:hover{background:var(--blue);color:var(--surface);border-style:solid}
   .mh-zone.here{border-style:solid;background:rgba(74,111,220,.16)}
   /* 站在版外面，字排成直的才塞得下（左右那兩塊）；上下那兩塊照常橫著 */
   .mh-zone .now{font-size:11.5px;font-weight:800;opacity:.8;margin-left:6px}
@@ -961,7 +1014,7 @@
 
   .masthead .mh-x{
     position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;
-    border:none;background:rgba(51,58,69,.72);color:#fff;font-size:12px;font-weight:800;
+    border:none;background:rgba(51,58,69,.72);color:var(--surface);font-size:12px;font-weight:800;
     cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1;
   }
   .masthead:hover .mh-x{display:flex}
@@ -1003,7 +1056,7 @@
   /* --- cursor tip (dm-block-zoom.html #cursorTip) --- */
   #cursorTip{
     position:fixed;pointer-events:none;z-index:99;display:none;
-    background:var(--ink);color:#fff;font-size:11.5px;line-height:1.5;
+    background:var(--ink);color:var(--surface);font-size:11.5px;line-height:1.5;
     padding:5px 9px;border-radius:3px;white-space:nowrap;
     box-shadow:0 4px 14px rgba(28,27,25,.25);font-variant-numeric:tabular-nums;
   }
@@ -1028,9 +1081,9 @@
     transition:background .16s,color .16s,border-color .16s;
   }
   #saveState.on{display:inline-flex}
-  #saveState.dirty{color:var(--amber);background:var(--amber-bg);border-color:#f0dcae}
+  #saveState.dirty{color:var(--amber);background:var(--amber-bg);border-color:var(--warn-line)}
   #saveState.done {color:var(--green-ink);background:var(--green);border-color:var(--green-rule)}
-  #saveState.fail {color:#fff;background:var(--accent);border-color:var(--accent)}
+  #saveState.fail {color:var(--surface);background:var(--accent);border-color:var(--accent)}
   /* 進度跟著跑到那一列的最右邊，和檔期名各據一端 */
   .bar .prog{font-size:13px;font-weight:800;color:var(--amber)}
   .bar .prog b{color:var(--ink);font-variant-numeric:tabular-nums}
@@ -1043,12 +1096,12 @@
   }
   .toast{
     font-size:14.5px;font-weight:800;padding:10px 20px;border-radius:9px;
-    background:var(--ink);color:#fff;box-shadow:0 4px 16px rgba(30,40,60,.28);
+    background:var(--ink);color:var(--surface);box-shadow:0 4px 16px rgba(30,40,60,.28);
     max-width:min(90vw,540px);animation:popIn .16s ease-out;
   }
   .toast.ok  {background:var(--green);color:var(--green-ink);border:1px solid var(--green-rule)}
-  .toast.warn{background:var(--amber-bg);color:var(--amber);border:1px solid #f0dcae}
-  .toast.info{background:#e8efff;color:#2b3a5c;border:1px solid #b9cdf6}
+  .toast.warn{background:var(--amber-bg);color:var(--amber);border:1px solid var(--warn-line)}
+  .toast.info{background:var(--accent-tint);color:var(--accent-ink-strong);border:1px solid var(--accent-line)}
   .toast.out{animation:toastOut .2s ease-in forwards}
   @keyframes popIn{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
   @keyframes toastOut{to{transform:translateY(6px);opacity:0}}
@@ -1067,7 +1120,7 @@
   .modal h4{font-size:18px;font-weight:800;margin-bottom:9px}
   .modal p{font-size:14.5px;font-weight:800;color:var(--muted);line-height:1.65;margin-bottom:19px}
   .modal .acts{display:flex;gap:10px;justify-content:flex-end}
-  .modal .btn.danger{background:var(--accent);border-color:var(--accent);color:#fff}
+  .modal .btn.danger{background:var(--accent);border-color:var(--accent);color:var(--surface)}
   .modal .btn.danger:hover{background:#a5301f}
 
   /* ================= 參考線 (PS guides) ================= */
@@ -1086,7 +1139,7 @@
   /* ================= inline 尺 field on a divider ================= */
   .div-num{
     position:fixed;z-index:300;font-family:inherit;font-size:13px;font-weight:800;
-    width:88px;text-align:center;background:#fff;color:var(--ink);
+    width:88px;text-align:center;background:var(--surface);color:var(--ink);
     border:1px solid var(--blue);border-radius:6px;padding:4px 6px;
     box-shadow:0 4px 14px rgba(30,40,60,.26);
   }
@@ -1118,7 +1171,7 @@
 
   /* ================= 刊頭 rejected drop ================= */
   .masthead.reject{
-    border-color:var(--accent) !important;background:#fdeceb !important;
+    border-color:var(--accent) !important;background:var(--danger-tint) !important;
     color:var(--accent) !important;animation:lockShake .4s;
   }
 
@@ -1148,10 +1201,10 @@
   #view-total{background:var(--bg);border-radius:12px;padding:10px 0}
 
   /* ---- 上面那條 ---- */
-  .tab{background:rgba(255,255,255,.09);border-color:var(--chrome-line);color:#cfd9f2}
+  .tab{background:rgba(255,255,255,.09);border-color:var(--chrome-line);color:var(--accent-ink)}
   .tab:hover{background:rgba(255,255,255,.16)}
-  .tab.active{background:var(--blue);border-color:var(--blue);color:#fff}
-  .btn.icon{background:rgba(255,255,255,.09);border-color:var(--chrome-line);color:#cfd9f2}
+  .tab.active{background:var(--blue);border-color:var(--blue);color:var(--surface)}
+  .btn.icon{background:rgba(255,255,255,.09);border-color:var(--chrome-line);color:var(--accent-ink)}
   .btn.icon:hover:not(:disabled){background:rgba(255,255,255,.16)}
   .btn.icon:disabled{background:rgba(255,255,255,.04)}
   .toggle{color:var(--chrome-muted)}
@@ -1168,24 +1221,24 @@
   #pmTree .pt-root .sub,#pmTree .pt-type .caret,#pmTree .pt-type .n{color:var(--chrome-muted)}
   #pmTree .pt-type{color:var(--chrome-ink)}
   #pmTree .pt-type:hover{background:rgba(255,255,255,.08)}
-  #pmTree .pt-type.open{background:rgba(74,111,220,.30);color:#cfd9f2}
+  #pmTree .pt-type.open{background:rgba(74,111,220,.30);color:var(--accent-ink)}
   #pmTree .pt-blk{color:var(--chrome-muted)}
   #pmTree .pt-blk:hover{background:rgba(255,255,255,.08);color:var(--chrome-ink)}
-  #pmTree .pt-blk.active{background:var(--blue);color:#fff}
+  #pmTree .pt-blk.active{background:var(--blue);color:var(--surface)}
   #pmTree .pt-sep{color:var(--chrome-muted);border-top-color:var(--chrome-line)}
 
   /* ---- 右邊那欄：意見欄 ---- */
   #boardRail{background:var(--chrome);border-left-color:var(--chrome-line)}
   #railTitle{color:var(--chrome-ink)}
   #railSub,#stickTray .hint,#railEmpty{color:var(--chrome-muted)}
-  #railBack{background:rgba(74,111,220,.28);border-color:var(--blue);color:#cfd9f2}
+  #railBack{background:rgba(74,111,220,.28);border-color:var(--blue);color:var(--accent-ink)}
   #stickTray{border-color:var(--chrome-line)}
   .lg{background:rgba(255,255,255,.07);border-color:var(--chrome-line);color:var(--chrome-muted)}
-  .lg.on{color:#101828}                       /* 選中的那顆本來就上色，字要壓回深的 */
+  .lg.on{color:var(--ink-strong)}                       /* 選中的那顆本來就上色，字要壓回深的 */
 
   /* ---- 兩根書籤：站在深色上，自己也得是深色 ---- */
   .fold-tab{background:var(--chrome-2);border-color:var(--chrome-line);color:var(--chrome-ink)}
-  .fold-tab:hover{background:#3a4457;border-color:var(--blue);color:#cfd9f2}
+  .fold-tab:hover{background:#3a4457;border-color:var(--blue);color:var(--accent-ink)}
 
   /* ---- 拆框 ------------------------------------------------------------
      原本每一塊東西都用一圈線圍起來：版面一個框、意見欄一個框、每張卡再一個框。
@@ -1296,6 +1349,13 @@
   <div class="panel" id="view-board">
     <div id="boardSide"><div id="pmTree"></div></div>
     <div id="boardMain">
+      <!-- 便利貼蓋在版面上，要看原樣的時候整批收起來。浮在左欄旁邊：它管的是
+           版面上看得到什麼，不是意見欄裡的事 -->
+      <label class="toggle" id="markWrap">
+        <input type="checkbox" id="markToggle" checked>
+        <span class="track"></span>
+        <span>顯示便利貼</span>
+      </label>
       <div id="boardOverview"></div>
     </div>
     <!-- 意見欄：貼紙從這裡拖到格子上，貼上去的每一則都在下面排成一張卡 -->
@@ -1303,12 +1363,6 @@
       <div id="railHead">
         <span id="railTitle">全部問題</span>
         <button id="railBack">← 看全部</button>
-        <!-- 便利貼蓋在版面上，要看原樣的時候整批收起來 —— 開關就放在它們旁邊 -->
-        <label class="toggle" id="markWrap">
-          <input type="checkbox" id="markToggle" checked>
-          <span class="track"></span>
-          <span>顯示便利貼</span>
-        </label>
         <span id="railSub"></span>
       </div>
       <div id="railLegend"></div>
@@ -1759,8 +1813,11 @@ function groupLinesHTML(node){
 
 function renderLeaf(node){
   const el = document.createElement('div');
-  el.className = 'window-node';
-  el.style.backgroundColor = 'var(--pink)';
+  /* 底色跟小地圖同一套：灰＝還沒指派、白＝設計手上、綠＝已交出 */
+  const sh = node.sheet || {};
+  el.className = 'window-node'
+    + (sh.confirmed ? ' handed' : '')
+    + (sh.pm ? '' : ' unowned');
   el.setAttribute('data-items', JSON.stringify(
     node.groups.map(g => ({ cat: g.name, qty: g.count }))));
 
@@ -2640,9 +2697,12 @@ function miniFontSize(node, wpx, hpx){
 function renderMiniNode(node, wpx, hpx){
   if (isLeaf(node)){
     const el = document.createElement('div');
+    /* 底色講的是這一塊現在的狀態：沒人負責 / 設計手上 / 已交給 PM。
+       選中是藍框，不是藍底 —— 底色是「東西的狀態」，藍色是「你在哪裡」。 */
     el.className = 'mini-blk'
       + (activeBlock === node ? ' active' : '')
-      + (node.sheet.confirmed ? ' confirmed' : '');
+      + (node.sheet.confirmed ? ' confirmed' : '')
+      + (node.sheet.pm ? '' : ' unowned');
     // dm-block-zoom's 13px baseline, stepped down only as far as this
     // region's real pixel size demands, so nothing ever clips
     el.style.fontSize = miniFontSize(node, wpx, hpx) + 'px';
@@ -3440,7 +3500,10 @@ let mhPlacing = false;
 
 function mhWhereNow(sh){
   if (sh.mhSide) return sh.mhSide.side === 'left' ? 'left' : 'right';
-  const rows = sh.rows ? sh.rows.length : 0;
+  /* 卡片有幾列：sh.rows 要拖過列才會凍結，還沒拖過就是 null。以前這裡把 null
+     當 0 列，於是「排在第 0 列前面」（＝最上面）被判成 >= 0 ＝ 最下面 ——
+     刊頭明明在上面，落點卻標「現在在下面」。 */
+  const rows = (sh.rows && sh.rows.length) || cardRows().length || 1;
   return (sh.mastheadRow || 0) >= rows ? 'bottom' : 'top';
 }
 
@@ -3449,6 +3512,7 @@ function closeMhPlacer(){
   mhPlacing = false;
   if (mhDrag) mhDrag.hot = null;
   boardEl.classList.remove('placing');
+  document.getElementById('sheetPane').classList.remove('placing');
   boardEl.querySelectorAll('.mh-zone').forEach(z => z.remove());
 }
 
@@ -3459,6 +3523,7 @@ function openMhPlacer(){
   closeMhPlacer();
   mhPlacing = true;
   boardEl.classList.add('placing');
+  document.getElementById('sheetPane').classList.add('placing');   // 標題讓開
   const at = mhWhereNow(sh);
   /* 四塊站在版位「外面」的空地上，一塊都不壓到卡片：位置本來就是「相對這張版
      的哪一邊」，畫在版外面才看得懂，而且底下那張版全程看得見。 */
@@ -4844,7 +4909,9 @@ const openNotes = c => notesOf(c).filter(n => !n.done).length;
 /* 顏色回答「誰貼的」，圖示回答「哪一種」，角落那個字回答「哪一位」。
    一個管道一件事 —— 以前顏色管種類，結果版上最搶眼的訊號在回答最不急的問題。
    只分兩色：設計一色、PM 一色。十一位 PM 十一個顏色沒有人記得住。 */
-const ROLE_COLOR = { design:'#bcd3f7', pm:'#ffd447' };
+/* 設計＝淡紫、PM＝黃。兩個都不用藍（藍是「你正在點的東西」）、不用綠
+   （綠是「已交出」）、不用粉（粉是小地圖上的版位）—— 一個顏色只講一件事。 */
+const ROLE_COLOR = { design:'#d9d3f4', pm:'#ffd447' };
 const roleOfNote = n => {
   if (n && n.whoId) return n.whoId === 'design' ? 'design' : 'pm';
   return (n && n.who === '設計') ? 'design' : 'pm';       // 舊資料照名字認
@@ -4914,7 +4981,9 @@ function paintStickTray(){
   const hint = document.querySelector('#stickTray .hint');
   if (hint) hint.textContent = `${whoAmI()}的貼紙 — 拖到格子上（或先點貼紙，再點格子）`;
 }
-paintStickTray();
+/* 注意：這個函式問的是 activeMode / activePM，兩個都在這一行之後才宣告 ——
+   所以不要在這裡直接叫它（會 ReferenceError，整支程式就停在這裡）。
+   換身分時 applyMode() 會叫，開檔期列表時最下面那段開場也會叫。 */
 
 /** 點了貼紙就是「拿在手上」，下一次點格子就貼上去。 */
 function armKind(key){
@@ -6262,6 +6331,7 @@ window.addEventListener('beforeunload', e => {
 
 document.getElementById('snapToggle').checked = CONFIG.snapOn;
 renderPmSel();
+paintStickTray();     // 這裡才安全：上面該宣告的都宣告完了
 setTool(activeTool);
 syncTools();
 showList();
