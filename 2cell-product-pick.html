@@ -91,7 +91,7 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:52px;line-height:1}
 .spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
   font-size:14px;font-weight:800;margin-bottom:3px}
-.sku{font-size:12px;color:#333;line-height:1.35;white-space:nowrap}
+.sku{font-size:var(--sku-fs,12px);color:#333;line-height:1.35;white-space:nowrap}
 .guide{position:absolute;background:#e0329b;pointer-events:none;z-index:60}
 .guide.gv{top:0;bottom:0;width:1px}
 .guide.gh{left:0;right:0;height:1px}
@@ -395,6 +395,43 @@ const LEGACY_CW = 540;          // 舊檔的座標是照這個寬存的
    在這裡讀 PICK_Q 會 ReferenceError，然後整支程式停在這一行。 */
 let CM_W = 0, CM_H = 0;
 let CW = LEGACY_CW, CH = 420;
+
+/* ---- 字級：一個版位一套，上層說了算 ------------------------------------
+   PRICE_BASE 是價格的基準字級（CSS 裡 .blk.price 就是這個數字）。
+   自動縮放只負責「回報這一格需要縮到多少」，真正用哪一個由上層決定 ——
+   同一個版位裡同樣價格數的格子要一樣大，那件事只有看得到全部格子的人算得出來。
+   PRICE_PX：轉盤指定的絕對大小，蓋過自動縮放，允許溢出（談定的）。
+   GROUP_FS：上層收齊同組的需求、取最小之後廣播回來的比例。 */
+const PRICE_BASE = 52;
+let SKU_FS = 12;
+let PRICE_PX = 0;
+let GROUP_FS = 0;
+let priceWanted = 1;            // 這一格自己算出來、剛好裝得下的比例
+
+/** 這一格有幾個價格 —— 分組就是照這個分的。 */
+function priceCount(bs){ return (bs || BLOCKS).filter(b => b.kind === 'price').length; }
+
+/** 某一塊價格最後要用的比例。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
+function priceFs(b){
+  if(b.fsFix) return b.fsFix;
+  if(PRICE_PX) return PRICE_PX / PRICE_BASE;
+  if(GROUP_FS) return GROUP_FS;
+  return b.fs || 1;
+}
+
+/** 上層把這個版位的字級設定送下來。 */
+function applyType(t){
+  if(!t) return;
+  let hit = false;
+  if(+t.skuSize && +t.skuSize !== SKU_FS){ SKU_FS = +t.skuSize; hit = true; }
+  const px = +t.pricePx || 0;
+  if(px !== PRICE_PX){ PRICE_PX = px; hit = true; }
+  const g = +t.groupFs || 0;
+  if(g !== GROUP_FS){ GROUP_FS = g; hit = true; }
+  if(!hit) return;
+  document.documentElement.style.setProperty('--sku-fs', SKU_FS + 'px');
+  if(BLOCKS.length) renderOne(curCell, true);
+}
 let CELLS=[];          // [{id, picked:Set, blocks:[], layoutKey:''}]
 let curCell=0;         // 目前作用中的格子索引
 let GC=1, GR=1;        // 版面 欄×列
@@ -527,6 +564,7 @@ addEventListener('message',e=>{
   /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
      CW 還停在預設值的話就會照錯的比例縮。 */
   if(d.stageCm) applyStageCm(d.stageCm);
+  if(d.type) applyType(d.type);          // 這個版位的字級設定（SKU、價格）
   // 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）
   if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
@@ -726,9 +764,13 @@ function blockHTML(b,isCur=true){
   if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${brandHTML(b.name)}</div>`;
   if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">機型：${b.text}</div>`;
   if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
-  // fs：欄數多到一排放不下時，價格自己縮一級字，寧可小一點也不要疊在一起
-  if(b.kind==='price') return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${
-    b.fs&&b.fs<1?`;font-size:${Math.round(52*b.fs)}px`:''}">${b.price.toLocaleString()}</div>`;
+  /* 價格用哪一級字由 priceFs() 決定：單格微調 > 轉盤 > 同組最小 > 自己算的。
+     轉盤是允許溢出的（談定的），所以這裡不夾上限。 */
+  if(b.kind==='price'){
+    const fs=priceFs(b);
+    return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${
+      fs&&fs!==1?`;font-size:${(PRICE_BASE*fs).toFixed(1)}px`:''}">${b.price.toLocaleString()}</div>`;
+  }
   // sku
   return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">`+
     `<div class="sku">${skuLine(b.vs)}</div></div>`;
@@ -838,23 +880,26 @@ function autoSpace(){
     const avail=CW-PAD*2;
 
     /* 價格是這裡最寬的東西（Anton 52px）。欄數一多，光價格就排不下一列 —
-       那就讓價格縮字，而不是讓它們互相疊上去。縮到 0.55 為止，再小就沒意義了。 */
+       那就讓價格縮字，而不是讓它們互相疊上去。縮到 0.55 為止，再小就沒意義了。
+
+       這裡只算出「這一格自己需要縮到多少」（priceWanted）並往上報。真正用哪一個
+       比例由 priceFs() 決定 —— 同一個版位裡同樣價格數的格子要一樣大，那要收齊
+       全部格子才算得出來，一格自己看不到別人。0.55 這個下限只管自動算的這一份，
+       轉盤和單格微調不受它限制。 */
     let need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
-    if(need>avail){
-      const fs=Math.max(.55, avail/need);
-      keys.forEach(key=>{
-        const list=cols.get(key), hs=sizes.get(key);
-        list.forEach((b,j)=>{
-          if(b.kind!=='price') return;
-          b.fs=fs; moved=true;
-          hs[j]={ w:hs[j].w*fs, h:hs[j].h*fs };   // 字縮了，佔的位置跟著縮
-        });
+    priceWanted = need>avail ? Math.max(.55, avail/need) : 1;
+    keys.forEach(key=>{
+      const list=cols.get(key), hs=sizes.get(key);
+      list.forEach((b,j)=>{
+        if(b.kind!=='price') return;
+        const was=b.fs;
+        b.fs=priceWanted;
+        const eff=priceFs(b);
+        if(was!==b.fs) moved=true;
+        hs[j]={ w:hs[j].w*eff, h:hs[j].h*eff };   // 字縮了，佔的位置跟著縮
       });
-      need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
-    } else {
-      // 放得下就把字還回去（上一組選得多、這一組選得少的時候）
-      BLOCKS.forEach(b=>{ if(b.kind==='price'&&b.fs&&b.fs<1){ b.fs=1; moved=true; } });
-    }
+    });
+    need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
 
     const widths=keys.map(wide);
     let x=Math.max(PAD, CW-PAD-need);
@@ -1426,8 +1471,11 @@ function boardState(){
   saveCell();
   const c = cell(); if(!c) return null;
   /* v 是座標系的版本章：2 ＝ 已經是「照真實尺寸」那一套。沒有 v 的是舊檔，
-     讀進來時換算一次（見 restoreBoard），蓋了章就不會再換第二次。 */
-  return { v:2, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey };
+     讀進來時換算一次（見 restoreBoard），蓋了章就不會再換第二次。
+     nPrice／wantFs 是報給上層分組用的：這一格有幾個價格、自己需要縮到多少。
+     上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
+  return { v:2, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
+           nPrice: priceCount(c.blocks), wantFs: priceWanted };
 }
 let reportTimer = 0;
 function reportBoard(){

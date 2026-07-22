@@ -105,6 +105,23 @@
   #confirmBtn:hover{background:var(--accent-strong);box-shadow:0 12px 32px rgba(0,0,0,.42)}
   #confirmBtn.is-confirmed{background:var(--surface);color:var(--green-ink);border-color:var(--green-rule)}
 
+  /* 字級那一排：跟工具站在一起，因為它跟工具一樣是「對這個版位做的事」。
+     只有 拼板 看得到 —— 落版 上沒有價格可以調。 */
+  #typeWrap{display:none;align-items:center;gap:10px;padding-left:12px;
+            border-left:1px solid var(--chrome-line,rgba(255,255,255,.25))}
+  #typeWrap.on{display:flex}
+  #typeWrap .tw-lab{font-size:13px;font-weight:800;color:var(--accent-ink,#cfd8ea)}
+  #typeWrap .tw-n{display:flex;align-items:center;gap:4px;
+                  font-size:12.5px;font-weight:800;color:var(--accent-ink,#cfd8ea)}
+  #typeWrap input{width:52px;padding:4px 5px;border-radius:6px;
+                  border:1px solid var(--chrome-line,rgba(255,255,255,.3));
+                  background:rgba(255,255,255,.1);color:#fff;
+                  font-family:inherit;font-size:12.5px;font-weight:800}
+  #typeWrap input:focus{outline:none;border-color:var(--blue)}
+  /* 沒設過的那一格顯示 placeholder「自動」，要看得出來它是空的 */
+  #typeWrap input::placeholder{color:rgba(255,255,255,.5);font-weight:700}
+  #typeWrap #typeReset{padding:5px 10px;font-size:12.5px}
+
   .toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;color:var(--muted);cursor:pointer;user-select:none}
   .toggle input{position:absolute;opacity:0;pointer-events:none}
   .track{width:42px;height:23px;border-radius:999px;background:#cfd6e3;position:relative;transition:background .16s}
@@ -1393,6 +1410,16 @@
         <span class="track"></span>
         <span>顯示落版文字</span>
       </label>
+      <!-- 字級：一個版位一套。價格照「這一格有幾個價格」分三組，各自一個轉盤。
+           作用範圍是這個版位，不會動到別的版位。 -->
+      <div id="typeWrap">
+        <span class="tw-lab">字級</span>
+        <label class="tw-n">SKU<input type="number" id="skuSize" min="4" max="60" step="0.5"></label>
+        <label class="tw-n">一價<input type="number" id="price1" min="8" max="200" step="1" placeholder="自動"></label>
+        <label class="tw-n">二價<input type="number" id="price2" min="8" max="200" step="1" placeholder="自動"></label>
+        <label class="tw-n">三價<input type="number" id="price3" min="8" max="200" step="1" placeholder="自動"></label>
+        <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動">自動</button>
+      </div>
     </div>
   </div>
 
@@ -2959,6 +2986,8 @@ function switchBlock(block){
     closeBoardCell();
     focusCell = null; selNote = null;
     paintBoardThumbs(); applyPmFocus(); renderRail(); applyFocusCell();
+    syncTypeBar();          // 換版位＝換一套字級設定
+    queueType(block);
   }
   /* 換到一個新的版位＝要「先看到它整張」，所以自己縮到剛好、擺到正中間。
      只在真的換版位時做 —— 在同一個版位裡切分頁、重畫，都不該把你自己
@@ -4825,11 +4854,13 @@ const VIEWS = {
       confirmBtn.style.display = 'none';
       document.getElementById('toolHint').style.display = 'none';
       showBoardOverview();
+      syncTypeBar();          // 字級那一排只有這一頁看得到
     },
     unmount(){
       hideTip(); closeBoardCell(); armKind(null); clearBoardThumbs();
       wordWrap.style.display = 'none';
       markWrap.style.display = 'none';
+      typeWrap.classList.remove('on');
     }
   }
 };
@@ -5044,7 +5075,71 @@ addEventListener('message', e => {
   target.board = { state: d.state };  // 畫布報的（含每一塊的位置）
   if (!pickedOf(target).length) paintOneCanvas(target);   // 全取消了就把畫布撤掉
   else markBadge(target);
+  /* 這一格報了新的需求＝同組的最小值可能變了，整個版位重算一次再發回去。
+     排隊等一下：一次挑好幾格會連著報好幾次，收在一起算一次就好。 */
+  queueType();
   commitAction();                    // 圖搬到哪裡也是一步
+});
+
+/* pushType 會讓每一塊畫布重排，所以不要一報就跑一次。 */
+let typeTimer = 0;
+function queueType(block){
+  const b = block || activeBlock;
+  clearTimeout(typeTimer);
+  typeTimer = setTimeout(() => { pushType(b); syncTypeBar(); }, 80);
+}
+
+/* ---- 字級那一排 ---- */
+const typeWrap  = document.getElementById('typeWrap');
+const skuSizeEl = document.getElementById('skuSize');
+const priceEls  = [1, 2, 3].map(n => document.getElementById('price' + n));
+
+/** 把現在的設定寫回輸入框；沒設過的留空，placeholder 會顯示「自動」。 */
+function syncTypeBar(){
+  const on = activeTab === 'board' && !!activeBlock;
+  typeWrap.classList.toggle('on', on);
+  if (!on) return;
+  const t = typeOf(sheetOf(activeBlock));
+  if (document.activeElement !== skuSizeEl) skuSizeEl.value = t.skuSize;
+  priceEls.forEach((el, i) => {
+    if (document.activeElement === el) return;     // 正在打字就別去動它
+    const v = t.priceByCount[i + 1];
+    el.value = v == null ? '' : v;
+  });
+}
+
+skuSizeEl.addEventListener('input', () => {
+  if (!activeBlock) return;
+  const v = +skuSizeEl.value;
+  if (!v || v < 4 || v > 60) return;               // 打到一半的數字先不要套
+  typeOf(sheetOf(activeBlock)).skuSize = v;
+  pushType(activeBlock);
+  markDirty();                                     // 進歷史等放開手（change）
+});
+skuSizeEl.addEventListener('change', () => { if (activeBlock) commitAction(); });
+
+priceEls.forEach((el, i) => {
+  el.addEventListener('input', () => {
+    if (!activeBlock) return;
+    const raw = el.value.trim();
+    const v = raw === '' ? null : +raw;
+    if (v !== null && (!v || v < 8 || v > 200)) return;
+    typeOf(sheetOf(activeBlock)).priceByCount[i + 1] = v;
+    pushType(activeBlock);
+    markDirty();
+  });
+  el.addEventListener('change', () => { if (activeBlock) commitAction(); });
+});
+
+/* 交還給自動：三個轉盤一起清掉，價格回到「同組取最小」那一套。 */
+document.getElementById('typeReset').addEventListener('click', () => {
+  if (!activeBlock) return;
+  const t = typeOf(sheetOf(activeBlock));
+  t.priceByCount = { 1:null, 2:null, 3:null };
+  syncTypeBar();
+  pushType(activeBlock);
+  commitAction();
+  toast('價格字級交回自動', 'info', 1400);
 });
 
 /* 商品版面那一頁要怎麼載進來。
@@ -5720,6 +5815,56 @@ document.addEventListener('keydown', e => {
 }, true);
 
 /** 這一格該不該有畫布：有挑東西就給它一個，沒有就撤掉。 */
+/* ---- 字級：一個版位一套 ----------------------------------------------------
+   規格談定的是「同一個版位裡，價格數一樣的格子，價格就一樣大」——
+   作用範圍是版位，不是整份 DM，版位跟版位之間本來就可以不一樣。
+
+   住在 sheet 身上（跟 confirmed／pm／masthead 放一起），也就住在 plan.layout
+   底下 —— snapshot() 一序列化就有了，存檔和 Ctrl+Z 是免費的。
+
+   priceByCount 存的是絕對 px：轉盤蓋過自動縮放，「一樣大」就該是一樣的 px。
+   null ＝ 還沒動過那一組，用畫布自己算出來、同組取最小的那個值。 */
+const TYPE_DEFAULT = { skuSize: 12, priceByCount: { 1:null, 2:null, 3:null } };
+function typeOf(sh){
+  if (!sh.type) sh.type = JSON.parse(JSON.stringify(TYPE_DEFAULT));
+  if (!sh.type.priceByCount) sh.type.priceByCount = { 1:null, 2:null, 3:null };
+  if (!+sh.type.skuSize) sh.type.skuSize = TYPE_DEFAULT.skuSize;
+  return sh.type;
+}
+
+/* 同一個版位裡，每一種價格數各自需要縮到多少 —— 取那一組裡最擠的那一格。
+   四個價格以上不進任何組（談定的：只走自動縮放、沒有轉盤），所以不收。 */
+function priceGroupFs(sh){
+  const g = {};
+  (sh.cells || []).forEach(c => {
+    const st = (c.board && c.board.state) || null;
+    if (!st || !st.nPrice || st.nPrice > 3) return;
+    const w = +st.wantFs || 1;
+    g[st.nPrice] = g[st.nPrice] == null ? w : Math.min(g[st.nPrice], w);
+  });
+  return g;
+}
+
+/** 把這個版位的字級設定送給它底下每一塊畫布。 */
+function pushType(block){
+  if (!block) return;
+  const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh);
+  (sh.cells || []).forEach(c => {
+    const f = canvasFrame(c.id);
+    if (!f || !f.contentWindow) return;
+    const st = (c.board && c.board.state) || null;
+    const n = st && st.nPrice;
+    const dial = (n && n <= 3) ? t.priceByCount[n] : null;
+    try {
+      f.contentWindow.postMessage({ type: {
+        skuSize: t.skuSize,
+        pricePx: +dial || 0,                       // 0 ＝ 沒設，用同組最小
+        groupFs: (n && g[n]) ? g[n] : 0
+      } }, '*');
+    } catch (_){}
+  });
+}
+
 /* 這一格在版上實際多大（cm）。畫布的排版座標系照這個開，「1cm」在每一格
    都一樣長 —— 本來每一格都用固定 540 寬，窄格子等於被整個壓小，寫死的
    字級跟著失真。cm 是實際尺寸，跟縮放無關：r.width 和 pxPerCm 都含了
@@ -5761,6 +5906,7 @@ function paintOneCanvas(c){
 /** 整張版：每一格該有畫布的都給它。只有 拼板 這一頁會叫。 */
 function paintBoardThumbs(){
   if (activeTab !== 'board' || !activeBlock) return;
+  queueType(activeBlock);        // 畫布重新掛上來，字級設定要跟著再送一次
   (sheetOf(activeBlock).cells || []).forEach(paintOneCanvas);
   document.getElementById('boardOverview').classList.toggle('nomarks', !showMarks);
 }
