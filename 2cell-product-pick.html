@@ -410,12 +410,17 @@ let picked = new Set();   // 選中的 row._i
 let q = '';
 const $=s=>document.querySelector(s);
 
+/* 參數平常從網址來（?ui=stage&cell=…）。單檔版把這一頁整個塞進 srcdoc，
+   那時候 location 是 about:srcdoc、沒有 query，所以上層改成先塞一個
+   window.__PICK_PARAMS 進來 —— 兩種載入方式都走這一行。 */
+const PICK_Q = new URLSearchParams(window.__PICK_PARAMS || location.search);
+
 /* ====== 身分：design = 只排版；pm = 只帶商品 ======
    由上層頁面決定：載入時寫在網址 ?role=，之後切換用 postMessage 通知。 */
-let ROLE = new URLSearchParams(location.search).get('role')==='pm' ? 'pm' : 'design';
+let ROLE = PICK_Q.get('role')==='pm' ? 'pm' : 'design';
 /* 只出借面板：被落版嵌在那一格旁邊時，這頁只露出他要用的那一塊面板
    （PM 挑貨、設計 圖層），版面本身在外面那張版上看。 */
-const UI_MODE = new URLSearchParams(location.search).get('ui') || '';
+const UI_MODE = PICK_Q.get('ui') || '';
 const UI_PANEL = UI_MODE==='panel', UI_STAGE = UI_MODE==='stage';
 if(UI_PANEL) document.body.classList.add('ui-panel');
 if(UI_STAGE) document.body.classList.add('ui-stage');
@@ -1349,7 +1354,7 @@ function refreshAll(){ reindex(); renderPick(); renderEdit(); renderCell(); rend
    落版上那一格裡跑的是這一頁的 ui=stage，旁邊那塊面板是這一頁的 ui=panel —
    同一支程式的兩個面向。面板挑了什麼，經由上層轉給畫布；畫布排好的樣子往上
    報一份，存進檔期。沒有縮圖這回事：看到的那一格就是畫布本人。 */
-const CELL_ID = new URLSearchParams(location.search).get('cell') || '';
+const CELL_ID = PICK_Q.get('cell') || '';
 const UI_SRC  = UI_STAGE ? 'stage' : (UI_PANEL ? 'panel' : 'full');
 
 function boardState(){
