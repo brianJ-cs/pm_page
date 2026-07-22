@@ -1173,6 +1173,47 @@
     content:"✓";position:absolute;top:2px;right:5px;line-height:1;
     font-size:12px;font-weight:800;color:var(--green-ink);
   }
+  /* 右上角同時要放紅點的時候，✓ 讓到左邊去 —— 兩個都是狀態，誰都不該被蓋掉 */
+  .mini-blk.confirmed.has-notes::after{right:auto;left:4px}
+
+  /* PM 動過的那一格，設計在 落版 看得到。
+     用 ::after 而不是塞一個 <span> 進去：格子是 contentEditable 的，
+     打字時 cell.text 讀的是 el.textContent —— 真的塞一塊進去，
+     「已填寫」三個字就會被存進品名裡。虛擬元素不算在 textContent 裡。
+     只在 落版（#view-sheet）出現；拼板 借同一份 DOM，那邊看得到內容本人。 */
+  #view-sheet .cell.pm-filled{position:relative}
+  #view-sheet .cell.pm-filled::after{
+    content:"已填寫";position:absolute;top:2px;right:3px;
+    font-size:9px;font-weight:800;line-height:1.25;padding:1px 4px;border-radius:6px;
+    background:var(--ok-tint,#e6f4ec);color:var(--ok-ink,#1a7f47);
+    border:1px solid var(--green-rule,#9ccfb2);pointer-events:none;
+  }
+
+  /* 小地圖上的貼紙統計：左下角一種一枚，右上角一顆紅色總數。
+     這一組是「標記」，固定大小 —— 版位縮到多小它都要看得清楚。 */
+  .mini-notes{
+    position:absolute;left:3px;bottom:3px;display:flex;gap:2px;align-items:flex-end;
+    pointer-events:none;
+  }
+  .mnk{
+    width:13px;height:13px;border-radius:3px;flex:0 0 auto;
+    display:flex;align-items:center;justify-content:center;position:relative;
+    font-size:9px;font-style:normal;font-weight:800;color:#3a3a3a;
+    border:1px solid rgba(16,24,40,.28);box-shadow:0 1px 2px rgba(16,24,40,.22);
+  }
+  /* 留言沒有圖示，那就讓它是一張空白的貼紙 —— 形狀本身就是它 */
+  .mnk.plain{}
+  .mnk b{
+    position:absolute;right:-3px;bottom:-4px;font-size:8px;line-height:1;
+    color:var(--ink);background:var(--surface);border-radius:5px;padding:0 2px;
+    border:1px solid rgba(16,24,40,.3);
+  }
+  .mini-cnb{
+    position:absolute;top:2px;right:3px;min-width:14px;height:14px;padding:0 3px;
+    border-radius:8px;background:var(--danger-ink,#d92d20);color:#fff;
+    font-size:9.5px;font-weight:800;line-height:14px;text-align:center;
+    box-shadow:0 1px 3px rgba(16,24,40,.35);pointer-events:none;
+  }
 
   /* ================= 刊頭 rejected drop ================= */
   .masthead.reject{
@@ -2721,6 +2762,33 @@ function renderMiniNode(node, wpx, hpx){
     el.style.fontSize = miniFontSize(node, wpx, hpx) + 'px';
     el.innerHTML = node.groups.map(g => `<div>${g.name}${
       g.count ? `<span class="cnt">(${g.count})</span>` : ''}</div>`).join('');
+    /* 這個版位還欠幾則：哪一種、各幾則排在左下角，總數是右上角那顆紅點。
+       不必點進去就看得出來哪一塊還有事情沒處理。 */
+    const roll = noteRollup(node);
+    if (roll.total){
+      el.classList.add('has-notes');
+      const row = document.createElement('div');
+      row.className = 'mini-notes';
+      roll.kinds.forEach(({ k, n }) => {
+        const chip = document.createElement('i');
+        chip.className = 'mnk' + (k.icon ? '' : ' plain');
+        chip.style.background = k.color;
+        chip.textContent = k.icon;
+        if (n > 1){
+          const b = document.createElement('b');
+          b.textContent = n;
+          chip.appendChild(b);
+        }
+        chip.title = `${k.label} ${n} 則還沒處理`;
+        row.appendChild(chip);
+      });
+      el.appendChild(row);
+      const dot = document.createElement('span');
+      dot.className = 'mini-cnb';
+      dot.textContent = roll.total;
+      dot.title = roll.total + ' 則還沒處理';
+      el.appendChild(dot);
+    }
     el.addEventListener('click', () => switchBlock(node));
     el.addEventListener('mousemove', e => showTip(e, tipForBlock(node)));
     el.addEventListener('mouseleave', hideTip);
@@ -2872,6 +2940,7 @@ function renderMinimap(){
 }
 
 function switchBlock(block){
+  const moved = block !== activeBlock;      // 真的換了一個版位，不是重畫同一個
   activeBlock = block;
   renderMinimap();
   renderHead();
@@ -2883,6 +2952,10 @@ function switchBlock(block){
     focusCell = null; selNote = null;
     paintBoardThumbs(); applyPmFocus(); renderRail(); applyFocusCell();
   }
+  /* 換到一個新的版位＝要「先看到它整張」，所以自己縮到剛好、擺到正中間。
+     只在真的換版位時做 —— 在同一個版位裡切分頁、重畫，都不該把你自己
+     調好的縮放洗掉。 */
+  if (moved) zoomToFit(true);
 }
 
 /* --- cursor tip, lifted from dm-block-zoom.html --- */
@@ -3072,7 +3145,12 @@ function renderHead(){
    way, so unlocking to re-arrange never makes the existing copy jump size. */
 function makeCard(cell, confirmed){
   const el = document.createElement('div');
+  /* PM 在這一格動過手（挑了貨、或留了話）＝設計在 落版 就看得到「已填寫」，
+     不必切到 拼板 一格一格點開來確認。這是交接的反方向：
+     confirmed 是設計交給 PM，這個是 PM 交回來的回音。 */
+  const pmFilled = !!pickedOf(cell).length || !!notesOf(cell).length;
   el.className = 'cell copy' + (confirmed ? ' editable' : '')
+                             + (pmFilled ? ' pm-filled' : '')
                              + (cell.gi === 1 ? ' g2' : '');   // dm-block-zoom .sq.g2
   el.dataset.cellId = cell.id;
   el.dataset.gi = cell.gi;             // 拼板要靠它認出這一格是哪個品類
@@ -3224,8 +3302,21 @@ function sheetSig(m){
          m.sh.cells.map(c => c.id).join(',');
 }
 
+/* PM 動過沒有，是在別的分頁改的（拼板 挑貨、貼便利貼）—— 那些都不會動到
+   sheetSig，因為版面的結構真的沒變，所以格子不會重建。既然不重建，這個記號
+   就得在「只調大小」這一趟自己更新，不然它永遠停在上次重建時的樣子。 */
+function syncPmFilled(sh){
+  const by = new Map((sh.cells || []).map(c => [String(c.id), c]));
+  boardEl.querySelectorAll('.cell').forEach(el => {
+    const c = by.get(el.dataset.cellId);
+    if (!c) return;
+    el.classList.toggle('pm-filled', !!pickedOf(c).length || !!notesOf(c).length);
+  });
+}
+
 /** Size-only pass: no DOM is created, so focus, caret and selection survive. */
 function layoutGrid(m){
+  syncPmFilled(m.sh);
   boardEl.style.setProperty('--z', sheetZoom);   // card type scales with it
   boardEl.style.width = m.gridW + 'px';
   sizeSideMasthead(m);
@@ -4312,8 +4403,19 @@ function setZoom(next, cx, cy){
   syncZoomHint();
 }
 
-/** Ctrl/Cmd+0 — shrink until the whole 版位 is inside the pane. */
-function zoomToFit(){
+/* 把版面挪到畫布正中間。#sheetMain 四周留了很大一圈 padding（30vh／40%）讓人
+   可以把版面拖到旁邊看，所以捲到 0,0 是停在那圈留白上，不是停在版面上 ——
+   要置中只能量出來：兩個中心點差多少，就捲多少。 */
+function centreSheet(){
+  const pr = sheetMainEl.getBoundingClientRect();
+  const br = boardEl.getBoundingClientRect();
+  sheetMainEl.scrollLeft += (br.left + br.width  / 2) - (pr.left + pr.width  / 2);
+  sheetMainEl.scrollTop  += (br.top  + br.height / 2) - (pr.top  + pr.height / 2);
+}
+
+/** Ctrl/Cmd+0 — shrink until the whole 版位 is inside the pane, then centre it.
+    quiet＝換版位時自己跑的那一次，不用每次都跳一個提示出來。 */
+function zoomToFit(quiet){
   if (!activeBlock) return;
   // measure the 100% layout, then render once at whatever ratio fits it
   sheetZoom = 1;
@@ -4321,15 +4423,15 @@ function zoomToFit(){
   const availW = sheetMainEl.clientWidth - 12;
   const availH = sheetMainEl.clientHeight - blockHead.offsetHeight - 34;
   const w = boardEl.scrollWidth, h = boardEl.scrollHeight;
+  /* 取小的那一個＝比較擠的那一邊剛好進得來，長的那一邊自然也就進得來 */
   const k = (w > 0 && h > 0) ? Math.min(availW / w, availH / h) : 1;
 
   sheetZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, k));
   redrawSheet();
-  sheetMainEl.scrollLeft = 0;
-  sheetMainEl.scrollTop = 0;
+  centreSheet();
   zoomVal.textContent = Math.round(sheetZoom * 100) + '%';
   syncZoomHint();
-  toast(`符合視窗 ${Math.round(sheetZoom * 100)}%`, 'info', 1400);
+  if (!quiet) toast(`符合視窗 ${Math.round(sheetZoom * 100)}%`, 'info', 1400);
 }
 
 /* A wheel fires far faster than the screen repaints, so the handler only does
@@ -4671,12 +4773,21 @@ const VIEWS = {
       applyShowCopy();                      // survives a view switch
       hostSheet(document.getElementById('view-sheet'));
       clearBoardThumbs();                   // 拼板的畫布、貼紙、數字都不進這一頁
+      /* 第一次看到某個版位（剛開檔期、還沒挑過）＝要先看到它整張，
+         所以縮到剛好、擺正中間。本來就有選著的版位不動 —— 在同一個版位裡
+         切分頁不該把你調好的縮放洗掉。 */
+      const fresh = !activeBlock;
       if (!activeBlock) activeBlock = collectBlocks(layout.front, [])[0];
       renderMinimap();
       renderHead();
       renderGrid(activeBlock);
       renderConfirmBtn();
       showHint();
+      /* 第一次看到＝縮到剛好再擺中間；已經在看的那一個只擺中間，不動縮放。
+         兩頁的可用寬度不一樣（拼板 右邊還有意見欄），所以切回來一定要重新
+         置中，不然版面看起來是歪的。 */
+      if (fresh && activeBlock) zoomToFit(true);
+      else if (activeBlock) requestAnimationFrame(centreSheet);
     },
     unmount(){ hideTip(); }
   },
@@ -4739,6 +4850,7 @@ function showBoardOverview(){
   ov.classList.add('on');
   ov.classList.toggle('pm', activeMode === 'pm');   // PM 不在版上搬東西
   // PM 那邊由 pickPmDefaultBlock 決定看得到哪一個（可能一個都沒有）
+  const fresh = !activeBlock;          // 這一趟才挑到版位＝第一次看到它
   if (!activeBlock && activeMode !== 'pm') activeBlock = collectBlocks(layout.front, [])[0];
   // 設計靠小地圖找版位，PM 靠品類找貨 — 同一欄，兩種左邊
   side.classList.toggle('pm', activeMode === 'pm');
@@ -4751,8 +4863,10 @@ function showBoardOverview(){
   renderRail();
   applyFocusCell();
   syncRailTop();
-  // 左右都留了空地，一進來要停在正中間，不然會以為版面跑掉了
-  requestAnimationFrame(centerBoardScroll);
+  /* 第一次看到這個版位就縮到剛好、擺正中間；本來就在看的那一個維持原樣，
+     只把左右的空地捲回中間（不然會以為版面跑掉了）。 */
+  if (fresh && activeBlock) zoomToFit(true);
+  else requestAnimationFrame(centreSheet);
 }
 
 /** 意見欄從分頁列底下開始 —— 量出來的，換字級、換視窗都不會壓到上面那條。 */
@@ -4958,6 +5072,33 @@ const kindOf = k => NOTE_KINDS.find(n => n.key === k) || NOTE_KINDS[NOTE_KINDS.l
 const icoHTML = k => k.icon ? `<span class="ico">${k.icon}</span>` : '';
 const notesOf = c => (c.notes || (c.notes = []));
 const openNotes = c => notesOf(c).filter(n => !n.done).length;
+
+/* 一個版位上還沒處理的貼紙，照種類點一遍。小地圖上一塊只有幾十 px，
+   放不下一張一張的貼紙 —— 所以每一種只畫一枚，數量寫在旁邊。
+   只算沒處理的，跟格子上那顆紅色數字（openNotes）同一個意思：
+   同一個數字在兩個地方要講同一件事，不然對不起來。 */
+/* 貼紙一增一減一處理完，小地圖上那顆數字就得跟著動 —— 不然它講的是上一次
+   進來的事。PM 那邊左欄是品類樹、沒有這個統計，所以不用重畫。 */
+function refreshNoteCounts(){
+  if (activeMode !== 'pm') renderMinimap();
+}
+
+function noteRollup(block){
+  const cells = (block && block.sheet && block.sheet.cells) || [];
+  const byKind = new Map();
+  let total = 0;
+  cells.forEach(c => notesOf(c).forEach(n => {
+    if (n.done) return;
+    const k = kindOf(n.key);
+    byKind.set(k.key, (byKind.get(k.key) || 0) + 1);
+    total++;
+  }));
+  return {
+    total,
+    kinds: NOTE_KINDS.filter(k => byKind.has(k.key))
+                     .map(k => ({ k, n: byKind.get(k.key) }))
+  };
+}
 /* 顏色回答「誰貼的」，圖示回答「哪一種」，角落那個字回答「哪一位」。
    一個管道一件事 —— 以前顏色管種類，結果版上最搶眼的訊號在回答最不急的問題。
    只分兩色：設計一色、PM 一色。十一位 PM 十一個顏色沒有人記得住。 */
@@ -5096,6 +5237,7 @@ function dropNote(key, el, cx, cy){
   setRail(true);                      // 貼完要看得到那張卡
   paintAllNoteMarks();
   renderRail();
+  refreshNoteCounts();
   applyFocusCell();
   toast(`貼上「${kindOf(key).label}」`, 'ok', 1500);
   const ta = document.querySelector('.icard.sel textarea');
@@ -5405,14 +5547,14 @@ function noteCard(x){
   ok.addEventListener('click', e => {
     e.stopPropagation();
     n.done = !n.done;
-    commitAction(); renderRail(); paintNoteMarks(cell);
+    commitAction(); renderRail(); paintNoteMarks(cell); refreshNoteCounts();
   });
   del.addEventListener('click', e => {
     e.stopPropagation();
     const list = notesOf(cell), i = list.indexOf(n);
     if (i >= 0) list.splice(i, 1);
     if (selNote === n.id) selNote = null;
-    commitAction(); renderRail(); paintNoteMarks(cell);
+    commitAction(); renderRail(); paintNoteMarks(cell); refreshNoteCounts();
   });
   acts.append(send, ok);
   if (mine) acts.append(del);          // 撕掉別人的標記不是你的權限
