@@ -89,16 +89,20 @@
   }
   .btn.icon:hover:not(:disabled){background:var(--accent-tint-2)}
   .btn.icon:disabled{opacity:.38;cursor:not-allowed;background:var(--card)}
-  /* 鎖定鈕浮在工具列右邊、版面上方：手在工具那一帶，鎖定也就在手邊 —— 不必
-     為了鎖一張版把視線拉到畫面最上面那條去。 */
+  /* 鎖定鈕浮在畫面右邊、垂直置中：這是整個 落版 最後要做的那一件事，
+     大一點、固定在同一個地方，不必每次去找它在哪。
+     只有 落版 會出現，而 意見欄 是 拼板 才有的 —— 右邊這一帶不會撞到東西。 */
   #confirmBtn{
-    position:absolute;left:calc(100% + 14px);top:2px;z-index:20;white-space:nowrap;
-    font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer;
-    border:1px solid var(--blue);border-radius:8px;padding:8px 18px;
+    position:fixed;right:26px;top:50%;transform:translateY(-50%);
+    z-index:60;white-space:nowrap;text-align:center;line-height:1.3;
+    font-family:inherit;font-size:19px;font-weight:800;cursor:pointer;
+    border:2px solid var(--blue);border-radius:14px;padding:18px 26px;
     background:var(--blue);color:var(--surface);display:none;
-    box-shadow:0 4px 12px rgba(0,0,0,.28);
+    box-shadow:0 10px 28px rgba(0,0,0,.34);
+    transition:background-color .13s ease,box-shadow .13s ease;
   }
-  #confirmBtn:hover{background:var(--accent-strong)}
+  #confirmBtn .lk{display:block;font-size:30px;line-height:1;margin-bottom:7px}
+  #confirmBtn:hover{background:var(--accent-strong);box-shadow:0 12px 32px rgba(0,0,0,.42)}
   #confirmBtn.is-confirmed{background:var(--surface);color:var(--green-ink);border-color:var(--green-rule)}
 
   .toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;color:var(--muted);cursor:pointer;user-select:none}
@@ -940,10 +944,11 @@
     border:2px dashed #b9c6d6;border-radius:6px;background:var(--surface-2);
     display:flex;align-items:center;justify-content:center;
     color:var(--muted);font-weight:800;text-align:center;overflow:hidden;
-    /* 這行字是說明，不是版面的一部分：它寫的是「這個框有多大」，所以框變大變小
-       它都該是同一個大小 —— 跟著縮放一起長大只會讓人以為刊頭裡真的有這行字。
+    /* 跟著縮放：這行字要看起來像「印在版上」的，不是浮在螢幕上的說明。
+       所以縮小的時候它就該跟著變小、看不清楚 —— 要看就自己放大，
+       跟看真正的印刷品一樣。（本來是固定 13px，2026-07 改掉的。）
        它自己折行去適應框，絕不被切一半。 */
-    font-size:13px;line-height:1.35;
+    font-size:calc(13px * var(--z));line-height:1.35;
     padding:8px 10px;
     white-space:normal;overflow-wrap:anywhere;word-break:break-word;
   }
@@ -1391,7 +1396,8 @@
       <button class="tool active" data-tool="zoom" data-key="Z"
               title="看版 (Z)：只縮放和移動畫面，碰不到版上的東西">⌕</button>
       <div class="zoom-val" id="zoomVal">100%</div>
-      <!-- 鎖定這張版：跟工具站在一起，因為它跟工具一樣是「對這張版做的事」 -->
+      <!-- 鎖定這張版。標籤寫在工具列裡，但它自己是 position:fixed，浮在畫面右邊 —
+           這是 落版 最後才做的那一件事，值得一個固定又找得到的位置。 -->
       <button id="confirmBtn">確認格子排列</button>
     </div>
     <!-- 畫布這一塊：標題釘在它的左上角，版面在它裡面自己捲 -->
@@ -3571,14 +3577,31 @@ function hotZone(el){
   if (el) el.classList.add('hot');
 }
 
+/* 位置只有四個，所以不必真的碰到那一塊 —— 拖到它附近就算數，不要叫人去瞄準。
+   四塊的範圍放大之後會互相重疊，重疊的地方**就近的那一塊贏**：照 DOM 順序挑
+   的話「上」會把中間整片通吃，明明比較靠近「左」也還是選到「上」。
+   放大的只有判定範圍，畫出來的方塊沒有變 —— 看到的還是那四塊。 */
+const ZONE_REACH = 90;
+function nearestZone(x, y){
+  let best = null, bestD = Infinity;
+  boardEl.querySelectorAll('.mh-zone').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (x < r.left - ZONE_REACH || x > r.right  + ZONE_REACH ||
+        y < r.top  - ZONE_REACH || y > r.bottom + ZONE_REACH) return;
+    const dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+    const d = dx * dx + dy * dy;
+    if (d < bestD){ bestD = d; best = el; }
+  });
+  return best;
+}
+
 document.addEventListener('pointermove', e => {
   if (!mhDrag) return;
   if (!mhDrag.moved){
     if (Math.abs(e.clientX - mhDrag.x) + Math.abs(e.clientY - mhDrag.y) < 4) return;
     mhDrag.moved = true;
   }
-  const under = document.elementFromPoint(e.clientX, e.clientY);
-  hotZone(under && under.closest ? under.closest('.mh-zone') : null);
+  hotZone(nearestZone(e.clientX, e.clientY));
 });
 
 function endMhDrag(){
@@ -4579,7 +4602,10 @@ function renderConfirmBtn(){
   if (!activeBlock || activeTab === 'board'){ confirmBtn.style.display = 'none'; return; }
   const sh = sheetOf(activeBlock);
   confirmBtn.style.display = 'block';
-  confirmBtn.textContent = sh.confirmed ? '🔒 列已鎖定（點此解除）' : '確認列排列（鎖定）';
+  /* 鎖頭一直都在，開著還是關著就是這張版現在的狀態 —— 不必讀完字才知道 */
+  confirmBtn.innerHTML = sh.confirmed
+    ? '<span class="lk">🔒</span>列已鎖定<br>（點此解除）'
+    : '<span class="lk">🔓</span>確認列排列<br>（鎖定）';
   confirmBtn.classList.toggle('is-confirmed', sh.confirmed);
 }
 
@@ -4914,10 +4940,15 @@ function markBadge(c){
 const NOTE_KINDS = [
   { key:'sticker', icon:'★', label:'補貼紙',  color:'#ffd447' },
   { key:'gift',    icon:'⊕', label:'補贈品',  color:'#8ce29b' },
-  { key:'other',   icon:'●', label:'一般問題', color:'#dfe4ee' }
+  /* 留言沒有圖示：另外兩種是「要補一個東西」，這一種只是講一句話 —— 沒有東西
+     可以畫成符號，硬給一個點反而看起來像少了什麼。空的就讓它空著，
+     貼紙本人（顏色＋角落那個字）已經說完該說的了。 */
+  { key:'other',   icon:'',  label:'留言',    color:'#dfe4ee' }
 ];
 // 認不得的（含舊檔裡的 補商品／補 logo）一律當一般問題看
 const kindOf = k => NOTE_KINDS.find(n => n.key === k) || NOTE_KINDS[NOTE_KINDS.length - 1];
+/* 沒有圖示的那一種不要留一個空的 <span> —— 它照樣佔 gap，看起來像圖示掉了 */
+const icoHTML = k => k.icon ? `<span class="ico">${k.icon}</span>` : '';
 const notesOf = c => (c.notes || (c.notes = []));
 const openNotes = c => notesOf(c).filter(n => !n.done).length;
 /* 顏色回答「誰貼的」，圖示回答「哪一種」，角落那個字回答「哪一位」。
@@ -4978,7 +5009,7 @@ NOTE_KINDS.forEach(k => {
   b.dataset.key = k.key;
   b.dataset.role = '';                 // 顏色由 paintStickTray() 照身分上
   b.title = `拖到格子上＝標一則「${k.label}」`;
-  b.innerHTML = `<span class="ico">${k.icon}</span>${k.label}`;
+  b.innerHTML = `${icoHTML(k)}${k.label}`;
   b.addEventListener('dragstart', e => {
     armKind(null);
     e.dataTransfer.setData('text/plain', 'note:' + k.key);
@@ -5281,7 +5312,7 @@ function renderLegend(){
     const b = document.createElement('button');
     b.className = 'lg' + (typeFilter === k.key ? ' on' : '') + (n ? '' : ' zero');
     b.style.setProperty('--lc', '#c9d8f8');   // 顏色歸「誰貼的」用，種類看圖示
-    b.textContent = `${k.icon} ${k.label} ${n}`;
+    b.textContent = `${k.icon ? k.icon + ' ' : ''}${k.label} ${n}`;
     b.addEventListener('click', () => {
       typeFilter = typeFilter === k.key ? null : k.key;   // 單選，再點一次取消
       selNote = null;
@@ -5302,7 +5333,7 @@ function noteCard(x){
     `<div class="chead"><span class="who">${escapeHtml(n.who)}</span>
        <span class="where">第 ${at + 1} 格</span>
        <span class="state">${n.done ? '已處理' : '還沒處理'}</span></div>
-     <div class="kind"><span class="ico">${k.icon}</span>${k.label}</div>
+     <div class="kind">${icoHTML(k)}${k.label}</div>
      <div class="body${n.text ? '' : ' blank'}">${
        n.text ? escapeHtml(n.text) : '（貼上去的，還沒寫說明）'}</div>
      <div class="meta">${n.time}</div>`;
