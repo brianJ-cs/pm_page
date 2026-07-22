@@ -5720,6 +5720,19 @@ document.addEventListener('keydown', e => {
 }, true);
 
 /** 這一格該不該有畫布：有挑東西就給它一個，沒有就撤掉。 */
+/* 這一格在版上實際多大（cm）。畫布的排版座標系照這個開，「1cm」在每一格
+   都一樣長 —— 本來每一格都用固定 540 寬，窄格子等於被整個壓小，寫死的
+   字級跟著失真。cm 是實際尺寸，跟縮放無關：r.width 和 pxPerCm 都含了
+   sheetZoom，除完就約掉了。 */
+function cellCm(c, el){
+  if (!activeBlock || !el) return null;
+  const k = sheetMetrics(activeBlock).pxPerCm;
+  if (!k || !isFinite(k) || k <= 0) return null;
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  return { w: +(r.width / k).toFixed(3), h: +(r.height / k).toFixed(3) };
+}
+
 function paintOneCanvas(c){
   if (activeTab !== 'board') return;
   const el = cardEl(c.id);
@@ -5727,13 +5740,19 @@ function paintOneCanvas(c){
   const n = pickedOf(c).length;
   let f = el.querySelector('.ccanvas');
   if (!n){ if (f) f.remove(); markBadge(c); paintNoteMarks(c); return; }
+  const cm = cellCm(c, el);
   if (!f){
     f = document.createElement('iframe');
     f.className = 'ccanvas';
     f.setAttribute('scrolling', 'no');
     f.title = '';
-    setPickFrame(f, 'ui=stage&cell=' + encodeURIComponent(c.id));
+    setPickFrame(f, 'ui=stage&cell=' + encodeURIComponent(c.id)
+      + (cm ? '&cmw=' + cm.w + '&cmh=' + cm.h : ''));
     el.appendChild(f);
+  } else if (cm){
+    /* 版面改過了（列數、刊頭大小）＝這一格的實際尺寸變了，畫布要換座標系。
+       畫布自己會比對，沒變就不重排。 */
+    try { f.contentWindow.postMessage({ stageCm: cm }, '*'); } catch (_){}
   }
   markBadge(c);
   paintNoteMarks(c);        // 標記跟著這一格走，重畫版面也不會掉

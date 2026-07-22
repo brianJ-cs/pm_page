@@ -378,10 +378,23 @@ function groups(){
 /* ====== 多格：每一格有自己的 picked / BLOCKS / layoutKey ====== */
 let PAD=10;            // 左右的安全邊界(px，排版座標)，由上方 slider 控制
 const PAD_Y=10;        // 上下也留 10：左上那疊離上緣 10，右下那疊離下緣 10
-/* 排版座標系。寬永遠是 540（字級、圖寬都是照這個尺標訂的），高則跟著這一格
-   的真實比例走：一格是扁的，CH 就小；是方的，CH 就大。這樣「靠下」「靠右」
-   指的都是那一格自己的邊，不是一個假想的 4:3 方框。 */
-let CW=540, CH=420;
+/* 排版座標系：1 cm ＝ U_PER_CM 個座標單位，每一格都一樣。
+
+   本來每一格的寬都固定 540，不管它在版上其實多大 —— 於是 cs（= 格子的實際
+   像素寬 / CW）每一格都不一樣，寫死的 12px SKU 在窄格子裡被壓成 7px、在寬
+   格子裡是 11px。同一個版位裡量到過 34% 的落差，而品名根本沒有任何自動縮放
+   邏輯，卻一樣大小不一 —— 那就證明問題出在座標系，不在排版程式。
+
+   改成照真實尺寸開座標系之後 cs = pxPerCm / U_PER_CM，是整個版位的常數，
+   寫死的 px 才真的到處一樣大。60 是挑來讓「一列四格」那種常見格子
+   （約 9cm 寬）算出來差不多還是 540，舊檔換算過去幅度最小。 */
+const U_PER_CM = 60;
+const LEGACY_CW = 540;          // 舊檔的座標是照這個寬存的
+/* 真正的尺寸是上層用網址參數帶進來的，而 PICK_Q 在下面才宣告 —— 這裡只能先
+   放預設值，讀參數要等到 PICK_Q 之後（見 adoptStageCm 的呼叫）。
+   在這裡讀 PICK_Q 會 ReferenceError，然後整支程式停在這一行。 */
+let CM_W = 0, CM_H = 0;
+let CW = LEGACY_CW, CH = 420;
 let CELLS=[];          // [{id, picked:Set, blocks:[], layoutKey:''}]
 let curCell=0;         // 目前作用中的格子索引
 let GC=1, GR=1;        // 版面 欄×列
@@ -425,12 +438,27 @@ const UI_PANEL = UI_MODE==='panel', UI_STAGE = UI_MODE==='stage';
 if(UI_PANEL) document.body.classList.add('ui-panel');
 if(UI_STAGE) document.body.classList.add('ui-stage');
 
-/* 畫布模式：這一格有多大由外面那張版決定，程式照自己的視窗把 540×420 縮進去。 */
+/* 上層告訴這一格在版上實際多大（cm），座標系照它開。
+   回傳有沒有真的變 —— 沒變就不必重排。 */
+function adoptStageCm(w, h){
+  w = +w || 0; h = +h || 0;
+  if(!w || !h) return false;
+  const nw = Math.max(40, Math.round(w * U_PER_CM));
+  const nh = Math.max(40, Math.round(h * U_PER_CM));
+  if(nw === CW && nh === CH && CM_W) return false;
+  CM_W = w; CM_H = h; CW = nw; CH = nh;
+  return true;
+}
+adoptStageCm(PICK_Q.get('cmw'), PICK_Q.get('cmh'));
+
+/* 畫布模式：這一格有多大由外面那張版決定，程式照自己的視窗把座標系縮進去。 */
 function fitStage(){
   if(!UI_STAGE) return;
   const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
   const cs = Math.max(.02, w / CW);              // 比例由寬度決定
-  CH = Math.max(160, Math.round(CW * h / w));    // 高度＝這一格真正的形狀
+  /* 帶了真實尺寸進來就照它 —— CH 已經是那一格自己的高度，不必再從視窗形狀
+     反推。沒帶（單獨開這一頁）才退回舊做法：照視窗比例湊一個高度出來。 */
+  if(!CM_W) CH = Math.max(160, Math.round(CW * h / w));
   const r = document.documentElement.style;
   r.setProperty('--cs', cs.toFixed(4));
   r.setProperty('--lw', CW + 'px');
@@ -438,13 +466,36 @@ function fitStage(){
   r.setProperty('--cw', w + 'px');               // 這一格就是整個視窗，不留空白帶
   r.setProperty('--ch', h + 'px');
 }
-/* 這一格被拉寬拉高＝版面的形狀變了，要重排一次：靠下的那一疊得重新找到底在哪。 */
+/* 這一格被拉寬拉高＝版面的形狀變了，要重排一次：靠下的那一疊得重新找到底在哪。
+   （本來這裡叫的是 paint()，但那是 renderOne 裡面的區域變數，外面根本看不到 ——
+   一縮放就 ReferenceError。改叫 renderOne 自己重畫。） */
 let fitTimer = 0;
 if(UI_STAGE) addEventListener('resize', () => {
   fitStage();
   clearTimeout(fitTimer);
-  fitTimer = setTimeout(() => { if(BLOCKS.length && autoSpace()) paint(); }, 80);
+  fitTimer = setTimeout(() => { if(BLOCKS.length) renderOne(curCell, true); }, 80);
 });
+
+/* 上層說這一格的實際尺寸換了（列數變了、刊頭大小改了）：換座標系再重排一次。
+   座標系換了尺標，已經擺好的零件要照同一個比例跟著走 —— 自動排的那些下面
+   會重排看不出來，但手動搬過的位置不跟著換就整個跑掉。
+   BLOCKS 和 cell().blocks 常常是同一個陣列，所以記下處理過的，別縮兩次。 */
+function applyStageCm(cm){
+  const prev = CW;
+  if(!cm || !adoptStageCm(cm.w, cm.h)) return;
+  if(prev && CW !== prev){
+    const k = CW / prev, seen = new Set();
+    const scale = arr => {
+      if(!arr || seen.has(arr)) return;
+      seen.add(arr);
+      arr.forEach(b => { b.x = (+b.x || 0) * k; b.y = (+b.y || 0) * k; });
+    };
+    CELLS.forEach(c => scale(c.blocks));
+    scale(BLOCKS);
+  }
+  fitStage();
+  if(BLOCKS.length) renderOne(curCell, true);
+}
 
 /* 面板模式：滾輪在面板上任何地方都是捲名單 — 不必先把游標移到捲軸上，
    也不會漏給外面那張版。 */
@@ -473,6 +524,9 @@ function applyRole(r){
 addEventListener('message',e=>{
   const d = e.data || {};
   if(d.boardRole==='pm'||d.boardRole==='design') applyRole(d.boardRole);
+  /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
+     CW 還停在預設值的話就會照錯的比例縮。 */
+  if(d.stageCm) applyStageCm(d.stageCm);
   // 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）
   if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
@@ -1371,7 +1425,9 @@ const UI_SRC  = UI_STAGE ? 'stage' : (UI_PANEL ? 'panel' : 'full');
 function boardState(){
   saveCell();
   const c = cell(); if(!c) return null;
-  return { picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey };
+  /* v 是座標系的版本章：2 ＝ 已經是「照真實尺寸」那一套。沒有 v 的是舊檔，
+     讀進來時換算一次（見 restoreBoard），蓋了章就不會再換第二次。 */
+  return { v:2, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey };
 }
 let reportTimer = 0;
 function reportBoard(){
@@ -1388,6 +1444,14 @@ function restoreBoard(s){
   picked = new Set(s.picked||[]);
   BLOCKS = s.blocks||[];
   layoutKey = s.layoutKey||'';
+  /* 舊檔的座標存的是「每一格都 540 寬」那套；現在每一格照自己的實際尺寸開
+     座標系，兩套之間差一個等比例（寬高差的是同一個 k —— 舊的 CH 也是照同一個
+     長寬比推出來的）。轉一次就好，轉完 boardState() 會蓋上 v:2。
+     沒帶尺寸進來（單獨開這一頁）就別動它，不然會照著假的比例縮。 */
+  if(s.v !== 2 && CM_W && CW !== LEGACY_CW){
+    const k = CW / LEGACY_CW;
+    BLOCKS.forEach(b => { b.x = (+b.x || 0) * k; b.y = (+b.y || 0) * k; });
+  }
   /* 舊版排的版沒有欄號，價格是按估算的字寬硬擺的，兩個價格會疊在一起。
      認得出是舊的就重排一次 — 那一版的手動位置留不住，但至少讀得出來。 */
   if(oldLayout(BLOCKS)) layoutKey='';
