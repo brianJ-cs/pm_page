@@ -123,17 +123,31 @@ const FRAMES = `(() => {
   return out;
 })()`;
 
+/* Having a box is not the same as being clickable. 2cell-product-pick.html keeps
+   its 後台 panel collapsed with width:0 + overflow:hidden, and the 40 product
+   labels inside it still lay out at full size — so a rect test alone "finds"
+   labels in a 拼板 card and clicks a spot that belongs to something else
+   entirely. Hit-test the centre and require it to land on the element itself. */
+const HITTABLE = `(f, el, r) => {
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  if (cx < 0 || cy < 0 || cx > f.d.documentElement.clientWidth
+                       || cy > f.d.documentElement.clientHeight) return false;
+  const hit = f.d.elementFromPoint(cx, cy);
+  return !!hit && (hit === el || el.contains(hit) || hit.contains(el));
+}`;
+
 /** Centre of the first match, in CSS pixels, or null. Searches same-origin
-    iframes as well as the top document. */
+    iframes as well as the top document, and only returns something you could
+    actually click. */
 const centreOf = sel => evaluate(`(() => {
-  for (const f of ${FRAMES}){
-    const el = f.d.querySelector(${JSON.stringify(sel)});
-    if (!el) continue;
-    const r = el.getBoundingClientRect();
-    if (!r.width || !r.height) continue;
-    return { x: f.ox + (r.left + r.width / 2) * f.s,
-             y: f.oy + (r.top + r.height / 2) * f.s };
-  }
+  const hittable = ${HITTABLE};
+  for (const f of ${FRAMES})
+    for (const el of f.d.querySelectorAll(${JSON.stringify(sel)})){
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || !hittable(f, el, r)) continue;
+      return { x: f.ox + (r.left + r.width / 2) * f.s,
+               y: f.oy + (r.top + r.height / 2) * f.s };
+    }
   return null;
 })()`);
 
@@ -158,12 +172,14 @@ async function clickText(text){
   const c = await evaluate(`(() => {
     const t = ${JSON.stringify(text)};
     const sel = 'button,.tab,.cell,.stick,.lg,.pt-type,.pt-blk,.mini-blk,label,.icard';
+    const hittable = ${HITTABLE};
     const hits = [];
     for (const f of ${FRAMES})
       for (const e of f.d.querySelectorAll(sel)){
         const r = e.getBoundingClientRect();
         const txt = (e.textContent || '').trim();
-        if (txt.includes(t) && r.width > 0 && r.height > 0) hits.push({ f, r, txt });
+        if (txt.includes(t) && r.width > 0 && r.height > 0 && hittable(f, e, r))
+          hits.push({ f, r, txt });
       }
     if (!hits.length) return null;
     hits.sort((a, b) =>
