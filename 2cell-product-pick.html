@@ -683,7 +683,7 @@ function blockHTML(b,isCur=true){
 function renderCell(){ renderOne(curCell); reportBoard(); }
 
 /* 渲染單一格子（i 可為任一格） */
-function renderOne(i){
+function renderOne(i, force){
   const el=document.getElementById('cell'+i);
   if(!el) return;
   const c=CELLS[i]; if(!c) return;
@@ -726,7 +726,18 @@ function renderOne(i){
   };
   paint();
   // 剛排好的版：量過真正的寬高再擠開一次，然後照新座標重畫
-  if(rebuilt && isCur && autoSpace()) paint();
+  if((rebuilt||force) && isCur && autoSpace()) paint();
+}
+
+/* Anton 是外部字型，而且是 display=swap —— 第一次畫的時候它還沒下載完，
+   量到的是替代字型的高度，比真正的 Anton 矮。價格是靠著底線排的，就照那個
+   矮高度擺下去；等 Anton 換上來字長高了，就從底線凸出去被裁掉半截。
+   看起來像「只有第一個會壞、之後都正常」，其實是「只有還沒載到字型的那一次會壞」。
+   字型到齊再量一次、重排一次。fonts.ready 只會 resolve 一次，所以不會反覆跑；
+   字型已經在快取裡的話它立刻就 resolve，那時 BLOCKS 還是空的，直接跳過 ——
+   那種情況第一次量到的本來就是對的。 */
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(()=>{ if(BLOCKS.length) renderOne(curCell, true); });
 }
 
 /** 這組 block 是不是舊版排的：有價格，卻沒有一塊帶欄號或右下角錨點。 */
