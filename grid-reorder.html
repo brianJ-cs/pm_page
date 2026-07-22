@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>落版拆格</title>
+<style>
+  :root{
+    --cell-bg:#e3f0fa;
+    --cell-border:#9cc3e0;
+    --ink:#1d3a52;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;
+    background:#f4f6f8;
+    color:var(--ink);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    padding:14px 22px;
+    flex:0 0 auto;
+  }
+  header label{
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:1px;
+  }
+  #totalInput{
+    font:inherit;
+    font-size:14px;
+    width:80px;
+    padding:8px 10px;
+    border:1px solid #c3ced8;
+    border-radius:6px;
+    background:#fff;
+    color:var(--ink);
+    text-align:center;
+  }
+  header .hint{
+    font-size:13px;
+    color:#7a8b99;
+    margin-left:10px;
+  }
+
+  main{
+    flex:1 1 auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 22px 22px;
+    min-height:0;
+  }
+  #board{
+    width:min(1200px,100%);
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .row{
+    position:relative;
+    display:flex;
+    gap:6px;
+    cursor:grab;
+  }
+  .row.dragging{
+    cursor:grabbing;
+    opacity:.85;
+    z-index:5;
+    overflow:visible;
+  }
+  .cell{
+    flex:1 1 0;
+    min-width:0;
+    height:90px;
+    overflow:hidden;
+    background:var(--cell-bg);
+    border:1px solid var(--cell-border);
+    border-radius:4px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <label for="totalInput">總格數</label>
+  <input type="number" id="totalInput" min="1" max="500" value="40">
+  <span class="hint">🖐 按住整列上下拖曳，即可調換順序</span>
+</header>
+
+<main><div id="board"></div></main>
+
+<script>
+const N_ROWS = 5;
+const ROW_GAP = 6;
+const board = document.getElementById('board');
+const totalInput = document.getElementById('totalInput');
+
+function makeCell(){
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  return cell;
+}
+
+// split `total` cells across `nRows` rows as evenly as possible
+function splitEven(total, nRows){
+  const base = Math.floor(total / nRows);
+  const extra = total % nRows;
+  return Array.from({length:nRows}, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+function buildBoard(total){
+  board.innerHTML = '';
+  const nRows = Math.min(N_ROWS, total);
+  const counts = splitEven(total, nRows);
+  for(const n of counts){
+    const row = document.createElement('div');
+    row.className = 'row';
+    for(let c = 0; c < n; c++) row.appendChild(makeCell());
+    board.appendChild(row);
+  }
+}
+
+// ---- total input ----
+totalInput.addEventListener('change', () => {
+  const v = Math.max(1, Math.min(500, parseInt(totalInput.value, 10) || 1));
+  totalInput.value = v;
+  buildBoard(v);
+});
+
+// ---- row drag-to-reorder ----
+let drag = null;
+
+board.addEventListener('pointerdown', e => {
+  const row = e.target.closest('.row');
+  if(!row) return;
+  drag = { row, startY: e.clientY };
+  row.classList.add('dragging');
+  row.setPointerCapture(e.pointerId);
+  document.body.style.userSelect = 'none';
+});
+
+board.addEventListener('pointermove', e => {
+  if(!drag) return;
+  const { row } = drag;
+  const step = row.offsetHeight + ROW_GAP;
+  let dy = e.clientY - drag.startY;
+
+  // crossed the midpoint of the next row -> swap downward
+  let next = row.nextElementSibling;
+  while(next && dy > step / 2){
+    next.after(row);
+    drag.startY += step;
+    dy -= step;
+    next = row.nextElementSibling;
+  }
+  // crossed the midpoint of the previous row -> swap upward
+  let prev = row.previousElementSibling;
+  while(prev && dy < -step / 2){
+    prev.before(row);
+    drag.startY -= step;
+    dy += step;
+    prev = row.previousElementSibling;
+  }
+
+  row.style.transform = 'translateY(' + dy + 'px)';
+});
+
+function endDrag(){
+  if(!drag) return;
+  drag.row.style.transform = '';
+  drag.row.classList.remove('dragging');
+  drag = null;
+  document.body.style.userSelect = '';
+}
+board.addEventListener('pointerup', endDrag);
+board.addEventListener('pointercancel', endDrag);
+
+buildBoard(parseInt(totalInput.value, 10));
+</script>
+</body>
+</html>

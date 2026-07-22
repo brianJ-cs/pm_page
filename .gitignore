@@ -1,0 +1,11 @@
+# 本機備份與草稿。留在硬碟上，不進版本控制 —— git 的歷史本身就是備份，
+# 再把 .bak 一起存進來，等於同一份東西留兩套，日後不知道哪一套才算數。
+backup/
+turn/
+*.bak.html
+*.bak2.html
+design_and_PM no declutter.html
+
+# 抓給對話看的畫面，不是專案的一部分
+bug*.png
+.claude/skills/*/out/
