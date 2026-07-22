@@ -1190,12 +1190,18 @@
      打字時 cell.text 讀的是 el.textContent —— 真的塞一塊進去，
      「已填寫」三個字就會被存進品名裡。虛擬元素不算在 textContent 裡。
      只在 落版（#view-sheet）出現；拼板 借同一份 DOM，那邊看得到內容本人。 */
-  #view-sheet .cell.pm-filled{position:relative}
+  /* 整格轉綠，不是角落貼一張小標：綠色在這支程式裡一直是「已經交出去了」
+     （版位底色那一套就是灰／白／綠），所以格子本身變綠＝這一格 PM 收過了。
+     一眼掃過去就看得出哪幾格還空著，不必去讀每個角落的小字。 */
+  #view-sheet .cell.pm-filled{
+    position:relative;
+    background:var(--ok-tint,#e6f4ec);
+    border-color:var(--green-rule,#9ccfb2);
+  }
   #view-sheet .cell.pm-filled::after{
-    content:"已填寫";position:absolute;top:2px;right:3px;
-    font-size:9px;font-weight:800;line-height:1.25;padding:1px 4px;border-radius:6px;
-    background:var(--ok-tint,#e6f4ec);color:var(--ok-ink,#1a7f47);
-    border:1px solid var(--green-rule,#9ccfb2);pointer-events:none;
+    content:"已填寫";position:absolute;top:3px;right:5px;
+    font-size:10px;font-weight:800;line-height:1.25;
+    color:var(--ok-ink,#1a7f47);pointer-events:none;
   }
 
   /* 小地圖上的貼紙統計：左下角一種一枚，右上角一顆紅色總數。
