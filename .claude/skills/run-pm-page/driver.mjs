@@ -192,7 +192,11 @@ async function shot(file){
 }
 
 async function load(file){
-  const url = pathToFileURL(resolve(file)).href;
+  /* 網址後面可以帶 ?query（例如 design_and_PM.html?seed=1）：pathToFileURL 會把
+     ? 當成檔名的一部分編碼掉，所以先切開，轉完再接回去。 */
+  const q = file.indexOf('?');
+  const path = q < 0 ? file : file.slice(0, q);
+  const url = pathToFileURL(resolve(path)).href + (q < 0 ? '' : file.slice(q));
   await send('Page.navigate', { url });
   await sleep(700);                       // these pages boot synchronously
   console.log('load   ' + url);

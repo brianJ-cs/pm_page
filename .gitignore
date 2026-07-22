@@ -9,3 +9,6 @@ design_and_PM no declutter.html
 # 抓給對話看的畫面，不是專案的一部分
 bug*.png
 .claude/skills/*/out/
+
+# 測試跑出來的畫面截圖（driver.mjs --shot）
+out/
