@@ -1120,7 +1120,9 @@
     padding:24px 26px 20px;min-width:340px;max-width:min(92vw,470px);
     box-shadow:0 18px 48px rgba(30,40,60,.3);animation:popIn .16s ease-out;
   }
-  .modal h4{font-size:18px;font-weight:800;margin-bottom:9px}
+  /* 白底上的字要自己寫 color：不寫就繼承深色那一段的淺灰，白底上等於看不見
+     （#blockHead、.plan-card、落版的字都中過同一招） */
+  .modal h4{font-size:18px;font-weight:800;margin-bottom:9px;color:var(--ink)}
   .modal p{font-size:14.5px;font-weight:800;color:var(--muted);line-height:1.65;margin-bottom:19px}
   .modal .acts{display:flex;gap:10px;justify-content:flex-end}
   .modal .btn.danger{background:var(--accent);border-color:var(--accent);color:var(--surface)}
