@@ -93,7 +93,7 @@
      大一點、固定在同一個地方，不必每次去找它在哪。
      只有 落版 會出現，而 意見欄 是 拼板 才有的 —— 右邊這一帶不會撞到東西。 */
   #confirmBtn{
-    position:fixed;right:26px;top:50%;transform:translateY(-50%);
+    position:fixed;right:26px;top:132px;
     z-index:60;white-space:nowrap;text-align:center;line-height:1.3;
     font-family:inherit;font-size:19px;font-weight:800;cursor:pointer;
     border:2px solid var(--blue);border-radius:14px;padding:18px 26px;
@@ -948,15 +948,13 @@
        所以縮小的時候它就該跟著變小、看不清楚 —— 要看就自己放大，
        跟看真正的印刷品一樣。（本來是固定 13px，2026-07 改掉的。）
        它自己折行去適應框，絕不被切一半。 */
-    font-size:calc(13px * var(--z));line-height:1.35;
+    font-size:calc(13px * var(--z) * var(--mh-fit, 1));line-height:1.35;
     padding:8px 10px;
     white-space:normal;overflow-wrap:anywhere;word-break:break-word;
   }
-  /* 框小到連折行都放不下時，先收掉後半句，留下最要緊的那一段 */
   /* 標籤自己是一塊，不當匿名的 flex item —— 盒子怎麼縮，它的字級都不受影響 */
   .masthead .mh-label{flex:0 1 auto;min-width:0;max-width:100%;font-weight:800}
   .masthead .mh-sub{display:inline}
-  .masthead.tight .mh-sub{display:none}
   .masthead.hasimg{border-style:solid;border-color:var(--line-strong);background:var(--surface)}
   .masthead img{width:100%;height:100%;object-fit:contain;display:block}
   .masthead.dropping{border-color:var(--blue);background:var(--accent-tint);color:var(--blue)}
@@ -1175,6 +1173,15 @@
   }
   /* 右上角同時要放紅點的時候，✓ 讓到左邊去 —— 兩個都是狀態，誰都不該被蓋掉 */
   .mini-blk.confirmed.has-notes::after{right:auto;left:4px}
+
+  /* 點貼紙跳出來的那一張卡：浮在最上面，貼著那張貼紙站。
+     固定大小 —— 它是「講話的卡片」，不是版面的一部分，版面縮放不該動到它。 */
+  .note-pop{
+    position:fixed;z-index:80;width:300px;max-width:calc(100vw - 16px);
+    max-height:70vh;overflow:auto;
+    filter:drop-shadow(0 12px 30px rgba(16,24,40,.4));
+  }
+  .note-pop .icard{margin:0;cursor:default}
 
   /* PM 動過的那一格，設計在 落版 看得到。
      用 ::after 而不是塞一個 <span> 進去：格子是 contentEditable 的，
@@ -3354,8 +3361,22 @@ function paintMhLabel(m){
   const w = m.side ? (m.sh.mastheadW * m.side.frac).toFixed(1) : m.sh.mastheadW;
   const h = m.side ? m.blockHcm.toFixed(1) : m.sh.mastheadH;
   size.textContent = `刊頭 ${w}×${h}cm`;
+  /* 整句都要看得見：框放不下就把字縮到放得下為止，不再把後半句收起來。
+     二分找最大的、還裝得下的比例 —— 直接一格一格縮太慢，而且字會抖。
+     縮不下去就停在下限，寧可小也不要少一半的字。 */
   mh.classList.remove('tight');
-  if (mh.scrollHeight > mh.clientHeight + 1) mh.classList.add('tight');
+  const fits = () => mh.scrollHeight <= mh.clientHeight + 1
+                  && mh.scrollWidth  <= mh.clientWidth  + 1;
+  mh.style.setProperty('--mh-fit', 1);
+  if (!fits()){
+    let lo = .25, hi = 1, best = .25;
+    for (let i = 0; i < 9; i++){
+      const mid = (lo + hi) / 2;
+      mh.style.setProperty('--mh-fit', mid);
+      if (fits()){ best = mid; lo = mid; } else hi = mid;
+    }
+    mh.style.setProperty('--mh-fit', best);
+  }
 }
 
 function renderGrid(block){
@@ -5328,9 +5349,51 @@ const cellOfEl = el => el && activeBlock
     貼紙講的是「這裡有問題」，不是「我要編這一格」。
     也不動意見欄現在在看哪一份名單 —— 點下去只是把那張卡挑出來、捲到眼前，
     放開之後名單還在原地，不會自己跳回「全部問題」。 */
-function selectNote(c, n){
+/* 點一張貼紙，就在那張貼紙旁邊開一張卡 —— 話是講那個位置的事，眼睛不必離開
+   版面跑到右邊那一欄去找。意見欄還在：那邊回答「這個版位還欠哪些」，
+   這裡回答「這一張說了什麼」。
+   卡片掛在 <body> 上，不掛進格子裡：格子會裁切、會跟著版面捲，掛進去就被切掉。 */
+let notePop = null;
+
+function closeNotePop(){
+  if (!notePop) return;
+  notePop.remove();
+  notePop = null;
+}
+
+function positionNotePop(){
+  if (!notePop || !notePop._anchor || !notePop._anchor.isConnected){ closeNotePop(); return; }
+  const a = notePop._anchor.getBoundingClientRect();
+  const r = notePop.getBoundingClientRect();
+  // 先站右邊；右邊放不下就翻到左邊。兩邊都塞不下才貼著邊界。
+  let x = a.right + 10;
+  if (x + r.width + 8 > innerWidth) x = a.left - r.width - 10;
+  x = Math.max(8, Math.min(x, innerWidth - r.width - 8));
+  let y = Math.max(8, Math.min(a.top - 6, innerHeight - r.height - 8));
+  notePop.style.left = x + 'px';
+  notePop.style.top  = y + 'px';
+}
+
+function openNotePop(cell, n, at, anchorEl){
+  closeNotePop();
+  if (!anchorEl) return;
+  const host = document.createElement('div');
+  host.className = 'note-pop';
+  host.appendChild(noteCard({ n, cell, at }));
+  document.body.appendChild(host);
+  host._anchor = anchorEl;
+  notePop = host;
+  positionNotePop();
+  const t = host.querySelector('textarea');
+  if (t) t.focus();
+}
+
+function selectNote(c, n, anchorEl){
   if (boardCell) closeBoardCell();
-  if (selNote === n.id){ clearNoteSel(); return; }     // 再點一次＝放開它
+  /* 同一則再點一次＝放開它。但卡片可能剛剛因為資料變動被收掉了（寫完說明、
+     標成已處理），這一則卻還選著 —— 那時候再點的意思是「把卡片再開一次」，
+     不是取消，不然你得點兩下才看得到它。 */
+  if (selNote === n.id && notePop){ clearNoteSel(); return; }
   selNote = n.id;
   // 那一則正被篩選擋著（在看別格、或只看某一種）：先把篩選拿掉，不然點了沒東西出來
   const shown = (!focusCell || focusCell === c.id) && (!typeFilter || typeFilter === n.key);
@@ -5338,8 +5401,13 @@ function selectNote(c, n){
   setRail(true);
   renderRail(); applyFocusCell(); paintAllNoteMarks();
   const card = document.querySelector('.icard.sel');
-  if (card){
-    card.scrollIntoView({ block:'nearest' });
+  if (card) card.scrollIntoView({ block:'nearest' });
+  /* 貼紙是重畫過的，剛剛點的那一個 DOM 已經不在了 —— 照 id 去找現在那一張 */
+  const live = anchorEl && !anchorEl.isConnected
+    ? boardEl.querySelector(`.cmk.sel`) : anchorEl;
+  const at = (sheetOf(activeBlock).cells || []).indexOf(c);
+  if (live) openNotePop(c, n, at, live);
+  else if (card){
     const t = card.querySelector('textarea');
     if (t) t.focus();
   }
@@ -5348,6 +5416,7 @@ function selectNote(c, n){
 /** 放開手上那一則：意見欄回到「全部問題」—— 只看某一格、只看某一種，
     這些篩選也一起拿掉，回來就是完整的一份名單。 */
 function clearNoteSel(){
+  closeNotePop();
   if (!selNote && !focusCell && !typeFilter) return;
   selNote = null; focusCell = null; typeFilter = null;
   renderRail(); applyFocusCell(); paintAllNoteMarks();
@@ -5390,8 +5459,8 @@ function endNoteDrag(){
   const d = noteDrag;
   noteDrag = null;
   d.el.classList.remove('dragging');
-  if (d.locked){ selectNote(d.c, d.n); return; }     // 別人的：只能看，不能搬
-  if (!d.moved){ selectNote(d.c, d.n); return; }
+  if (d.locked){ selectNote(d.c, d.n, d.el); return; }     // 別人的：只能看，不能搬
+  if (!d.moved){ selectNote(d.c, d.n, d.el); return; }
 
   const to = cellOfEl(d.target) || d.c;
   d.n.x = d.px; d.n.y = d.py;
@@ -5406,6 +5475,11 @@ function endNoteDrag(){
 }
 document.addEventListener('pointerup', endNoteDrag);
 document.addEventListener('pointercancel', endNoteDrag);
+
+/* 版面一捲一縮，貼紙就跑了 —— 卡片是 fixed 的，不跟著跑就會指著空白的地方。
+   捲動不會冒泡，所以要用捕獲階段收；視窗變大變小同理。 */
+addEventListener('scroll', positionNotePop, true);
+addEventListener('resize', positionNotePop);
 
 /* ---- 意見欄 ---- */
 const railList = document.getElementById('railList');
@@ -5426,6 +5500,10 @@ function railNotes(){
 }
 
 function renderRail(){
+  /* 跳出來那張卡是複製的一份，內容一改（寫了說明、標成已處理、撕掉）就過期了 ——
+     意見欄每次重畫都代表資料動過，順手把它收掉。點貼紙那條路是先重畫、
+     再開一張新的，所以不會把自己關掉。 */
+  closeNotePop();
   const list = railNotes();
   const open = list.filter(x => !x.n.done).length;
   const here = focusCell ? allNotes().find(x => x.cell.id === focusCell) : null;
