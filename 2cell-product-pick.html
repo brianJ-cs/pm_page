@@ -98,7 +98,10 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    靠的是 autoSpace 量好的欄寬（b.w2）當固定寬度框 + text-align:right —— 這樣
    轉盤把價格放大也不會把右緣推出格子外（本來是靠左，一放大就往右頂）。 */
 .blk.price,.blk.skub,.blk.specb{text-align:right}
-.blk.price{white-space:nowrap}
+/* direction:rtl 是右緣的保險絲。text-align:right 只在內容塞得進 w2 的時候有效，
+   一溢位就從左緣往右畫 —— 那正是價格衝出格子右邊的樣子。rtl 把行的起點換到右緣，
+   於是溢位只能往左長，右緣釘死。數字和逗號是強 LTR，「1,234」不會被翻過來。 */
+.blk.price{white-space:nowrap;direction:rtl}
 .blk.skub .sku{text-align:right}
 /* 剛排好的那一格先藏起來量寬高，靠右對齊、圖讓開都定位完才顯示 ——
    不然會看到價格先閃在估算的位置、再跳到定位（就是那個「先在中間閃一下」）。 */
@@ -1024,7 +1027,27 @@ function renderOne(i, force){
   if(measuring) blocks.forEach(b=>{ if(b.col!=null) b.w2=0; });
   paint(measuring);
   // paint(false) 一定要跑到：不然萬一 autoSpace 出錯，這一格就永遠藏著了
-  if(measuring){ try{ autoSpace(); }catch(_){} paint(false); }
+  if(measuring){
+    try{ autoSpace(); }catch(_){} paint(false);
+    /* 量到的高和真正畫出來的高會差幾個 px（padding／border 的捨入，字級越小差越明顯），
+       價格貼底這種「差 4px 就看得出來」的地方受不了這個誤差 —— 設 5 只看得到 1。
+       所以畫完再對一次下緣：差多少就把右下那一整組搬多少，一次就準。 */
+    try{ if(nudgeGroupBottom(blocks)) paint(false); }catch(_){}
+  }
+}
+
+/* 把「規格／SKU／價格」那一整組上下對準：最低的那一塊離下緣正好 PRICE_BOTTOM。
+   整組一起搬，欄與欄、上下行的相對關係都不動。有搬過才回 true。 */
+function nudgeGroupBottom(blocks){
+  const grp=(blocks||[]).filter(b=>b.col!=null);
+  if(!grp.length) return false;
+  let low=-Infinity;
+  grp.forEach(b=>{ const n=bEl(b.id); if(n) low=Math.max(low, n.offsetTop+n.offsetHeight); });
+  if(low===-Infinity) return false;
+  const d=(CH-PRICE_BOTTOM)-low;
+  if(Math.abs(d)<.5) return false;
+  grp.forEach(b=>{ b.y+=d; });
+  return true;
 }
 
 /* Anton 是外部字型，而且是 display=swap —— 第一次畫的時候它還沒下載完，
@@ -1049,9 +1072,11 @@ function oldLayout(bs){
    回傳有沒有動過，動過才值得重畫。 */
 function autoSpace(){
   const el=cellEl(); if(!el || !BLOCKS.length) return false;
-  const k=scaleOf()||1;
+  /* offsetWidth/offsetHeight 本來就是排版座標，不必再除縮放 —— 以前是量
+     getBoundingClientRect() 再除 scaleOf()，那條路會吃掉 padding 那 4px，
+     於是價格離下緣永遠少 4（設 5 只看得到 1）。這裡量的就是 CSS 定位用的同一套數字。 */
   const size=id=>{ const n=bEl(id); if(!n) return null;
-    const r=n.getBoundingClientRect(); return { w:r.width/k, h:r.height/k }; };
+    return { w:n.offsetWidth, h:n.offsetHeight }; };
 
   const COLGAP=14, LINEGAP=4;
   let moved=false;
@@ -1077,7 +1102,19 @@ function autoSpace(){
   if(cols.size){
     const keys=[...cols.keys()].sort((a,b)=>a-b);
     const sizes=new Map();
-    keys.forEach(key=>sizes.set(key, cols.get(key).map(b=>size(b.id)||{w:0,h:0})));
+    /* 量到的是「畫出來當下那一級字」的尺寸 —— 價格的 font-size 是 PRICE_BASE*priceFs(b)，
+       不是基準的 52。下面還要再乘一次最後的比例，所以這裡得先把當時那個比例除掉，
+       還原成基準字級的尺寸。少了這一步縮放就做了兩遍：
+         轉盤放大 → 欄寬行高被高估 → 欄跟欄之間被撐開、整疊往上飄（愈放大差愈多）
+         轉盤縮小 → 被低估 → need 太小、整疊被推到太右邊，而且 w2 比字還窄，
+                    text-align:right 在內容溢位時是無效的，字就從右邊噴出去。
+       「40 會溢出、52 不會」就是這麼來的 —— 52 剛好是基準，除以 1 等於沒錯。 */
+    keys.forEach(key=>sizes.set(key, cols.get(key).map(b=>{
+      const s=size(b.id)||{w:0,h:0};
+      if(b.kind!=='price') return s;                 // 只有價格會縮字
+      const e0=priceFs(b)||1;
+      return { w:s.w/e0, h:s.h/e0 };
+    })));
     const wide=key=>Math.max(...sizes.get(key).map(s=>s.w));
     const avail=CW-PAD*2;
 
@@ -1098,7 +1135,7 @@ function autoSpace(){
         b.fs=priceWanted;
         const eff=priceFs(b);
         if(was!==b.fs) moved=true;
-        hs[j]={ w:hs[j].w*eff, h:hs[j].h*eff };   // 字縮了，佔的位置跟著縮
+        hs[j]={ w:hs[j].w*eff, h:hs[j].h*eff };   // 基準尺寸 × 最後真的要用的比例
       });
     });
     need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
