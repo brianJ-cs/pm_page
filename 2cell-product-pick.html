@@ -1822,6 +1822,22 @@ if(UI_PANEL) openPanels(true);
 if(window.parent !== window){
   try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, ready:true }, '*'); }catch(_){}
 }
+
+/* 價格用的 Anton 是網路字型，而且是 display=swap —— 先用替代字畫、載好再換。
+   替代字比 Anton 寬得多，所以在它載好之前量到的文字寬是錯的（偏寬），
+   整欄靠右對齊就會被推到偏左的位置；載好之後版面不會自己重量，那個位置就留著。
+   同樣的操作有時偏右有時偏左，差別只在「那一刻字型載到了沒」。
+   等它真的到了，重量一次。 */
+if(document.fonts && document.fonts.ready){
+  document.fonts.ready.then(()=>{
+    if(!CELLS.length) return;
+    layoutKey = '';
+    CELLS.forEach(c=>{ c.layoutKey = ''; });
+    saveCell();
+    refreshAll();
+    reportBoard();          // 位置變了要讓上層存下來，不然重開又跳回舊的
+  }).catch(()=>{});
+}
 </script>
 </body>
 </html>

@@ -518,6 +518,10 @@
   <!-- dev tool: sits above everything else on the home view -->
   <div id="statusBar" class="status-bar hidden"></div>
   <div class="topbar">
+    <!-- 切到設計／PM 那一支。只有部署起來（http）才看得到 —— 本機用 file:// 開
+         的時候沒有 /editor 這個網址可以去，留著只會是一顆按了沒反應的按鈕。 -->
+    <button class="btn ghost" id="toEditor" style="display:none"
+            title="切到設計／PM 的落版拼板編輯器">設計／PM →</button>
     <button class="btn ghost" id="pastBtn">📁 過往檔期</button>
     <button class="btn" id="newPlanBtn">新增</button>
   </div>
@@ -2608,6 +2612,21 @@ document.getElementById('trashClose').addEventListener('click', () => trashMask.
 trashMask.addEventListener('click', e => { if (e.target === trashMask) trashMask.classList.add('hidden'); });
 
 /* ================= navigation & submit ================= */
+/* 切到設計／PM 那一支。網址帶 ?plan= 的話（從編輯器那顆「← 行銷」跳回來的），
+   再跳回去時把同一個檔期帶著走，兩邊就會停在同一個檔期上。 */
+(function(){
+  const btn = document.getElementById('toEditor');
+  const to = (window.SUPABASE || {}).editorUrl;
+  if (!to || !/^https?:$/.test(location.protocol)) return;
+  btn.style.display = '';
+  btn.addEventListener('click', async () => {
+    const want = new URLSearchParams(location.search).get('plan');
+    const s = sync();
+    if (s) { try { await s.flush(); } catch (e){} }   // 先確保存上去，那邊才拉得到
+    location.href = to + (want ? '?plan=' + encodeURIComponent(want) : '');
+  });
+})();
+
 document.getElementById('newPlanBtn').addEventListener('click', () => {
   resetPlanForm();
   show('plan');
