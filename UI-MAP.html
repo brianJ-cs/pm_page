@@ -285,6 +285,90 @@ td:first-child{width:52px;text-align:center;font-family:ui-monospace,monospace;f
   <tr><td>37</td><td>意見卡</td><td>一則便利貼一張卡，可回覆、可標成處理完</td><td>字剛改成黑色</td></tr>
 </table>
 
+<h2>D2. 字級那條的四種排法<span class="n">挑一個，我照著做</span></h2>
+<div class="note">
+  四個都是同一組東西（SKU、三個價格轉盤、重設），差別只在怎麼擺。
+  下面是<b>等比例</b>畫的 —— 甲是現在的樣子。
+</div>
+<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;
+            background:var(--chrome);padding:18px;border-radius:10px">
+
+  <!-- 甲 -->
+  <div style="text-align:center">
+    <div class="col rail" style="height:250px;margin:0 auto">
+      <div class="ttl">字級</div>
+      <label>SKU<input value="12"></label>
+      <label>一價<input placeholder="自動"></label>
+      <label>二價<input placeholder="自動"></label>
+      <label>三價<input placeholder="自動"></label>
+      <span class="btn" style="font-size:11px">自動</span>
+    </div>
+    <div style="color:#fff;font-size:12px;font-weight:800;margin-top:8px">甲 — 現在這樣</div>
+    <div style="color:#9aa6bc;font-size:11px;width:110px;margin-top:3px">74px。六個小方塊疊著，最鬆散</div>
+  </div>
+
+  <!-- 乙 -->
+  <div style="text-align:center">
+    <div class="col rail" style="width:104px;height:250px;margin:0 auto;align-items:stretch">
+      <div class="ttl" style="align-self:center">字級</div>
+      <label style="flex-direction:row;align-items:center;justify-content:space-between;gap:6px">
+        SKU<input style="width:46px" value="12"></label>
+      <label style="flex-direction:row;align-items:center;justify-content:space-between;gap:6px">
+        一價<input style="width:46px" placeholder="自動"></label>
+      <label style="flex-direction:row;align-items:center;justify-content:space-between;gap:6px">
+        二價<input style="width:46px" placeholder="自動"></label>
+      <label style="flex-direction:row;align-items:center;justify-content:space-between;gap:6px">
+        三價<input style="width:46px" placeholder="自動"></label>
+      <span class="btn" style="font-size:11px">自動</span>
+    </div>
+    <div style="color:#fff;font-size:12px;font-weight:800;margin-top:8px">乙 — 加寬到 104px</div>
+    <div style="color:#9aa6bc;font-size:11px;width:120px;margin-top:3px">標籤在左、框在右。最好讀，但吃掉一點版面</div>
+  </div>
+
+  <!-- 丙 -->
+  <div style="text-align:center">
+    <div class="col rail" style="height:250px;margin:0 auto">
+      <div class="ttl">字級</div>
+      <label>SKU<input value="12"></label>
+      <div style="width:52px;height:1px;background:rgba(255,255,255,.4);margin:2px 0"></div>
+      <div style="color:#fff;font-size:10px;font-weight:800;opacity:.85">價格</div>
+      <label style="gap:2px"><input placeholder="自動"></label>
+      <label style="gap:2px"><input placeholder="自動"></label>
+      <label style="gap:2px"><input placeholder="自動"></label>
+      <span class="tool" style="width:26px;height:26px;font-size:14px;margin-top:2px">↺</span>
+    </div>
+    <div style="color:#fff;font-size:12px;font-weight:800;margin-top:8px">丙 — 分組</div>
+    <div style="color:#9aa6bc;font-size:11px;width:110px;margin-top:3px">
+      三個價格收成一組（一條細線隔開），重設變成 ↺ 小圖示</div>
+  </div>
+
+  <!-- 丁 -->
+  <div style="text-align:center">
+    <div class="col rail" style="height:250px;margin:0 auto">
+      <div class="ttl">字級</div>
+      <label>SKU<input value="12"></label>
+      <div style="width:52px;height:1px;background:rgba(255,255,255,.4);margin:2px 0"></div>
+      <label style="flex-direction:row;align-items:center;gap:5px">1<input style="width:42px" placeholder="自動"></label>
+      <label style="flex-direction:row;align-items:center;gap:5px">2<input style="width:42px" placeholder="自動"></label>
+      <label style="flex-direction:row;align-items:center;gap:5px">3<input style="width:42px" placeholder="自動"></label>
+      <span class="tool" style="width:26px;height:26px;font-size:14px;margin-top:2px">↺</span>
+    </div>
+    <div style="color:#fff;font-size:12px;font-weight:800;margin-top:8px">丁 — 最緊湊</div>
+    <div style="color:#9aa6bc;font-size:11px;width:110px;margin-top:3px">
+      價格標籤縮成 1/2/3（滑上去才說明）。最省空間，但要記住數字的意思</div>
+  </div>
+</div>
+<table>
+  <tr><th>#</th><th>排法</th><th>寬</th><th>好處</th><th>代價</th></tr>
+  <tr><td>甲</td><td>現在這樣</td><td>74px</td><td>不用改</td><td>六塊零散小方塊，你說醜的就是這個</td></tr>
+  <tr><td>乙</td><td>加寬、標籤在左</td><td>104px</td><td>最好讀，跟落版工具列一樣舒服</td><td>版面左邊少 30px</td></tr>
+  <tr><td>丙</td><td>分組＋↺</td><td>74px</td><td>看得出三個價格是同一件事的三檔</td><td>三個框沒有各自的標籤，靠順序記</td></tr>
+  <tr><td>丁</td><td>短標籤 1/2/3</td><td>74px</td><td>最緊湊、最整齊</td><td>「1」是什麼要滑上去才知道</td></tr>
+</table>
+<div class="note"><b>我的建議：乙。</b>「一價／二價／三價」這種字擠在 74px 裡怎麼排都會亂，
+  加 30px 換到「一眼讀得懂」很划算 —— 版面本來就靠捲動看，不差這一點寬度。
+  真的不想加寬就選丙，至少三個轉盤看起來是一組的。</div>
+
 <h2>E. 顏色規矩<span class="n">加任何新 UI 都照這個</span></h2>
 <div class="legend">
   <span><i class="sw" style="background:var(--blue)"></i> 藍＝<b>你正在點的東西</b>（分頁、選取、放下去的位置）。東西本身不准用藍</span>
