@@ -11,7 +11,7 @@
  * 產出的檔案是自動生成的，不要直接改它 —— 改了下次 build 就沒了。
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -19,6 +19,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const MAIN = join(here, 'design_and_PM.html');
 const PICK = join(here, '2cell-product-pick.html');
 const OUT  = join(here, 'dm-editor-single.html');
+const PUB  = join(here, 'public');
 
 const [main, pick] = await Promise.all([readFile(MAIN, 'utf8'), readFile(PICK, 'utf8')]);
 
@@ -52,4 +53,15 @@ await writeFile(OUT, out, 'utf8');
 const kb = n => (n / 1024).toFixed(0) + ' KB';
 console.log(`寫出 ${OUT}`);
 console.log(`  主程式 ${kb(main.length)} + 商品版面 ${kb(pick.length)} → 單檔 ${kb(out.length)}`);
+
+/* 順手把要丟上 Netlify 的那一份也擺好。名字改成 ASCII 是有原因的：
+   「落版單系統.html」當網址會變成一長串 %E8%90%BD…，_redirects 裡也很難讀。
+   Netlify：Build command 填 `node build-single.mjs`、Publish directory 填 `public`。 */
+await mkdir(PUB, { recursive: true });
+await writeFile(join(PUB, 'editor.html'), out, 'utf8');
+await copyFile(join(here, '落版單系統.html'), join(PUB, 'index.html'));
+for (const f of ['config.js', 'supabase-sync.js', '_redirects'])
+  await copyFile(join(here, f), join(PUB, f));
+
+console.log(`寫出 ${PUB}${'\\'} —— index.html(行銷) / editor.html(編輯器) / config.js / supabase-sync.js / _redirects`);
 console.log('  驗一下：node .claude/skills/run-pm-page/driver.mjs --file dm-editor-single.html?seed=1 --wait 800');

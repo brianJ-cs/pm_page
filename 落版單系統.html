@@ -713,6 +713,11 @@
 
 <div id="toast"></div>
 
+<!-- 共用資料層。選配：檔案不在（或 config.js 還是佔位符）時 PlanSync.ok() 回 false，
+     整支就走原本純 localStorage 的路徑。 -->
+<script src="config.js"></script>
+<script src="supabase-sync.js"></script>
+
 <script>
 (function(){
 'use strict';
@@ -744,6 +749,10 @@ const PRESET_TAGS = [
 const DEFAULT_DURS = [2,2,1,1,1,1,2,1,1,1];
 const LS_KEY = 'catalogue_plans_v1';
 
+/* 有接 Supabase 就回那個物件，沒接回 null。所有同步的呼叫都先過這一關，
+   後端不在的時候整支程式一行都不會走到網路上。 */
+const sync = () => (window.PlanSync && window.PlanSync.ok()) ? window.PlanSync : null;
+
 /* two fake 檔期: one finished (過往檔期 modal) and one still in flight (home) */
 const SEED_PLANS = [
   { id:'seed-1', name:'6月父親節檔・全省對開大DM', type:'全省對開大DM', tags:['父親節','大DM'],
@@ -773,8 +782,15 @@ let justSeeded = false;
 if (!Array.isArray(plans) || plans.length === 0) { plans = SEED_PLANS.slice(); justSeeded = true; }
 // tag up any untagged 檔期 once, so the tag filter has something to work with
 if (plans.filter(fillRandomTags).length) justSeeded = true;
-function savePlans(){ try { localStorage.setItem(LS_KEY, JSON.stringify(plans)); } catch (e) {} }
+/* touched = 這次動到的是哪一個檔期。給了就順手往共用資料庫送那一個 ——
+   整包送會讓設計正在改的檔期被我們手上的舊版蓋掉。沒給就只存本機。 */
+function savePlans(touched){
+  try { localStorage.setItem(LS_KEY, JSON.stringify(plans)); } catch (e) {}
+  const s = sync();
+  if (s && touched) s.queueUpsert(touched);
+}
 // persist once, or the random tags would be redrawn on every reload
+// （示範檔期只存本機，不往上送 —— 每台新機器開一次就多兩個假檔期太吵）
 if (justSeeded) savePlans();
 
 /* deleted 檔期 live here until restored or purged for good */
@@ -1170,7 +1186,7 @@ function openStageConfirm(plan, chosen){
   }
   showStageConfirm(msg, () => {
     apply();
-    savePlans();
+    savePlans(plan);
     barEditMode = false;
     renderHome();          // re-renders both cards and the bar, kept in sync
     toast('已更新目前階段');
@@ -2486,7 +2502,7 @@ function addDemoPlan(){
   demo.tags = demo.tags.slice();
   demo.durs = demo.durs.slice();
   plans.push(demo);
-  savePlans();
+  savePlans(demo);
   renderHome();
   toast(`已加入示範檔期「${demo.name}」`);
 }
@@ -2527,6 +2543,9 @@ function askDeletePlan(plan){
     plans.splice(i, 1);
     trash.push(Object.assign({}, plan, { deletedAt: Date.now() }));
     savePlans(); saveTrash();
+    /* 回收桶只在這台機器上。共用資料庫那邊直接把這一列拿掉，
+       別台機器之後開才不會又看到它。 */
+    { const s = sync(); if (s) s.queueRemove(plan.id); }
     renderHome();
     if (!pastMask.classList.contains('hidden')) renderPast();   // deleted from the 過往檔期 list
     toast(`已將「${plan.name}」移到回收桶`);
@@ -2571,7 +2590,7 @@ function restorePlan(plan){
   const clean = Object.assign({}, plan);
   delete clean.deletedAt;
   plans.push(clean);
-  savePlans(); saveTrash();
+  savePlans(clean); saveTrash();
   renderTrash(); updateTrashBtn(); renderHome();
   toast(`已還原「${plan.name}」`);
 }
@@ -2691,17 +2710,30 @@ footer{margin-top:22px;font-size:13px;color:#7a8494;text-align:center}
   downloadFile(`落版單_${safeName(plan.name)}.html`, html);
 }
 
-document.getElementById('submitBtn').addEventListener('click', () => {
+document.getElementById('submitBtn').addEventListener('click', async () => {
   closeAssign(true);
   clearTransient();
   draft.layout = { front: wsFront.innerHTML, back: wsBack.innerHTML };
   exportPlanFile(draft, wsFront.offsetWidth, wsFront.offsetHeight);   // download the whole 落版單
   plans.push(draft);
-  savePlans();
+  const submitted = draft;
+  savePlans(submitted);
   draft = null;
   document.body.className = '';
   renderHome();
   show('home');
+
+  /* 有接共用資料庫就直接把人送進編輯器。先 await flush() 把這個檔期真的寫上去，
+     不然跳過去的編輯器會拉不到它。檔案照樣下載 —— 後端全倒的時候那還是唯一的路。
+     file:// 打開的時候不跳（本機沒有 /editor 這個網址），維持原本的下載流程。 */
+  const s = sync();
+  const to = (window.SUPABASE || {}).editorUrl;
+  if (s && to && /^https?:$/.test(location.protocol)){
+    toast('已提交給設計，正在開啟編輯器…');
+    try { await s.flush(); } catch (e) { console.warn('提交同步失敗', e); }
+    location.href = to + '?plan=' + encodeURIComponent(submitted.id);
+    return;
+  }
   toast('已提交給設計，並已下載落版單檔案');
 });
 
@@ -2711,6 +2743,27 @@ flagsFromDurs(DEFAULT_DURS);
 fitTotalToFlags(); buildGrid(); render();
 renderHome();
 show('home');
+
+/* ---- 共用資料庫：上面已經用 localStorage 把首頁畫出來了，這裡再拉一次遠端 ----
+   不 await：後端慢或掛掉都不影響這一頁開得起來（關網路照樣能用，這是保底）。 */
+(async function bootSync(){
+  const s = sync();
+  if (!s) return;
+  try {
+    const rows = await s.pullAll();
+    if (!rows || !rows.length) return;
+    /* 同一個 id 以遠端為準；本機獨有的（還沒上傳過的）留著。
+       MVP 是 last-write-wins，兩個人同時改同一個檔期，後存的贏。 */
+    const byId = new Map(plans.map(p => [p.id, p]));
+    rows.forEach(r => { if (r && r.id && r.data) byId.set(r.id, r.data); });
+    plans = [...byId.values()];
+    savePlans();            // 只寫本機快取，不要反過來整包再送上去
+    if (!views.layout.classList.contains('hidden')) return;   // 正在切版就別重畫首頁
+    renderHome();
+  } catch (e){
+    console.warn('開機同步失敗，先用本機資料', e);
+  }
+})();
 })();
 </script>
 </body>

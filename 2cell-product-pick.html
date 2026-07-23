@@ -6,7 +6,9 @@
 <title>格子商品帶入</title>
 <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px}
+:root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px;
+  --drop:#4a6fdc;   /* 藍＝放下去的位置 */
+  --missing:#d31f2b}   /* 紅＝這裡還缺東西（還沒換上商品圖） */
 *{box-sizing:border-box}
 body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-box;background:var(--bg);color:var(--ink);
   font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;display:flex}
@@ -204,6 +206,17 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 #tip{position:fixed;pointer-events:none;z-index:99;background:#111;color:#fff;font-size:12px;
   font-weight:700;padding:5px 9px;border-radius:7px;transform:translate(14px,16px);display:none;white-space:nowrap}
 
+/* 換圖的回報。不能用 #tip —— 那個是跟著游標走的，而且 ui-stage 下被關掉了。 */
+#imgsay{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:120;
+  background:#111;color:#fff;font-size:12px;font-weight:800;padding:6px 12px;border-radius:999px;
+  opacity:0;transition:opacity .18s;pointer-events:none;white-space:nowrap}
+#imgsay.on{opacity:.94}
+/* 拖著檔案經過哪一塊、哪一塊正在傳 */
+.blk.img.imgdrop{outline:3px solid var(--drop);outline-offset:2px}
+.blk.img.imgbusy{opacity:.45}
+/* 還沒換上真圖的商品圖框紅色：一眼看得出這一版還缺幾張圖 */
+.blk.img.noimg{outline:2px solid var(--missing);outline-offset:1px}
+
 /* ---------- 身分：設計 只排版；PM 只帶商品 ---------- */
 /* 設計 拿不到選商品面板與後台，所以無法新增任何東西 */
 body.role-design #panel,
@@ -288,6 +301,7 @@ body.ui-stage .safe{display:none !important}
 </div>
 
 <div id="tip"></div>
+<div id="imgsay"></div>
 
 <script>
 /* ====== 資料：商品 = name + cat + variants(spec,sku,price) ====== */
@@ -578,6 +592,114 @@ addEventListener('message',e=>{
   if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
   if(d.boardPicked) applyPicked(d.boardPicked);
+  // 上層把剛剛那張圖傳完了（或失敗了）
+  if(d.imgUploaded){
+    const w = imgWaiting.get(d.imgUploaded.reqId);
+    if(w){
+      imgWaiting.delete(d.imgUploaded.reqId);
+      d.imgUploaded.error ? w.no(new Error(d.imgUploaded.error)) : w.ok(d.imgUploaded.url);
+    }
+  }
+});
+
+/* ====== 把 PNG 拖到灰方塊上就換圖 ======
+   圖不留在這一頁：縮好之後交給上層傳去 Storage，換回一串網址才存下來。
+   金鑰只有上層有 —— 單檔版這一頁是 srcdoc 塞進去的，不該碰到它。 */
+
+const IMG_MAX_PX = 900;   // 版面上最大也才幾百 px，再大只是白佔頻寬
+
+let sayTimer = 0;
+function say(msg){
+  const el = document.getElementById('imgsay');
+  if(!el) return;
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(()=>el.classList.remove('on'), 2400);
+}
+
+/* 縮圖一律出 PNG：商品圖常常是去背的，轉成 JPEG 會給它一塊白底。 */
+function shrinkImage(file){
+  return new Promise((ok,no)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>no(new Error('讀不到這個檔案'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>no(new Error('這個檔案不是看得懂的圖'));
+      im.onload=()=>{
+        const k=Math.min(1, IMG_MAX_PX/Math.max(im.width,im.height));
+        if(k>=1) return ok(fr.result);            // 本來就夠小，別重壓一次
+        const cv=document.createElement('canvas');
+        cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k);
+        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+        ok(cv.toDataURL('image/png'));
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+let imgReqN = 0;
+const imgWaiting = new Map();
+function askUpload(name, dataUrl){
+  return new Promise((ok,no)=>{
+    if(window.parent===window) return no(new Error('單獨開這一頁沒有地方可以存'));
+    const reqId = 'u'+(++imgReqN);
+    imgWaiting.set(reqId,{ok,no});
+    try{ parent.postMessage({ boardCell:CELL_ID, imgUpload:{ reqId, name, dataUrl } }, '*'); }
+    catch(err){ imgWaiting.delete(reqId); return no(err); }
+    setTimeout(()=>{
+      if(imgWaiting.has(reqId)){ imgWaiting.delete(reqId); no(new Error('上傳等太久了')); }
+    }, 30000);
+  });
+}
+
+const imgBlkAt = t => (t && t.closest) ? t.closest('.blk.img') : null;
+let dropHot = null;
+function markDrop(el){
+  if(dropHot===el) return;
+  if(dropHot) dropHot.classList.remove('imgdrop');
+  dropHot = el;
+  if(el) el.classList.add('imgdrop');
+}
+
+addEventListener('dragover', e=>{
+  const el = imgBlkAt(e.target);
+  if(!el){ markDrop(null); return; }
+  /* 圖層本身是可以拖著搬的，所以只有「從桌面拖檔案進來」才算換圖 */
+  if(![...(e.dataTransfer.types||[])].includes('Files')){ markDrop(null); return; }
+  e.preventDefault();
+  e.dataTransfer.dropEffect='copy';
+  markDrop(el);
+});
+addEventListener('dragleave', e=>{ if(!e.relatedTarget) markDrop(null); });
+
+addEventListener('drop', async e=>{
+  const el = imgBlkAt(e.target);
+  if(!el || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  markDrop(null);
+
+  const b = BLOCKS.find(x=>String(x.id)===el.dataset.b);
+  if(!b) return;
+  const f = e.dataTransfer.files[0];
+  if(!/^image\//.test(f.type)){ say('只收圖片檔'); return; }
+
+  el.classList.add('imgbusy');
+  try{
+    const small = await shrinkImage(f);
+    const url = await askUpload(b.key + '.png', small);
+    cellImgs()[b.key] = url;
+    saveCell();
+    refreshAll();          // 同一格裡同一個商品的圖層一起換掉
+    reportBoard();         // 上層收到才會寫進檔期、才會同步出去
+    say('換好了');
+  }catch(err){
+    say(String(err && err.message || err));
+  }finally{
+    el.classList.remove('imgbusy');
+  }
 });
 
 /** 只換「挑了哪些」，位置讓 buildBlocks 重新排一次。 */
@@ -731,8 +853,21 @@ function stackImgs(B, rows, w, y, nextId){
                                   x:x0 + i*step, y, w, z:i+1 }));
 }
 
-/* 商品圖：有上傳用上傳的，沒有就畫 placeholder（內嵌 SVG，斷網也看得到） */
+/* 這一格自己換過的商品圖：key 是商品（品名|規格|顏色），值是 Storage 的網址。
+   為什麼掛在「格子」上而不是掛在零件上：勾選一變動 buildBlocks() 就把零件整批
+   重做，掛在零件上的東西會跟著不見。掛在格子上，重排幾次都還在。 */
+function cellImgs(){
+  const c = cell();
+  if(!c) return {};
+  if(!c.img) c.img = {};
+  return c.img;
+}
+
+/* 商品圖：這一格換過的優先，其次是圖庫上傳的，都沒有就畫 placeholder
+   （內嵌 SVG，斷網也看得到） */
 function imgHTML(k){
+  const mine = cellImgs()[k];
+  if(mine) return `<img src="${mine}" alt="" draggable="false">`;
   if(IMG[k]) return `<img src="${IMG[k]}" alt="" draggable="false">`;
   const a=k.split('|'), tag=[a[1],a[2]].filter(Boolean).join(' ')||'—';
   return `<svg class="ph" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -765,7 +900,8 @@ function blockHTML(b,isCur=true){
   if(b.kind==='name')  return `<div class="blk name${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${b.text}</div>`;
   if(b.kind==='img'){
     const dim = isCur?xrayDim(b):1;
-    return `<div class="blk img${on}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
+    const noimg = (cellImgs()[b.key]||IMG[b.key]) ? '' : ' noimg';   // 還沒換圖＝框紅的
+    return `<div class="blk img${on}${noimg}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
       style="left:${b.x}px;top:${b.y}px;width:${b.w}px;z-index:${b.z};opacity:${dim}">
       ${imgHTML(b.key)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
@@ -1491,6 +1627,7 @@ function boardState(){
      nPrice／wantFs 是報給上層分組用的：這一格有幾個價格、自己需要縮到多少。
      上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
   return { v:2, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
+           img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
            nPrice: priceCount(c.blocks), wantFs: priceWanted };
 }
 let reportTimer = 0;
@@ -1508,6 +1645,7 @@ function restoreBoard(s){
   picked = new Set(s.picked||[]);
   BLOCKS = s.blocks||[];
   layoutKey = s.layoutKey||'';
+  if(cell()) cell().img = s.img || {};      // 換過的商品圖跟著這一格回來
   /* 舊檔的座標存的是「每一格都 540 寬」那套；現在每一格照自己的實際尺寸開
      座標系，兩套之間差一個等比例（寬高差的是同一個 k —— 舊的 CH 也是照同一個
      長寬比推出來的）。轉一次就好，轉完 boardState() 會蓋上 v:2。

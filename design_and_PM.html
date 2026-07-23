@@ -320,6 +320,10 @@
   }
   /* 正在拼的那一格，設計可以直接在版上搬東西；PM 只挑貨，不搬版 */
   #boardOverview:not(.pm) .cell.editing .ccanvas{pointer-events:auto}
+  /* 從桌面拖一張圖進來的那幾秒：畫布整個浮上來收 drop。平常它 pointer-events:none
+     又壓在卡片底下（z-index:-1），不先點進那一格根本收不到 —— 但拖圖換商品圖
+     不該還要先點兩下，看到哪一格就丟哪一格。 */
+  #boardOverview.filedrag .ccanvas{pointer-events:auto;z-index:1}
   /* 拼過的格子上，落版打的字預設收起來（那裡畫布才是主角），開了 顯示落版文字
      才回來，壓在畫布上，補一圈白邊才讀得清楚。
      還沒拼的格子沒有東西可看，字就是它唯一的身分，一直留著。 */
@@ -456,15 +460,18 @@
   .icard .kind{font-size:16px;font-weight:800;color:var(--nc,#374151);margin-top:6px;
     display:flex;align-items:center;gap:6px}
   .icard .kind .ico{font-size:20px;line-height:1}
+  /* 人寫的字自己寫死顏色。意見欄站在深色的桌面上，卡片卻是白的 —— 不寫就會
+     繼承桌面那套淺灰（#eaeef7），白卡片上幾乎看不見。 */
   .icard .body{font-size:17px;font-weight:700;line-height:1.5;margin-top:5px;
-    white-space:pre-wrap;word-break:break-word}
+    color:var(--ink-strong);white-space:pre-wrap;word-break:break-word}
   .icard.done .body{text-decoration:line-through;color:var(--muted)}
   .icard .body.blank{color:var(--muted)}
   .icard .meta{font-size:13.5px;font-weight:800;color:var(--muted);margin-top:5px}
   .icard .replies{margin:9px 0 0 4px;padding-left:10px;border-left:4px solid var(--line);
     display:flex;flex-direction:column;gap:8px}
   .icard .reply .who{font-size:14px;font-weight:800;color:var(--blue)}
-  .icard .reply .rtext{font-size:16px;font-weight:700;line-height:1.45;white-space:pre-wrap}
+  .icard .reply .rtext{font-size:16px;font-weight:700;line-height:1.45;
+    color:var(--ink-strong);white-space:pre-wrap}
   .icard .box{display:none;margin-top:10px}
   .icard.sel .box{display:block}
   .icard .box textarea{
@@ -1507,6 +1514,11 @@
 <div id="modalHost"></div>
 <input type="file" id="mhFile" accept="image/*" hidden>
 
+<!-- 共用資料層。這兩支是選配的：檔案不在（或 config.js 還是佔位符）時 PlanSync.ok()
+     回 false，整支程式就走原本純 localStorage 的路徑，跟沒接後端一模一樣。 -->
+<script src="config.js"></script>
+<script src="supabase-sync.js"></script>
+
 <script>
 (function(){
 'use strict';
@@ -1681,6 +1693,11 @@ function flushSave(){
   savePending = false;
   saveFailWarned = false;
   setSaveState('done');
+
+  /* 本機存成功了才往上送，而且只送當下這一個檔期 —— 整包送會讓「行銷改 A 檔」
+     被「設計手上還是舊版的 A 檔」蓋掉。上傳自己還有 600ms 的 debounce。 */
+  const s = sync();
+  if (s && currentPlan) s.queueUpsert(currentPlan);
 }
 
 /* ==========================================================================
@@ -5057,6 +5074,28 @@ addEventListener('message', e => {
                            boardRestore: (target.board || {}).state || null }, '*');
     return;
   }
+
+  /* 畫布拖進來一張商品圖。上傳由這裡做，不由畫布做 —— 金鑰只放在主程式這一邊，
+     畫布在單檔版是 srcdoc 塞進去的，不該再拿到一份。畫布只負責把縮好的圖遞上來。 */
+  if (d.imgUpload){
+    const q = d.imgUpload;
+    const back = m => { try { e.source.postMessage(m, '*'); } catch (_){} };
+    const s = sync();
+    if (!s || !s.uploadImage){
+      back({ imgUploaded: { reqId: q.reqId, error: '還沒接上共用資料庫，圖存不起來' } });
+      return;
+    }
+    (async () => {
+      try {
+        const blob = await (await fetch(q.dataUrl)).blob();
+        back({ imgUploaded: { reqId: q.reqId, url: await s.uploadImage(q.name, blob) } });
+      } catch (err){
+        back({ imgUploaded: { reqId: q.reqId, error: String((err && err.message) || err) } });
+      }
+    })();
+    return;
+  }
+
   if (!d.state) return;
 
   if (d.src === 'panel'){
@@ -6284,6 +6323,10 @@ const STAGES = ['提品','製作','一校','一改','二校','二改','蓋章','
 const DEADLINE_HOUR = 18;
 const LS_KEY = 'catalogue_plans_v1';
 
+/* 有接 Supabase 就回那個物件，沒接回 null。所有同步的呼叫都先過這一關，
+   後端不在的時候整支程式一行都不會走到網路上。 */
+const sync = () => (window.PlanSync && window.PlanSync.ok()) ? window.PlanSync : null;
+
 const SEED_PLANS = [
   { id:'seed-2', name:'7月中檔・全省對開大DM', type:'全省對開大DM', tags:['大DM','促銷'],
     start: (() => { let d = atMid(new Date()); for (let i = 0; i < 4; i++) d = prevWork(d); return toYMD(d); })(),
@@ -6483,15 +6526,33 @@ function parseExportLayout(html){
   return root ? parseLayoutNode(root) : null;
 }
 
+/* 落版單系統存的 plan.layout 是兩段 HTML（它直接存 wsFront.innerHTML），這支要的是樹。
+   以前只有「從檔案帶入」會轉；現在兩邊共用同一份資料，所以改成誰先開這個檔期誰就轉，
+   轉完存回去 —— 之後不管誰拿到的都是樹，這個函式就不再做事了。
+   沒轉的話：檔期列表會安靜地算錯版位數，一按開啟就 sheetOf() 整頁死掉。 */
+function normalizeLayout(plan){
+  const L = plan && plan.layout;
+  if (!L || typeof L.front !== 'string') return false;   // 已經是樹，或還沒切版
+  const front = parseExportLayout(L.front);
+  const back  = parseExportLayout(L.back);
+  if (!front || !back) return false;                     // 認不得就別動，維持原樣
+  plan.layout = { front, back };
+  return true;
+}
+
 
 function importFiles(fileList){
   const files = [...fileList];
   let added = 0, failed = 0, pending = files.length;
+  const imported = [];
   if (!pending) return;
 
   const finish = () => {
     savePlans();
     renderPlans();
+    // 從檔案帶入的檔期也要上去，不然只有這台機器看得到
+    const s = sync();
+    if (s) { imported.forEach(p => s.queueUpsert(p)); }
     if (failed && added) toast(`匯入完成：成功 ${added} 個，失敗 ${failed} 個（缺少 plandata）`, 'warn', 3600);
     else if (failed)     toast(`匯入失敗 ${failed} 個檔案（缺少 plandata）`, 'warn', 3600);
     else                 toast(`已匯入 ${added} 個檔期`, 'ok');
@@ -6523,6 +6584,7 @@ function importFiles(fileList){
         const at = plans.findIndex(pl => pl.id === plan.id);
         if (at >= 0){ plan.layout = plan.layout || plans[at].layout; plans[at] = plan; }
         else plans.push(plan);
+        imported.push(plan);
         added++;
       } catch (err){ failed++; }
       if (--pending === 0) finish();
@@ -6539,7 +6601,11 @@ document.getElementById('wipeBtn').addEventListener('click', async () => {
   const ok = await modalConfirm({
     title: '清空資料',
     body: `會刪掉這台瀏覽器上的 ${n} 個檔期，連同 PM 名單和身分設定，而且救不回來。`
-        + '（別人電腦上的資料不受影響。）確定要清掉嗎？',
+        + '（別人電腦上的資料不受影響。）'
+        /* 接了後端之後這顆按鈕只清本機，重新整理又會從 Supabase 拉回來 ——
+           不講清楚會被當成壞掉。真的要全刪要去 Supabase 那邊。 */
+        + (sync() ? '共用資料庫上的檔期不會被清掉，重新整理會再拉回來。' : '')
+        + '確定要清掉嗎？',
     ok: '全部清掉', cancel: '取消', danger: true
   });
   if (!ok) return;
@@ -6767,12 +6833,68 @@ window.addEventListener('beforeunload', e => {
    BOOT
    ========================================================================== */
 
+/* 行銷端存進來的 layout 還是兩段 HTML，轉成樹再讓任何人碰它 —— 檔期列表就已經在
+   讀 layout 了（buildPlanCard → planProgress），不能等到開檔期才轉。
+   放在 BOOT 不是隨便放的：normalizeLayout 一路走到 pctOf，那是個 const，
+   在它宣告的那一行之前呼叫會 TDZ 炸掉，而且只有真的遇到要轉的檔期才會炸。 */
+if (plans.filter(normalizeLayout).length) savePlans();
+
+/* 拖著檔案在版面上的時候，把畫布那層打開讓它自己收 drop（見 .filedrag 那條 CSS）。
+   dragover 是連續發的，所以用「停了就關」來收尾 —— dragleave 在格子之間穿梭時
+   會亂噴，拿它當結束訊號會一直閃。 */
+(function enableFileDropOnBoards(){
+  const board = document.getElementById('boardOverview');
+  if (!board) return;
+  let off = 0;
+  const stop = () => { clearTimeout(off); off = 0; board.classList.remove('filedrag'); };
+  document.addEventListener('dragover', e => {
+    if (![...(e.dataTransfer && e.dataTransfer.types || [])].includes('Files')) return;
+    board.classList.add('filedrag');
+    clearTimeout(off);
+    off = setTimeout(stop, 250);      // 手離開視窗、或放掉了，就沒有下一發了
+  }, true);
+  ['drop','dragend'].forEach(t => document.addEventListener(t, stop, true));
+})();
+
 document.getElementById('snapToggle').checked = CONFIG.snapOn;
 renderPmSel();
 paintStickTray();     // 這裡才安全：上面該宣告的都宣告完了
 setTool(activeTool);
 syncTools();
 showList();
+
+/* ---- 共用資料庫：開機先用 localStorage 秒開（上面都做完了），再拉一次遠端 ----
+   刻意放在最後、而且不 await：後端慢或掛掉都不影響這一頁開得起來。 */
+(async function bootSync(){
+  const s = sync();
+  const want = new URLSearchParams(location.search).get('plan');
+
+  if (s){
+    try {
+      const rows = await s.pullAll();
+      if (rows && rows.length){
+        /* 同一個 id 以遠端為準。這是 MVP 的取捨：兩個人同時改同一個檔期，後存的贏。
+           只在遠端有的才蓋，本機獨有的檔期留著（還沒上傳過的不會被吃掉）。 */
+        const byId = new Map(plans.map(p => [p.id, p]));
+        rows.forEach(r => { if (r && r.id && r.data) byId.set(r.id, r.data); });
+        plans = [...byId.values()];
+        plans.filter(normalizeLayout);      // 行銷剛提交的還是 HTML，轉成樹再用
+        savePlans();                        // localStorage 當本機快取
+        if (!currentPlan) renderPlans();    // 已經開著檔期就別把人踢回列表
+      }
+    } catch (e){
+      console.warn('開機同步失敗，先用本機資料', e);
+    }
+  }
+
+  /* 行銷「提交給設計」會帶著 ?plan=<id> 跳過來，直接開到那一個檔期。
+     沒接後端也要能用 —— 檔案帶入之後自己貼網址也是這條路。 */
+  if (want && !currentPlan){
+    const p = plans.find(x => x.id === want);
+    if (p) openPlan(p);
+    else toast(`找不到檔期（${want}）—— 可能還沒同步過來`, 'warn', 4000);
+  }
+})();
 /* A window resize streams events; re-fitting the boards redraws every ruler
    tick and re-flows the sheet, so do it once per frame instead of per event. */
 let resizeFrame = 0;
