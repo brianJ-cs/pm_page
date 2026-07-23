@@ -26,3 +26,6 @@ clutter/
 
 # 從系統下載出來的落版單（是資料，不是程式）
 timelines/
+
+# Local Netlify folder
+.netlify

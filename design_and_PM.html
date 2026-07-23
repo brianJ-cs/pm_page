@@ -1371,6 +1371,10 @@
   <div class="topbar" id="listChrome">
     <h1>設計組・進行中檔期</h1>
     <!-- 測試用：把這台瀏覽器上的東西全部清掉，回到什麼都沒有的狀態 -->
+    <!-- 切到行銷那一支。只有部署起來（http）才看得到 —— 本機用 file:// 開的時候
+         沒有「/」這個網址可以去，留著只會變成一顆按了沒反應的按鈕。 -->
+    <button class="btn" id="toMarketing" style="display:none"
+            title="切到行銷（落版單系統）">← 行銷</button>
     <button class="btn danger" id="wipeBtn" title="清掉這台瀏覽器存的所有檔期與設定">清空資料</button>
     <button class="btn primary" id="importBtn">匯入</button>
   </div>
@@ -6649,6 +6653,17 @@ document.getElementById('wipeBtn').addEventListener('click', async () => {
   });
   location.reload();
 });
+
+/* 切回行銷。開著檔期就把 id 帶過去，讓那邊也停在同一個檔期上。 */
+(function(){
+  const btn = document.getElementById('toMarketing');
+  const home = (window.SUPABASE || {}).homeUrl || '/';
+  if (!/^https?:$/.test(location.protocol)) return;   // file:// 沒有首頁可去
+  btn.style.display = '';
+  btn.addEventListener('click', () => {
+    location.href = currentPlan ? home + '?plan=' + encodeURIComponent(currentPlan.id) : home;
+  });
+})();
 
 document.getElementById('importBtn').addEventListener('click', () =>
   document.getElementById('importInput').click());

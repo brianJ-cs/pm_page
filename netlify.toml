@@ -1,0 +1,15 @@
+# Netlify 設定。有這一支之後，netlify dev / netlify deploy 都不用再帶參數。
+#
+# 這個專案沒有 npm、沒有相依套件：build 只是把兩支 HTML 併成單檔、再把要公開的
+# 檔案擺進 public/。所以 command 就是那一支 node 腳本。
+
+[build]
+  command = "node build-single.mjs"
+  publish = "public"
+
+# 本機預覽：netlify dev 只發 public/ 這個資料夾，不會自己跑 build ——
+# 改完程式要先自己跑一次 node build-single.mjs。
+[dev]
+  framework = "#static"
+  publish = "public"
+  port = 8888

@@ -1103,11 +1103,17 @@ function autoSpace(){
     need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
 
     const widths=keys.map(wide);
-    let x=Math.max(PAD, CW-PAD-need);
+    /* 右緣永遠釘在 CW-PAD，裝不下就往左溢出 —— 這是談定的方向（見 .blk.price 那段
+       CSS 註解）。不能再夾一個 Math.max(PAD, …)：轉盤把字放大到超過整欄寬度時，
+       那個夾子會把整欄推回左邊界，然後整欄從格子的右邊頂出去，蓋到隔壁版位。 */
+    let x=CW-PAD-need;
     keys.forEach((key,ci)=>{
       const list=cols.get(key), hs=sizes.get(key);
       const th=hs.reduce((a,s)=>a+s.h,0)+LINEGAP*(list.length-1);
-      let y=Math.max(PAD_Y, CH-PAD_Y-th);
+      /* 下緣也釘死在 CH-PAD_Y，理由跟上面的 x 一樣：夾一個 Math.max(PAD_Y, …)
+         的話，字放大到比格子還高時整欄會被推回上緣，然後從格子的下面掉出去。
+         右下角是價格的家，放大縮小都從那個角往左往上長。 */
+      let y=CH-PAD_Y-th;
       if(gTop===null || y<gTop) gTop=y;
       // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
       list.forEach((b,j)=>{ put(b,x,y); b.w2=widths[ci]; y+=hs[j].h+LINEGAP; });
