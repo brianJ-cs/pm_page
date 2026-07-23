@@ -1023,8 +1023,8 @@ function renderOne(i, force){
   /* 剛排好（或字型到齊後強制重排）的那一格：先照內容寬度藏著畫一次、量真正的
      寬高，autoSpace 把價格 SKU 靠右對齊、圖讓開，定位完才顯示。b.w2 是靠右用的
      固定寬度框，量之前先清掉，不然量到的是上一輪的框寬、欄寬會越算越死。 */
-  const measuring = (rebuilt||force) && isCur;
-  if(measuring) blocks.forEach(b=>{ if(b.col!=null) b.w2=0; });
+  const measuring = (rebuilt||force||c.respace) && isCur;
+  if(measuring){ c.respace=false; blocks.forEach(b=>{ if(b.col!=null) b.w2=0; }); }
   paint(measuring);
   // paint(false) 一定要跑到：不然萬一 autoSpace 出錯，這一格就永遠藏著了
   if(measuring){
@@ -1036,13 +1036,53 @@ function renderOne(i, force){
   }
 }
 
+/* 數字的下緣不等於 block 的下緣。Anton 的字框是 1.51 em（ascent 1.18 ＋ descent
+   0.33），line-height:1 撐不住，上下各溢出 0.255 em —— 而數字本身只到基線，
+   離 block 下緣還有一段空的。這兩段都跟著字級等比例變，所以「離下緣 5」量框
+   算出來的，字越大留白就越多：一價 52px 和二價 68px 明明都設 5，看起來卻不
+   一樣高。這裡改量看得到的那一段（含逗號的尾巴），5 就真的是 5。
+   量不到字體資訊（舊瀏覽器）就退回量框，至少不會比以前差。 */
+let inkCanvas=null;
+function priceInkBottom(n){
+  const cs=getComputedStyle(n), fs=parseFloat(cs.fontSize);
+  if(!fs) return null;
+  /* 字型沒到齊就別用這一套：替代字的 ascent 比 Anton 少了約 0.1 em，照它算會把
+     整組往下推 5px（就是「有時候對、有時候低一截」）。量不準就退回量框，等
+     whenPriceFont() 那一輪再來對一次。這個判斷不能拿去快取 —— 字型是中途到的。 */
+  if(!document.fonts || !document.fonts.check || !document.fonts.check(fs+'px Anton')) return null;
+  try{
+    const g=inkCanvas||(inkCanvas=document.createElement('canvas').getContext('2d'));
+    g.font='100px '+cs.fontFamily;
+    const m0=g.measureText('0');
+    if(!m0.fontBoundingBoxAscent) return null;
+    const asc=m0.fontBoundingBoxAscent/100, desc=m0.fontBoundingBoxDescent/100;
+    g.font=fs+'px '+cs.fontFamily;
+    const m=g.measureText(n.textContent.trim());
+    // line-height:1 → 行高就是 fs，半行距是負的（字框比行高大），基線就落在這裡
+    const half=(fs-(asc+desc)*fs)/2;
+    return n.clientTop+parseFloat(cs.paddingTop||0)+half+asc*fs
+           +(m.actualBoundingBoxDescent||0);
+  }catch(_){ return null; }
+}
+
+/* fonts.ready 只保證「現在排隊中的字型」都好了。Anton 要等到真的有東西用它才會
+   被抓下來 —— 一進來還沒有任何價格，ready 就已經 resolve 了，價格是之後才畫的，
+   那一次量到的是替代字，而且再也沒有人回來重量。所以改成明講要 Anton：
+   load() 會真的去抓，抓到才重排。已經在快取裡就立刻 resolve，不會多跑。 */
+function whenPriceFont(){
+  if(!document.fonts || !document.fonts.load) return Promise.resolve();
+  return document.fonts.load('52px Anton').catch(()=>{});
+}
+
 /* 把「規格／SKU／價格」那一整組上下對準：最低的那一塊離下緣正好 PRICE_BOTTOM。
    整組一起搬，欄與欄、上下行的相對關係都不動。有搬過才回 true。 */
 function nudgeGroupBottom(blocks){
   const grp=(blocks||[]).filter(b=>b.col!=null);
   if(!grp.length) return false;
   let low=-Infinity;
-  grp.forEach(b=>{ const n=bEl(b.id); if(n) low=Math.max(low, n.offsetTop+n.offsetHeight); });
+  grp.forEach(b=>{ const n=bEl(b.id); if(!n) return;
+    const ink=b.kind==='price'?priceInkBottom(n):null;
+    low=Math.max(low, n.offsetTop+(ink==null?n.offsetHeight:ink)); });
   if(low===-Infinity) return false;
   const d=(CH-PRICE_BOTTOM)-low;
   if(Math.abs(d)<.5) return false;
@@ -1057,9 +1097,7 @@ function nudgeGroupBottom(blocks){
    字型到齊再量一次、重排一次。fonts.ready 只會 resolve 一次，所以不會反覆跑；
    字型已經在快取裡的話它立刻就 resolve，那時 BLOCKS 還是空的，直接跳過 ——
    那種情況第一次量到的本來就是對的。 */
-if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(()=>{ if(BLOCKS.length) renderOne(curCell, true); });
-}
+whenPriceFont().then(()=>{ if(BLOCKS.length) renderOne(curCell, true); });
 
 /** 這組 block 是不是舊版排的：有價格，卻沒有一塊帶欄號或右下角錨點。 */
 function oldLayout(bs){
@@ -1720,11 +1758,12 @@ const UI_SRC  = UI_STAGE ? 'stage' : (UI_PANEL ? 'panel' : 'full');
 function boardState(){
   saveCell();
   const c = cell(); if(!c) return null;
-  /* v 是座標系的版本章：2 ＝ 已經是「照真實尺寸」那一套。沒有 v 的是舊檔，
-     讀進來時換算一次（見 restoreBoard），蓋了章就不會再換第二次。
+  /* v 是版本章。2 ＝ 座標已經是「照真實尺寸」那一套；3 ＝ 價格那一組是照修好的
+     規則排的（縮放只做一遍、貼底對的是看得到的數字）。比 3 舊的讀進來重排一次
+     （見 restoreBoard），蓋了章就不會再重排第二次。
      nPrice／wantFs 是報給上層分組用的：這一格有幾個價格、自己需要縮到多少。
      上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
-  return { v:2, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
+  return { v:3, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
            img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
            nPrice: priceCount(c.blocks), wantFs: priceWanted };
 }
@@ -1748,10 +1787,15 @@ function restoreBoard(s){
      座標系，兩套之間差一個等比例（寬高差的是同一個 k —— 舊的 CH 也是照同一個
      長寬比推出來的）。轉一次就好，轉完 boardState() 會蓋上 v:2。
      沒帶尺寸進來（單獨開這一頁）就別動它，不然會照著假的比例縮。 */
-  if(s.v !== 2 && CM_W && CW !== LEGACY_CW){
+  if(!(s.v >= 2) && CM_W && CW !== LEGACY_CW){
     const k = CW / LEGACY_CW;
     BLOCKS.forEach(b => { b.x = (+b.x || 0) * k; b.y = (+b.y || 0) * k; });
   }
+  /* v3 以前存的 b.x/b.y 是「縮放做了兩遍」那一版算出來的：欄跟欄之間被撐開、
+     整疊的高度算錯。載進來如果不重排就會原樣照搬 —— 「一開始看起來就是低的、
+     兩個價格中間空一大塊」講的就是這個，因為 autoSpace 只在重建或強制時才跑。
+     只重排右下那一組（有欄號的），品名和商品圖的手動位置不動。 */
+  if(!(s.v >= 3)) CELLS.forEach(c => { if(c) c.respace = true; });
   /* 舊版排的版沒有欄號，價格是按估算的字寬硬擺的，兩個價格會疊在一起。
      認得出是舊的就重排一次 — 那一版的手動位置留不住，但至少讀得出來。 */
   if(oldLayout(BLOCKS)) layoutKey='';
@@ -1866,17 +1910,14 @@ if(window.parent !== window){
    替代字比 Anton 寬得多，所以在它載好之前量到的文字寬是錯的（偏寬），
    整欄靠右對齊就會被推到偏左的位置；載好之後版面不會自己重量，那個位置就留著。
    同樣的操作有時偏右有時偏左，差別只在「那一刻字型載到了沒」。
-   等它真的到了，重量一次。 */
-if(document.fonts && document.fonts.ready){
-  document.fonts.ready.then(()=>{
-    if(!CELLS.length) return;
-    layoutKey = '';
-    CELLS.forEach(c=>{ c.layoutKey = ''; });
-    saveCell();
-    refreshAll();
-    reportBoard();          // 位置變了要讓上層存下來，不然重開又跳回舊的
-  }).catch(()=>{});
-}
+   等它真的到了，重量一次 —— 只重量，不重建：清 layoutKey 會整組 block 重生，
+   連品名和商品圖被搬到哪裡都一起還原，那是連手動排的版一起賠掉。 */
+whenPriceFont().then(()=>{
+  if(!CELLS.length) return;
+  CELLS.forEach(c=>{ if(c) c.respace = true; });
+  refreshAll();
+  reportBoard();          // 位置變了要讓上層存下來，不然重開又跳回舊的
+}).catch(()=>{});
 </script>
 </body>
 </html>
