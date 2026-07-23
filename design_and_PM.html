@@ -264,6 +264,28 @@
   .panel{flex:1;min-height:0;display:none}
   .panel.active{display:flex}
   #view-total{align-items:flex-start;justify-content:center;gap:34px;overflow:auto;padding-top:4px}
+  /* 整份 DM：唯讀全景。一欄捲到底，每個版位一塊，格子照真實比例拼滿 */
+  #view-dm{flex-direction:column;align-items:center;overflow:auto;padding:6px 0 60px}
+  .dm-band{
+    align-self:stretch;text-align:center;font-size:13px;font-weight:800;
+    color:var(--muted);letter-spacing:.12em;margin:14px 0 4px;
+  }
+  .dm-block{margin:0 0 26px}
+  .dm-cap{font-size:13px;font-weight:800;color:var(--ink-dim);margin:0 0 6px 2px}
+  .dm-section{position:relative;background:var(--surface);
+    border:1px solid var(--line-strong);box-shadow:0 4px 16px rgba(16,24,40,.10)}
+  /* 刊頭：有圖鋪滿，沒圖一條淡帶子（跟落版空刊頭同一個意思，不是內容） */
+  .dm-mh{position:absolute;overflow:hidden;background:var(--surface-2)}
+  .dm-mh.empty{display:flex;align-items:center;justify-content:center;
+    color:var(--muted);font-size:12px;font-weight:800;letter-spacing:.1em;
+    border-bottom:1px solid var(--line)}
+  .dm-mh.side.empty{border-bottom:none;border-right:1px solid var(--line)}
+  .dm-mh img{width:100%;height:100%;object-fit:contain;display:block}
+  .dm-cell{position:absolute;box-sizing:border-box;border:1px solid var(--line);
+    overflow:hidden;background:var(--surface)}
+  .dm-cell.empty{background:var(--surface-2)}
+  .dm-canvas{width:100%;height:100%;border:0;display:block;background:var(--surface)}
+  .dm-empty{color:var(--muted);font-size:16px;margin-top:70px}
   /* 拼板：小地圖固定在左邊（不管在哪一層都看得到自己在哪），右邊換內容 */
   #view-board{padding-top:6px;gap:0;align-items:stretch}
   #boardSide{flex:none;display:flex}
@@ -1387,6 +1409,7 @@
     <button class="tab active" data-tab="total">總體</button>
     <button class="tab" data-tab="sheet">落版</button>
     <button class="tab" data-tab="board">拼板</button>
+    <button class="tab" data-tab="dm">整份</button>
     <div class="hist">
       <button class="btn icon" id="undoBtn" data-key="⌘Z" title="復原 (⌘/Ctrl+Z)" disabled>↶</button>
       <button class="btn icon" id="redoBtn" data-key="⇧⌘Z" title="重做 (⌘/Ctrl+Shift+Z)" disabled>↷</button>
@@ -1431,6 +1454,9 @@
   </div>
 
   <div class="panel" id="view-total"></div>
+
+  <!-- 整份 DM：唯讀。每個版位照真實比例拼成一張，捲進畫面才長出畫布（見 buildDmView）。 -->
+  <div class="panel" id="view-dm"></div>
 
   <!-- 拼板：小地圖一直留在左邊當定位，右邊在「整張版」和「拼一格」之間換。
        拼一格是 2cell-product-pick.html 原封不動跑在 iframe 裡，樣式與腳本各自獨立。 -->
@@ -4862,6 +4888,21 @@ const VIEWS = {
       markWrap.style.display = 'none';
       typeWrap.classList.remove('on');
     }
+  },
+  /* 整份 DM：唯讀的一張全景。工具列全收起來（這裡什麼都不編），
+     每個版位照真實比例拼成一格一格，捲到看得見才給畫布。 */
+  dm: {
+    mount(){
+      snapWrap.style.display = 'none';
+      copyWrap.style.display = 'none';
+      wordWrap.style.display = 'none';
+      markWrap.style.display = 'none';
+      confirmBtn.style.display = 'none';
+      typeWrap.classList.remove('on');
+      document.getElementById('toolHint').style.display = 'none';
+      buildDmView();
+    },
+    unmount(){ hideTip(); teardownDmView(); }
   }
 };
 
@@ -5045,6 +5086,7 @@ const pickedOf = c => ((c.board && c.board.state && c.board.state.picked) || [])
 
 addEventListener('message', e => {
   const d = e.data || {};
+  if (d.dm) return;                  // 整份 DM 的唯讀畫布走它自己那條線（dmMessage）
   if (!d.boardCell || !activeBlock) return;
   /* 認格子看 id，不是看「現在開著哪一格」 — 面板關掉的瞬間可能還有一份剛剛
      勾好的內容在路上，那也要收下來，不然那一下就白勾了。 */
@@ -5865,6 +5907,193 @@ function pushType(block){
   });
 }
 
+/* ==========================================================================
+   整份 DM（唯讀）
+   把每一個版位照真實比例畫成一格一格拼起來，像印出來的那張 DM 攤在眼前 ——
+   步驟 1、2 把字級喬齊了沒有，本來就要看整份才看得出來。
+   格子裡跑的還是拼板本人（2cell 的 ui=stage，帶 ro=1），但只有捲到看得見的
+   那些才給 iframe，捲出去就收掉：整份四十格也不會同時有四十個 iframe 活著。
+   資料全部讀存好的（cell.board.state），不動任何東西、不進歷史。
+   ========================================================================== */
+let dmObserver = null;
+const dmFrames = new Map();      // cellId -> iframe（只有此刻掛著的那幾個）
+const dmIndex  = new Map();      // cellId -> { cell, sh }，招呼進來時查得到是誰
+
+/** 一個版位：刊頭 + 底下那格陣，照真實比例排。回傳整塊的 DOM。 */
+function dmSectionEl(block, W){
+  const sh = sheetOf(block);
+  const aspect = blockAspect(block);            // 整塊 w/h
+  const n = sh.cells.length;
+
+  // 刊頭：橫帶（吃高度）或直柱（吃寬度），跟 sheetMetrics 同一套判斷
+  const side = (sh.masthead && sh.mhSide) ? sh.mhSide : null;
+  const sideFrac = side ? Math.max(.12, Math.min(.6, side.frac || .3)) : 0;
+  const blockHcm = sh.mastheadW / aspect;
+  const mhFrac = (sh.masthead && !side)
+    ? Math.min(CONFIG.mastheadMaxFrac, sh.mastheadH / blockHcm) : 0;
+  const cellAspect = side ? aspect * (1 - sideFrac) : aspect / (1 - mhFrac);
+
+  // 列數跟落版同一套：拖過列的用凍住的那個分法，格子的排列才跟拼板一致
+  let nRows = Math.max(1, Math.round(Math.sqrt(n / cellAspect)));
+  const cellsAreaW = side ? W * (1 - sideFrac) : W;
+  const maxPerRow = Math.max(1, Math.floor(cellsAreaW / CONFIG.minCellW));
+  nRows = Math.min(n, Math.max(nRows, Math.ceil(n / maxPerRow)));
+  const frozen = sh.rows && sh.rows.reduce((a, b) => a + b, 0) === n ? sh.rows : null;
+  const counts = frozen || splitEven(n, nRows);
+  nRows = counts.length;
+
+  const totalH = W / aspect;
+  const mhPx = (sh.masthead && !side) ? totalH * mhFrac : 0;
+  const cellsAreaTop = mhPx;
+  const cellsAreaH = totalH - mhPx;
+  const cellsAreaLeft = (side && side.side === 'left') ? sideFrac * W : 0;
+  const rowH = cellsAreaH / nRows;
+  // pxPerCm = totalH/blockHcm，化簡就是 W/mastheadW（刊頭寬＝版位寬）——
+  // 跟 cellCm() 是同一個換算，這裡不必量 DOM 就能給每格算出 cm
+  const pxPerCm = W / sh.mastheadW;
+
+  const sec = document.createElement('div');
+  sec.className = 'dm-section';
+  sec.style.width = W + 'px';
+  sec.style.height = totalH + 'px';
+
+  // 刊頭：有圖用圖，沒圖畫一條淡淡的帶子寫上尺寸（跟落版空刊頭一個意思）
+  if (sh.masthead){
+    const mh = document.createElement('div');
+    mh.className = 'dm-mh' + (side ? ' side' : '');
+    if (side){
+      mh.style.width = sideFrac * W + 'px';
+      mh.style.height = totalH + 'px';
+      mh.style.top = '0';
+      mh.style[side.side === 'left' ? 'left' : 'right'] = '0';
+    } else {
+      mh.style.width = W + 'px';
+      mh.style.height = mhPx + 'px';
+      mh.style.left = '0'; mh.style.top = '0';
+    }
+    if (sh.masthead.image){
+      const img = document.createElement('img');
+      img.src = sh.masthead.image; img.alt = '';
+      mh.appendChild(img);
+    } else {
+      mh.classList.add('empty');
+      mh.textContent = '刊頭';
+    }
+    sec.appendChild(mh);
+  }
+
+  // 格子：一列一列填，每列等寬撐滿，跟落版的 flex 版一模一樣
+  let idx = 0;
+  counts.forEach((cnt, r) => {
+    const cw = cellsAreaW / cnt;
+    const y = cellsAreaTop + r * rowH;
+    for (let k = 0; k < cnt; k++){
+      const cell = sh.cells[idx++];
+      if (!cell) break;
+      const x = cellsAreaLeft + k * cw;
+      const box = document.createElement('div');
+      const filled = pickedOf(cell).length > 0;
+      box.className = 'dm-cell' + (filled ? ' filled' : ' empty');
+      box.style.cssText =
+        `left:${x}px;top:${y}px;width:${cw}px;height:${rowH}px`;
+      box.dataset.cellId = cell.id;
+      box.dataset.cmw = (cw / pxPerCm).toFixed(3);
+      box.dataset.cmh = (rowH / pxPerCm).toFixed(3);
+      sec.appendChild(box);
+      dmIndex.set(String(cell.id), { cell, sh });
+    }
+  });
+
+  const wrap = document.createElement('div');
+  wrap.className = 'dm-block';
+  const cap = document.createElement('div');
+  cap.className = 'dm-cap';
+  cap.textContent = block.name;
+  wrap.appendChild(cap);
+  wrap.appendChild(sec);
+  return wrap;
+}
+
+function buildDmView(){
+  teardownDmView();
+  const host = document.getElementById('view-dm');
+  host.innerHTML = '';
+  const W = Math.min(820, Math.max(360, host.clientWidth - 48));
+  ['front', 'back'].forEach(sideKey => {
+    const blocks = collectBlocks(layout[sideKey], [])
+      .filter(b => (sheetOf(b).cells || []).length)
+      // PM 看整份也照同一條規矩：沒鎖定的版位對 PM 不存在（不是壓暗，是不出現）
+      .filter(b => activeMode !== 'pm' || sheetOf(b).confirmed);
+    if (!blocks.length) return;
+    const band = document.createElement('div');
+    band.className = 'dm-band';
+    band.textContent = sideKey === 'front' ? '正面' : '背面';
+    host.appendChild(band);
+    blocks.forEach(b => host.appendChild(dmSectionEl(b, W)));
+  });
+  if (!host.children.length){
+    host.innerHTML = '<div class="dm-empty">還沒有版位可以看</div>';
+    return;
+  }
+  /* 虛擬化：只有捲到看得見（含上下各留一段預熱）的格子才掛 iframe，
+     捲出去就收掉。空格子從頭到尾不掛，畫面上就是一塊淡底。 */
+  dmObserver = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (en.isIntersecting) dmMount(en.target);
+      else dmClearFrame(en.target);
+    });
+  }, { root: host, rootMargin: '700px 0px' });
+  host.querySelectorAll('.dm-cell.filled').forEach(el => dmObserver.observe(el));
+}
+
+function dmMount(box){
+  if (box.querySelector('.dm-canvas')) return;
+  const id = box.dataset.cellId;
+  const f = document.createElement('iframe');
+  f.className = 'dm-canvas';
+  f.setAttribute('scrolling', 'no');
+  f.title = '';
+  setPickFrame(f, 'ui=stage&cell=' + encodeURIComponent(id)
+    + '&cmw=' + box.dataset.cmw + '&cmh=' + box.dataset.cmh + '&ro=1');
+  box.appendChild(f);
+  dmFrames.set(id, f);
+}
+
+function dmClearFrame(box){
+  const f = box.querySelector('.dm-canvas');
+  if (f) f.remove();
+  dmFrames.delete(box.dataset.cellId);
+}
+
+function teardownDmView(){
+  if (dmObserver){ dmObserver.disconnect(); dmObserver = null; }
+  dmFrames.clear();
+  dmIndex.clear();
+  const host = document.getElementById('view-dm');
+  if (host) host.innerHTML = '';
+}
+
+/* 整份 DM 的畫布招呼進來（dm:true）：把那一格存好的內容和這個版位的字級
+   設定送過去。跟拼板那條線分開走 —— 這裡純顯示，不收它的回報、不進歷史。 */
+addEventListener('message', e => {
+  const d = e.data || {};
+  if (!d.dm || !d.boardCell || !d.ready) return;
+  const rec = dmIndex.get(String(d.boardCell));
+  if (!rec) return;
+  const st = (rec.cell.board || {}).state || null;
+  try { e.source.postMessage({ boardRole: activeMode, boardRestore: st }, '*'); } catch (_){}
+  const t = typeOf(rec.sh), g = priceGroupFs(rec.sh);
+  const nP = st && st.nPrice;
+  const dial = (nP && nP <= 3) ? t.priceByCount[nP] : null;
+  try {
+    e.source.postMessage({ type: {
+      skuSize: t.skuSize,
+      pricePx: +dial || 0,
+      groupFs: (nP && g[nP]) ? g[nP] : 0
+    } }, '*');
+  } catch (_){}
+});
+
 /* 這一格在版上實際多大（cm）。畫布的排版座標系照這個開，「1cm」在每一格
    都一樣長 —— 本來每一格都用固定 540 寬，窄格子等於被整個壓小，寫死的
    字級跟著失真。cm 是實際尺寸，跟縮放無關：r.width 和 pxPerCm 都含了
@@ -6249,7 +6478,7 @@ function setTab(id){
   if (VIEWS[activeTab]) VIEWS[activeTab].unmount();
   activeTab = id;
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
-  ['total','sheet','board'].forEach(v =>
+  ['total','sheet','board','dm'].forEach(v =>
     document.getElementById('view-' + v).classList.toggle('active', v === id));
   document.getElementById('view-plans').classList.remove('active');
   VIEWS[id].mount();
