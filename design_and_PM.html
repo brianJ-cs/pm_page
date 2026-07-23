@@ -5077,9 +5077,23 @@ addEventListener('message', e => {
     .find(c => String(c.id) === String(d.boardCell));
   if (!target) return;
 
-  if (d.ready){                       // iframe 起來了：身分和上次的內容送回去
+  if (d.ready){                       // iframe 起來了：身分、共用目錄和上次的內容送回去
     e.source.postMessage({ boardRole: activeMode,
+                           catalogue: CATALOGUE || undefined,
                            boardRestore: (target.board || {}).state || null }, '*');
+    return;
+  }
+
+  /* 後台改了商品目錄（加一列、貼一批、改機型或品牌）。目錄是全公司共用的，
+     所以由這裡收下來、存上去、再發給其他每一塊畫布 —— 不然只有動手的那一格會變。 */
+  if (d.catalogueSave){
+    CATALOGUE = d.catalogueSave;
+    const s = sync();
+    if (s) s.queueCatalogue(CATALOGUE);
+    /* 連動手的那一格也發回去。它的 ROWS 雖然已經是新的，但版面上的零件是照舊的
+       名字排好的 —— 要走一次 applyCatalogue 才會清掉 layoutKey 重排。
+       applyCatalogue 不會再往上報，所以不會繞回來。 */
+    pushCatalogue();
     return;
   }
 
@@ -6335,6 +6349,19 @@ const LS_KEY = 'catalogue_plans_v1';
    後端不在的時候整支程式一行都不會走到網路上。 */
 const sync = () => (window.PlanSync && window.PlanSync.ok()) ? window.PlanSync : null;
 
+/* 商品目錄（商品列表、機型、品牌）。全公司一份，不屬於任何檔期 —— 所以放在這裡，
+   由主程式保管，開機拉一次，再發給每一塊畫布。畫布自己不連網（金鑰不進 iframe）。
+   拉不到就是 null，畫布會繼續用它自己寫死的那份，跟以前一樣。 */
+let CATALOGUE = null;
+
+/** 發給所有畫布／面板 —— 目錄變了大家要一起變，不然這一格和那一格對不起來。 */
+function pushCatalogue(){
+  if (!CATALOGUE) return;
+  document.querySelectorAll('iframe').forEach(f => {
+    try { f.contentWindow.postMessage({ catalogue: CATALOGUE }, '*'); } catch (_){}
+  });
+}
+
 const SEED_PLANS = [
   { id:'seed-2', name:'7月中檔・全省對開大DM', type:'全省對開大DM', tags:['大DM','促銷'],
     start: (() => { let d = atMid(new Date()); for (let i = 0; i < 4; i++) d = prevWork(d); return toYMD(d); })(),
@@ -6878,6 +6905,13 @@ showList();
   const want = new URLSearchParams(location.search).get('plan');
 
   if (s){
+    /* 目錄先拉：畫布掛上來的時候就要有得用。拉不到（表還沒建、網路不通）
+       就維持 null，畫布照舊用它自己寫死的那份。 */
+    try {
+      const cat = await s.pullCatalogue();
+      if (cat && Array.isArray(cat.rows) && cat.rows.length){ CATALOGUE = cat; pushCatalogue(); }
+    } catch (e){ console.warn('商品目錄同步失敗，先用內建的', e); }
+
     try {
       const rows = await s.pullAll();
       if (rows && rows.length){

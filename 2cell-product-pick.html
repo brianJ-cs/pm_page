@@ -600,6 +600,9 @@ addEventListener('message',e=>{
      CW 還停在預設值的話就會照錯的比例縮。 */
   if(d.stageCm) applyStageCm(d.stageCm);
   if(d.type) applyType(d.type);          // 這個版位的字級設定（SKU、價格）
+  /* 共用的商品目錄要在 restoreBoard 之前收：picked 存的是 SKU，目錄還是內建的
+     那份時對不上，畫布會整格空掉。 */
+  if(d.catalogue) applyCatalogue(d.catalogue);
   // 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）
   if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
@@ -713,6 +716,40 @@ addEventListener('drop', async e=>{
     el.classList.remove('imgbusy');
   }
 });
+
+/* ====== 共用商品目錄 ======
+   目錄是全公司一份，存在上層那邊（上層才有連線的金鑰）。這一頁只負責：
+   收到就換掉、改到就往上報。上層沒給（單獨開這一頁、或還沒接後端）就繼續用
+   檔案裡寫死的那份，跟以前一模一樣。 */
+function applyCatalogue(cat){
+  if(!cat || !Array.isArray(cat.rows) || !cat.rows.length) return;
+  ROWS  = cat.rows.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:String(r.sku),price:+r.price||0}));
+  if(cat.model) MODEL = cat.model;
+  if(cat.brand) BRAND = cat.brand;
+  if(cat.bimg)  BIMG  = cat.bimg;
+  /* 每一格都要重排，不是只有正在看的那一格 —— 每個格子各自記著自己的 layoutKey，
+     只清掉模組上那一份的話，其他格會繼續顯示改名前的品名。 */
+  layoutKey = '';
+  CELLS.forEach(c=>{ c.layoutKey = ''; });
+  saveCell();
+  refreshAll();
+}
+
+/** 現在的目錄長什麼樣 —— 往上報就是報這一包。 */
+function catalogueNow(){
+  return { rows: ROWS.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:r.sku,price:r.price})),
+           model: MODEL, brand: BRAND, bimg: BIMG };
+}
+
+/* 後台動過目錄就往上報。跟 reportBoard 一樣壓一下：改一個字會觸發很多次。 */
+let catTimer = 0;
+function reportCatalogue(){
+  if(window.parent === window) return;
+  clearTimeout(catTimer);
+  catTimer = setTimeout(()=>{
+    try{ parent.postMessage({ boardCell:CELL_ID, catalogueSave: catalogueNow() }, '*'); }catch(_){}
+  }, 250);
+}
 
 /** 只換「挑了哪些」，位置讓 buildBlocks 重新排一次。 */
 function applyPicked(list){
@@ -1545,10 +1582,10 @@ function renderEdit(){
   $('#paneEdit').querySelectorAll('td input').forEach(inp=>inp.oninput=e=>{
     const {i,f}=e.target.dataset;
     ROWS[i][f] = f==='price' ? (+e.target.value||0) : e.target.value;
-    renderPick(); renderCell();
+    renderPick(); renderCell(); reportCatalogue();
   });
   $('#paneEdit').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
-    ROWS.splice(+b.dataset.del,1); reindex(); picked.clear(); refreshAll();
+    ROWS.splice(+b.dataset.del,1); reindex(); picked.clear(); refreshAll(); reportCatalogue();
   });
   $('#paneEdit').querySelectorAll('[data-mdl]').forEach(inp=>inp.oninput=e=>{
     const n=e.target.dataset.mdl, v=e.target.value.trim();
@@ -1565,11 +1602,13 @@ function renderEdit(){
       else if(!v && has) bs.splice(bs.indexOf(has),1);
     });
     CELLS.forEach((c,i)=>renderOne(i));
+    reportCatalogue();
   });
   // 品牌名
   $('#paneEdit').querySelectorAll('[data-brand]').forEach(inp=>inp.oninput=e=>{
     BRAND[e.target.dataset.brand]=e.target.value.trim();
     CELLS.forEach((c,i)=>renderOne(i));
+    reportCatalogue();
   });
   // 上傳品牌 PNG
   $('#paneEdit').querySelectorAll('[data-bimg]').forEach(b=>b.onclick=()=>{
@@ -1577,13 +1616,13 @@ function renderEdit(){
     f.onchange=()=>{
       const file=f.files[0]; if(!file) return;
       const rd=new FileReader();
-      rd.onload=()=>{ BIMG[b.dataset.bimg]=rd.result; f.value=''; refreshAll(); };
+      rd.onload=()=>{ BIMG[b.dataset.bimg]=rd.result; f.value=''; refreshAll(); reportCatalogue(); };
       rd.readAsDataURL(file);
     };
     f.click();
   });
   $('#paneEdit').querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>{
-    delete BIMG[b.dataset.bdel]; refreshAll();
+    delete BIMG[b.dataset.bdel]; refreshAll(); reportCatalogue();
   });
   // 上傳商品圖
   $('#paneEdit').querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{
@@ -1599,10 +1638,10 @@ function renderEdit(){
   $('#paneEdit').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=()=>{
     delete IMG[b.dataset.imgdel]; refreshAll();
   });
-  $('#addR').onclick=()=>{ ROWS.push({name:'新商品',spec:'128G',color:'',sku:'0000000',price:0}); reindex(); refreshAll(); };
+  $('#addR').onclick=()=>{ ROWS.push({name:'新商品',spec:'128G',color:'',sku:'0000000',price:0}); reindex(); refreshAll(); reportCatalogue(); };
   $('#stress').onclick=()=>{
     for(let i=0;i<30;i++) ROWS.push({name:'iPhone 17 Pro Max',spec:'2TB',color:['黑','白','橘'][i%3],sku:'21567'+(60+i),price:i%3===0?68900:69900});
-    reindex(); refreshAll();
+    reindex(); refreshAll(); reportCatalogue();
   };
   $('#paste').onclick=()=>{
     const box=$('#pasteBox');
@@ -1619,7 +1658,7 @@ function renderEdit(){
       const spec=rest.pop()||'';
       ROWS.push({name:rest.join(' '),spec,color,sku,price:price||0});
     });
-    box.value=''; box.style.display='none'; reindex(); refreshAll();
+    box.value=''; box.style.display='none'; reindex(); refreshAll(); reportCatalogue();
   };
 }
 function reindex(){ ROWS.forEach((r,i)=>r._i=i); }
