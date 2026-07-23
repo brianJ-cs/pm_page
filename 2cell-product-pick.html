@@ -92,6 +92,15 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
   font-size:14px;font-weight:800;margin-bottom:3px}
 .sku{font-size:var(--sku-fs,12px);color:#333;line-height:1.35;white-space:nowrap}
+/* 規格／SKU／價格整欄靠右：右緣對齊欄的右邊界，字級放大時往左溢出、右緣不動。
+   靠的是 autoSpace 量好的欄寬（b.w2）當固定寬度框 + text-align:right —— 這樣
+   轉盤把價格放大也不會把右緣推出格子外（本來是靠左，一放大就往右頂）。 */
+.blk.price,.blk.skub,.blk.specb{text-align:right}
+.blk.price{white-space:nowrap}
+.blk.skub .sku{text-align:right}
+/* 剛排好的那一格先藏起來量寬高，靠右對齊、圖讓開都定位完才顯示 ——
+   不然會看到價格先閃在估算的位置、再跳到定位（就是那個「先在中間閃一下」）。 */
+.cstage.measuring{visibility:hidden}
 .guide{position:absolute;background:#e0329b;pointer-events:none;z-index:60}
 .guide.gv{top:0;bottom:0;width:1px}
 .guide.gh{left:0;right:0;height:1px}
@@ -763,16 +772,17 @@ function blockHTML(b,isCur=true){
   }
   if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${brandHTML(b.name)}</div>`;
   if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">機型：${b.text}</div>`;
-  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
+  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
   /* 價格用哪一級字由 priceFs() 決定：單格微調 > 轉盤 > 同組最小 > 自己算的。
      轉盤是允許溢出的（談定的），所以這裡不夾上限。 */
   if(b.kind==='price'){
     const fs=priceFs(b);
     return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${
+      b.w2?`;width:${b.w2}px`:''}${
       fs&&fs!==1?`;font-size:${(PRICE_BASE*fs).toFixed(1)}px`:''}">${b.price.toLocaleString()}</div>`;
   }
   // sku
-  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">`+
+  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}">`+
     `<div class="sku">${skuLine(b.vs)}</div></div>`;
 }
 
@@ -810,8 +820,8 @@ function renderOne(i, force){
   const blocks = isCur?BLOCKS:c.blocks;
   el.className='cell'+(isCur?' cur':'')+row1;
   if(isCur) setTimeout(renderProps,0);
-  const paint = () => {
-    el.innerHTML = '<div class="cstage">'
+  const paint = hidden => {
+    el.innerHTML = '<div class="cstage'+(hidden?' measuring':'')+'">'
       + blocks.map(b=>blockHTML(b,isCur)).join('')
       + (isCur?guides.map(g=>g.dir==='v'
           ? `<div class="guide gv" style="left:${g.pos}px"></div>`
@@ -820,9 +830,14 @@ function renderOne(i, force){
       + '<div class="safe"></div>'
       + '</div>';
   };
-  paint();
-  // 剛排好的版：量過真正的寬高再擠開一次，然後照新座標重畫
-  if((rebuilt||force) && isCur && autoSpace()) paint();
+  /* 剛排好（或字型到齊後強制重排）的那一格：先照內容寬度藏著畫一次、量真正的
+     寬高，autoSpace 把價格 SKU 靠右對齊、圖讓開，定位完才顯示。b.w2 是靠右用的
+     固定寬度框，量之前先清掉，不然量到的是上一輪的框寬、欄寬會越算越死。 */
+  const measuring = (rebuilt||force) && isCur;
+  if(measuring) blocks.forEach(b=>{ if(b.col!=null) b.w2=0; });
+  paint(measuring);
+  // paint(false) 一定要跑到：不然萬一 autoSpace 出錯，這一格就永遠藏著了
+  if(measuring){ try{ autoSpace(); }catch(_){} paint(false); }
 }
 
 /* Anton 是外部字型，而且是 display=swap —— 第一次畫的時候它還沒下載完，
@@ -908,7 +923,8 @@ function autoSpace(){
       const th=hs.reduce((a,s)=>a+s.h,0)+LINEGAP*(list.length-1);
       let y=Math.max(PAD_Y, CH-PAD_Y-th);
       if(gTop===null || y<gTop) gTop=y;
-      list.forEach((b,j)=>{ put(b,x,y); y+=hs[j].h+LINEGAP; });
+      // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
+      list.forEach((b,j)=>{ put(b,x,y); b.w2=widths[ci]; y+=hs[j].h+LINEGAP; });
       x+=widths[ci]+COLGAP;
     });
   }
