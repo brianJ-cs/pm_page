@@ -105,22 +105,29 @@
   #confirmBtn:hover{background:var(--accent-strong);box-shadow:0 12px 32px rgba(0,0,0,.42)}
   #confirmBtn.is-confirmed{background:var(--surface);color:var(--green-ink);border-color:var(--green-rule)}
 
-  /* 字級那一排：跟工具站在一起，因為它跟工具一樣是「對這個版位做的事」。
-     只有 拼板 看得到 —— 落版 上沒有價格可以調。 */
-  #typeWrap{display:none;align-items:center;gap:10px;padding-left:12px;
-            border-left:1px solid var(--chrome-line,rgba(255,255,255,.25))}
+  /* 字級那一條：拼板 的左邊直條，長得跟 落版 的 #toolRail 一樣（同一個藍、同一個
+     位置、同樣的直排標題）—— 兩頁的「對這個版位做的事」就站在同一個地方。
+     沒選版位的時候整條收起來：沒有東西可以調。 */
+  #typeWrap{
+    display:none;flex:none;width:74px;margin:2px 18px 10px;border-radius:8px;
+    background:var(--blue);color:var(--surface);
+    flex-direction:column;align-items:center;gap:8px;padding:12px 6px 10px;user-select:none;
+  }
   #typeWrap.on{display:flex}
-  #typeWrap .tw-lab{font-size:13px;font-weight:800;color:var(--accent-ink,#cfd8ea)}
-  #typeWrap .tw-n{display:flex;align-items:center;gap:4px;
-                  font-size:12.5px;font-weight:800;color:var(--accent-ink,#cfd8ea)}
-  #typeWrap input{width:52px;padding:4px 5px;border-radius:6px;
-                  border:1px solid var(--chrome-line,rgba(255,255,255,.3));
-                  background:rgba(255,255,255,.1);color:#fff;
+  /* 標籤在上、格子在下 —— 直條裡沒有橫的空間放「一價 [__]」 */
+  #typeWrap .tw-n{display:flex;flex-direction:column;align-items:center;gap:3px;
+                  font-size:11.5px;font-weight:800;color:var(--surface)}
+  #typeWrap input{width:58px;padding:4px 5px;border-radius:6px;text-align:center;
+                  border:1px solid rgba(255,255,255,.45);
+                  background:rgba(255,255,255,.14);color:var(--surface);
                   font-family:inherit;font-size:12.5px;font-weight:800}
-  #typeWrap input:focus{outline:none;border-color:var(--blue)}
+  #typeWrap input:focus{outline:none;border-color:var(--surface);background:rgba(255,255,255,.28)}
   /* 沒設過的那一格顯示 placeholder「自動」，要看得出來它是空的 */
-  #typeWrap input::placeholder{color:rgba(255,255,255,.5);font-weight:700}
-  #typeWrap #typeReset{padding:5px 10px;font-size:12.5px}
+  #typeWrap input::placeholder{color:rgba(255,255,255,.62);font-weight:700}
+  #typeWrap #typeReset{margin-top:2px;padding:5px 9px;font-size:12px;
+                       background:rgba(255,255,255,.14);color:var(--surface);
+                       border:1px solid rgba(255,255,255,.45)}
+  #typeWrap #typeReset:hover{background:rgba(255,255,255,.28)}
 
   .toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;color:var(--muted);cursor:pointer;user-select:none}
   .toggle input{position:absolute;opacity:0;pointer-events:none}
@@ -1417,16 +1424,6 @@
         <span class="track"></span>
         <span>顯示落版文字</span>
       </label>
-      <!-- 字級：一個版位一套。價格照「這一格有幾個價格」分三組，各自一個轉盤。
-           作用範圍是這個版位，不會動到別的版位。 -->
-      <div id="typeWrap">
-        <span class="tw-lab">字級</span>
-        <label class="tw-n">SKU<input type="number" id="skuSize" min="4" max="60" step="0.5"></label>
-        <label class="tw-n">一價<input type="number" id="price1" min="8" max="200" step="1" placeholder="自動"></label>
-        <label class="tw-n">二價<input type="number" id="price2" min="8" max="200" step="1" placeholder="自動"></label>
-        <label class="tw-n">三價<input type="number" id="price3" min="8" max="200" step="1" placeholder="自動"></label>
-        <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動">自動</button>
-      </div>
     </div>
   </div>
 
@@ -1443,6 +1440,17 @@
        拼一格是 2cell-product-pick.html 原封不動跑在 iframe 裡，樣式與腳本各自獨立。 -->
   <div class="panel" id="view-board">
     <div id="boardSide"><div id="pmTree"></div></div>
+    <!-- 字級：跟 落版 的工具列同一個位置、同一個樣子。它跟工具一樣是「對這個版位
+         做的事」，站在畫布左邊比擠在最上面那條橫的好找。
+         一個版位一套；價格照「這一格有幾個價格」分三組，各自一個轉盤。 -->
+    <div id="typeWrap">
+      <div class="rail-title">字級</div>
+      <label class="tw-n">SKU<input type="number" id="skuSize" min="4" max="60" step="0.5"></label>
+      <label class="tw-n">一價<input type="number" id="price1" min="8" max="200" step="1" placeholder="自動"></label>
+      <label class="tw-n">二價<input type="number" id="price2" min="8" max="200" step="1" placeholder="自動"></label>
+      <label class="tw-n">三價<input type="number" id="price3" min="8" max="200" step="1" placeholder="自動"></label>
+      <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動">自動</button>
+    </div>
     <div id="boardMain">
       <!-- 便利貼蓋在版面上，要看原樣的時候整批收起來。浮在左欄旁邊：它管的是
            版面上看得到什麼，不是意見欄裡的事 -->
@@ -6876,7 +6884,15 @@ showList();
         /* 同一個 id 以遠端為準。這是 MVP 的取捨：兩個人同時改同一個檔期，後存的贏。
            只在遠端有的才蓋，本機獨有的檔期留著（還沒上傳過的不會被吃掉）。 */
         const byId = new Map(plans.map(p => [p.id, p]));
-        rows.forEach(r => { if (r && r.id && r.data) byId.set(r.id, r.data); });
+        rows.forEach(r => {
+          if (!r || !r.id || !r.data) return;
+          /* 正在編輯的那一個絕對不能換掉。currentPlan／layout／activeBlock 都是直接
+             握著那個物件的參考，把它換成遠端拉回來的新物件，手上那個就變成孤兒 ——
+             之後每一筆編輯都寫進孤兒裡，savePlans() 存的卻是新的那份，
+             改了半天全部不見而且完全不會報錯。 */
+          if (currentPlan && r.id === currentPlan.id) return;
+          byId.set(r.id, r.data);
+        });
         plans = [...byId.values()];
         plans.filter(normalizeLayout);      // 行銷剛提交的還是 HTML，轉成樹再用
         savePlans();                        // localStorage 當本機快取

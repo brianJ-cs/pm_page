@@ -479,7 +479,19 @@ function makeCells(cols,rows){
   renderLayers();
 }
 
-let picked = new Set();   // 選中的 row._i
+let picked = new Set();   // 選中的商品，存 SKU
+
+/* 舊檔的 picked 存的是「第幾列」。商品目錄一改（多一列、換順序）那個數字就會
+   指到別的商品 —— 而且不會報錯，只會默默挑錯貨。所以改存 SKU，那是商品的真名。
+   讀到數字就照當下的目錄換算一次，之後存下去的就都是 SKU 了。 */
+function toSkus(list){
+  const out = new Set();
+  (list||[]).forEach(v=>{
+    if(typeof v === 'number'){ const r = ROWS[v]; if(r) out.add(r.sku); }
+    else if(v != null) out.add(String(v));
+  });
+  return out;
+}
 let q = '';
 const $=s=>document.querySelector(s);
 
@@ -704,9 +716,10 @@ addEventListener('drop', async e=>{
 
 /** 只換「挑了哪些」，位置讓 buildBlocks 重新排一次。 */
 function applyPicked(list){
-  const next = [...list].sort((a,b)=>a-b).join(',');
-  if(next === [...picked].sort((a,b)=>a-b).join(',')) return;
-  picked = new Set(list);
+  const want = toSkus(list);
+  const next = [...want].sort().join(',');
+  if(next === sig()) return;
+  picked = want;
   layoutKey = '';                       // 逼它重排
   saveCell();
   selected.clear();
@@ -788,10 +801,10 @@ function saveCell(){ if(cell()){ cell().picked=picked; cell().blocks=BLOCKS; cel
 let selected = new Set();     // 選中的 block id
 let layoutKey = '';           // 資料簽章，變了才重排
 
-function sig(){ return [...picked].sort((a,b)=>a-b).join(','); }
+function sig(){ return [...picked].sort().join(','); }
 
 function buildBlocks(){
-  const sel = ROWS.filter(r=>picked.has(r._i));
+  const sel = ROWS.filter(r=>picked.has(r.sku));
   if(!sel.length){ BLOCKS=[]; return; }
   const name = sel[0].name;
   const rows = sel.filter(r=>r.name===name);
@@ -1468,16 +1481,17 @@ function renderPick(){
   if(!gs.length){ $('#panePick').innerHTML='<div class="empty-hint">沒有符合的商品</div>'; return; }
   $('#panePick').innerHTML = gs.map(g=>
     `<div class="grp">${g.name}</div>`+g.rows.map(r=>
-      `<label class="item"><input type="checkbox" data-i="${r._i}" ${picked.has(r._i)?'checked':''}>
+      `<label class="item"><input type="checkbox" data-sku="${r.sku}" ${picked.has(r.sku)?'checked':''}>
         <b>${r.spec||'—'}</b>${r.color?`<span style="color:#666">${r.color}</span>`:''}<span class="var">${r.sku}　$${r.price.toLocaleString()}</span></label>`
     ).join('')).join('');
   $('#panePick').querySelectorAll('input').forEach(cb=>cb.onchange=e=>{
-    const i=+e.target.dataset.i, row=ROWS.find(r=>r._i===i);
+    const row=ROWS.find(r=>r.sku===e.target.dataset.sku);
+    if(!row) return;
     if(e.target.checked){
-      const cur=ROWS.find(r=>picked.has(r._i));
+      const cur=ROWS.find(r=>picked.has(r.sku));
       if(cur && cur.name!==row.name){ picked.clear(); setTimeout(renderPick,0); }
-      picked.add(i);
-    } else picked.delete(i);
+      picked.add(row.sku);
+    } else picked.delete(row.sku);
     renderCell();
   });
 }
@@ -1642,7 +1656,7 @@ function reportBoard(){
 }
 function restoreBoard(s){
   if(!s) return;
-  picked = new Set(s.picked||[]);
+  picked = toSkus(s.picked);        // 舊檔存的是列號，換算成 SKU
   BLOCKS = s.blocks||[];
   layoutKey = s.layoutKey||'';
   if(cell()) cell().img = s.img || {};      // 換過的商品圖跟著這一格回來
@@ -1682,7 +1696,8 @@ addEventListener('mousemove',e=>{
   if(!el){tip.style.display='none';return}
   let t='';
   if(el.classList.contains('item')){const cb=el.querySelector('input');
-    const r=ROWS.find(x=>x._i===+cb.dataset.i);
+    const r=ROWS.find(x=>x.sku===cb.dataset.sku);
+    if(!r){tip.style.display='none';return}
     t=`${r.name}　${r.spec||'無規格'}${r.color?'　'+r.color:''}　${r.sku}　$${r.price.toLocaleString()}`;}
   else if(el.classList.contains('blk')){
     const b=BLOCKS.find(x=>x.id===el.dataset.b);
