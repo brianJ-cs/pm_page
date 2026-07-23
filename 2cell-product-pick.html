@@ -401,6 +401,7 @@ function groups(){
 /* ====== 多格：每一格有自己的 picked / BLOCKS / layoutKey ====== */
 let PAD=10;            // 左右的安全邊界(px，排版座標)，由上方 slider 控制
 const PAD_Y=10;        // 上下也留 10：左上那疊離上緣 10，右下那疊離下緣 10
+const PRICE_BOTTOM=5;  // 價格那一疊例外，離下緣只留 5
 /* 排版座標系：1 cm ＝ U_PER_CM 個座標單位，每一格都一樣。
 
    本來每一格的寬都固定 540，不管它在版上其實多大 —— 於是 cs（= 格子的實際
@@ -1113,7 +1114,8 @@ function autoSpace(){
       /* 下緣也釘死在 CH-PAD_Y，理由跟上面的 x 一樣：夾一個 Math.max(PAD_Y, …)
          的話，字放大到比格子還高時整欄會被推回上緣，然後從格子的下面掉出去。
          右下角是價格的家，放大縮小都從那個角往左往上長。 */
-      let y=CH-PAD_Y-th;
+      /* 價格這一疊離下緣 5px（不是 PAD_Y 的 10）—— 談定的，它要更貼底一點。 */
+      let y=CH-PRICE_BOTTOM-th;
       if(gTop===null || y<gTop) gTop=y;
       // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
       list.forEach((b,j)=>{ put(b,x,y); b.w2=widths[ci]; y+=hs[j].h+LINEGAP; });
