@@ -1482,9 +1482,6 @@ function refreshAll(){ reindex(); renderPick(); renderEdit(); renderCell(); rend
    報一份，存進檔期。沒有縮圖這回事：看到的那一格就是畫布本人。 */
 const CELL_ID = PICK_Q.get('cell') || '';
 const UI_SRC  = UI_STAGE ? 'stage' : (UI_PANEL ? 'panel' : 'full');
-/* ro=1：整份 DM 那頁掛的畫布是唯讀的，只拿來看 —— 不回報、不進上層的編輯線，
-   招呼時帶個 dm 記號讓上層把它跟落版的畫布分開處理。 */
-const RO = PICK_Q.get('ro') === '1';
 
 function boardState(){
   saveCell();
@@ -1499,7 +1496,6 @@ function boardState(){
 let reportTimer = 0;
 function reportBoard(){
   if(window.parent === window) return;          // 單獨開檔就什麼都不必報
-  if(RO) return;                                 // 唯讀畫布純看，不往上報
   clearTimeout(reportTimer);
   // 拖曳中每一格畫面都會叫一次，等手停下來再報一次就好
   reportTimer = setTimeout(()=>{
@@ -1626,7 +1622,7 @@ refreshAll();
 if(UI_PANEL) openPanels(true);
 // 上層在 load 之後才送 restore，這句只是告訴它「我可以收了」
 if(window.parent !== window){
-  try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, ready:true, dm:RO }, '*'); }catch(_){}
+  try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, ready:true }, '*'); }catch(_){}
 }
 </script>
 </body>

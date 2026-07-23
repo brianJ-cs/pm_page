@@ -1,0 +1,2717 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>行銷落版單系統</title>
+<style>
+  :root{
+    --blue:#4a6fdc;
+    --blue-dark:#3a5bc0;
+    --ink:#333a45;
+    --muted:#7a8494;
+    --bg:#f2f4f8;
+    --card:#ffffff;
+    --line:#e2e6ee;
+    --green-bg:#e6f6ea; --green:#2e8b57;
+    --amber-bg:#fff4d6; --amber:#c07f00;
+    --red:#c0392b;
+    --ruler-bg:#eef1f6; --ruler-tick:#9aa3b2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    overflow:hidden;
+  }
+  button{font-family:inherit}
+  .view{height:100vh;display:flex;flex-direction:column;padding:22px 34px;gap:16px}
+  .hidden{display:none !important}
+
+  .btn{
+    background:var(--blue);color:#fff;border:none;border-radius:6px;
+    padding:11px 30px;font-size:17px;font-weight:800;cursor:pointer;
+    box-shadow:0 2px 6px rgba(74,111,220,.35);
+  }
+  .btn:hover{background:var(--blue-dark)}
+  .btn.ghost{
+    background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none;
+  }
+  .btn.ghost:hover{border-color:var(--blue);color:var(--blue);background:#fff}
+
+  /* ============ VIEW 1 : HOME ============ */
+  #viewHome .topbar{display:flex;justify-content:flex-end;gap:10px}
+  .btn.ghost.demo{margin-right:auto;color:#8b93a5;border-color:#dfe3ea;font-size:14px}
+  #planList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
+  .section-title{
+    font-size:16px;font-weight:800;color:var(--muted);letter-spacing:.04em;
+    margin:6px 2px -2px;display:flex;align-items:center;gap:8px;
+  }
+  .section-title .count-tag{
+    font-size:13px;font-weight:800;color:var(--muted);background:#fff;
+    border:1px solid var(--line);border-radius:20px;padding:1px 9px;
+  }
+  .plan-card.past{opacity:.9}
+  .plan-card.past .plan-name{color:#5d6675}
+  .pill.manual{color:#6b4bbd;border-color:#d8cdf3;background:#f1ecfb}
+  .pill.manual.drift{border-style:dashed;border-color:#c0a8ec}
+
+  /* ---- status bar: a coloured control strip, deliberately NOT white so it
+         doesn't read as another plan card / duplicate timeline ---- */
+  .status-bar{
+    flex:none;background:linear-gradient(180deg,#eaf0fd,#e2ebfb);
+    border:1px solid #c4d3f2;border-radius:12px;padding:12px 16px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .sb-title{font-size:15px;font-weight:800;color:var(--blue-dark);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .sb-title .sb-sub{font-size:13.5px;font-weight:700;color:#6b7ba6}
+  .sb-names{display:flex;gap:8px;flex-wrap:wrap}
+  .sb-name{
+    display:flex;align-items:center;gap:7px;cursor:pointer;font-family:inherit;
+    background:#fff;border:1px solid #cdd9f2;border-radius:9px;padding:7px 12px;
+    box-shadow:0 1px 3px rgba(40,60,110,.08);
+  }
+  .sb-name:hover{border-color:var(--blue)}
+  .sb-name.selected{border-color:var(--blue);box-shadow:0 0 0 2px rgba(74,111,220,.25)}
+  .sb-name .nm{font-size:16px;font-weight:800;color:var(--ink)}
+  .sb-name .st{font-size:15px;font-weight:800;color:var(--amber)}
+  .sb-name .sb-cd{font-size:14px;font-weight:700;color:var(--muted)}
+  .sb-editor{display:flex;flex-direction:column;gap:8px;border-top:1px dashed #bcccef;padding-top:10px}
+  .sb-editrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .sb-edit-lead{font-size:15px;font-weight:800;color:var(--ink)}
+  .sb-editrow .spacer{flex:1}
+  .sb-linkbtn{
+    background:none;border:none;color:var(--blue);font-size:15px;font-weight:800;
+    cursor:pointer;padding:6px 8px;border-radius:6px;
+  }
+  .sb-linkbtn:hover{background:#dfe7fb}
+  .sb-linkbtn.danger{color:var(--red)}
+  .sb-linkbtn.danger:hover{background:#fbe3df}
+  /* dev-panel actions, pushed to the right of the title */
+  .sb-acts{margin-left:auto;display:flex;gap:8px}
+  .sb-devbtn{
+    background:#fff;border:1px solid #c4d3f2;border-radius:7px;color:#5a6b93;
+    font-size:14px;font-weight:800;font-family:inherit;padding:5px 12px;cursor:pointer;
+  }
+  .sb-devbtn:hover{border-color:var(--blue);color:var(--blue)}
+  .sb-track{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px}
+  /* chips in the editor are always live (the editor only exists in edit mode),
+     the dashed outline signals they're clickable */
+  .sb-track .stage-chip{flex:none;cursor:pointer;background:#fff;outline:2px dashed var(--blue);outline-offset:2px}
+  .sb-track .stage-chip.done{background:var(--green-bg)}
+  .sb-track .stage-chip.now{background:var(--amber-bg)}
+  .sb-track .stage-chip:hover{border-color:var(--blue)}
+  .sb-hint{font-size:13.5px;color:#6b7ba6}
+  .plan-card{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 20px;box-shadow:0 2px 8px rgba(30,40,60,.06);
+  }
+  .plan-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .plan-name{font-size:20px;font-weight:800}
+  .pill{
+    font-size:14px;font-weight:800;border:1px solid var(--line);border-radius:6px;
+    padding:3px 10px;color:var(--muted);background:#fafbfd;
+  }
+  .pill.tag{color:var(--blue);border-color:#ccd8f5;background:#eef2fc}
+  .pill.count{color:var(--amber);border-color:#f0dcae;background:var(--amber-bg)}
+  .plan-out{margin-left:auto;font-size:16px;font-weight:800;color:var(--muted)}
+  .plan-out b{color:var(--ink)}
+  .stage-row{display:flex;gap:8px;flex-wrap:wrap}
+  .stage-chip{
+    min-width:86px;text-align:center;border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px 7px;background:#fafbfd;
+  }
+  .stage-chip .n{font-size:15px;font-weight:800;color:#5d6675}
+  .stage-chip .d{font-size:13.5px;color:var(--muted);margin-top:2px}
+  .stage-chip.done{background:var(--green-bg);border-color:#cdeeda}
+  .stage-chip.done .n,.stage-chip.done .d{color:var(--green)}
+  .stage-chip.now{background:var(--amber-bg);border-color:#f0dcae;position:relative}
+  .stage-chip.now .n,.stage-chip.now .d{color:var(--amber)}
+  .stage-chip.now::after{
+    content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;
+    border-radius:50%;background:#f5a623;
+  }
+  .empty-hint{color:var(--muted);text-align:center;margin-top:60px;font-size:18px}
+
+  /* ============ VIEW 2 : PLANNING ============ */
+  .head-row{display:flex;align-items:center;gap:14px}
+  .head-row h2{font-size:23px;font-weight:800}
+  .head-row .spacer{flex:1}
+  .form-grid{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:16px 20px;display:flex;flex-direction:column;gap:12px;
+  }
+  .form-line{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .form-line label{font-size:16px;font-weight:800;min-width:68px}
+  .form-line input[type=text],.form-line input[type=date]{
+    border:1px solid var(--line);border-radius:6px;padding:9px 12px;font-size:16px;
+    font-family:inherit;outline:none;
+  }
+  .form-line input:focus{border-color:var(--blue)}
+  #nameInput{width:340px}
+  #totalInput{width:72px;text-align:center}
+  .unit-tail{font-size:15px;color:var(--muted);margin-left:-4px}
+  .type-btn{
+    border:1px solid var(--line);background:#fff;border-radius:6px;
+    padding:9px 18px;font-size:16px;font-weight:800;color:var(--ink);cursor:pointer;
+  }
+  .type-btn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .tagbox{
+    display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    border:1px solid var(--line);border-radius:6px;padding:4px 8px;min-width:340px;min-height:36px;
+    background:#fff;cursor:text;
+  }
+  .tagbox:focus-within{border-color:var(--blue)}
+  .tagbox .tag-chip{
+    background:#eef2fc;color:var(--blue);border-radius:5px;font-size:15px;font-weight:800;
+    padding:4px 7px 4px 9px;display:flex;align-items:center;gap:4px;
+  }
+  .tag-chip b{cursor:pointer;font-weight:900;opacity:.55}
+  .tag-chip b:hover{opacity:1}
+  #tagInput{border:none;outline:none;font-size:16px;flex:1;min-width:120px;font-family:inherit}
+  /* one-click built-in tags under the tag box */
+  .preset-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .preset-tags .pt{
+    border:1px dashed #ccd8f5;border-radius:6px;background:#fff;color:var(--blue);
+    font-size:14px;font-weight:800;font-family:inherit;padding:4px 10px;cursor:pointer;
+  }
+  .preset-tags .pt:hover{background:#eef2fc}
+  .preset-tags .pt.on{background:var(--blue);border-style:solid;border-color:var(--blue);color:#fff}
+
+  .dur-row{display:flex;gap:8px;overflow-x:auto;padding:2px}
+  .dur-cell{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:8px 10px;text-align:center;min-width:82px;flex:none;
+  }
+  .dur-cell .dn{font-size:15px;font-weight:800;white-space:nowrap}
+  .dur-cell input{
+    width:56px;text-align:center;border:1px solid var(--line);border-radius:6px;
+    padding:5px 2px;font-size:17px;font-weight:800;margin-top:5px;font-family:inherit;outline:none;
+  }
+  .dur-cell input:focus{border-color:var(--blue)}
+  .dur-cell .dd{font-size:13.5px;color:var(--muted);margin-top:4px}
+  .dur-cell .unit{font-size:13px;color:var(--muted)}
+
+  /* ---- timeline (adapted from time_line_v3) ---- */
+  .tl-scroll{
+    flex:1;min-height:0;overflow:auto;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;padding:6px 14px;
+  }
+  .tl-panel{padding:6px 6px 2px;user-select:none;-webkit-user-select:none}
+  .stack-layer{position:relative;height:130px;margin:0 7px}
+  .bar-wrap{position:relative;padding:0 7px}
+  .bar{position:relative;height:40px;border:1px solid #d5dae4;border-radius:4px;overflow:hidden}
+  .grid-line{position:absolute;top:0;bottom:0;width:1px;pointer-events:none}
+  .grid-line.major{background:rgba(20,30,50,.35)}
+  .grid-line.minor{background:rgba(20,30,50,.12)}
+  /* weekends/holidays are painted solid white — they punch a blank gap in the
+     coloured bar, labelled 周 / 末 (one character per day-block). */
+  .we-shade{
+    position:absolute;top:0;bottom:0;pointer-events:none;background:#fff;
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px;font-weight:900;color:#1e2530;
+  }
+  .number-labels{position:relative;height:14px;margin:3px 7px 0}
+  .number-label{
+    position:absolute;transform:translateX(-50%);font-size:10px;font-weight:700;
+    color:var(--muted);white-space:nowrap;
+  }
+  .number-label.we{color:#c05555}
+  .track{position:relative;height:56px;margin:2px 7px 0;touch-action:none}
+  .flag{
+    position:absolute;top:0;width:30px;height:40px;transform:translateX(-50%);
+    cursor:grab;outline:none;z-index:2;display:flex;justify-content:center;
+  }
+  .flag:active{cursor:grabbing}
+  .flag .stem{position:absolute;top:0;width:2px;height:8px;background:currentColor;opacity:.6;border-radius:1px}
+  .flag .handle{
+    position:absolute;top:8px;width:19px;height:19px;border-radius:5px 5px 5px 0;
+    transform:rotate(45deg);background:currentColor;
+    box-shadow:0 2px 5px rgba(30,40,60,.35);transition:transform .08s;
+  }
+  .flag:hover .handle{transform:rotate(45deg) scale(1.1)}
+  .flag.selected .handle{box-shadow:0 0 0 2px #fff,0 0 0 3px currentColor,0 3px 7px rgba(30,40,60,.4)}
+  .flag:focus-visible .handle{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--blue)}
+  /* stacked flags sit on the exact same day; only the anchor draws the date */
+  .flag.stack-member .handle,.flag.stack-member .stem{opacity:.45}
+  .flag.stack-member .taglabel{display:none}
+  .taglabel{
+    position:absolute;top:32px;left:50%;transform:translateX(-50%);
+    font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;pointer-events:none;
+  }
+  .stacklabel{
+    position:absolute;bottom:0;transform:translateX(-50%);
+    display:flex;flex-direction:row;align-items:flex-end;gap:12px;pointer-events:none;
+  }
+  .stacklabel.lift-1{bottom:34px}
+  .stacklabel .col{display:flex;flex-direction:column;gap:6px}
+  .stacklabel .row{
+    display:flex;align-items:center;gap:5px;font-size:15px;font-weight:800;
+    line-height:1.1;color:var(--ink);white-space:nowrap;
+  }
+  .stacklabel .swatch{width:10px;height:10px;border-radius:3px;flex:none}
+  .stacklabel .label-2line{display:flex;flex-direction:column;line-height:1.05;text-align:left}
+  /* the day-count entry now lives on the timeline itself (integrated), one per
+     stage marker. pointer-events re-enabled since the label wrap disables them */
+  .stacklabel .dur-in{
+    width:38px;text-align:center;border:1px solid var(--line);border-radius:5px;
+    padding:2px 2px;font-size:13px;font-weight:800;font-family:inherit;outline:none;
+    pointer-events:auto;background:#fff;color:var(--ink);
+  }
+  .stacklabel .dur-in:hover{border-color:var(--blue)}
+  .stacklabel .dur-in:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(74,111,220,.2)}
+  .stacklabel .dur-unit{font-size:11px;font-weight:700;color:var(--muted)}
+  .stacklabel .date-tip{font-size:10px;font-weight:700;color:var(--muted)}
+  .plan-actions{display:flex;justify-content:flex-end;gap:12px}
+
+  /* ============ VIEW 3 : LAYOUT EDITOR ============ */
+  #layoutTitle{
+    background:#ffef7a;padding:4px 12px;border-radius:4px;font-size:21px;font-weight:800;
+  }
+  .editor-body{flex:1;min-height:0;display:flex;gap:16px}
+  .toolcol{
+    display:flex;flex-direction:column;gap:8px;padding-top:26px;flex:none;width:62px;
+  }
+  .tool{
+    position:relative;width:54px;height:54px;border-radius:10px;border:1px solid var(--line);
+    background:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .tool:hover{border-color:var(--blue)}
+  .tool.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .tool:disabled{opacity:.35;cursor:not-allowed}
+  .tool .tip{
+    display:none;position:absolute;left:62px;top:50%;transform:translateY(-50%);
+    background:#26303f;color:#fff;font-size:14.5px;font-weight:700;line-height:1.5;
+    padding:8px 12px;border-radius:7px;white-space:nowrap;z-index:400;pointer-events:none;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);
+  }
+  .tool .tip b{color:#ffd66e}
+  .tool:hover .tip{display:block}
+  .tool .tip::before{
+    content:"";position:absolute;left:-5px;top:50%;transform:translateY(-50%);
+    border:5px solid transparent;border-left:none;border-right:5px solid #26303f;
+  }
+  .tool-sep{height:1px;background:var(--line);margin:4px 6px}
+
+  #boardsWrap{flex:1;min-width:0;display:flex;gap:22px;justify-content:center;align-items:center;overflow:hidden}
+  .board-slot{display:flex;flex-direction:column;flex:none}
+  .board-slot h3{font-size:16px;font-weight:800;color:var(--muted);margin-bottom:6px}
+
+  /* rulers frame the board on two sides; the auto tracks take their size from
+     the board, so tick 0 always lands on the board's own left/top edge */
+  .editor-layout{display:grid;grid-template-columns:26px auto;grid-template-rows:26px auto}
+  .ruler-corner{background:var(--ruler-bg);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .ruler-top,.ruler-left{position:relative;background:var(--ruler-bg);overflow:hidden}
+  .ruler-top{border-bottom:1px solid var(--line)}
+  .ruler-left{border-right:1px solid var(--line)}
+  .tick{position:absolute;background:var(--ruler-tick)}
+  .tick-label{position:absolute;color:#8b93a2;font-size:9px;user-select:none}
+  .ruler-marker{position:absolute;background:var(--blue);z-index:100;pointer-events:none}
+  .ruler-marker-x{top:0;bottom:0;width:1px;left:-40px}
+  .ruler-marker-y{left:0;right:0;height:1px;top:-40px}
+  .ruler-marker::after{
+    content:attr(data-val);position:absolute;background:var(--blue);color:#fff;
+    font-size:10px;font-weight:bold;padding:1px 3px;border-radius:3px;white-space:nowrap;
+  }
+  .ruler-marker-x::after{top:1px;left:3px}
+  .ruler-marker-y::after{left:1px;top:3px}
+
+  /* sized in JS to a fixed landscape ratio; box-shadow edge keeps the box
+     geometry identical to the ruler tracks */
+  .board-ws{position:relative;overflow:hidden;background:#fff;box-shadow:0 0 0 1px #98a0ae}
+  .split-container{display:flex;width:100%;height:100%;overflow:hidden}
+  /* the 對開 fold: always dead centre, never draggable */
+  .fold{width:2px;background:#5b6472;flex:none;pointer-events:none;z-index:11}
+  .window-node{
+    box-sizing:border-box;border:1px solid rgba(90,60,40,.45);position:relative;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .window-node:hover::after{
+    content:"";position:absolute;inset:0;background:rgba(255,255,255,.28);pointer-events:none;
+  }
+  /* font-size and max-width are set by fitLabel(); the rows inherit the size,
+     and wrap anywhere so CJK reflows into whatever shape the segment is */
+  .region-label{pointer-events:none;text-align:center;padding:2px;z-index:1}
+  .region-label div{font-weight:800;color:#5a4a3c;line-height:1.35;overflow-wrap:anywhere}
+  .region-label .cnt{color:var(--red)}
+  .window-node.swap-src{outline:3px solid var(--blue);outline-offset:-3px}
+  .window-node.swap-target{outline:3px dashed #e0662f;outline-offset:-3px}
+  /* a cut line reads as part of the layout, not as UI furniture: 1px of real
+     estate matching the region borders, with an invisible ±3px hit box so it
+     is still easy to grab and 調整 */
+  .resizer{background:rgba(90,60,40,.55);z-index:10;flex:none;position:relative}
+  .resizer::before{content:"";position:absolute;z-index:1}
+  .resizer-vertical{width:1px;cursor:var(--cursor-vadj)}
+  .resizer-vertical::before{top:0;bottom:0;left:-3px;right:-3px}
+  .resizer-horizontal{height:1px;cursor:var(--cursor-hadj)}
+  .resizer-horizontal::before{left:0;right:0;top:-3px;bottom:-3px}
+  .resizer:hover,.resizer:active{background:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+  body.dragging-vertical,body.dragging-vertical *{cursor:var(--cursor-vadj) !important}
+  body.dragging-horizontal,body.dragging-horizontal *{cursor:var(--cursor-hadj) !important}
+  /* one cut tool; the wheel picks the direction, the cursor announces it */
+  body.mode-cut.dir-vertical .window-node{cursor:var(--cursor-v)}
+  body.mode-cut.dir-horizontal .window-node{cursor:var(--cursor-h)}
+  body.mode-assign .window-node{cursor:pointer}
+  body.mode-swap .window-node{cursor:grab}
+  .hint{font-size:14.5px;color:var(--muted);background:#e9edf4;padding:8px 14px;border-radius:6px}
+
+  /* cursor-following status chip */
+  #cursorChip{
+    position:fixed;z-index:500;pointer-events:none;display:none;
+    background:#26303f;color:#fff;font-size:14px;font-weight:700;
+    padding:5px 10px;border-radius:6px;white-space:nowrap;
+    box-shadow:0 3px 10px rgba(0,0,0,.3);
+  }
+  #cursorChip .sub{color:#9fb4d8;font-weight:600}
+
+  /* ============ modals / popups ============ */
+  .modal-mask{
+    position:fixed;inset:0;background:rgba(20,26,36,.45);z-index:600;
+    display:flex;align-items:center;justify-content:center;
+  }
+  /* the delete confirm can open on top of the 回收桶 modal, so it sits above it */
+  #confirmMask{z-index:680}
+  .modal{
+    background:#fff;border-radius:12px;padding:20px 22px;min-width:420px;max-width:560px;
+    box-shadow:0 14px 44px rgba(0,0,0,.3);
+  }
+  .modal h3{font-size:19px;font-weight:800;margin-bottom:14px}
+  .import-item{
+    border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px;
+    cursor:pointer;display:flex;align-items:center;gap:10px;
+  }
+  .import-item:hover{border-color:var(--blue);background:#f5f8ff}
+  .import-item .nm{font-weight:800;font-size:16px}
+
+  /* ---- 帶入: two-pane search popup ---- */
+  .import-modal{
+    width:92vw;max-width:1440px;height:88vh;
+    display:flex;flex-direction:column;min-width:0;
+  }
+  /* past 檔期 browser — same cards as the home view, just in a modal */
+  .past-modal{width:88vw;max-width:1200px;height:80vh;display:flex;flex-direction:column}
+  #pastList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
+  .import-panes{flex:1;display:flex;gap:16px;min-height:0}
+  .imp-side{
+    width:330px;flex:none;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;padding-right:4px;
+  }
+  .imp-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+  #impResults{flex:1;overflow-y:auto;padding-right:4px}
+  .imp-search{position:relative}
+  #impSearch{
+    width:100%;border:1px solid var(--line);border-radius:8px;padding:11px 12px;
+    font-size:16px;font-weight:700;font-family:inherit;outline:none;
+  }
+  #impSearch:focus{border-color:var(--blue)}
+  /* tag suggestions, same white treatment as the 品類 list */
+  #impTagMenu{
+    position:absolute;top:100%;left:0;right:0;margin-top:4px;z-index:5;
+    background:#fff;border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 8px 22px rgba(0,0,0,.14);max-height:190px;overflow-y:auto;
+  }
+  #impTagMenu .opt{padding:9px 12px;font-size:15px;font-weight:700;cursor:pointer}
+  #impTagMenu .opt:hover,#impTagMenu .opt.sel{background:#eef2fc;color:var(--blue)}
+  #impChips{display:flex;flex-wrap:wrap;gap:6px}
+  #impChips:empty{display:none}
+  #impChips .pill{display:flex;align-items:center;gap:6px}
+  #impChips .pill b{cursor:pointer;font-weight:900;opacity:.55}
+  #impChips .pill b:hover{opacity:1}
+  .pill.total{color:var(--amber);border-color:#f0dcae;background:var(--amber-bg)}
+  .imp-label{font-size:14px;font-weight:800;color:var(--muted);margin-top:4px}
+  .imp-types{display:flex;flex-direction:column;gap:6px}
+  .imp-types .type-btn{width:100%;text-align:left}
+  .imp-count{font-size:15px;font-weight:800;color:var(--muted);flex:none}
+  .imp-card{
+    border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;
+    cursor:pointer;transition:border-color .12s,background .12s,transform .12s;
+  }
+  .imp-card:hover{border-color:var(--blue);background:#f5f8ff;transform:translateX(2px)}
+  .imp-card .row1{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  .imp-card .nm{font-weight:800;font-size:17px;margin-right:2px}
+  .imp-card .pill.tag.hit{background:var(--blue);border-color:var(--blue);color:#fff}
+  .imp-card .durs{font-size:13.5px;font-weight:700;color:var(--muted);line-height:1.5}
+  .imp-empty{
+    text-align:center;padding:48px 20px;color:var(--muted);
+    font-size:16px;font-weight:700;line-height:1.9;
+  }
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
+  .btn.danger{background:var(--red);box-shadow:none}
+  .btn.danger:hover{background:#a5301f}
+  .trash-item{
+    border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;
+    display:flex;align-items:center;gap:10px;
+  }
+  .trash-item .nm{font-weight:800;font-size:16px}
+  .trash-item .when{font-size:13.5px;color:var(--muted);margin-left:auto}
+  .trash-item .mini{
+    border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;
+    font-size:14.5px;font-weight:800;cursor:pointer;color:var(--ink);
+  }
+  .trash-item .mini:hover{border-color:var(--blue);color:var(--blue)}
+  .trash-item .mini.del:hover{border-color:var(--red);color:var(--red)}
+  .trash-empty{color:var(--muted);text-align:center;padding:26px 0;font-size:16px}
+
+  .pop{
+    position:fixed;z-index:650;background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:12px;box-shadow:0 10px 32px rgba(0,0,0,.25);width:250px;
+  }
+  .pop .pop-line{display:flex;align-items:flex-start;gap:6px;margin-bottom:8px}
+  .pop input{
+    border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:15px;
+    font-family:inherit;outline:none;min-width:0;
+  }
+  .pop input:focus{border-color:var(--blue)}
+  .cat-field{flex:1;display:flex;flex-direction:column;min-width:0}
+  #catInput{width:100%}
+  #qtyInput{width:64px;flex:none}
+  /* white suggestion list, same width + font size as 品類 — no native dropdown */
+  #catMenu{
+    margin-top:4px;max-height:132px;overflow-y:auto;background:#fff;
+    border:1px solid var(--line);border-radius:6px;font-size:15px;
+  }
+  #catMenu .opt{
+    padding:7px 10px;cursor:pointer;font-weight:700;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  #catMenu .opt:hover{background:#f2f5fa}
+  #catMenu .opt.sel{background:#e8f0ff;color:var(--blue)}   /* the closest match */
+  #catMenu .empty{padding:7px 10px;font-weight:700;color:var(--muted)}
+  /* 加入 is a small blue cross that appears only when there IS something to add */
+  .pop .plus{
+    display:none;width:36px;height:36px;flex:none;padding:0;border:none;border-radius:50%;
+    background:var(--blue);color:#fff;font-size:20px;font-weight:900;line-height:1;
+    cursor:pointer;align-items:center;justify-content:center;
+    box-shadow:0 2px 8px rgba(43,108,255,.4);transition:transform .12s ease;
+  }
+  .pop .plus.show{display:flex;animation:plusIn .16s ease-out}
+  .pop .plus:hover{transform:scale(1.12)}
+  @keyframes plusIn{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+  .pop .mini{
+    border:none;background:var(--blue);color:#fff;border-radius:6px;padding:8px 12px;
+    font-size:15px;font-weight:800;cursor:pointer;
+  }
+  .pop .mini.grey{background:#e7eaf0;color:var(--ink)}
+  #itemList{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+  #itemList .it{
+    display:flex;align-items:center;gap:6px;font-size:15px;font-weight:800;
+    background:#f6f7fa;border-radius:6px;padding:6px 10px;
+  }
+  #itemList .it .cnt{color:var(--red)}
+  #itemList .it b{margin-left:auto;cursor:pointer;opacity:.5}
+  #itemList .it b:hover{opacity:1}
+  .pop-actions{display:flex;justify-content:space-between}
+
+  #toast{
+    position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:700;
+    background:#26303f;color:#fff;font-size:16px;font-weight:800;
+    padding:12px 26px;border-radius:8px;display:none;box-shadow:0 6px 20px rgba(0,0,0,.3);
+  }
+</style>
+</head>
+<body class="mode-assign">
+
+<!-- ================= VIEW 1 : HOME ================= -->
+<div id="viewHome" class="view">
+  <!-- dev tool: sits above everything else on the home view -->
+  <div id="statusBar" class="status-bar hidden"></div>
+  <div class="topbar">
+    <button class="btn ghost" id="pastBtn">📁 過往檔期</button>
+    <button class="btn" id="newPlanBtn">新增</button>
+  </div>
+  <div id="planList"></div>
+</div>
+
+<!-- ================= VIEW 2 : PLANNING ================= -->
+<div id="viewPlan" class="view hidden">
+  <div class="head-row">
+    <button class="btn ghost" id="backHomeBtn">← 返回</button>
+    <h2>行銷開檔</h2>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="importBtn">帶入</button>
+  </div>
+
+  <div class="form-grid">
+    <div class="form-line">
+      <label>名字</label>
+      <input type="text" id="nameInput" placeholder="例：2026年8月1波">
+      <label style="margin-left:18px">開始日</label>
+      <input type="date" id="startInput">
+      <label style="margin-left:18px">總長</label>
+      <input type="number" id="totalInput" min="5">
+      <span class="unit-tail">天</span>
+    </div>
+    <div class="form-line">
+      <label>DM類別</label>
+      <div id="typeBtns" style="display:flex;gap:8px">
+        <button class="type-btn on">全省對開大DM</button>
+        <button class="type-btn">網路素材</button>
+        <button class="type-btn">單店制作物</button>
+        <button class="type-btn">A3</button>
+      </div>
+    </div>
+    <div class="form-line">
+      <label>標籤</label>
+      <div class="tagbox" id="tagBox">
+        <input id="tagInput" placeholder="輸入後按空格成標籤">
+      </div>
+      <div class="preset-tags" id="presetTags"></div>
+    </div>
+  </div>
+
+  <div class="dur-row" id="durRow"></div>
+
+  <div class="tl-scroll">
+    <div class="tl-panel" id="tlPanel">
+      <div class="stack-layer" id="stackLayer"></div>
+      <div class="bar-wrap">
+        <div class="bar" id="bar"></div>
+      </div>
+      <div class="number-labels" id="numberLabels"></div>
+      <div class="track" id="track"></div>
+    </div>
+  </div>
+
+  <div class="plan-actions"><button class="btn" id="nextBtn">下一步</button></div>
+</div>
+
+<!-- ================= VIEW 3 : LAYOUT EDITOR ================= -->
+<div id="viewLayout" class="view hidden">
+  <div class="head-row">
+    <button class="btn ghost" id="backPlanBtn">← 返回</button>
+    <span id="layoutTitle"></span>
+    <div class="spacer"></div>
+    <span class="hint">💡 滾輪切換方向，拖曳調整線也能 Undo/Redo</span>
+    <button class="btn" id="submitBtn">提交給設計</button>
+  </div>
+
+  <div class="editor-body">
+    <div class="toolcol" id="toolcol">
+      <button class="tool on" data-mode="assign">✏️<span class="tip"><b>點選</b>　預設模式，點區塊選品類、輸入數量<br>可拖動切割線調整版面</span></button>
+      <button class="tool" data-mode="cut">✂<span class="tip"><b>切割</b>　點區塊切一刀<br>滾輪切換 直／橫</span></button>
+      <button class="tool" data-mode="swap">⇄<span class="tip"><b>互換</b>　按住區塊拖到另一塊交換內容</span></button>
+      <div class="tool-sep"></div>
+      <button class="tool" id="undoBtn" disabled>↶<span class="tip"><b>Undo</b>　Ctrl+Z</span></button>
+      <button class="tool" id="redoBtn" disabled>↷<span class="tip"><b>Redo</b>　Ctrl+Y</span></button>
+    </div>
+
+    <div id="boardsWrap">
+      <div class="board-slot">
+        <h3>正面</h3>
+        <div class="editor-layout">
+          <div class="ruler-corner"></div>
+          <div class="ruler-top"><div class="ruler-marker ruler-marker-x" data-val="0px"></div></div>
+          <div class="ruler-left"><div class="ruler-marker ruler-marker-y" data-val="0px"></div></div>
+          <div class="board-ws" id="wsFront"></div>
+        </div>
+      </div>
+      <div class="board-slot">
+        <h3>背面</h3>
+        <div class="editor-layout">
+          <div class="ruler-corner"></div>
+          <div class="ruler-top"><div class="ruler-marker ruler-marker-x" data-val="0px"></div></div>
+          <div class="ruler-left"><div class="ruler-marker ruler-marker-y" data-val="0px"></div></div>
+          <div class="board-ws" id="wsBack"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- cursor-following status -->
+<div id="cursorChip"></div>
+
+<!-- import modal -->
+<div class="modal-mask hidden" id="importMask">
+  <div class="modal import-modal">
+    <h3>帶入過去檔期設定（類別／標籤／各階段天數）</h3>
+    <div class="import-panes">
+      <!-- left: filters -->
+      <div class="imp-side">
+        <div class="imp-search">
+          <input id="impSearch" placeholder="搜尋名稱、標籤或總長天數" autocomplete="off">
+          <div id="impTagMenu" class="hidden"></div>
+        </div>
+        <div id="impChips"></div>
+        <div class="imp-label">常用標籤</div>
+        <div id="impPresets" class="preset-tags"></div>
+        <div class="imp-label">類別</div>
+        <div id="impTypes" class="imp-types"></div>
+      </div>
+      <!-- right: results -->
+      <div class="imp-main">
+        <div id="impCount" class="imp-count"></div>
+        <div id="impResults"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <label class="btn ghost" style="cursor:pointer;margin-right:auto">從檔案帶入<input type="file" id="importFile" accept=".html,.json" hidden></label>
+      <button class="btn ghost" id="importCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- delete confirm modal -->
+<div class="modal-mask hidden" id="confirmMask">
+  <div class="modal" style="min-width:360px;max-width:440px">
+    <h3 id="confirmTitle">確定刪除？</h3>
+    <p id="confirmMsg" style="font-size:16px;color:var(--muted);line-height:1.6;margin-bottom:4px"></p>
+    <div class="modal-actions">
+      <button class="btn ghost" id="confirmCancel">取消</button>
+      <button class="btn danger" id="confirmOk">刪除</button>
+    </div>
+  </div>
+</div>
+
+<!-- stage-change confirm modal -->
+<div class="modal-mask hidden" id="stageMask">
+  <div class="modal" style="min-width:360px;max-width:480px">
+    <h3 id="stageQ" style="line-height:1.6"></h3>
+    <div class="modal-actions">
+      <button class="btn ghost" id="stageCancel">取消</button>
+      <button class="btn" id="stageOk">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- past 檔期 modal -->
+<div class="modal-mask hidden" id="pastMask">
+  <div class="modal past-modal">
+    <h3>📁 過往檔期</h3>
+    <div id="pastList"></div>
+    <div class="modal-actions"><button class="btn ghost" id="pastClose">關閉</button></div>
+  </div>
+</div>
+
+<!-- recycling bin modal -->
+<div class="modal-mask hidden" id="trashMask">
+  <div class="modal">
+    <h3>🗑 回收桶</h3>
+    <div id="trashList"></div>
+    <div class="modal-actions"><button class="btn ghost" id="trashClose">關閉</button></div>
+  </div>
+</div>
+
+<!-- assign popup -->
+<div class="pop hidden" id="assignPop">
+  <div class="pop-line">
+    <div class="cat-field">
+      <input id="catInput" placeholder="品類" autocomplete="off">
+      <div id="catMenu"></div>
+    </div>
+    <input type="number" id="qtyInput" min="1" placeholder="數量">
+    <button class="plus" id="addItemBtn" title="加入這一項（或按 Enter）">＋</button>
+  </div>
+  <div id="itemList"></div>
+  <div class="pop-actions">
+    <button class="mini grey" id="clearItemsBtn">清除</button>
+    <button class="mini" id="doneAssignBtn">完成</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= date utils (weekend-aware) ================= */
+const MS = 86400000;
+const WD = '日一二三四五六';
+const atMid = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const parseYMD = s => { const [y,m,dd] = s.split('-').map(Number); return new Date(y, m-1, dd); };
+const toYMD = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const isWE = d => d.getDay() === 0 || d.getDay() === 6;
+const addDays = (d,n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
+const nextWork = d => { let r = addDays(d,1); while (isWE(r)) r = addDays(r,1); return r; };
+const prevWork = d => { let r = addDays(d,-1); while (isWE(r)) r = addDays(r,-1); return r; };
+const addWork = (d,n) => { let r = new Date(d); for (let c = 0; c < n; c++) r = nextWork(r); return r; };
+const workBetween = (a,b) => { let c = 0, r = new Date(a); while (r < b) { r = addDays(r,1); if (!isWE(r)) c++; } return c; };
+const dayOffset = (base,d) => Math.round((atMid(d) - atMid(base)) / MS);
+const fmtMD = d => `${d.getMonth()+1}/${String(d.getDate()).padStart(2,'0')}`;
+const fmtMDW = d => `${fmtMD(d)}(${WD[d.getDay()]})`;
+
+/* ================= plan store ================= */
+const STAGES = ['提品','製作','一校','一改','二校','二改','蓋章','蓋章修改','審稿','出稿'];
+/* built-in tags — offered as one-click chips in the form and in 帶入, so the
+   same 檔期 doesn't end up tagged 「父親節」/「父親節檔」/「父親節DM」 */
+const PRESET_TAGS = [
+  '春節','開學季','母親節','父親節','中元節','中秋節','週年慶','年中慶','雙11','聖誕節',
+  '大DM','小DM','線上','實體店','單店','全省','新品','促銷','清倉','會員'
+];
+const DEFAULT_DURS = [2,2,1,1,1,1,2,1,1,1];
+const LS_KEY = 'catalogue_plans_v1';
+
+/* two fake 檔期: one finished (過往檔期 modal) and one still in flight (home) */
+const SEED_PLANS = [
+  { id:'seed-1', name:'6月父親節檔・全省對開大DM', type:'全省對開大DM', tags:['父親節','大DM'],
+    start:'2026-06-08', durs:[2,2,1,1,1,1,2,1,1,1], layout:null },
+  { id:'seed-2', name:'7月中檔・全省對開大DM', type:'全省對開大DM', tags:['大DM','促銷'],
+    start: (() => { let d = atMid(new Date()); for (let i = 0; i < 4; i++) d = prevWork(d); return toYMD(d); })(),
+    durs:[2,2,1,1,1,1,2,1,1,1], layout:null }
+];
+
+const ATTR_TAGS = ['大DM','小DM','線上','實體店','單店','全省','新品','促銷','清倉','會員'];
+/* give a 檔期 that has no tags 2-3 random built-in ones — purely additive, it
+   never touches a plan's name, type, dates or existing tags */
+function fillRandomTags(p){
+  if ((p.tags || []).length) return false;
+  const pool = ATTR_TAGS.slice();
+  const seasonal = PRESET_TAGS.slice(0, 10);
+  const tags = [seasonal[Math.floor(Math.random() * seasonal.length)]];
+  const n = 1 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < n; i++) tags.push(...pool.splice(Math.floor(Math.random() * pool.length), 1));
+  p.tags = tags;
+  return true;
+}
+
+let plans;
+try { plans = JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch (e) { plans = null; }
+let justSeeded = false;
+if (!Array.isArray(plans) || plans.length === 0) { plans = SEED_PLANS.slice(); justSeeded = true; }
+// tag up any untagged 檔期 once, so the tag filter has something to work with
+if (plans.filter(fillRandomTags).length) justSeeded = true;
+function savePlans(){ try { localStorage.setItem(LS_KEY, JSON.stringify(plans)); } catch (e) {} }
+// persist once, or the random tags would be redrawn on every reload
+if (justSeeded) savePlans();
+
+/* deleted 檔期 live here until restored or purged for good */
+const LS_TRASH = 'catalogue_trash_v1';
+let trash;
+try { trash = JSON.parse(localStorage.getItem(LS_TRASH)) || []; } catch (e) { trash = []; }
+if (!Array.isArray(trash)) trash = [];
+function saveTrash(){ try { localStorage.setItem(LS_TRASH, JSON.stringify(trash)); } catch (e) {} }
+
+/* a stage closes at the end of its last working day */
+const DEADLINE_HOUR = 18;
+function stageDeadline(s){
+  const d = new Date(s.to);
+  d.setHours(DEADLINE_HOUR, 0, 0, 0);
+  return d;
+}
+function fmtCountdown(ms){
+  const h = ms / 3600000;
+  if (h < 1) return `倒數 ${Math.max(1, Math.round(ms/60000))} 分`;
+  if (h < 24) return `倒數 ${Math.round(h*2)/2} 小時`;
+  return `倒數 ${Math.ceil(h/24)} 天`;
+}
+
+/* stage schedule of a plan: [{name, from:Date, to:Date}] */
+function planStages(plan){
+  const start = parseYMD(plan.start);
+  const base = addDays(isWE(start) ? nextWork(start) : start, -1); // day before first valid workday
+  let prev = base;
+  return plan.durs.map((dur, i) => {
+    const to = addWork(prev, dur);
+    // 0 天 = this stage closes the same day as the one before it (stacked flags)
+    const from = dur === 0 ? to : nextWork(prev);
+    prev = to;
+    return { name: STAGES[i], from, to };
+  });
+}
+
+/* the stage the auto-logic thinks is current: first whose 18:00 hasn't passed.
+   -1 once every deadline has passed (a finished plan). */
+function autoStageIndex(plan){
+  const now = new Date();
+  return planStages(plan).findIndex(s => stageDeadline(s) >= now);
+}
+/* the current stage everything on the home view agrees on: a manual override if
+   one is set, otherwise the auto-computed live stage. Bar and cards both read
+   this so they can never disagree. */
+function currentStageOf(plan){
+  const o = plan.stageOverride;
+  if (o != null && o >= 0 && o < STAGES.length) return o;
+  return autoStageIndex(plan);
+}
+/* a stage's date range, matching the chip labels on the cards */
+function stageRange(s){
+  return dayOffset(s.from, s.to) === 0
+    ? fmtMD(s.from)
+    : (s.from.getMonth() === s.to.getMonth()
+        ? `${fmtMD(s.from)}-${String(s.to.getDate()).padStart(2,'0')}`
+        : `${fmtMD(s.from)}-${fmtMD(s.to)}`);
+}
+
+/* ================= router ================= */
+const views = {
+  home: document.getElementById('viewHome'),
+  plan: document.getElementById('viewPlan'),
+  layout: document.getElementById('viewLayout')
+};
+function show(name){
+  Object.entries(views).forEach(([k,el]) => el.classList.toggle('hidden', k !== name));
+}
+
+const toastEl = document.getElementById('toast');
+let toastTimer;
+function toast(msg){
+  toastEl.textContent = msg;
+  toastEl.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.style.display = 'none'; }, 2200);
+}
+
+/* ================= VIEW 1 : home list ================= */
+const planList = document.getElementById('planList');
+
+/* the pill counts down live, so an open page never shows a stale figure */
+function tickPill(el){
+  el.textContent = `● ${el.dataset.stage}截止 ${fmtCountdown(+el.dataset.deadline - Date.now())}`;
+}
+setInterval(() => {
+  planList.querySelectorAll('.pill.count').forEach(tickPill);
+  updateBarCountdown();
+}, 30000);
+
+/* a 檔期 is 過往 once its final stage (出稿) deadline has passed */
+function isFinished(plan){
+  const stages = planStages(plan);
+  return stageDeadline(stages[stages.length - 1]) < new Date();
+}
+
+function buildCard(plan, now, past){
+  const stages = planStages(plan);
+  const out = stages[stages.length - 1].to;
+  // the shared idea of "current stage" — override or auto (see currentStageOf)
+  const curIdx = currentStageOf(plan);
+  const autoIdx = autoStageIndex(plan);
+  const overriding = plan.stageOverride != null;
+  const live = curIdx >= 0 ? stages[curIdx] : null;
+
+  const card = document.createElement('div');
+  card.className = 'plan-card' + (past ? ' past' : '');
+
+  const head = document.createElement('div');
+  head.className = 'plan-head';
+  const nm = document.createElement('span');
+  nm.className = 'plan-name';
+  nm.textContent = plan.name;
+  head.appendChild(nm);
+  const tp = document.createElement('span');
+  tp.className = 'pill';
+  tp.textContent = plan.type;
+  head.appendChild(tp);
+  (plan.tags || []).forEach(t => {
+    const el = document.createElement('span');
+    el.className = 'pill tag';
+    el.textContent = t;
+    head.appendChild(el);
+  });
+  if (live) {
+    const cd = document.createElement('span');
+    cd.className = 'pill count';
+    cd.dataset.deadline = stageDeadline(live).getTime();
+    cd.dataset.stage = live.name;
+    tickPill(cd);
+    head.appendChild(cd);
+  }
+  if (overriding) {
+    const mp = document.createElement('span');
+    mp.className = 'pill manual';
+    mp.textContent = '手動';
+    if (autoIdx !== curIdx && autoIdx >= 0) {
+      mp.classList.add('drift');
+      mp.title = `系統推算目前為：${STAGES[autoIdx]}`;
+    }
+    head.appendChild(mp);
+  }
+  const outEl = document.createElement('span');
+  outEl.className = 'plan-out';
+  outEl.innerHTML = `出稿 <b>${fmtMD(out)} 09:00</b>`;
+  head.appendChild(outEl);
+  // no 🗑 on the card — deleting lives in the dev panel (目前階段管理)
+  card.appendChild(head);
+
+  const row = document.createElement('div');
+  row.className = 'stage-row';
+  stages.forEach((s,i) => {
+    const chip = document.createElement('div');
+    chip.className = 'stage-chip';
+    // curIdx < 0 = finished plan: fall back to deadline for the done shading
+    if (curIdx < 0 ? stageDeadline(s) < now : i < curIdx) chip.classList.add('done');
+    else if (i === curIdx) chip.classList.add('now');
+    chip.innerHTML = `<div class="n"></div><div class="d"></div>`;
+    chip.querySelector('.n').textContent = s.name;
+    chip.querySelector('.d').textContent = stageRange(s);
+    row.appendChild(chip);
+  });
+  card.appendChild(row);
+  return card;
+}
+
+function renderSection(title, list, now, past){
+  const h = document.createElement('div');
+  h.className = 'section-title';
+  h.innerHTML = `<span></span><span class="count-tag">${list.length}</span>`;
+  h.firstChild.textContent = title;
+  planList.appendChild(h);
+  list.forEach(plan => planList.appendChild(buildCard(plan, now, past)));
+}
+
+function renderHome(){
+  planList.innerHTML = '';
+  updateTrashBtn();
+  if (plans.length === 0) {
+    planList.innerHTML = '<div class="empty-hint">尚無檔期，按右上「新增」開檔</div>';
+    return;
+  }
+  const now = new Date();
+  const ordered = [...plans].reverse();
+  // the home view is live work only — finished 檔期 live in the 過往檔期 modal
+  const active = ordered.filter(p => !isFinished(p));
+  if (active.length) active.forEach(plan => planList.appendChild(buildCard(plan, now, false)));
+  else planList.innerHTML = '<div class="empty-hint">目前沒有進行中的檔期，按右上「新增」開檔</div>';
+  updatePastBtn();
+  renderStatusBar();
+}
+
+/* ================= sticky status bar (focus plan) ================= */
+const statusBar = document.getElementById('statusBar');
+let focusPlanId = null;   // which plan the bar is showing
+let barEditMode = false;  // Layer 1: chips only clickable in edit mode
+let editTimer = null;     // auto-exit edit mode after inactivity
+
+function activePlans(){ return plans.filter(p => !isFinished(p)); }
+/* the next auto deadline, used only to pick a default focus plan */
+function nextDeadline(plan){
+  const i = autoStageIndex(plan);
+  return i >= 0 ? stageDeadline(planStages(plan)[i]).getTime() : Infinity;
+}
+
+function updateBarCountdown(){
+  statusBar.querySelectorAll('.sb-cd[data-deadline]').forEach(el => {
+    el.textContent = fmtCountdown(+el.dataset.deadline - Date.now());
+  });
+}
+
+function resetEditTimer(){
+  clearTimeout(editTimer);
+  editTimer = setTimeout(exitEditMode, 10000);
+}
+/* clicking a name opens its editor; clicking the open one again closes it */
+function selectForEdit(id){
+  if (barEditMode && focusPlanId === id) { exitEditMode(); return; }
+  focusPlanId = id;
+  barEditMode = true;
+  renderStatusBar();
+  resetEditTimer();
+}
+function exitEditMode(){
+  if (!barEditMode) return;
+  barEditMode = false;
+  clearTimeout(editTimer);
+  renderStatusBar();
+}
+
+function renderStatusBar(){
+  // a dev tool: it lists EVERY 檔期, not just the in-flight ones, or it would
+  // disappear exactly when all your 檔期 are finished
+  const actives = plans.slice();
+  if (actives.length === 0) {            // no 檔期 at all → no bar
+    statusBar.classList.add('hidden');
+    statusBar.innerHTML = '';
+    barEditMode = false;
+    return;
+  }
+  // keep the focus if still valid, else default to the nearest deadline
+  if (!focusPlanId || !actives.some(p => p.id === focusPlanId)) {
+    focusPlanId = actives.slice().sort((a,b) => nextDeadline(a) - nextDeadline(b))[0].id;
+  }
+  statusBar.classList.remove('hidden');
+  statusBar.innerHTML = '';
+
+  /* ---- title + dev actions ---- */
+  const title = document.createElement('div');
+  title.className = 'sb-title';
+  title.innerHTML = '目前階段管理<span class="sb-sub">點選檔期即可調整目前階段</span>';
+  const acts = document.createElement('span');
+  acts.className = 'sb-acts';
+  const demoBtn = document.createElement('button');
+  demoBtn.className = 'sb-devbtn';
+  demoBtn.textContent = '＋ 示範檔期';
+  demoBtn.addEventListener('click', e => { e.stopPropagation(); addDemoPlan(); });
+  acts.appendChild(demoBtn);
+  const binBtn = document.createElement('button');
+  binBtn.className = 'sb-devbtn';
+  binBtn.textContent = trash.length ? `🗑 回收桶 (${trash.length})` : '🗑 回收桶';
+  binBtn.addEventListener('click', e => { e.stopPropagation(); openTrash(); });
+  acts.appendChild(binBtn);
+  title.appendChild(acts);
+  statusBar.appendChild(title);
+
+  /* ---- the list of timeline NAMES (this panel replaces the old duplicate
+         chip timeline; the editable chips only appear once a name is clicked) ---- */
+  const names = document.createElement('div');
+  names.className = 'sb-names';
+  actives.forEach(plan => {
+    const stages = planStages(plan);
+    const curIdx = currentStageOf(plan);
+    const autoIdx = autoStageIndex(plan);
+    const overriding = plan.stageOverride != null;
+    const drift = overriding && autoIdx !== curIdx && autoIdx >= 0;
+    const cur = curIdx >= 0 ? stages[curIdx] : null;
+
+    const btn = document.createElement('button');
+    btn.className = 'sb-name' + (barEditMode && plan.id === focusPlanId ? ' selected' : '');
+    const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = plan.name; btn.appendChild(nm);
+    if (cur) {
+      const st = document.createElement('span'); st.className = 'st'; st.textContent = '· ' + cur.name; btn.appendChild(st);
+      const cd = document.createElement('span');
+      cd.className = 'sb-cd';
+      cd.dataset.deadline = stageDeadline(cur).getTime();
+      cd.textContent = fmtCountdown(stageDeadline(cur).getTime() - Date.now());
+      btn.appendChild(cd);
+    }
+    if (overriding) {
+      const mp = document.createElement('span');
+      mp.className = 'pill manual' + (drift ? ' drift' : '');
+      mp.textContent = '手動';
+      if (drift) mp.title = `系統推算目前為：${STAGES[autoIdx]}`;
+      btn.appendChild(mp);
+    }
+    btn.addEventListener('click', e => { e.stopPropagation(); selectForEdit(plan.id); });
+    names.appendChild(btn);
+  });
+  statusBar.appendChild(names);
+
+  /* ---- editor: only after a name is clicked ---- */
+  if (barEditMode) {
+    const plan = actives.find(p => p.id === focusPlanId);
+    const stages = planStages(plan);
+    const curIdx = currentStageOf(plan);
+    const overriding = plan.stageOverride != null;
+
+    const editor = document.createElement('div');
+    editor.className = 'sb-editor';
+
+    const row = document.createElement('div');
+    row.className = 'sb-editrow';
+    const lead = document.createElement('span');
+    lead.className = 'sb-edit-lead';
+    lead.textContent = `變更『${plan.name}』目前階段：`;
+    row.appendChild(lead);
+    const spacer = document.createElement('span'); spacer.className = 'spacer'; row.appendChild(spacer);
+    if (overriding) {
+      const auto = document.createElement('button');
+      auto.className = 'sb-linkbtn';
+      auto.textContent = '回復自動';
+      auto.addEventListener('click', e => { e.stopPropagation(); resetEditTimer(); openStageConfirm(plan, 'auto'); });
+      row.appendChild(auto);
+    }
+    const del = document.createElement('button');
+    del.className = 'sb-linkbtn danger';
+    del.textContent = '刪除檔期';
+    del.addEventListener('click', e => { e.stopPropagation(); exitEditMode(); askDeletePlan(plan); });
+    row.appendChild(del);
+    const done = document.createElement('button');
+    done.className = 'sb-linkbtn';
+    done.textContent = '完成';
+    done.addEventListener('click', e => { e.stopPropagation(); exitEditMode(); });
+    row.appendChild(done);
+    editor.appendChild(row);
+
+    const track = document.createElement('div');
+    track.className = 'sb-track';
+    stages.forEach((s,i) => {
+      const chip = document.createElement('div');
+      chip.className = 'stage-chip';
+      if (curIdx < 0 ? stageDeadline(s) < new Date() : i < curIdx) chip.classList.add('done');
+      else if (i === curIdx) chip.classList.add('now');
+      chip.innerHTML = `<div class="n"></div><div class="d"></div>`;
+      chip.querySelector('.n').textContent = s.name;
+      chip.querySelector('.d').textContent = stageRange(s);
+      chip.addEventListener('click', e => { e.stopPropagation(); resetEditTimer(); openStageConfirm(plan, i); });
+      track.appendChild(chip);
+    });
+    editor.appendChild(track);
+
+    const hint = document.createElement('div');
+    hint.className = 'sb-hint';
+    hint.textContent = '點選上方階段即可設為目前進度（會再次確認）';
+    editor.appendChild(hint);
+
+    statusBar.appendChild(editor);
+  }
+}
+
+/* keep-alive + outside-click for edit mode (attached once; #statusBar persists) */
+statusBar.addEventListener('mousemove', () => { if (barEditMode) resetEditTimer(); });
+document.addEventListener('click', e => {
+  if (!barEditMode) return;
+  if (e.target.closest('#statusBar') || e.target.closest('#stageMask')) return;
+  exitEditMode();
+});
+
+/* ---- Layer 2: confirm modal for every stage change ---- */
+const stageMask   = document.getElementById('stageMask');
+const stageQ      = document.getElementById('stageQ');
+let stageConfirmCb = null;
+function showStageConfirm(msg, cb){
+  stageQ.textContent = msg;
+  stageConfirmCb = cb;
+  stageMask.classList.remove('hidden');
+}
+function closeStageConfirm(){ stageMask.classList.add('hidden'); stageConfirmCb = null; }
+function openStageConfirm(plan, chosen){
+  const curIdx = currentStageOf(plan);
+  const curName = curIdx >= 0 ? STAGES[curIdx] : '（無）';
+  let msg, apply;
+  if (chosen === 'auto') {
+    const a = autoStageIndex(plan);
+    msg = `確定將『${plan.name}』回復為自動判定？（系統推算目前為：${a >= 0 ? STAGES[a] : '（無）'}）`;
+    apply = () => { plan.stageOverride = null; };
+  } else {
+    if (chosen === curIdx) return;   // tapping the current stage is a no-op
+    msg = `確定將『${plan.name}』的目前階段從 ${curName} 改為 ${STAGES[chosen]}？`;
+    apply = () => { plan.stageOverride = chosen; };
+  }
+  showStageConfirm(msg, () => {
+    apply();
+    savePlans();
+    barEditMode = false;
+    renderHome();          // re-renders both cards and the bar, kept in sync
+    toast('已更新目前階段');
+  });
+}
+document.getElementById('stageOk').addEventListener('click', () => {
+  const cb = stageConfirmCb;
+  closeStageConfirm();
+  if (cb) cb();
+});
+document.getElementById('stageCancel').addEventListener('click', closeStageConfirm);
+stageMask.addEventListener('click', e => { if (e.target === stageMask) closeStageConfirm(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !stageMask.classList.contains('hidden')) closeStageConfirm();
+});
+
+/* ================= VIEW 2 : planning form ================= */
+const nameInput = document.getElementById('nameInput');
+const startInput = document.getElementById('startInput');
+const typeBtns = document.getElementById('typeBtns');
+const tagBox = document.getElementById('tagBox');
+const tagInput = document.getElementById('tagInput');
+
+let draft = null; // the plan being built
+
+typeBtns.addEventListener('click', e => {
+  const b = e.target.closest('.type-btn');
+  if (!b) return;
+  typeBtns.querySelectorAll('.type-btn').forEach(x => x.classList.toggle('on', x === b));
+});
+function selectedType(){ return typeBtns.querySelector('.type-btn.on').textContent; }
+
+/* fb-style tags: space/enter commits, backspace on empty removes last */
+let tags = [];
+function renderTags(){
+  tagBox.querySelectorAll('.tag-chip').forEach(el => el.remove());
+  tags.forEach((t,i) => {
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.textContent = t;
+    const x = document.createElement('b');
+    x.textContent = '×';
+    x.addEventListener('click', () => { tags.splice(i,1); renderTags(); });
+    chip.appendChild(x);
+    tagBox.insertBefore(chip, tagInput);
+  });
+  presetTags.querySelectorAll('.pt').forEach(b => b.classList.toggle('on', tags.includes(b.textContent)));
+}
+/* built-in tags: click to toggle straight into the tag box */
+const presetTags = document.getElementById('presetTags');
+PRESET_TAGS.forEach(t => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'pt';
+  b.textContent = t;
+  b.addEventListener('click', () => {
+    const i = tags.indexOf(t);
+    if (i >= 0) tags.splice(i, 1); else tags.push(t);
+    renderTags();
+  });
+  presetTags.appendChild(b);
+});
+tagBox.addEventListener('click', () => tagInput.focus());
+tagInput.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'Enter') {
+    e.preventDefault();
+    const v = tagInput.value.trim();
+    if (v && !tags.includes(v)) { tags.push(v); renderTags(); }
+    tagInput.value = '';
+  } else if (e.key === 'Backspace' && tagInput.value === '') {
+    tags.pop();
+    renderTags();
+  }
+});
+
+/* ---------------- editable timeline (from time_line_v3, weekend-aware) ---------------- */
+const bar          = document.getElementById('bar');
+const track        = document.getElementById('track');
+const numberLabels = document.getElementById('numberLabels');
+const stackLayer   = document.getElementById('stackLayer');
+const tlPanel      = document.getElementById('tlPanel');
+const durRow       = document.getElementById('durRow');
+const totalInput   = document.getElementById('totalInput');
+
+const N = STAGES.length;
+const PX_PER_BLOCK = 56;
+const MIN_UNITS = 5;   // total length has no upper cap — only the 總長 field sets it
+
+let START = atMid(new Date());  // day 0 of the axis
+let flagDates = [];             // end date of each stage; non-decreasing weekdays
+let UNITS = 15;
+let selected = 0, dragging = -1, pending = null;
+
+function firstValid(){ return isWE(START) ? nextWork(START) : START; }
+function baseDay(){ return addDays(firstValid(), -1); }
+// 提品 must own at least one day; every later stage may collapse onto its
+// predecessor (0 天 = 同日結束, i.e. the two flags stack)
+function minDur(i){ return i === 0 ? 1 : 0; }
+
+function flagsFromDurs(durs){
+  let prev = baseDay();
+  flagDates = durs.map((d,i) => { prev = addWork(prev, Math.max(minDur(i), d)); return prev; });
+}
+function dursFromFlags(){
+  let prev = baseDay();
+  return flagDates.map(f => { const d = workBetween(prev, f); prev = f; return d; });
+}
+// last weekday the axis can hold; flags may never be dragged past it
+function lastValid(){
+  const d = addDays(START, UNITS);
+  return isWE(d) ? prevWork(d) : d;
+}
+function clampFlags(){
+  const lo = firstValid(), hi = lastValid();
+  // clamping preserves order, so flags that run off the end simply stack there
+  flagDates = flagDates.map(f => f < lo ? lo : (f > hi ? hi : f));
+}
+/* the axis length is set ONLY by the 總長 field (or auto-fit on fresh form /
+   帶入 / 開始日 change) — never by dragging a flag, and there is no drag grip.
+   No upper cap: whatever number is typed is the length (min MIN_UNITS). */
+function setTotal(v){
+  if (!Number.isFinite(v)) v = UNITS;
+  UNITS = Math.max(MIN_UNITS, Math.round(v));
+  totalInput.value = UNITS;
+  clampFlags();
+  buildGrid();
+  render();
+}
+function fitTotalToFlags(){
+  UNITS = Math.max(15, dayOffset(START, flagDates[N-1]) + 2);
+  totalInput.value = UNITS;
+}
+
+/* duration inputs row (the number boxes above the timeline) */
+const durInputs = [], durDateEls = [];
+STAGES.forEach((name, i) => {
+  const cell = document.createElement('div');
+  cell.className = 'dur-cell';
+  const dn = document.createElement('div');
+  dn.className = 'dn';
+  dn.textContent = name;
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.min = minDur(i);   // no upper cap
+  const unit = document.createElement('span');
+  unit.className = 'unit';
+  unit.textContent = ' 天';
+  const dd = document.createElement('div');
+  dd.className = 'dd';
+  cell.appendChild(dn); cell.appendChild(inp); cell.appendChild(unit); cell.appendChild(dd);
+  durRow.appendChild(cell);
+  durInputs.push(inp); durDateEls.push(dd);
+
+  inp.addEventListener('change', () => {
+    let v = parseInt(inp.value, 10);
+    if (!Number.isFinite(v) || v < minDur(i)) v = minDur(i);
+    inp.value = v;
+    const durs = dursFromFlags();
+    durs[i] = v;
+    flagsFromDurs(durs);
+    // increasing a stage's counter grows the total to fit — the axis extends,
+    // it doesn't clamp the flag at the end. Length only changes here or via the
+    // 總長 field; never by dragging the timeline. Never shrinks on an edit.
+    UNITS = Math.max(UNITS, dayOffset(START, flagDates[N-1]) + 2);
+    totalInput.value = UNITS;
+    buildGrid();
+    render();
+  });
+});
+function syncDurRow(){
+  const durs = dursFromFlags();
+  durs.forEach((d,i) => {
+    durInputs[i].value = d;
+    durDateEls[i].textContent = fmtMDW(flagDates[i]);
+  });
+}
+
+/* grid */
+function buildGrid(){
+  // panel padding (12) + bar-wrap padding (14) — makes the bar exactly
+  // UNITS * PX_PER_BLOCK wide, so one day is always PX_PER_BLOCK on screen
+  tlPanel.style.width = (UNITS * PX_PER_BLOCK + 26) + 'px';
+  bar.innerHTML = '';
+  numberLabels.innerHTML = '';
+  for (let n = 0; n <= UNITS; n++) {
+    const d = addDays(START, n);
+    if (isWE(d) && n < UNITS) {
+      const sh = document.createElement('div');
+      sh.className = 'we-shade';
+      sh.style.left = (n / UNITS * 100) + '%';
+      sh.style.width = (1 / UNITS * 100) + '%';
+      sh.textContent = d.getDay() === 6 ? '周' : '末';   // Sat → 周, Sun → 末
+      bar.appendChild(sh);
+    }
+    const line = document.createElement('div');
+    line.className = 'grid-line ' + (d.getDay() === 1 ? 'major' : 'minor');
+    line.style.left = (n / UNITS * 100) + '%';
+    bar.appendChild(line);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'number-label' + (isWE(d) ? ' we' : '');
+    lbl.style.left = (n / UNITS * 100) + '%';
+    lbl.textContent = fmtMD(d);
+    numberLabels.appendChild(lbl);
+  }
+}
+
+/* flag elements */
+const els = [];
+for (let i = 0; i < N; i++) {
+  const el = document.createElement('div');
+  el.className = 'flag';
+  el.tabIndex = 0;
+  el.dataset.index = i;
+  el.innerHTML = '<div class="stem"></div><div class="handle"></div><div class="taglabel"></div>';
+  track.appendChild(el);
+  els.push(el);
+}
+
+const FLAG_HEXES = ['#ff6b6b','#ffa94d','#f5c211','#94d82d','#51cf66','#20c997','#22b8cf','#4dabf7','#845ef7','#f06595'];
+const TAIL_HEX = '#8d97a8';
+function hexToRgb(h){ const n = parseInt(h.slice(1),16); return {r:(n>>16)&255, g:(n>>8)&255, b:n&255}; }
+function mix(hex, target, amount){
+  const c1 = hexToRgb(hex), c2 = hexToRgb(target);
+  const f = c => Math.round(c1[c]*amount + c2[c]*(1-amount));
+  return `rgb(${f('r')}, ${f('g')}, ${f('b')})`;
+}
+function segColor(i){ return mix(i < N ? FLAG_HEXES[i] : TAIL_HEX, '#ffffff', 0.42); }
+
+/* one label row above the bar: color swatch + stage name (the editable 天數
+   inputs live in the duration row above the timeline) */
+function labelRow(i){
+  const row = document.createElement('div');
+  row.className = 'row';
+  const sw = document.createElement('span');
+  sw.className = 'swatch';
+  sw.style.background = FLAG_HEXES[i];
+  row.appendChild(sw);
+  const name = STAGES[i];
+  const label = document.createElement('span');
+  if (name.length > 4) {
+    // long names wrap instead of widening the row into its neighbour
+    label.className = 'label-2line';
+    const mid = Math.ceil(name.length/2);
+    label.innerHTML = '<div></div><div></div>';
+    label.children[0].textContent = name.slice(0,mid);
+    label.children[1].textContent = name.slice(mid);
+  } else {
+    label.textContent = name;
+  }
+  row.appendChild(label);
+  return row;
+}
+
+function render(){
+  const pos = flagDates.map(f => dayOffset(START, f) / UNITS);
+
+  // stages ending on the same day form one stack
+  const groups = [];
+  flagDates.forEach((f,i) => {
+    const g = groups.find(g => +flagDates[g[0]] === +f);
+    if (g) g.push(i); else groups.push([i]);
+  });
+
+  // segment s = the region left of flag s. A stack's members leave zero-width
+  // segments behind them, so the one real segment to their left fades through
+  // every member's color — the overlap stays visible instead of hiding
+  // everyone but the frontmost flag.
+  const bounds = [0, ...pos, 1];
+  const parts = [];
+  for (let s = 0; s < bounds.length - 1; s++) {
+    const a = bounds[s], b = bounds[s+1];
+    if (b - a < 1e-9) continue;
+    const group = s < N ? groups.find(g => g.includes(s)) : null;
+    const colors = (group && group.length > 1)
+      ? group.map(gi => segColor(gi))
+      : [segColor(s)];
+    if (colors.length === 1) {
+      parts.push(`${colors[0]} ${(a*100).toFixed(3)}%, ${colors[0]} ${(b*100).toFixed(3)}%`);
+    } else {
+      colors.forEach((c,k) => {
+        const stop = a + (b - a) * (k / (colors.length - 1));
+        parts.push(`${c} ${(stop*100).toFixed(3)}%`);
+      });
+    }
+  }
+  bar.style.background = `linear-gradient(to right, ${parts.join(', ')})`;
+
+  els.forEach((el,i) => {
+    const group = groups.find(g => g.includes(i));
+    const isStack = group.length > 1;
+    el.style.left = (pos[i]*100) + '%';
+    // a stack reads as one marker, in the color of the segment it closes
+    el.style.color = FLAG_HEXES[group[0]];
+    el.classList.toggle('selected', i === selected);
+    el.classList.toggle('stack-member', isStack && i !== group[0]);
+    el.querySelector('.taglabel').textContent = fmtMD(flagDates[i]);
+  });
+
+  /* stage-name labels above the bar; stacked flags share one block, which
+     splits into two columns past MAX_STACK_ROWS so it grows sideways
+     instead of towering. Lifted only on real collision. */
+  const MAX_STACK_ROWS = 4;
+  stackLayer.innerHTML = '';
+  const wraps = [];
+  groups.forEach(group => {
+    const wrap = document.createElement('div');
+    wrap.className = 'stacklabel';
+    wrap.style.left = (pos[group[0]]*100) + '%';
+    const colCount = group.length > MAX_STACK_ROWS ? 2 : 1;
+    const perCol = Math.ceil(group.length / colCount);
+    for (let c = 0; c < colCount; c++) {
+      const col = document.createElement('div');
+      col.className = 'col';
+      group.slice(c*perCol, (c+1)*perCol).forEach(gi => col.appendChild(labelRow(gi)));
+      wrap.appendChild(col);
+    }
+    stackLayer.appendChild(wrap);
+    wraps.push({el:wrap, pos:pos[group[0]]});
+  });
+  // greedy multi-row packing: each label drops into the lowest row whose last
+  // label has cleared, else a new row above. The wider name+input labels need
+  // more than the old two rows, and this guarantees no two ever overlap.
+  const GAP = 8, ROW_H = 34, rowRight = [];
+  wraps.forEach(w => {
+    const width = w.el.offsetWidth;
+    const left = w.pos * stackLayer.offsetWidth - width/2;
+    let row = 0;
+    while (row < rowRight.length && left < rowRight[row] + GAP) row++;
+    if (row === rowRight.length) rowRight.push(-Infinity);
+    rowRight[row] = left + width;
+    w.el.style.bottom = (row * ROW_H) + 'px';
+  });
+
+  syncDurRow();
+}
+
+/* drag: snap to weekdays; order is kept by collapsing neighbours onto the
+   dragged flag's day (they stack) rather than shoving them further out, so
+   dragging never stretches the schedule beyond where you dropped the flag */
+function snapWeekday(d){
+  if (!isWE(d)) return d;
+  return d.getDay() === 6 ? prevWork(d) : nextWork(d);
+}
+function setFlagDate(i, date){
+  date = snapWeekday(atMid(date));
+  const lo = firstValid(), hi = lastValid();
+  if (date < lo) date = lo;
+  if (date > hi) date = hi;   // the axis end is a wall, not something to push
+  flagDates[i] = date;
+  for (let j = i+1; j < N; j++) {
+    if (flagDates[j] < flagDates[j-1]) flagDates[j] = flagDates[j-1];
+    else break;
+  }
+  for (let j = i-1; j >= 0; j--) {
+    if (flagDates[j] > flagDates[j+1]) flagDates[j] = flagDates[j+1];
+    else break;
+  }
+}
+function dateFromClientX(clientX){
+  const r = track.getBoundingClientRect();
+  const p = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+  return addDays(START, Math.round(p * UNITS));
+}
+
+track.addEventListener('pointerdown', e => {
+  const flagEl = e.target.closest('.flag');
+  if (!flagEl) return;
+  const i = +flagEl.dataset.index;
+  track.setPointerCapture(e.pointerId);
+
+  // a stack hides several flags under one marker: wait to see which way the
+  // drag goes, then peel off the end that's heading that way
+  const candidates = [];
+  for (let k = 0; k < N; k++) if (+flagDates[k] === +flagDates[i]) candidates.push(k);
+  if (candidates.length === 1) {
+    dragging = selected = i;
+  } else {
+    pending = { candidates, startX: e.clientX };
+    selected = i;
+  }
+  render();
+});
+track.addEventListener('pointermove', e => {
+  if (pending) {
+    const dx = e.clientX - pending.startX;
+    if (Math.abs(dx) < 3) return;
+    const c = pending.candidates;
+    dragging = selected = dx > 0 ? c[c.length-1] : c[0];
+    pending = null;
+  }
+  if (dragging < 0) return;
+  setFlagDate(dragging, dateFromClientX(e.clientX));
+  render();
+});
+function endDrag(){ dragging = -1; pending = null; }
+track.addEventListener('pointerup', endDrag);
+track.addEventListener('pointercancel', endDrag);
+
+track.addEventListener('keydown', e => {
+  const i = +(e.target.dataset ? e.target.dataset.index : NaN);
+  if (Number.isNaN(i)) return;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    selected = i;
+    setFlagDate(i, e.key === 'ArrowRight' ? nextWork(flagDates[i]) : prevWork(flagDates[i]));
+    render();
+  }
+});
+
+/* ---- the only way to change the axis length: the 總長 number field ---- */
+totalInput.addEventListener('change', () => setTotal(parseInt(totalInput.value, 10)));
+
+/* mouse wheel scrolls the timeline horizontally — no need to drag the scrollbar */
+const tlScroll = tlPanel.parentElement;
+tlScroll.addEventListener('wheel', e => {
+  const amount = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (!amount) return;
+  if (tlScroll.scrollWidth <= tlScroll.clientWidth) return;   // nothing to scroll
+  tlScroll.scrollLeft += amount;
+  e.preventDefault();
+}, { passive: false });
+
+startInput.addEventListener('change', () => {
+  if (!startInput.value) { startInput.value = toYMD(START); return; }
+  const durs = dursFromFlags();
+  START = parseYMD(startInput.value);
+  flagsFromDurs(durs);
+  fitTotalToFlags(); buildGrid(); render();  // a new start date re-sizes its own axis
+});
+
+function resetPlanForm(){
+  nameInput.value = '';
+  tags = []; renderTags();
+  typeBtns.querySelectorAll('.type-btn').forEach((b,i) => b.classList.toggle('on', i === 0));
+  START = atMid(new Date());
+  startInput.value = toYMD(START);
+  flagsFromDurs(DEFAULT_DURS);
+  selected = 0;
+  fitTotalToFlags(); buildGrid(); render();
+}
+
+/* 帶入 popup: copy type/tags/durations from a past plan */
+const importMask = document.getElementById('importMask');
+const impSearch  = document.getElementById('impSearch');
+const impTagMenu = document.getElementById('impTagMenu');
+const impChips   = document.getElementById('impChips');
+const impPresets = document.getElementById('impPresets');
+const impTypes   = document.getElementById('impTypes');
+const impCount   = document.getElementById('impCount');
+const impResults = document.getElementById('impResults');
+
+const IMP_TYPES = ['全部','全省對開大DM','網路素材','單店制作物','A3'];
+const TOTAL_TOL = 2;            // 總長 chip matches within ±2 working days
+
+/* filter state — all three combine (AND) */
+let impTagChips = [];           // tag names
+let impTotal = null;            // a single 總長 number, or null
+let impType = '全部';
+let impTagSel = 0;              // highlighted row in the tag dropdown
+let impTagShown = [];
+
+const totalDurs = p => (p.durs || []).reduce((a, b) => a + (+b || 0), 0);
+/* only tags some plan actually carries — filtering by an unused tag is a dead
+   end. Built-in tags come first so the common ones are where you expect them. */
+const allTags = () => {
+  const used = new Set(plans.flatMap(p => p.tags || []));
+  return [...PRESET_TAGS.filter(t => used.has(t)),
+          ...[...used].filter(t => !PRESET_TAGS.includes(t))];
+};
+
+/* one-click 常用標籤 row in the filter pane */
+function renderImpPresets(){
+  impPresets.innerHTML = '';
+  const list = allTags();
+  if (!list.length){
+    impPresets.innerHTML = '<span style="font-size:14px;font-weight:700;color:var(--muted)">（還沒有標籤）</span>';
+    return;
+  }
+  list.forEach(t => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pt' + (impTagChips.includes(t) ? ' on' : '');
+    b.textContent = t;
+    b.addEventListener('click', () => {
+      if (impTagChips.includes(t)) impTagChips = impTagChips.filter(v => v !== t);
+      else impTagChips.push(t);
+      renderImpChips(); renderImpResults();
+    });
+    impPresets.appendChild(b);
+  });
+}
+
+IMP_TYPES.forEach(t => {
+  const b = document.createElement('button');
+  b.className = 'type-btn' + (t === '全部' ? ' on' : '');
+  b.textContent = t;
+  b.addEventListener('click', () => {
+    impType = t;
+    impTypes.querySelectorAll('.type-btn').forEach(x => x.classList.toggle('on', x === b));
+    renderImpResults();
+  });
+  impTypes.appendChild(b);
+});
+
+function resetImpFilters(){
+  impSearch.value = '';
+  impTagChips = [];
+  impTotal = null;
+  impType = '全部';
+  impTypes.querySelectorAll('.type-btn').forEach((b, i) => b.classList.toggle('on', i === 0));
+  impTagMenu.classList.add('hidden');
+  renderImpChips();
+  renderImpResults();
+}
+
+function renderImpChips(){
+  impChips.innerHTML = '';
+  impTagChips.forEach(t => {
+    const c = document.createElement('span');
+    c.className = 'pill tag';
+    c.textContent = t;
+    const x = document.createElement('b');
+    x.textContent = '×';
+    x.addEventListener('click', () => {
+      impTagChips = impTagChips.filter(v => v !== t);
+      renderImpChips(); renderImpResults();
+    });
+    c.appendChild(x);
+    impChips.appendChild(c);
+  });
+  if (impTotal != null){
+    const c = document.createElement('span');
+    c.className = 'pill total';
+    c.textContent = `總長 ${impTotal}天`;
+    const x = document.createElement('b');
+    x.textContent = '×';
+    x.addEventListener('click', () => { impTotal = null; renderImpChips(); renderImpResults(); });
+    c.appendChild(x);
+    impChips.appendChild(c);
+  }
+  renderImpPresets();   // keep the 常用標籤 row's on-state in sync
+}
+
+/* tag suggestions: exact or prefix match against every tag in use */
+function renderImpTagMenu(){
+  const q = impSearch.value.trim().toLowerCase();
+  impTagShown = q
+    ? allTags().filter(t => t.toLowerCase().startsWith(q) && !impTagChips.includes(t))
+    : [];
+  if (!impTagShown.length){ impTagMenu.classList.add('hidden'); return; }
+  if (impTagSel >= impTagShown.length) impTagSel = 0;
+  impTagMenu.innerHTML = '';
+  impTagShown.forEach((t, i) => {
+    const o = document.createElement('div');
+    o.className = 'opt' + (i === impTagSel ? ' sel' : '');
+    o.textContent = `# ${t}`;
+    o.addEventListener('mousedown', e => { e.preventDefault(); addImpTag(t); });
+    impTagMenu.appendChild(o);
+  });
+  impTagMenu.classList.remove('hidden');
+}
+function addImpTag(t){
+  if (!impTagChips.includes(t)) impTagChips.push(t);
+  impSearch.value = '';
+  impTagSel = 0;
+  impTagMenu.classList.add('hidden');
+  renderImpChips(); renderImpResults();
+}
+
+function impMatches(p){
+  if (impType !== '全部' && p.type !== impType) return false;
+  const tags = p.tags || [];
+  if (!impTagChips.every(t => tags.includes(t))) return false;
+  if (impTotal != null && Math.abs(totalDurs(p) - impTotal) > TOTAL_TOL) return false;
+  const q = impSearch.value.trim().toLowerCase();
+  // a pure number in the box is a pending 總長, not a name search
+  if (q && !/^\d+$/.test(q) && !(p.name || '').toLowerCase().includes(q)) return false;
+  return true;
+}
+
+function renderImpResults(){
+  const list = [...plans].reverse().filter(impMatches);
+  impCount.textContent = `符合 ${list.length} 筆`;
+  impResults.innerHTML = '';
+  if (!list.length){
+    const e = document.createElement('div');
+    e.className = 'imp-empty';
+    e.textContent = '沒有符合的檔期，試著移除一些條件';
+    const br = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.className = 'btn ghost';
+    btn.textContent = '清除全部條件';
+    btn.addEventListener('click', resetImpFilters);
+    br.appendChild(btn);
+    e.appendChild(br);
+    impResults.appendChild(e);
+    return;
+  }
+  list.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'imp-card';
+    const r1 = document.createElement('div');
+    r1.className = 'row1';
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = p.name || '(未命名)';
+    r1.appendChild(nm);
+    const tp = document.createElement('span');
+    tp.className = 'pill';
+    tp.textContent = p.type;
+    r1.appendChild(tp);
+    (p.tags || []).forEach(t => {
+      const g = document.createElement('span');
+      g.className = 'pill tag' + (impTagChips.includes(t) ? ' hit' : '');
+      g.textContent = t;
+      r1.appendChild(g);
+    });
+    const tt = document.createElement('span');
+    tt.className = 'pill total';
+    tt.textContent = `總長 ${totalDurs(p)} 天`;
+    r1.appendChild(tt);
+    card.appendChild(r1);
+    const d = document.createElement('div');
+    d.className = 'durs';
+    d.textContent = STAGES.map((s, i) => `${s}${(p.durs || [])[i] ?? 0}`).join('・');
+    card.appendChild(d);
+    card.addEventListener('click', () => importSettings(p));
+    impResults.appendChild(card);
+  });
+}
+
+impSearch.addEventListener('input', () => { impTagSel = 0; renderImpTagMenu(); renderImpResults(); });
+impSearch.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' && impTagShown.length){
+    e.preventDefault(); impTagSel = (impTagSel + 1) % impTagShown.length; renderImpTagMenu(); return;
+  }
+  if (e.key === 'ArrowUp' && impTagShown.length){
+    e.preventDefault(); impTagSel = (impTagSel - 1 + impTagShown.length) % impTagShown.length; renderImpTagMenu(); return;
+  }
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = impSearch.value.trim();
+  if (impTagShown.length){ addImpTag(impTagShown[impTagSel]); return; }   // tag wins
+  if (/^\d+$/.test(q)){                                                  // pure number -> 總長 chip
+    impTotal = parseInt(q, 10);
+    impSearch.value = '';
+    renderImpChips(); renderImpResults();
+  }
+});
+
+function closeImport(){ importMask.classList.add('hidden'); impTagMenu.classList.add('hidden'); }
+document.getElementById('importBtn').addEventListener('click', () => {
+  resetImpFilters();                 // always open on a clean slate
+  importMask.classList.remove('hidden');
+  impSearch.focus();
+});
+document.getElementById('importCancel').addEventListener('click', closeImport);
+importMask.addEventListener('click', e => { if (e.target === importMask) closeImport(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !importMask.classList.contains('hidden')) closeImport();
+});
+
+/* apply a plan's settings (類別/標籤/各階段天數) into the open form */
+function importSettings(p){
+  typeBtns.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('on', b.textContent === p.type));
+  if (!typeBtns.querySelector('.type-btn.on')) typeBtns.querySelector('.type-btn').classList.add('on');
+  tags = (p.tags || []).slice(); renderTags();
+  if (Array.isArray(p.durs)) flagsFromDurs(p.durs);
+  fitTotalToFlags(); buildGrid(); render();   // an imported plan sizes its own axis
+  closeImport();
+  toast(`已帶入「${p.name || '檔案'}」的設定`);
+}
+
+/* 從檔案帶入 — read an exported 落版單 (.html with embedded JSON, or a .json) */
+function planFromText(text){
+  text = text.trim();
+  if (text[0] === '{') return JSON.parse(text);
+  const m = text.match(/<script id="plandata"[^>]*>([\s\S]*?)<\/script>/i);
+  if (m) return JSON.parse(m[1]);
+  throw new Error('no embedded plan data');
+}
+const importFile = document.getElementById('importFile');
+importFile.addEventListener('change', () => {
+  const f = importFile.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { importSettings(planFromText(String(r.result))); }
+    catch (e) { toast('無法從此檔案讀取檔期資料'); }
+    importFile.value = '';
+  };
+  r.readAsText(f);
+});
+
+/* ================= VIEW 3 : layout editor ================= */
+const wsFront = document.getElementById('wsFront');
+const wsBack  = document.getElementById('wsBack');
+const boardsWrap = document.getElementById('boardsWrap');
+const layoutTitle = document.getElementById('layoutTitle');
+const cursorChip = document.getElementById('cursorChip');
+
+/* custom cut cursors (from 排版切割) */
+const svgV = `<svg xmlns="http://www.w3.org/2000/svg" width="65" height="32" style="font-size:18px;font-weight:bold;font-family:sans-serif;"><text x="0" y="22" fill="white" stroke="black" stroke-width="3" paint-order="stroke fill">直</text><g transform="translate(24,0)"><path d="M 15 5 h 2 v 22 h -2 Z M 11 16 L 3 9 v 14 Z M 21 16 L 29 9 v 14 Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></g></svg>`;
+const svgH = `<svg xmlns="http://www.w3.org/2000/svg" width="65" height="32" style="font-size:18px;font-weight:bold;font-family:sans-serif;"><text x="0" y="22" fill="white" stroke="black" stroke-width="3" paint-order="stroke fill">橫</text><g transform="translate(24,0)"><path d="M 5 15 h 22 v 2 h -22 Z M 16 11 L 9 3 h 14 Z M 16 21 L 9 29 h 14 Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></g></svg>`;
+const svgVA = `<svg xmlns="http://www.w3.org/2000/svg" width="90" height="32" style="font-size:18px;font-weight:bold;font-family:sans-serif;"><text x="0" y="22" fill="white" stroke="black" stroke-width="3" paint-order="stroke fill">調整</text><g transform="translate(42,0)"><path d="M 15 5 h 2 v 22 h -2 Z M 11 16 L 3 9 v 14 Z M 21 16 L 29 9 v 14 Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></g></svg>`;
+const svgHA = `<svg xmlns="http://www.w3.org/2000/svg" width="90" height="32" style="font-size:18px;font-weight:bold;font-family:sans-serif;"><text x="0" y="22" fill="white" stroke="black" stroke-width="3" paint-order="stroke fill">調整</text><g transform="translate(42,0)"><path d="M 5 15 h 22 v 2 h -22 Z M 16 11 L 9 3 h 14 Z M 16 21 L 9 29 h 14 Z" fill="black" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></g></svg>`;
+const cur = s => `url('data:image/svg+xml;utf8,${encodeURIComponent(s.trim())}') 40 16, auto`;
+document.body.style.setProperty('--cursor-v', cur(svgV));
+document.body.style.setProperty('--cursor-h', cur(svgH));
+document.body.style.setProperty('--cursor-vadj', cur(svgVA).replace('40 16','58 16'));
+document.body.style.setProperty('--cursor-hadj', cur(svgHA).replace('40 16','58 16'));
+
+const CATEGORIES = ['刮鬍刀','小家電','空調','五機','季節家電','冰箱','洗衣機','電視','聲霸','通訊數位商品','揪居家','配件','開學季資訊','無刊頭'];
+
+let mode = 'assign';        // assign (default) | cut | swap
+let cutDir = 'vertical';    // the cut tool's direction, switched by the wheel
+const MODE_NAMES = { assign:'點選品類', swap:'拖曳互換' };
+const toolcol = document.getElementById('toolcol');
+function applyBodyClass(){
+  document.body.className = 'mode-' + mode + (mode === 'cut' ? ' dir-' + cutDir : '');
+}
+function setMode(m){
+  mode = m;
+  toolcol.querySelectorAll('.tool[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  applyBodyClass();
+}
+toolcol.addEventListener('click', e => {
+  const b = e.target.closest('.tool[data-mode]');
+  if (b) setMode(b.dataset.mode);
+});
+
+const REZ = 1;   // px of layout a cut line occupies (its hit box is wider)
+
+/* pastel region colors */
+function pastel(){
+  const h = Math.floor(Math.random() * 360);
+  return `hsl(${h}, 60%, 88%)`;
+}
+
+/* region content: data-items = JSON [{cat, qty|null}] — survives innerHTML history snapshots */
+function getItems(node){
+  try { return JSON.parse(node.dataset.items || '[]'); } catch (e) { return []; }
+}
+function setItems(node, items){
+  node.dataset.items = JSON.stringify(items);
+  let label = node.querySelector(':scope > .region-label');
+  if (!items.length) { if (label) label.remove(); return; }
+  if (!label) {
+    label = document.createElement('div');
+    label.className = 'region-label';
+    node.appendChild(label);
+  }
+  label.innerHTML = '';
+  items.forEach(it => {
+    const line = document.createElement('div');
+    line.textContent = it.cat;
+    if (it.qty) {
+      const c = document.createElement('span');
+      c.className = 'cnt';
+      c.textContent = `(${it.qty})`;
+      line.appendChild(c);
+    }
+    label.appendChild(line);
+  });
+  fitLabel(node);
+}
+
+/* ---- label auto-fit ----
+   The text reflows and scales to whatever shape its segment happens to be:
+   binary-search the largest size in [MIN, MAX] whose wrapped text still fits
+   inside the region. Must re-run on anything that resizes a region — cutting,
+   dragging a line, undo/redo, or a window resize. */
+const LABEL_MAX = 15, LABEL_MIN = 6;
+function fitLabel(node){
+  const label = node.querySelector(':scope > .region-label');
+  if (!label) return;
+  const availW = node.clientWidth - 4, availH = node.clientHeight - 4;
+  if (availW < 14 || availH < 12) { label.style.visibility = 'hidden'; return; }
+  label.style.visibility = '';
+  label.style.maxWidth = availW + 'px';
+  const fits = () => label.scrollWidth <= availW + 0.5 && label.scrollHeight <= availH + 0.5;
+  label.style.fontSize = LABEL_MAX + 'px';
+  if (fits()) return;                        // roomy enough: keep full size
+  let lo = LABEL_MIN, hi = LABEL_MAX;
+  for (let i = 0; i < 6; i++) {
+    const mid = (lo + hi) / 2;
+    label.style.fontSize = mid + 'px';
+    if (fits()) lo = mid; else hi = mid;
+  }
+  label.style.fontSize = lo.toFixed(2) + 'px';
+}
+function fitLabels(root){
+  (root || boardsWrap).querySelectorAll('.window-node').forEach(fitLabel);
+}
+
+/* ---- history over both boards ---- */
+let history = [], historyIndex = -1;
+const undoBtn = document.getElementById('undoBtn');
+const redoBtn = document.getElementById('redoBtn');
+function clearTransient(){
+  boardsWrap.querySelectorAll('.swap-src,.swap-target').forEach(n => n.classList.remove('swap-src','swap-target'));
+}
+function saveState(){
+  clearTransient();
+  history = history.slice(0, historyIndex + 1);
+  history.push({ f: wsFront.innerHTML, b: wsBack.innerHTML });
+  historyIndex++;
+  updateHistoryButtons();
+}
+function updateHistoryButtons(){
+  undoBtn.disabled = historyIndex <= 0;
+  redoBtn.disabled = historyIndex >= history.length - 1;
+}
+function restore(i){
+  wsFront.innerHTML = history[i].f;
+  wsBack.innerHTML = history[i].b;
+  fitLabels();
+  updateHistoryButtons();
+}
+undoBtn.addEventListener('click', () => { if (historyIndex > 0) restore(--historyIndex); });
+redoBtn.addEventListener('click', () => { if (historyIndex < history.length - 1) restore(++historyIndex); });
+document.addEventListener('keydown', e => {
+  if (views.layout.classList.contains('hidden')) return;
+  if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.key === 'z' || e.key === 'Z') {
+    e.preventDefault();
+    if (e.shiftKey) redoBtn.click(); else undoBtn.click();
+  } else if (e.key === 'y' || e.key === 'Y') {
+    e.preventDefault();
+    redoBtn.click();
+  }
+});
+
+/* every board opens as a 對開 spread: two halves either side of a fixed fold.
+   Both halves are flex:1 1 0 and nothing can resize them, so the fold stays
+   dead centre no matter how the halves are cut up afterwards. */
+function initBoards(){
+  [wsFront, wsBack].forEach(ws => {
+    ws.innerHTML = '';
+    const spread = document.createElement('div');
+    spread.className = 'split-container';
+    spread.style.flexDirection = 'row';
+    const half1 = document.createElement('div');
+    const half2 = document.createElement('div');
+    [half1, half2].forEach(h => {
+      h.className = 'window-node';
+      // pinned to exactly half the board minus half the fold. Not 'flex:1 1 0',
+      // which would let border/content differences between the two halves
+      // shift the fold once one of them is cut up.
+      h.style.flex = '0 0 calc(50% - 1px)';
+      h.style.minWidth = '0';
+      h.style.backgroundColor = pastel();
+    });
+    const fold = document.createElement('div');
+    fold.className = 'fold';
+    spread.appendChild(half1);
+    spread.appendChild(fold);
+    spread.appendChild(half2);
+    ws.appendChild(spread);
+  });
+  history = []; historyIndex = -1;
+  saveState();
+}
+
+/* ---- board geometry: a landscape spread, two portrait halves across the fold ---- */
+const BOARD_RATIO = 1.414;   // A3 landscape = two A4 portrait pages
+const RULER = 26, BOARD_GAP = 22;
+function layoutBoards(){
+  const slot = boardsWrap.querySelector('.board-slot');
+  const titleH = slot.querySelector('h3').offsetHeight + 6;
+  const availH = boardsWrap.clientHeight - titleH - RULER;
+  const availW = (boardsWrap.clientWidth - BOARD_GAP) / 2 - RULER;
+  if (availH <= 0 || availW <= 0) return;   // view still hidden
+  let w = availW, h = w / BOARD_RATIO;
+  if (h > availH) { h = availH; w = h * BOARD_RATIO; }
+  // even width => (w - fold) splits into two whole pixels, so the fold lands
+  // exactly on centre instead of drifting a pixel on odd widths
+  w = Math.floor(w / 2) * 2;
+  [wsFront, wsBack].forEach(ws => {
+    ws.style.width = w + 'px';
+    ws.style.height = Math.floor(h) + 'px';
+  });
+  drawRulers();
+  fitLabels();
+}
+window.addEventListener('resize', () => {
+  if (!views.layout.classList.contains('hidden')) layoutBoards();
+});
+
+/* ---- rulers (per board), ported from 1排版切割 ---- */
+function drawRuler(ws, rail, horizontal){
+  rail.querySelectorAll('.tick,.tick-label').forEach(el => el.remove());
+  const len = horizontal ? ws.clientWidth : ws.clientHeight;
+  for (let i = 0; i <= len; i += 10) {
+    const major = i % 100 === 0, medium = i % 50 === 0;
+    const size = major ? '10px' : medium ? '7px' : '4px';
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    if (horizontal) {
+      tick.style.left = i + 'px'; tick.style.width = '1px';
+      tick.style.bottom = '0';    tick.style.height = size;
+    } else {
+      tick.style.top = i + 'px';  tick.style.height = '1px';
+      tick.style.right = '0';     tick.style.width = size;
+    }
+    rail.appendChild(tick);
+    if (major && i > 0) {
+      const label = document.createElement('div');
+      label.className = 'tick-label';
+      label.textContent = i;
+      if (horizontal) {
+        label.style.left = (i + 2) + 'px'; label.style.top = '1px';
+      } else {
+        label.style.top = (i - 11) + 'px'; label.style.left = '2px';
+        label.style.transform = 'rotate(-90deg)';
+        label.style.transformOrigin = 'left bottom';
+      }
+      rail.appendChild(label);
+    }
+  }
+}
+function drawRulers(){
+  boardsWrap.querySelectorAll('.editor-layout').forEach(layout => {
+    const ws = layout.querySelector('.board-ws');
+    drawRuler(ws, layout.querySelector('.ruler-top'), true);
+    drawRuler(ws, layout.querySelector('.ruler-left'), false);
+  });
+}
+function updateRulerMarkers(clientX, clientY, ws){
+  const layout = ws.closest('.editor-layout');
+  const r = ws.getBoundingClientRect();
+  const x = Math.max(0, Math.min(clientX - r.left, r.width));
+  const y = Math.max(0, Math.min(clientY - r.top, r.height));
+  const mx = layout.querySelector('.ruler-marker-x');
+  const my = layout.querySelector('.ruler-marker-y');
+  mx.style.left = x + 'px'; mx.setAttribute('data-val', Math.round(x) + 'px');
+  my.style.top  = y + 'px'; my.setAttribute('data-val', Math.round(y) + 'px');
+}
+
+/* ---- cut (event delegation so undo keeps working) ---- */
+boardsWrap.addEventListener('click', e => {
+  if (mode !== 'cut') return;
+  const target = e.target.closest('.window-node');
+  if (!target) return;
+
+  const rect = target.getBoundingClientRect();
+  const isVertical = cutDir === 'vertical';
+  const percent = isVertical
+    ? (e.clientX - rect.left) / rect.width * 100
+    : (e.clientY - rect.top) / rect.height * 100;
+
+  const container = document.createElement('div');
+  container.className = 'split-container';
+  container.style.flexDirection = isVertical ? 'row' : 'column';
+
+  const child1 = document.createElement('div');
+  const child2 = document.createElement('div');
+  child1.className = 'window-node';
+  child2.className = 'window-node';
+  child1.style.backgroundColor = target.style.backgroundColor;
+  child2.style.backgroundColor = pastel();
+  child1.style.flex = `0 0 calc(${percent}% - ${REZ / 2}px)`;
+  child1.style.minWidth = '0';
+  child1.style.minHeight = '0';
+  child2.style.flex = '1 1 0%';
+  child2.style.minWidth = '0';
+  child2.style.minHeight = '0';
+  setItems(child1, getItems(target)); // content stays with the first half
+
+  const resizer = document.createElement('div');
+  resizer.className = 'resizer ' + (isVertical ? 'resizer-vertical' : 'resizer-horizontal');
+
+  container.appendChild(child1);
+  container.appendChild(resizer);
+  container.appendChild(child2);
+
+  target.classList.remove('window-node');
+  target.style.backgroundColor = 'transparent';
+  target.style.border = 'none';
+  target.removeAttribute('data-items');
+  target.innerHTML = '';
+  target.appendChild(container);
+
+  fitLabels(container);   // the inherited text now lives in a smaller box
+  saveState();
+});
+
+/* wheel switches the cut direction, exactly as in 1排版切割 */
+boardsWrap.addEventListener('wheel', e => {
+  if (mode !== 'cut') return;
+  e.preventDefault();
+  cutDir = e.deltaY > 0 ? 'horizontal' : 'vertical';
+  applyBodyClass();
+  moveChip(e.clientX, e.clientY, e.target);
+}, { passive: false });
+
+/* ---- resizer drag (any mode) ---- */
+boardsWrap.addEventListener('mousedown', e => {
+  const resizer = e.target;
+  if (!resizer.classList || !resizer.classList.contains('resizer')) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const container = resizer.parentElement;
+  const child1 = resizer.previousElementSibling;
+  const ws = resizer.closest('.board-ws');
+  const isVertical = resizer.classList.contains('resizer-vertical');
+  document.body.classList.add(isVertical ? 'dragging-vertical' : 'dragging-horizontal');
+  document.body.style.userSelect = 'none';
+
+  const onMove = ev => {
+    const r = container.getBoundingClientRect();
+    let p = isVertical
+      ? (ev.clientX - r.left) / r.width * 100
+      : (ev.clientY - r.top) / r.height * 100;
+    p = Math.max(5, Math.min(95, p));
+    child1.style.flex = `0 0 calc(${p}% - ${REZ / 2}px)`;
+    fitLabels(container);   // both sides just changed size; refit their text
+    moveChip(ev.clientX, ev.clientY, child1);
+    updateRulerMarkers(ev.clientX, ev.clientY, ws);
+  };
+  const onUp = () => {
+    document.body.classList.remove('dragging-vertical','dragging-horizontal');
+    document.body.style.userSelect = '';
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    saveState();
+  };
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
+
+/* ---- assign popup (點選) ---- */
+const assignPop = document.getElementById('assignPop');
+const catInput = document.getElementById('catInput');
+const qtyInput = document.getElementById('qtyInput');
+const itemList = document.getElementById('itemList');
+const catMenu = document.getElementById('catMenu');
+const plusBtn = document.getElementById('addItemBtn');
+let assignTarget = null, assignDirty = false;
+
+/* The cross shows when there is actually something to add — i.e. a 品類 is
+   typed. Tying it to "an item already exists" meant it sat there permanently
+   doing nothing once you'd added one, which read as decoration. */
+function syncPopUI(){
+  plusBtn.classList.toggle('show', !!catInput.value.trim());
+}
+
+/* ---- 品類 suggestion list ----
+   A plain white scrolling list under the input, not a native <datalist>: the
+   browser's dropdown renders dark and at its own font size, which is what the
+   user rejected. `catShown` mirrors what's on screen so keyboard + click agree. */
+let catShown = [], catSel = 0;
+/* 3 = starts with, 2 = contains, 1 = types in order (fuzzy), -1 = no match */
+function scoreCat(c, q){
+  const i = c.indexOf(q);
+  if (i === 0) return 3;
+  if (i > 0) return 2;
+  let k = 0;
+  for (const ch of c) if (ch === q[k]) k++;
+  return k === q.length ? 1 : -1;
+}
+function renderCatMenu(){
+  const q = catInput.value.trim();
+  syncPopUI();   // the cross + hint follow whatever is in the 品類 box
+  catShown = q
+    ? CATEGORIES.map(c => ({ c, s: scoreCat(c, q) })).filter(o => o.s > 0)
+        .sort((a, b) => b.s - a.s).map(o => o.c)
+    : CATEGORIES.slice();
+  if (catSel >= catShown.length) catSel = 0;
+  catMenu.innerHTML = '';
+  if (!catShown.length){
+    const e = document.createElement('div');
+    e.className = 'empty';
+    e.textContent = '沒有相符的品類（可直接輸入）';
+    catMenu.appendChild(e);
+    return;
+  }
+  catShown.forEach((c, i) => {
+    const o = document.createElement('div');
+    o.className = 'opt' + (i === catSel ? ' sel' : '');
+    o.textContent = c;
+    o.addEventListener('mousedown', e => {   // mousedown: fires before the input blurs
+      e.preventDefault();
+      catInput.value = c;
+      catSel = 0;
+      renderCatMenu();
+      qtyInput.focus();
+    });
+    catMenu.appendChild(o);
+  });
+  const sel = catMenu.children[catSel];
+  if (sel) sel.scrollIntoView({ block: 'nearest' });   // keep the closest match visible
+}
+function moveCatSel(d){
+  if (!catShown.length) return;
+  catSel = (catSel + d + catShown.length) % catShown.length;
+  renderCatMenu();
+}
+
+function renderItemList(){
+  itemList.innerHTML = '';
+  syncPopUI();
+  if (!assignTarget) return;
+  getItems(assignTarget).forEach((it, idx) => {
+    const row = document.createElement('div');
+    row.className = 'it';
+    const nm = document.createElement('span');
+    nm.textContent = it.cat;
+    row.appendChild(nm);
+    if (it.qty) {
+      const c = document.createElement('span');
+      c.className = 'cnt';
+      c.textContent = `(${it.qty})`;
+      row.appendChild(c);
+    }
+    const x = document.createElement('b');
+    x.textContent = '×';
+    x.addEventListener('click', () => {
+      const items = getItems(assignTarget);
+      items.splice(idx, 1);
+      setItems(assignTarget, items);
+      assignDirty = true;
+      renderItemList();
+    });
+    row.appendChild(x);
+    itemList.appendChild(row);
+  });
+}
+function openAssign(node, x, y){
+  if (assignTarget && assignTarget !== node) closeAssign(true); // don't drop the last region's work
+  assignTarget = node;
+  assignDirty = false;
+  catInput.value = '';
+  qtyInput.value = '';
+  catSel = 0;
+  renderItemList();
+  renderCatMenu();
+  assignPop.classList.remove('hidden');
+  const w = 250, h = assignPop.offsetHeight || 160;
+  assignPop.style.left = Math.min(x + 10, innerWidth - w - 12) + 'px';
+  assignPop.style.top = Math.min(y + 10, innerHeight - h - 12) + 'px';
+  catInput.focus();
+}
+/* commits whatever is typed into the two fields. Called on every exit route,
+   so a品類 that was typed but never 加入-ed still lands on the segment. */
+function addPending(){
+  const cat = catInput.value.trim();
+  if (!assignTarget || !cat) return false;
+  const qty = parseInt(qtyInput.value, 10);
+  const items = getItems(assignTarget);
+  items.push({ cat, qty: Number.isFinite(qty) && qty > 0 ? qty : null });
+  setItems(assignTarget, items);
+  assignDirty = true;
+  catInput.value = '';
+  qtyInput.value = '';
+  catSel = 0;
+  renderItemList();
+  renderCatMenu();
+  return true;
+}
+function closeAssign(commit){
+  if (commit) addPending();
+  if (assignTarget && assignDirty && commit) saveState();
+  assignPop.classList.add('hidden');
+  assignTarget = null;
+}
+plusBtn.addEventListener('click', () => {
+  addPending();
+  catInput.focus();
+});
+// typing re-ranks the list so the closest match is highlighted at the top
+catInput.addEventListener('input', () => { catSel = 0; renderCatMenu(); });
+// Enter walks 品類 -> 數量 -> 加入, so the whole entry is keyboard-only
+catInput.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown'){ e.preventDefault(); moveCatSel(1); return; }
+  if (e.key === 'ArrowUp'){ e.preventDefault(); moveCatSel(-1); return; }
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    // take the highlighted suggestion, unless what was typed is already exact
+    if (catShown.length && !CATEGORIES.includes(catInput.value.trim())) {
+      catInput.value = catShown[catSel];
+      renderCatMenu();
+    }
+    qtyInput.focus();
+  }
+});
+qtyInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addPending(); catInput.focus(); }
+});
+document.getElementById('clearItemsBtn').addEventListener('click', () => {
+  if (!assignTarget) return;
+  catInput.value = '';
+  qtyInput.value = '';
+  catSel = 0;
+  setItems(assignTarget, []);
+  assignDirty = true;
+  renderItemList();
+  renderCatMenu();
+});
+document.getElementById('doneAssignBtn').addEventListener('click', () => closeAssign(true));
+
+boardsWrap.addEventListener('click', e => {
+  if (mode !== 'assign') return;
+  const node = e.target.closest('.window-node');
+  if (node) openAssign(node, e.clientX, e.clientY);
+});
+document.addEventListener('pointerdown', e => {
+  if (!assignPop.classList.contains('hidden') &&
+      !assignPop.contains(e.target) &&
+      !(mode === 'assign' && e.target.closest('.window-node'))) {
+    closeAssign(true);
+  }
+});
+
+/* ---- swap (拖曳互換): trade the contents of two regions ---- */
+let swapSrc = null;
+boardsWrap.addEventListener('pointerdown', e => {
+  if (mode !== 'swap') return;
+  const node = e.target.closest('.window-node');
+  if (!node) return;
+  e.preventDefault();
+  swapSrc = node;
+  node.classList.add('swap-src');
+});
+document.addEventListener('pointermove', e => {
+  if (!swapSrc) return;
+  boardsWrap.querySelectorAll('.swap-target').forEach(n => n.classList.remove('swap-target'));
+  const over = document.elementFromPoint(e.clientX, e.clientY);
+  const node = over && over.closest ? over.closest('.window-node') : null;
+  if (node && node !== swapSrc) node.classList.add('swap-target');
+});
+document.addEventListener('pointerup', e => {
+  if (!swapSrc) return;
+  const over = document.elementFromPoint(e.clientX, e.clientY);
+  const node = over && over.closest ? over.closest('.window-node') : null;
+  if (node && node !== swapSrc) {
+    const a = getItems(swapSrc), b = getItems(node);
+    setItems(swapSrc, b);
+    setItems(node, a);
+    saveState();
+  }
+  clearTransient();
+  swapSrc = null;
+});
+
+/* ---- cursor-following status chip ---- */
+function chipText(node){
+  let txt = mode === 'cut' ? (cutDir === 'vertical' ? '直切' : '橫切') : MODE_NAMES[mode];
+  if (node) {
+    const r = node.getBoundingClientRect();
+    txt += ` <span class="sub">${Math.round(r.width)}×${Math.round(r.height)}px</span>`;
+    const items = getItems(node);
+    if (items.length) {
+      const s = items.map(it => it.cat + (it.qty ? `(${it.qty})` : '')).join('、');
+      txt += ` <span class="sub">${s}</span>`;
+    }
+  }
+  return txt;
+}
+function moveChip(x, y, target){
+  const node = target && target.closest ? target.closest('.window-node') : null;
+  if (!node && !(target && target.classList && target.classList.contains('resizer'))) {
+    cursorChip.style.display = 'none';
+    return;
+  }
+  cursorChip.innerHTML = chipText(node);
+  cursorChip.style.display = 'block';
+  cursorChip.style.left = Math.min(x + 16, innerWidth - cursorChip.offsetWidth - 8) + 'px';
+  cursorChip.style.top = (y + 18) + 'px';
+}
+boardsWrap.addEventListener('mousemove', e => {
+  moveChip(e.clientX, e.clientY, e.target);
+  const ws = e.target.closest('.board-ws');
+  if (ws) updateRulerMarkers(e.clientX, e.clientY, ws);
+});
+boardsWrap.addEventListener('mouseleave', () => { cursorChip.style.display = 'none'; });
+
+/* ================= delete / recycling bin ================= */
+const confirmMask  = document.getElementById('confirmMask');
+const confirmTitle = document.getElementById('confirmTitle');
+const confirmMsg   = document.getElementById('confirmMsg');
+const confirmOk    = document.getElementById('confirmOk');
+const trashMask    = document.getElementById('trashMask');
+const trashList    = document.getElementById('trashList');
+
+/* generic two-step confirm; the caller supplies what to do on 確定 */
+let confirmCb = null;
+function askConfirm(title, msg, okLabel, cb){
+  confirmTitle.textContent = title;
+  confirmMsg.textContent = msg;
+  confirmOk.textContent = okLabel || '刪除';
+  confirmCb = cb;
+  confirmMask.classList.remove('hidden');
+}
+function closeConfirm(){ confirmMask.classList.add('hidden'); confirmCb = null; }
+confirmOk.addEventListener('click', () => {
+  const cb = confirmCb;
+  closeConfirm();
+  if (cb) cb();
+});
+document.getElementById('confirmCancel').addEventListener('click', closeConfirm);
+confirmMask.addEventListener('click', e => { if (e.target === confirmMask) closeConfirm(); });
+
+// the 回收桶 button lives in the dev panel now, so its count is redrawn with it
+function updateTrashBtn(){ renderStatusBar(); }
+
+/* Add the running demo 檔期 to a store that already has plans. Purely additive —
+   the seed only fires on an empty store, so this is how you pull it in without
+   throwing anything away. */
+function addDemoPlan(){
+  const demo = Object.assign({}, SEED_PLANS[SEED_PLANS.length - 1], { id: 'demo-' + Date.now() });
+  demo.tags = demo.tags.slice();
+  demo.durs = demo.durs.slice();
+  plans.push(demo);
+  savePlans();
+  renderHome();
+  toast(`已加入示範檔期「${demo.name}」`);
+}
+function openTrash(){ renderTrash(); trashMask.classList.remove('hidden'); }
+
+/* ---- 過往檔期: finished 檔期, kept off the home view ---- */
+const pastMask = document.getElementById('pastMask');
+const pastList = document.getElementById('pastList');
+const pastBtn  = document.getElementById('pastBtn');
+const finishedPlans = () => [...plans].reverse().filter(isFinished);
+function updatePastBtn(){
+  const n = finishedPlans().length;
+  pastBtn.textContent = n ? `📁 過往檔期 (${n})` : '📁 過往檔期';
+}
+function renderPast(){
+  pastList.innerHTML = '';
+  const list = finishedPlans();
+  if (!list.length){
+    pastList.innerHTML = '<div class="empty-hint">還沒有結束的檔期</div>';
+    return;
+  }
+  const now = new Date();
+  list.forEach(plan => pastList.appendChild(buildCard(plan, now, true)));
+}
+function closePast(){ pastMask.classList.add('hidden'); }
+pastBtn.addEventListener('click', () => { renderPast(); pastMask.classList.remove('hidden'); });
+document.getElementById('pastClose').addEventListener('click', closePast);
+pastMask.addEventListener('click', e => { if (e.target === pastMask) closePast(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !pastMask.classList.contains('hidden')) closePast();
+});
+
+/* delete a 檔期: confirm, then move it (not erase) into the 回收桶 */
+function askDeletePlan(plan){
+  askConfirm('刪除檔期', `確定要刪除「${plan.name}」嗎？\n刪除後會移到回收桶，可再還原。`, '刪除', () => {
+    const i = plans.indexOf(plan);
+    if (i < 0) return;
+    plans.splice(i, 1);
+    trash.push(Object.assign({}, plan, { deletedAt: Date.now() }));
+    savePlans(); saveTrash();
+    renderHome();
+    if (!pastMask.classList.contains('hidden')) renderPast();   // deleted from the 過往檔期 list
+    toast(`已將「${plan.name}」移到回收桶`);
+  });
+}
+
+function renderTrash(){
+  trashList.innerHTML = '';
+  if (trash.length === 0) {
+    trashList.innerHTML = '<div class="trash-empty">回收桶是空的</div>';
+    return;
+  }
+  [...trash].reverse().forEach(plan => {
+    const row = document.createElement('div');
+    row.className = 'trash-item';
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = plan.name;
+    const tp = document.createElement('span');
+    tp.className = 'pill';
+    tp.textContent = plan.type;
+    const when = document.createElement('span');
+    when.className = 'when';
+    when.textContent = plan.deletedAt ? '刪除於 ' + fmtMD(new Date(plan.deletedAt)) : '';
+    const restore = document.createElement('button');
+    restore.className = 'mini';
+    restore.textContent = '↩ 還原';
+    restore.addEventListener('click', () => restorePlan(plan));
+    const purge = document.createElement('button');
+    purge.className = 'mini del';
+    purge.textContent = '永久刪除';
+    purge.addEventListener('click', () => askPurge(plan));
+    row.appendChild(nm); row.appendChild(tp); row.appendChild(when);
+    row.appendChild(restore); row.appendChild(purge);
+    trashList.appendChild(row);
+  });
+}
+function restorePlan(plan){
+  const i = trash.indexOf(plan);
+  if (i < 0) return;
+  trash.splice(i, 1);
+  const clean = Object.assign({}, plan);
+  delete clean.deletedAt;
+  plans.push(clean);
+  savePlans(); saveTrash();
+  renderTrash(); updateTrashBtn(); renderHome();
+  toast(`已還原「${plan.name}」`);
+}
+function askPurge(plan){
+  askConfirm('永久刪除', `「${plan.name}」將被永久刪除，無法復原。確定嗎？`, '永久刪除', () => {
+    const i = trash.indexOf(plan);
+    if (i < 0) return;
+    trash.splice(i, 1);
+    saveTrash();
+    renderTrash(); updateTrashBtn();
+    toast('已永久刪除');
+  });
+}
+document.getElementById('trashClose').addEventListener('click', () => trashMask.classList.add('hidden'));
+trashMask.addEventListener('click', e => { if (e.target === trashMask) trashMask.classList.add('hidden'); });
+
+/* ================= navigation & submit ================= */
+document.getElementById('newPlanBtn').addEventListener('click', () => {
+  resetPlanForm();
+  show('plan');
+  buildGrid(); render(); // re-measure after becoming visible
+});
+document.getElementById('backHomeBtn').addEventListener('click', () => { renderHome(); show('home'); });
+document.getElementById('backPlanBtn').addEventListener('click', () => { show('plan'); buildGrid(); render(); });
+
+document.getElementById('nextBtn').addEventListener('click', () => {
+  const name = nameInput.value.trim() || `未命名檔期 ${fmtMD(new Date())}`;
+  draft = {
+    id: 'p' + Date.now(),
+    name,
+    type: selectedType(),
+    tags: tags.slice(),
+    start: toYMD(START),
+    durs: dursFromFlags(),
+    layout: null
+  };
+  layoutTitle.textContent = `${name}　${fmtMDW(firstValid())}-${fmtMDW(flagDates[N-1])}`;
+  show('layout');
+  cutDir = 'vertical';
+  setMode('assign'); // open in the safe 點選 mode; cut is a deliberate pick
+  applyBodyClass();
+  initBoards();
+  layoutBoards();   // needs the view visible to measure
+});
+
+/* ---- self-contained 落版單 export (no backend: a Blob download) ---- */
+const escHtml = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const safeName = s => (String(s || '落版單').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').trim() || '落版單');
+function downloadFile(filename, text){
+  const blob = new Blob([text], { type:'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+/* one file that (a) shows the finished spread by double-click and (b) carries the
+   full plan JSON so 帶入 can re-load it later */
+function exportPlanFile(plan, boardW, boardH){
+  const stages = planStages(plan);
+  const startD = stages[0].from, endD = stages[stages.length - 1].to;
+  const chips = stages.map(s => {
+    const range = dayOffset(s.from, s.to) === 0 ? fmtMD(s.from)
+      : (s.from.getMonth() === s.to.getMonth()
+          ? `${fmtMD(s.from)}-${String(s.to.getDate()).padStart(2,'0')}`
+          : `${fmtMD(s.from)}-${fmtMD(s.to)}`);
+    return `<div class="ec"><div class="en">${escHtml(s.name)}</div><div class="ed">${range}</div></div>`;
+  }).join('');
+  const tagsHtml = (plan.tags || []).map(t => `<span class="pill tag">${escHtml(t)}</span>`).join('');
+  const json = JSON.stringify(plan).replace(/</g, '\\u003c');  // safe inside <script>
+  const wh = `width:${boardW}px;height:${boardH}px`;
+  const html =
+`<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>落版單 · ${escHtml(plan.name)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f2f4f8;color:#333a45;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;padding:28px}
+.sheet{max-width:1200px;margin:0 auto;background:#fff;border:1px solid #e2e6ee;border-radius:14px;padding:26px 30px;box-shadow:0 3px 12px rgba(30,40,60,.08)}
+h1{font-size:24px;font-weight:800;margin-bottom:10px}
+.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{font-size:14px;font-weight:800;border:1px solid #e2e6ee;border-radius:6px;padding:3px 10px;color:#7a8494;background:#fafbfd}
+.pill.tag{color:#4a6fdc;border-color:#ccd8f5;background:#eef2fc}
+.range{font-size:15px;font-weight:800;color:#333a45;margin-left:4px}
+.stages{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 22px}
+.ec{min-width:86px;text-align:center;border:1px solid #e2e6ee;border-radius:8px;padding:8px 12px 7px;background:#fafbfd}
+.ec .en{font-size:15px;font-weight:800;color:#5d6675}
+.ec .ed{font-size:13.5px;color:#7a8494;margin-top:2px}
+.boards{display:flex;gap:26px;flex-wrap:wrap;justify-content:center}
+.board h3{font-size:16px;font-weight:800;color:#7a8494;margin-bottom:8px;text-align:center}
+.board-ws{position:relative;overflow:hidden;background:#fff;box-shadow:0 0 0 1px #98a0ae}
+.split-container{display:flex;width:100%;height:100%;overflow:hidden}
+.fold{width:2px;background:#5b6472;flex:none}
+.window-node{box-sizing:border-box;border:1px solid rgba(90,60,40,.45);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.region-label{pointer-events:none;text-align:center;padding:2px}
+.region-label div{font-weight:800;color:#5a4a3c;line-height:1.35;overflow-wrap:anywhere}
+.region-label .cnt{color:#c0392b}
+.resizer{background:rgba(90,60,40,.55);flex:none;position:relative}
+.resizer-vertical{width:1px}.resizer-horizontal{height:1px}
+footer{margin-top:22px;font-size:13px;color:#7a8494;text-align:center}
+@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border:none}}
+</style></head>
+<body>
+<div class="sheet">
+  <h1>${escHtml(plan.name)}</h1>
+  <div class="meta"><span class="pill">${escHtml(plan.type)}</span>${tagsHtml}<span class="range">${fmtMDW(startD)} → ${fmtMDW(endD)}　出稿 ${fmtMD(endD)} 09:00</span></div>
+  <div class="stages">${chips}</div>
+  <div class="boards">
+    <div class="board"><h3>正面</h3><div class="board-ws" style="${wh}">${plan.layout.front}</div></div>
+    <div class="board"><h3>背面</h3><div class="board-ws" style="${wh}">${plan.layout.back}</div></div>
+  </div>
+  <footer>匯出於 ${new Date().toLocaleString('zh-TW')}　·　此檔可用系統右上「帶入 → 從檔案帶入」重新載入</footer>
+</div>
+<script id="plandata" type="application/json">${json}<\/script>
+</body></html>`;
+  downloadFile(`落版單_${safeName(plan.name)}.html`, html);
+}
+
+document.getElementById('submitBtn').addEventListener('click', () => {
+  closeAssign(true);
+  clearTransient();
+  draft.layout = { front: wsFront.innerHTML, back: wsBack.innerHTML };
+  exportPlanFile(draft, wsFront.offsetWidth, wsFront.offsetHeight);   // download the whole 落版單
+  plans.push(draft);
+  savePlans();
+  draft = null;
+  document.body.className = '';
+  renderHome();
+  show('home');
+  toast('已提交給設計，並已下載落版單檔案');
+});
+
+/* ================= boot ================= */
+startInput.value = toYMD(START);
+flagsFromDurs(DEFAULT_DURS);
+fitTotalToFlags(); buildGrid(); render();
+renderHome();
+show('home');
+})();
+</script>
+</body>
+</html>
