@@ -6,7 +6,9 @@
 <title>格子商品帶入</title>
 <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px}
+:root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px;
+  --drop:#4a6fdc;   /* 藍＝放下去的位置 */
+  --missing:#d31f2b}   /* 紅＝這裡還缺東西（還沒換上商品圖） */
 *{box-sizing:border-box}
 body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-box;background:var(--bg);color:var(--ink);
   font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;display:flex}
@@ -91,7 +93,16 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:52px;line-height:1}
 .spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
   font-size:14px;font-weight:800;margin-bottom:3px}
-.sku{font-size:12px;color:#333;line-height:1.35;white-space:nowrap}
+.sku{font-size:var(--sku-fs,12px);color:#333;line-height:1.35;white-space:nowrap}
+/* 規格／SKU／價格整欄靠右：右緣對齊欄的右邊界，字級放大時往左溢出、右緣不動。
+   靠的是 autoSpace 量好的欄寬（b.w2）當固定寬度框 + text-align:right —— 這樣
+   轉盤把價格放大也不會把右緣推出格子外（本來是靠左，一放大就往右頂）。 */
+.blk.price,.blk.skub,.blk.specb{text-align:right}
+.blk.price{white-space:nowrap}
+.blk.skub .sku{text-align:right}
+/* 剛排好的那一格先藏起來量寬高，靠右對齊、圖讓開都定位完才顯示 ——
+   不然會看到價格先閃在估算的位置、再跳到定位（就是那個「先在中間閃一下」）。 */
+.cstage.measuring{visibility:hidden}
 .guide{position:absolute;background:#e0329b;pointer-events:none;z-index:60}
 .guide.gv{top:0;bottom:0;width:1px}
 .guide.gh{left:0;right:0;height:1px}
@@ -195,6 +206,17 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 #tip{position:fixed;pointer-events:none;z-index:99;background:#111;color:#fff;font-size:12px;
   font-weight:700;padding:5px 9px;border-radius:7px;transform:translate(14px,16px);display:none;white-space:nowrap}
 
+/* 換圖的回報。不能用 #tip —— 那個是跟著游標走的，而且 ui-stage 下被關掉了。 */
+#imgsay{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:120;
+  background:#111;color:#fff;font-size:12px;font-weight:800;padding:6px 12px;border-radius:999px;
+  opacity:0;transition:opacity .18s;pointer-events:none;white-space:nowrap}
+#imgsay.on{opacity:.94}
+/* 拖著檔案經過哪一塊、哪一塊正在傳 */
+.blk.img.imgdrop{outline:3px solid var(--drop);outline-offset:2px}
+.blk.img.imgbusy{opacity:.45}
+/* 還沒換上真圖的商品圖框紅色：一眼看得出這一版還缺幾張圖 */
+.blk.img.noimg{outline:2px solid var(--missing);outline-offset:1px}
+
 /* ---------- 身分：設計 只排版；PM 只帶商品 ---------- */
 /* 設計 拿不到選商品面板與後台，所以無法新增任何東西 */
 body.role-design #panel,
@@ -279,6 +301,7 @@ body.ui-stage .safe{display:none !important}
 </div>
 
 <div id="tip"></div>
+<div id="imgsay"></div>
 
 <script>
 /* ====== 資料：商品 = name + cat + variants(spec,sku,price) ====== */
@@ -378,10 +401,60 @@ function groups(){
 /* ====== 多格：每一格有自己的 picked / BLOCKS / layoutKey ====== */
 let PAD=10;            // 左右的安全邊界(px，排版座標)，由上方 slider 控制
 const PAD_Y=10;        // 上下也留 10：左上那疊離上緣 10，右下那疊離下緣 10
-/* 排版座標系。寬永遠是 540（字級、圖寬都是照這個尺標訂的），高則跟著這一格
-   的真實比例走：一格是扁的，CH 就小；是方的，CH 就大。這樣「靠下」「靠右」
-   指的都是那一格自己的邊，不是一個假想的 4:3 方框。 */
-let CW=540, CH=420;
+/* 排版座標系：1 cm ＝ U_PER_CM 個座標單位，每一格都一樣。
+
+   本來每一格的寬都固定 540，不管它在版上其實多大 —— 於是 cs（= 格子的實際
+   像素寬 / CW）每一格都不一樣，寫死的 12px SKU 在窄格子裡被壓成 7px、在寬
+   格子裡是 11px。同一個版位裡量到過 34% 的落差，而品名根本沒有任何自動縮放
+   邏輯，卻一樣大小不一 —— 那就證明問題出在座標系，不在排版程式。
+
+   改成照真實尺寸開座標系之後 cs = pxPerCm / U_PER_CM，是整個版位的常數，
+   寫死的 px 才真的到處一樣大。60 是挑來讓「一列四格」那種常見格子
+   （約 9cm 寬）算出來差不多還是 540，舊檔換算過去幅度最小。 */
+const U_PER_CM = 60;
+const LEGACY_CW = 540;          // 舊檔的座標是照這個寬存的
+/* 真正的尺寸是上層用網址參數帶進來的，而 PICK_Q 在下面才宣告 —— 這裡只能先
+   放預設值，讀參數要等到 PICK_Q 之後（見 adoptStageCm 的呼叫）。
+   在這裡讀 PICK_Q 會 ReferenceError，然後整支程式停在這一行。 */
+let CM_W = 0, CM_H = 0;
+let CW = LEGACY_CW, CH = 420;
+
+/* ---- 字級：一個版位一套，上層說了算 ------------------------------------
+   PRICE_BASE 是價格的基準字級（CSS 裡 .blk.price 就是這個數字）。
+   自動縮放只負責「回報這一格需要縮到多少」，真正用哪一個由上層決定 ——
+   同一個版位裡同樣價格數的格子要一樣大，那件事只有看得到全部格子的人算得出來。
+   PRICE_PX：轉盤指定的絕對大小，蓋過自動縮放，允許溢出（談定的）。
+   GROUP_FS：上層收齊同組的需求、取最小之後廣播回來的比例。 */
+const PRICE_BASE = 52;
+let SKU_FS = 12;
+let PRICE_PX = 0;
+let GROUP_FS = 0;
+let priceWanted = 1;            // 這一格自己算出來、剛好裝得下的比例
+
+/** 這一格有幾個價格 —— 分組就是照這個分的。 */
+function priceCount(bs){ return (bs || BLOCKS).filter(b => b.kind === 'price').length; }
+
+/** 某一塊價格最後要用的比例。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
+function priceFs(b){
+  if(b.fsFix) return b.fsFix;
+  if(PRICE_PX) return PRICE_PX / PRICE_BASE;
+  if(GROUP_FS) return GROUP_FS;
+  return b.fs || 1;
+}
+
+/** 上層把這個版位的字級設定送下來。 */
+function applyType(t){
+  if(!t) return;
+  let hit = false;
+  if(+t.skuSize && +t.skuSize !== SKU_FS){ SKU_FS = +t.skuSize; hit = true; }
+  const px = +t.pricePx || 0;
+  if(px !== PRICE_PX){ PRICE_PX = px; hit = true; }
+  const g = +t.groupFs || 0;
+  if(g !== GROUP_FS){ GROUP_FS = g; hit = true; }
+  if(!hit) return;
+  document.documentElement.style.setProperty('--sku-fs', SKU_FS + 'px');
+  if(BLOCKS.length) renderOne(curCell, true);
+}
 let CELLS=[];          // [{id, picked:Set, blocks:[], layoutKey:''}]
 let curCell=0;         // 目前作用中的格子索引
 let GC=1, GR=1;        // 版面 欄×列
@@ -425,12 +498,27 @@ const UI_PANEL = UI_MODE==='panel', UI_STAGE = UI_MODE==='stage';
 if(UI_PANEL) document.body.classList.add('ui-panel');
 if(UI_STAGE) document.body.classList.add('ui-stage');
 
-/* 畫布模式：這一格有多大由外面那張版決定，程式照自己的視窗把 540×420 縮進去。 */
+/* 上層告訴這一格在版上實際多大（cm），座標系照它開。
+   回傳有沒有真的變 —— 沒變就不必重排。 */
+function adoptStageCm(w, h){
+  w = +w || 0; h = +h || 0;
+  if(!w || !h) return false;
+  const nw = Math.max(40, Math.round(w * U_PER_CM));
+  const nh = Math.max(40, Math.round(h * U_PER_CM));
+  if(nw === CW && nh === CH && CM_W) return false;
+  CM_W = w; CM_H = h; CW = nw; CH = nh;
+  return true;
+}
+adoptStageCm(PICK_Q.get('cmw'), PICK_Q.get('cmh'));
+
+/* 畫布模式：這一格有多大由外面那張版決定，程式照自己的視窗把座標系縮進去。 */
 function fitStage(){
   if(!UI_STAGE) return;
   const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
   const cs = Math.max(.02, w / CW);              // 比例由寬度決定
-  CH = Math.max(160, Math.round(CW * h / w));    // 高度＝這一格真正的形狀
+  /* 帶了真實尺寸進來就照它 —— CH 已經是那一格自己的高度，不必再從視窗形狀
+     反推。沒帶（單獨開這一頁）才退回舊做法：照視窗比例湊一個高度出來。 */
+  if(!CM_W) CH = Math.max(160, Math.round(CW * h / w));
   const r = document.documentElement.style;
   r.setProperty('--cs', cs.toFixed(4));
   r.setProperty('--lw', CW + 'px');
@@ -438,13 +526,36 @@ function fitStage(){
   r.setProperty('--cw', w + 'px');               // 這一格就是整個視窗，不留空白帶
   r.setProperty('--ch', h + 'px');
 }
-/* 這一格被拉寬拉高＝版面的形狀變了，要重排一次：靠下的那一疊得重新找到底在哪。 */
+/* 這一格被拉寬拉高＝版面的形狀變了，要重排一次：靠下的那一疊得重新找到底在哪。
+   （本來這裡叫的是 paint()，但那是 renderOne 裡面的區域變數，外面根本看不到 ——
+   一縮放就 ReferenceError。改叫 renderOne 自己重畫。） */
 let fitTimer = 0;
 if(UI_STAGE) addEventListener('resize', () => {
   fitStage();
   clearTimeout(fitTimer);
-  fitTimer = setTimeout(() => { if(BLOCKS.length && autoSpace()) paint(); }, 80);
+  fitTimer = setTimeout(() => { if(BLOCKS.length) renderOne(curCell, true); }, 80);
 });
+
+/* 上層說這一格的實際尺寸換了（列數變了、刊頭大小改了）：換座標系再重排一次。
+   座標系換了尺標，已經擺好的零件要照同一個比例跟著走 —— 自動排的那些下面
+   會重排看不出來，但手動搬過的位置不跟著換就整個跑掉。
+   BLOCKS 和 cell().blocks 常常是同一個陣列，所以記下處理過的，別縮兩次。 */
+function applyStageCm(cm){
+  const prev = CW;
+  if(!cm || !adoptStageCm(cm.w, cm.h)) return;
+  if(prev && CW !== prev){
+    const k = CW / prev, seen = new Set();
+    const scale = arr => {
+      if(!arr || seen.has(arr)) return;
+      seen.add(arr);
+      arr.forEach(b => { b.x = (+b.x || 0) * k; b.y = (+b.y || 0) * k; });
+    };
+    CELLS.forEach(c => scale(c.blocks));
+    scale(BLOCKS);
+  }
+  fitStage();
+  if(BLOCKS.length) renderOne(curCell, true);
+}
 
 /* 面板模式：滾輪在面板上任何地方都是捲名單 — 不必先把游標移到捲軸上，
    也不會漏給外面那張版。 */
@@ -473,10 +584,122 @@ function applyRole(r){
 addEventListener('message',e=>{
   const d = e.data || {};
   if(d.boardRole==='pm'||d.boardRole==='design') applyRole(d.boardRole);
+  /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
+     CW 還停在預設值的話就會照錯的比例縮。 */
+  if(d.stageCm) applyStageCm(d.stageCm);
+  if(d.type) applyType(d.type);          // 這個版位的字級設定（SKU、價格）
   // 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）
   if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
   if(d.boardPicked) applyPicked(d.boardPicked);
+  // 上層把剛剛那張圖傳完了（或失敗了）
+  if(d.imgUploaded){
+    const w = imgWaiting.get(d.imgUploaded.reqId);
+    if(w){
+      imgWaiting.delete(d.imgUploaded.reqId);
+      d.imgUploaded.error ? w.no(new Error(d.imgUploaded.error)) : w.ok(d.imgUploaded.url);
+    }
+  }
+});
+
+/* ====== 把 PNG 拖到灰方塊上就換圖 ======
+   圖不留在這一頁：縮好之後交給上層傳去 Storage，換回一串網址才存下來。
+   金鑰只有上層有 —— 單檔版這一頁是 srcdoc 塞進去的，不該碰到它。 */
+
+const IMG_MAX_PX = 900;   // 版面上最大也才幾百 px，再大只是白佔頻寬
+
+let sayTimer = 0;
+function say(msg){
+  const el = document.getElementById('imgsay');
+  if(!el) return;
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(()=>el.classList.remove('on'), 2400);
+}
+
+/* 縮圖一律出 PNG：商品圖常常是去背的，轉成 JPEG 會給它一塊白底。 */
+function shrinkImage(file){
+  return new Promise((ok,no)=>{
+    const fr=new FileReader();
+    fr.onerror=()=>no(new Error('讀不到這個檔案'));
+    fr.onload=()=>{
+      const im=new Image();
+      im.onerror=()=>no(new Error('這個檔案不是看得懂的圖'));
+      im.onload=()=>{
+        const k=Math.min(1, IMG_MAX_PX/Math.max(im.width,im.height));
+        if(k>=1) return ok(fr.result);            // 本來就夠小，別重壓一次
+        const cv=document.createElement('canvas');
+        cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k);
+        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+        ok(cv.toDataURL('image/png'));
+      };
+      im.src=fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+let imgReqN = 0;
+const imgWaiting = new Map();
+function askUpload(name, dataUrl){
+  return new Promise((ok,no)=>{
+    if(window.parent===window) return no(new Error('單獨開這一頁沒有地方可以存'));
+    const reqId = 'u'+(++imgReqN);
+    imgWaiting.set(reqId,{ok,no});
+    try{ parent.postMessage({ boardCell:CELL_ID, imgUpload:{ reqId, name, dataUrl } }, '*'); }
+    catch(err){ imgWaiting.delete(reqId); return no(err); }
+    setTimeout(()=>{
+      if(imgWaiting.has(reqId)){ imgWaiting.delete(reqId); no(new Error('上傳等太久了')); }
+    }, 30000);
+  });
+}
+
+const imgBlkAt = t => (t && t.closest) ? t.closest('.blk.img') : null;
+let dropHot = null;
+function markDrop(el){
+  if(dropHot===el) return;
+  if(dropHot) dropHot.classList.remove('imgdrop');
+  dropHot = el;
+  if(el) el.classList.add('imgdrop');
+}
+
+addEventListener('dragover', e=>{
+  const el = imgBlkAt(e.target);
+  if(!el){ markDrop(null); return; }
+  /* 圖層本身是可以拖著搬的，所以只有「從桌面拖檔案進來」才算換圖 */
+  if(![...(e.dataTransfer.types||[])].includes('Files')){ markDrop(null); return; }
+  e.preventDefault();
+  e.dataTransfer.dropEffect='copy';
+  markDrop(el);
+});
+addEventListener('dragleave', e=>{ if(!e.relatedTarget) markDrop(null); });
+
+addEventListener('drop', async e=>{
+  const el = imgBlkAt(e.target);
+  if(!el || !e.dataTransfer.files.length) return;
+  e.preventDefault();
+  markDrop(null);
+
+  const b = BLOCKS.find(x=>String(x.id)===el.dataset.b);
+  if(!b) return;
+  const f = e.dataTransfer.files[0];
+  if(!/^image\//.test(f.type)){ say('只收圖片檔'); return; }
+
+  el.classList.add('imgbusy');
+  try{
+    const small = await shrinkImage(f);
+    const url = await askUpload(b.key + '.png', small);
+    cellImgs()[b.key] = url;
+    saveCell();
+    refreshAll();          // 同一格裡同一個商品的圖層一起換掉
+    reportBoard();         // 上層收到才會寫進檔期、才會同步出去
+    say('換好了');
+  }catch(err){
+    say(String(err && err.message || err));
+  }finally{
+    el.classList.remove('imgbusy');
+  }
 });
 
 /** 只換「挑了哪些」，位置讓 buildBlocks 重新排一次。 */
@@ -630,8 +853,21 @@ function stackImgs(B, rows, w, y, nextId){
                                   x:x0 + i*step, y, w, z:i+1 }));
 }
 
-/* 商品圖：有上傳用上傳的，沒有就畫 placeholder（內嵌 SVG，斷網也看得到） */
+/* 這一格自己換過的商品圖：key 是商品（品名|規格|顏色），值是 Storage 的網址。
+   為什麼掛在「格子」上而不是掛在零件上：勾選一變動 buildBlocks() 就把零件整批
+   重做，掛在零件上的東西會跟著不見。掛在格子上，重排幾次都還在。 */
+function cellImgs(){
+  const c = cell();
+  if(!c) return {};
+  if(!c.img) c.img = {};
+  return c.img;
+}
+
+/* 商品圖：這一格換過的優先，其次是圖庫上傳的，都沒有就畫 placeholder
+   （內嵌 SVG，斷網也看得到） */
 function imgHTML(k){
+  const mine = cellImgs()[k];
+  if(mine) return `<img src="${mine}" alt="" draggable="false">`;
   if(IMG[k]) return `<img src="${IMG[k]}" alt="" draggable="false">`;
   const a=k.split('|'), tag=[a[1],a[2]].filter(Boolean).join(' ')||'—';
   return `<svg class="ph" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -664,19 +900,25 @@ function blockHTML(b,isCur=true){
   if(b.kind==='name')  return `<div class="blk name${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${b.text}</div>`;
   if(b.kind==='img'){
     const dim = isCur?xrayDim(b):1;
-    return `<div class="blk img${on}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
+    const noimg = (cellImgs()[b.key]||IMG[b.key]) ? '' : ' noimg';   // 還沒換圖＝框紅的
+    return `<div class="blk img${on}${noimg}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
       style="left:${b.x}px;top:${b.y}px;width:${b.w}px;z-index:${b.z};opacity:${dim}">
       ${imgHTML(b.key)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
   if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${brandHTML(b.name)}</div>`;
   if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">機型：${b.text}</div>`;
-  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
-  // fs：欄數多到一排放不下時，價格自己縮一級字，寧可小一點也不要疊在一起
-  if(b.kind==='price') return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${
-    b.fs&&b.fs<1?`;font-size:${Math.round(52*b.fs)}px`:''}">${b.price.toLocaleString()}</div>`;
+  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
+  /* 價格用哪一級字由 priceFs() 決定：單格微調 > 轉盤 > 同組最小 > 自己算的。
+     轉盤是允許溢出的（談定的），所以這裡不夾上限。 */
+  if(b.kind==='price'){
+    const fs=priceFs(b);
+    return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${
+      b.w2?`;width:${b.w2}px`:''}${
+      fs&&fs!==1?`;font-size:${(PRICE_BASE*fs).toFixed(1)}px`:''}">${b.price.toLocaleString()}</div>`;
+  }
   // sku
-  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">`+
+  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}">`+
     `<div class="sku">${skuLine(b.vs)}</div></div>`;
 }
 
@@ -714,8 +956,8 @@ function renderOne(i, force){
   const blocks = isCur?BLOCKS:c.blocks;
   el.className='cell'+(isCur?' cur':'')+row1;
   if(isCur) setTimeout(renderProps,0);
-  const paint = () => {
-    el.innerHTML = '<div class="cstage">'
+  const paint = hidden => {
+    el.innerHTML = '<div class="cstage'+(hidden?' measuring':'')+'">'
       + blocks.map(b=>blockHTML(b,isCur)).join('')
       + (isCur?guides.map(g=>g.dir==='v'
           ? `<div class="guide gv" style="left:${g.pos}px"></div>`
@@ -724,9 +966,14 @@ function renderOne(i, force){
       + '<div class="safe"></div>'
       + '</div>';
   };
-  paint();
-  // 剛排好的版：量過真正的寬高再擠開一次，然後照新座標重畫
-  if((rebuilt||force) && isCur && autoSpace()) paint();
+  /* 剛排好（或字型到齊後強制重排）的那一格：先照內容寬度藏著畫一次、量真正的
+     寬高，autoSpace 把價格 SKU 靠右對齊、圖讓開，定位完才顯示。b.w2 是靠右用的
+     固定寬度框，量之前先清掉，不然量到的是上一輪的框寬、欄寬會越算越死。 */
+  const measuring = (rebuilt||force) && isCur;
+  if(measuring) blocks.forEach(b=>{ if(b.col!=null) b.w2=0; });
+  paint(measuring);
+  // paint(false) 一定要跑到：不然萬一 autoSpace 出錯，這一格就永遠藏著了
+  if(measuring){ try{ autoSpace(); }catch(_){} paint(false); }
 }
 
 /* Anton 是外部字型，而且是 display=swap —— 第一次畫的時候它還沒下載完，
@@ -784,23 +1031,26 @@ function autoSpace(){
     const avail=CW-PAD*2;
 
     /* 價格是這裡最寬的東西（Anton 52px）。欄數一多，光價格就排不下一列 —
-       那就讓價格縮字，而不是讓它們互相疊上去。縮到 0.55 為止，再小就沒意義了。 */
+       那就讓價格縮字，而不是讓它們互相疊上去。縮到 0.55 為止，再小就沒意義了。
+
+       這裡只算出「這一格自己需要縮到多少」（priceWanted）並往上報。真正用哪一個
+       比例由 priceFs() 決定 —— 同一個版位裡同樣價格數的格子要一樣大，那要收齊
+       全部格子才算得出來，一格自己看不到別人。0.55 這個下限只管自動算的這一份，
+       轉盤和單格微調不受它限制。 */
     let need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
-    if(need>avail){
-      const fs=Math.max(.55, avail/need);
-      keys.forEach(key=>{
-        const list=cols.get(key), hs=sizes.get(key);
-        list.forEach((b,j)=>{
-          if(b.kind!=='price') return;
-          b.fs=fs; moved=true;
-          hs[j]={ w:hs[j].w*fs, h:hs[j].h*fs };   // 字縮了，佔的位置跟著縮
-        });
+    priceWanted = need>avail ? Math.max(.55, avail/need) : 1;
+    keys.forEach(key=>{
+      const list=cols.get(key), hs=sizes.get(key);
+      list.forEach((b,j)=>{
+        if(b.kind!=='price') return;
+        const was=b.fs;
+        b.fs=priceWanted;
+        const eff=priceFs(b);
+        if(was!==b.fs) moved=true;
+        hs[j]={ w:hs[j].w*eff, h:hs[j].h*eff };   // 字縮了，佔的位置跟著縮
       });
-      need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
-    } else {
-      // 放得下就把字還回去（上一組選得多、這一組選得少的時候）
-      BLOCKS.forEach(b=>{ if(b.kind==='price'&&b.fs&&b.fs<1){ b.fs=1; moved=true; } });
-    }
+    });
+    need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
 
     const widths=keys.map(wide);
     let x=Math.max(PAD, CW-PAD-need);
@@ -809,7 +1059,8 @@ function autoSpace(){
       const th=hs.reduce((a,s)=>a+s.h,0)+LINEGAP*(list.length-1);
       let y=Math.max(PAD_Y, CH-PAD_Y-th);
       if(gTop===null || y<gTop) gTop=y;
-      list.forEach((b,j)=>{ put(b,x,y); y+=hs[j].h+LINEGAP; });
+      // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
+      list.forEach((b,j)=>{ put(b,x,y); b.w2=widths[ci]; y+=hs[j].h+LINEGAP; });
       x+=widths[ci]+COLGAP;
     });
   }
@@ -1371,7 +1622,13 @@ const UI_SRC  = UI_STAGE ? 'stage' : (UI_PANEL ? 'panel' : 'full');
 function boardState(){
   saveCell();
   const c = cell(); if(!c) return null;
-  return { picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey };
+  /* v 是座標系的版本章：2 ＝ 已經是「照真實尺寸」那一套。沒有 v 的是舊檔，
+     讀進來時換算一次（見 restoreBoard），蓋了章就不會再換第二次。
+     nPrice／wantFs 是報給上層分組用的：這一格有幾個價格、自己需要縮到多少。
+     上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
+  return { v:2, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
+           img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
+           nPrice: priceCount(c.blocks), wantFs: priceWanted };
 }
 let reportTimer = 0;
 function reportBoard(){
@@ -1388,6 +1645,15 @@ function restoreBoard(s){
   picked = new Set(s.picked||[]);
   BLOCKS = s.blocks||[];
   layoutKey = s.layoutKey||'';
+  if(cell()) cell().img = s.img || {};      // 換過的商品圖跟著這一格回來
+  /* 舊檔的座標存的是「每一格都 540 寬」那套；現在每一格照自己的實際尺寸開
+     座標系，兩套之間差一個等比例（寬高差的是同一個 k —— 舊的 CH 也是照同一個
+     長寬比推出來的）。轉一次就好，轉完 boardState() 會蓋上 v:2。
+     沒帶尺寸進來（單獨開這一頁）就別動它，不然會照著假的比例縮。 */
+  if(s.v !== 2 && CM_W && CW !== LEGACY_CW){
+    const k = CW / LEGACY_CW;
+    BLOCKS.forEach(b => { b.x = (+b.x || 0) * k; b.y = (+b.y || 0) * k; });
+  }
   /* 舊版排的版沒有欄號，價格是按估算的字寬硬擺的，兩個價格會疊在一起。
      認得出是舊的就重排一次 — 那一版的手動位置留不住，但至少讀得出來。 */
   if(oldLayout(BLOCKS)) layoutKey='';

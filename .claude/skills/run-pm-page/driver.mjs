@@ -105,14 +105,50 @@ async function evaluate(expr){
   return r.result.value;
 }
 
-/** Centre of the first match, in CSS pixels, or null. Reaches into same-file
-    iframes too — the 拼板 cards each run 2cell-product-pick.html inside one. */
+/* Every frame worth searching, with what it takes to turn a rect inside it into
+   top-level viewport pixels. The 拼板 cards and the 挑貨 panel each run
+   2cell-product-pick.html in an iframe, and the card iframes are scaled down to
+   the cell — so an offset alone is not enough, the scale has to come too. */
+const FRAMES = `(() => {
+  const out = [{ d: document, ox: 0, oy: 0, s: 1 }];
+  for (const f of document.querySelectorAll('iframe')){
+    let d = null;
+    try { d = f.contentDocument; } catch (_){}
+    if (!d || !d.body) continue;
+    const r = f.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const iw = (f.contentWindow && f.contentWindow.innerWidth) || r.width;
+    out.push({ d, ox: r.left, oy: r.top, s: iw ? r.width / iw : 1 });
+  }
+  return out;
+})()`;
+
+/* Having a box is not the same as being clickable. 2cell-product-pick.html keeps
+   its 後台 panel collapsed with width:0 + overflow:hidden, and the 40 product
+   labels inside it still lay out at full size — so a rect test alone "finds"
+   labels in a 拼板 card and clicks a spot that belongs to something else
+   entirely. Hit-test the centre and require it to land on the element itself. */
+const HITTABLE = `(f, el, r) => {
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  if (cx < 0 || cy < 0 || cx > f.d.documentElement.clientWidth
+                       || cy > f.d.documentElement.clientHeight) return false;
+  const hit = f.d.elementFromPoint(cx, cy);
+  return !!hit && (hit === el || el.contains(hit) || hit.contains(el));
+}`;
+
+/** Centre of the first match, in CSS pixels, or null. Searches same-origin
+    iframes as well as the top document, and only returns something you could
+    actually click. */
 const centreOf = sel => evaluate(`(() => {
-  const el = document.querySelector(${JSON.stringify(sel)});
-  if (!el) return null;
-  const r = el.getBoundingClientRect();
-  if (!r.width || !r.height) return null;
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  const hittable = ${HITTABLE};
+  for (const f of ${FRAMES})
+    for (const el of f.d.querySelectorAll(${JSON.stringify(sel)})){
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height || !hittable(f, el, r)) continue;
+      return { x: f.ox + (r.left + r.width / 2) * f.s,
+               y: f.oy + (r.top + r.height / 2) * f.s };
+    }
+  return null;
 })()`);
 
 async function mouse(type, x, y, extra = {}){
@@ -135,15 +171,23 @@ async function clickText(text){
      and lands on dead space. Prefer an exact label, then the smallest box. */
   const c = await evaluate(`(() => {
     const t = ${JSON.stringify(text)};
-    const hits = [...document.querySelectorAll('button,.tab,.cell,.stick,.lg,.pt-type,.pt-blk,.mini-blk,label,.icard')]
-      .map(e => ({ e, r: e.getBoundingClientRect(), txt: (e.textContent || '').trim() }))
-      .filter(o => o.txt.includes(t) && o.r.width > 0 && o.r.height > 0);
+    const sel = 'button,.tab,.cell,.stick,.lg,.pt-type,.pt-blk,.mini-blk,label,.icard';
+    const hittable = ${HITTABLE};
+    const hits = [];
+    for (const f of ${FRAMES})
+      for (const e of f.d.querySelectorAll(sel)){
+        const r = e.getBoundingClientRect();
+        const txt = (e.textContent || '').trim();
+        if (txt.includes(t) && r.width > 0 && r.height > 0 && hittable(f, e, r))
+          hits.push({ f, r, txt });
+      }
     if (!hits.length) return null;
     hits.sort((a, b) =>
       (a.txt === t ? 0 : 1) - (b.txt === t ? 0 : 1) ||
       a.r.width * a.r.height - b.r.width * b.r.height);
-    const r = hits[0].r;
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const h = hits[0];
+    return { x: h.f.ox + (h.r.left + h.r.width / 2) * h.f.s,
+             y: h.f.oy + (h.r.top + h.r.height / 2) * h.f.s };
   })()`);
   if (!c) throw new Error('click-text: nothing containing ' + JSON.stringify(text));
   await mouse('mousePressed', c.x, c.y);

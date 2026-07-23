@@ -13,7 +13,16 @@ bug*.png
 # 測試跑出來的畫面截圖（driver.mjs --shot）
 out/
 
+# Netlify 的發佈資料夾，build-single.mjs 產的 —— 正本是根目錄那幾支
+public/
+
 # 手動備份的資料夾，還有隨手截的圖 —— 歷史本身就是備份
 backup0722/
 新增資料夾/
 words*.png
+
+# 舊東西全部收在這裡。整個資料夾都不進版控 —— 歷史本身就是備份
+clutter/
+
+# 從系統下載出來的落版單（是資料，不是程式）
+timelines/

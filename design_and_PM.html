@@ -105,6 +105,23 @@
   #confirmBtn:hover{background:var(--accent-strong);box-shadow:0 12px 32px rgba(0,0,0,.42)}
   #confirmBtn.is-confirmed{background:var(--surface);color:var(--green-ink);border-color:var(--green-rule)}
 
+  /* 字級那一排：跟工具站在一起，因為它跟工具一樣是「對這個版位做的事」。
+     只有 拼板 看得到 —— 落版 上沒有價格可以調。 */
+  #typeWrap{display:none;align-items:center;gap:10px;padding-left:12px;
+            border-left:1px solid var(--chrome-line,rgba(255,255,255,.25))}
+  #typeWrap.on{display:flex}
+  #typeWrap .tw-lab{font-size:13px;font-weight:800;color:var(--accent-ink,#cfd8ea)}
+  #typeWrap .tw-n{display:flex;align-items:center;gap:4px;
+                  font-size:12.5px;font-weight:800;color:var(--accent-ink,#cfd8ea)}
+  #typeWrap input{width:52px;padding:4px 5px;border-radius:6px;
+                  border:1px solid var(--chrome-line,rgba(255,255,255,.3));
+                  background:rgba(255,255,255,.1);color:#fff;
+                  font-family:inherit;font-size:12.5px;font-weight:800}
+  #typeWrap input:focus{outline:none;border-color:var(--blue)}
+  /* 沒設過的那一格顯示 placeholder「自動」，要看得出來它是空的 */
+  #typeWrap input::placeholder{color:rgba(255,255,255,.5);font-weight:700}
+  #typeWrap #typeReset{padding:5px 10px;font-size:12.5px}
+
   .toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;color:var(--muted);cursor:pointer;user-select:none}
   .toggle input{position:absolute;opacity:0;pointer-events:none}
   .track{width:42px;height:23px;border-radius:999px;background:#cfd6e3;position:relative;transition:background .16s}
@@ -303,6 +320,10 @@
   }
   /* 正在拼的那一格，設計可以直接在版上搬東西；PM 只挑貨，不搬版 */
   #boardOverview:not(.pm) .cell.editing .ccanvas{pointer-events:auto}
+  /* 從桌面拖一張圖進來的那幾秒：畫布整個浮上來收 drop。平常它 pointer-events:none
+     又壓在卡片底下（z-index:-1），不先點進那一格根本收不到 —— 但拖圖換商品圖
+     不該還要先點兩下，看到哪一格就丟哪一格。 */
+  #boardOverview.filedrag .ccanvas{pointer-events:auto;z-index:1}
   /* 拼過的格子上，落版打的字預設收起來（那裡畫布才是主角），開了 顯示落版文字
      才回來，壓在畫布上，補一圈白邊才讀得清楚。
      還沒拼的格子沒有東西可看，字就是它唯一的身分，一直留著。 */
@@ -439,15 +460,18 @@
   .icard .kind{font-size:16px;font-weight:800;color:var(--nc,#374151);margin-top:6px;
     display:flex;align-items:center;gap:6px}
   .icard .kind .ico{font-size:20px;line-height:1}
+  /* 人寫的字自己寫死顏色。意見欄站在深色的桌面上，卡片卻是白的 —— 不寫就會
+     繼承桌面那套淺灰（#eaeef7），白卡片上幾乎看不見。 */
   .icard .body{font-size:17px;font-weight:700;line-height:1.5;margin-top:5px;
-    white-space:pre-wrap;word-break:break-word}
+    color:var(--ink-strong);white-space:pre-wrap;word-break:break-word}
   .icard.done .body{text-decoration:line-through;color:var(--muted)}
   .icard .body.blank{color:var(--muted)}
   .icard .meta{font-size:13.5px;font-weight:800;color:var(--muted);margin-top:5px}
   .icard .replies{margin:9px 0 0 4px;padding-left:10px;border-left:4px solid var(--line);
     display:flex;flex-direction:column;gap:8px}
   .icard .reply .who{font-size:14px;font-weight:800;color:var(--blue)}
-  .icard .reply .rtext{font-size:16px;font-weight:700;line-height:1.45;white-space:pre-wrap}
+  .icard .reply .rtext{font-size:16px;font-weight:700;line-height:1.45;
+    color:var(--ink-strong);white-space:pre-wrap}
   .icard .box{display:none;margin-top:10px}
   .icard.sel .box{display:block}
   .icard .box textarea{
@@ -1393,6 +1417,16 @@
         <span class="track"></span>
         <span>顯示落版文字</span>
       </label>
+      <!-- 字級：一個版位一套。價格照「這一格有幾個價格」分三組，各自一個轉盤。
+           作用範圍是這個版位，不會動到別的版位。 -->
+      <div id="typeWrap">
+        <span class="tw-lab">字級</span>
+        <label class="tw-n">SKU<input type="number" id="skuSize" min="4" max="60" step="0.5"></label>
+        <label class="tw-n">一價<input type="number" id="price1" min="8" max="200" step="1" placeholder="自動"></label>
+        <label class="tw-n">二價<input type="number" id="price2" min="8" max="200" step="1" placeholder="自動"></label>
+        <label class="tw-n">三價<input type="number" id="price3" min="8" max="200" step="1" placeholder="自動"></label>
+        <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動">自動</button>
+      </div>
     </div>
   </div>
 
@@ -1479,6 +1513,11 @@
 <div id="toastHost"></div>
 <div id="modalHost"></div>
 <input type="file" id="mhFile" accept="image/*" hidden>
+
+<!-- 共用資料層。這兩支是選配的：檔案不在（或 config.js 還是佔位符）時 PlanSync.ok()
+     回 false，整支程式就走原本純 localStorage 的路徑，跟沒接後端一模一樣。 -->
+<script src="config.js"></script>
+<script src="supabase-sync.js"></script>
 
 <script>
 (function(){
@@ -1654,6 +1693,11 @@ function flushSave(){
   savePending = false;
   saveFailWarned = false;
   setSaveState('done');
+
+  /* 本機存成功了才往上送，而且只送當下這一個檔期 —— 整包送會讓「行銷改 A 檔」
+     被「設計手上還是舊版的 A 檔」蓋掉。上傳自己還有 600ms 的 debounce。 */
+  const s = sync();
+  if (s && currentPlan) s.queueUpsert(currentPlan);
 }
 
 /* ==========================================================================
@@ -2959,6 +3003,8 @@ function switchBlock(block){
     closeBoardCell();
     focusCell = null; selNote = null;
     paintBoardThumbs(); applyPmFocus(); renderRail(); applyFocusCell();
+    syncTypeBar();          // 換版位＝換一套字級設定
+    queueType(block);
   }
   /* 換到一個新的版位＝要「先看到它整張」，所以自己縮到剛好、擺到正中間。
      只在真的換版位時做 —— 在同一個版位裡切分頁、重畫，都不該把你自己
@@ -4825,11 +4871,13 @@ const VIEWS = {
       confirmBtn.style.display = 'none';
       document.getElementById('toolHint').style.display = 'none';
       showBoardOverview();
+      syncTypeBar();          // 字級那一排只有這一頁看得到
     },
     unmount(){
       hideTip(); closeBoardCell(); armKind(null); clearBoardThumbs();
       wordWrap.style.display = 'none';
       markWrap.style.display = 'none';
+      typeWrap.classList.remove('on');
     }
   }
 };
@@ -5026,6 +5074,28 @@ addEventListener('message', e => {
                            boardRestore: (target.board || {}).state || null }, '*');
     return;
   }
+
+  /* 畫布拖進來一張商品圖。上傳由這裡做，不由畫布做 —— 金鑰只放在主程式這一邊，
+     畫布在單檔版是 srcdoc 塞進去的，不該再拿到一份。畫布只負責把縮好的圖遞上來。 */
+  if (d.imgUpload){
+    const q = d.imgUpload;
+    const back = m => { try { e.source.postMessage(m, '*'); } catch (_){} };
+    const s = sync();
+    if (!s || !s.uploadImage){
+      back({ imgUploaded: { reqId: q.reqId, error: '還沒接上共用資料庫，圖存不起來' } });
+      return;
+    }
+    (async () => {
+      try {
+        const blob = await (await fetch(q.dataUrl)).blob();
+        back({ imgUploaded: { reqId: q.reqId, url: await s.uploadImage(q.name, blob) } });
+      } catch (err){
+        back({ imgUploaded: { reqId: q.reqId, error: String((err && err.message) || err) } });
+      }
+    })();
+    return;
+  }
+
   if (!d.state) return;
 
   if (d.src === 'panel'){
@@ -5044,7 +5114,71 @@ addEventListener('message', e => {
   target.board = { state: d.state };  // 畫布報的（含每一塊的位置）
   if (!pickedOf(target).length) paintOneCanvas(target);   // 全取消了就把畫布撤掉
   else markBadge(target);
+  /* 這一格報了新的需求＝同組的最小值可能變了，整個版位重算一次再發回去。
+     排隊等一下：一次挑好幾格會連著報好幾次，收在一起算一次就好。 */
+  queueType();
   commitAction();                    // 圖搬到哪裡也是一步
+});
+
+/* pushType 會讓每一塊畫布重排，所以不要一報就跑一次。 */
+let typeTimer = 0;
+function queueType(block){
+  const b = block || activeBlock;
+  clearTimeout(typeTimer);
+  typeTimer = setTimeout(() => { pushType(b); syncTypeBar(); }, 80);
+}
+
+/* ---- 字級那一排 ---- */
+const typeWrap  = document.getElementById('typeWrap');
+const skuSizeEl = document.getElementById('skuSize');
+const priceEls  = [1, 2, 3].map(n => document.getElementById('price' + n));
+
+/** 把現在的設定寫回輸入框；沒設過的留空，placeholder 會顯示「自動」。 */
+function syncTypeBar(){
+  const on = activeTab === 'board' && !!activeBlock;
+  typeWrap.classList.toggle('on', on);
+  if (!on) return;
+  const t = typeOf(sheetOf(activeBlock));
+  if (document.activeElement !== skuSizeEl) skuSizeEl.value = t.skuSize;
+  priceEls.forEach((el, i) => {
+    if (document.activeElement === el) return;     // 正在打字就別去動它
+    const v = t.priceByCount[i + 1];
+    el.value = v == null ? '' : v;
+  });
+}
+
+skuSizeEl.addEventListener('input', () => {
+  if (!activeBlock) return;
+  const v = +skuSizeEl.value;
+  if (!v || v < 4 || v > 60) return;               // 打到一半的數字先不要套
+  typeOf(sheetOf(activeBlock)).skuSize = v;
+  pushType(activeBlock);
+  markDirty();                                     // 進歷史等放開手（change）
+});
+skuSizeEl.addEventListener('change', () => { if (activeBlock) commitAction(); });
+
+priceEls.forEach((el, i) => {
+  el.addEventListener('input', () => {
+    if (!activeBlock) return;
+    const raw = el.value.trim();
+    const v = raw === '' ? null : +raw;
+    if (v !== null && (!v || v < 8 || v > 200)) return;
+    typeOf(sheetOf(activeBlock)).priceByCount[i + 1] = v;
+    pushType(activeBlock);
+    markDirty();
+  });
+  el.addEventListener('change', () => { if (activeBlock) commitAction(); });
+});
+
+/* 交還給自動：三個轉盤一起清掉，價格回到「同組取最小」那一套。 */
+document.getElementById('typeReset').addEventListener('click', () => {
+  if (!activeBlock) return;
+  const t = typeOf(sheetOf(activeBlock));
+  t.priceByCount = { 1:null, 2:null, 3:null };
+  syncTypeBar();
+  pushType(activeBlock);
+  commitAction();
+  toast('價格字級交回自動', 'info', 1400);
 });
 
 /* 商品版面那一頁要怎麼載進來。
@@ -5720,6 +5854,69 @@ document.addEventListener('keydown', e => {
 }, true);
 
 /** 這一格該不該有畫布：有挑東西就給它一個，沒有就撤掉。 */
+/* ---- 字級：一個版位一套 ----------------------------------------------------
+   規格談定的是「同一個版位裡，價格數一樣的格子，價格就一樣大」——
+   作用範圍是版位，不是整份 DM，版位跟版位之間本來就可以不一樣。
+
+   住在 sheet 身上（跟 confirmed／pm／masthead 放一起），也就住在 plan.layout
+   底下 —— snapshot() 一序列化就有了，存檔和 Ctrl+Z 是免費的。
+
+   priceByCount 存的是絕對 px：轉盤蓋過自動縮放，「一樣大」就該是一樣的 px。
+   null ＝ 還沒動過那一組，用畫布自己算出來、同組取最小的那個值。 */
+const TYPE_DEFAULT = { skuSize: 12, priceByCount: { 1:null, 2:null, 3:null } };
+function typeOf(sh){
+  if (!sh.type) sh.type = JSON.parse(JSON.stringify(TYPE_DEFAULT));
+  if (!sh.type.priceByCount) sh.type.priceByCount = { 1:null, 2:null, 3:null };
+  if (!+sh.type.skuSize) sh.type.skuSize = TYPE_DEFAULT.skuSize;
+  return sh.type;
+}
+
+/* 同一個版位裡，每一種價格數各自需要縮到多少 —— 取那一組裡最擠的那一格。
+   四個價格以上不進任何組（談定的：只走自動縮放、沒有轉盤），所以不收。 */
+function priceGroupFs(sh){
+  const g = {};
+  (sh.cells || []).forEach(c => {
+    const st = (c.board && c.board.state) || null;
+    if (!st || !st.nPrice || st.nPrice > 3) return;
+    const w = +st.wantFs || 1;
+    g[st.nPrice] = g[st.nPrice] == null ? w : Math.min(g[st.nPrice], w);
+  });
+  return g;
+}
+
+/** 把這個版位的字級設定送給它底下每一塊畫布。 */
+function pushType(block){
+  if (!block) return;
+  const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh);
+  (sh.cells || []).forEach(c => {
+    const f = canvasFrame(c.id);
+    if (!f || !f.contentWindow) return;
+    const st = (c.board && c.board.state) || null;
+    const n = st && st.nPrice;
+    const dial = (n && n <= 3) ? t.priceByCount[n] : null;
+    try {
+      f.contentWindow.postMessage({ type: {
+        skuSize: t.skuSize,
+        pricePx: +dial || 0,                       // 0 ＝ 沒設，用同組最小
+        groupFs: (n && g[n]) ? g[n] : 0
+      } }, '*');
+    } catch (_){}
+  });
+}
+
+/* 這一格在版上實際多大（cm）。畫布的排版座標系照這個開，「1cm」在每一格
+   都一樣長 —— 本來每一格都用固定 540 寬，窄格子等於被整個壓小，寫死的
+   字級跟著失真。cm 是實際尺寸，跟縮放無關：r.width 和 pxPerCm 都含了
+   sheetZoom，除完就約掉了。 */
+function cellCm(c, el){
+  if (!activeBlock || !el) return null;
+  const k = sheetMetrics(activeBlock).pxPerCm;
+  if (!k || !isFinite(k) || k <= 0) return null;
+  const r = el.getBoundingClientRect();
+  if (!r.width || !r.height) return null;
+  return { w: +(r.width / k).toFixed(3), h: +(r.height / k).toFixed(3) };
+}
+
 function paintOneCanvas(c){
   if (activeTab !== 'board') return;
   const el = cardEl(c.id);
@@ -5727,13 +5924,19 @@ function paintOneCanvas(c){
   const n = pickedOf(c).length;
   let f = el.querySelector('.ccanvas');
   if (!n){ if (f) f.remove(); markBadge(c); paintNoteMarks(c); return; }
+  const cm = cellCm(c, el);
   if (!f){
     f = document.createElement('iframe');
     f.className = 'ccanvas';
     f.setAttribute('scrolling', 'no');
     f.title = '';
-    setPickFrame(f, 'ui=stage&cell=' + encodeURIComponent(c.id));
+    setPickFrame(f, 'ui=stage&cell=' + encodeURIComponent(c.id)
+      + (cm ? '&cmw=' + cm.w + '&cmh=' + cm.h : ''));
     el.appendChild(f);
+  } else if (cm){
+    /* 版面改過了（列數、刊頭大小）＝這一格的實際尺寸變了，畫布要換座標系。
+       畫布自己會比對，沒變就不重排。 */
+    try { f.contentWindow.postMessage({ stageCm: cm }, '*'); } catch (_){}
   }
   markBadge(c);
   paintNoteMarks(c);        // 標記跟著這一格走，重畫版面也不會掉
@@ -5742,6 +5945,7 @@ function paintOneCanvas(c){
 /** 整張版：每一格該有畫布的都給它。只有 拼板 這一頁會叫。 */
 function paintBoardThumbs(){
   if (activeTab !== 'board' || !activeBlock) return;
+  queueType(activeBlock);        // 畫布重新掛上來，字級設定要跟著再送一次
   (sheetOf(activeBlock).cells || []).forEach(paintOneCanvas);
   document.getElementById('boardOverview').classList.toggle('nomarks', !showMarks);
 }
@@ -6119,6 +6323,10 @@ const STAGES = ['提品','製作','一校','一改','二校','二改','蓋章','
 const DEADLINE_HOUR = 18;
 const LS_KEY = 'catalogue_plans_v1';
 
+/* 有接 Supabase 就回那個物件，沒接回 null。所有同步的呼叫都先過這一關，
+   後端不在的時候整支程式一行都不會走到網路上。 */
+const sync = () => (window.PlanSync && window.PlanSync.ok()) ? window.PlanSync : null;
+
 const SEED_PLANS = [
   { id:'seed-2', name:'7月中檔・全省對開大DM', type:'全省對開大DM', tags:['大DM','促銷'],
     start: (() => { let d = atMid(new Date()); for (let i = 0; i < 4; i++) d = prevWork(d); return toYMD(d); })(),
@@ -6318,15 +6526,33 @@ function parseExportLayout(html){
   return root ? parseLayoutNode(root) : null;
 }
 
+/* 落版單系統存的 plan.layout 是兩段 HTML（它直接存 wsFront.innerHTML），這支要的是樹。
+   以前只有「從檔案帶入」會轉；現在兩邊共用同一份資料，所以改成誰先開這個檔期誰就轉，
+   轉完存回去 —— 之後不管誰拿到的都是樹，這個函式就不再做事了。
+   沒轉的話：檔期列表會安靜地算錯版位數，一按開啟就 sheetOf() 整頁死掉。 */
+function normalizeLayout(plan){
+  const L = plan && plan.layout;
+  if (!L || typeof L.front !== 'string') return false;   // 已經是樹，或還沒切版
+  const front = parseExportLayout(L.front);
+  const back  = parseExportLayout(L.back);
+  if (!front || !back) return false;                     // 認不得就別動，維持原樣
+  plan.layout = { front, back };
+  return true;
+}
+
 
 function importFiles(fileList){
   const files = [...fileList];
   let added = 0, failed = 0, pending = files.length;
+  const imported = [];
   if (!pending) return;
 
   const finish = () => {
     savePlans();
     renderPlans();
+    // 從檔案帶入的檔期也要上去，不然只有這台機器看得到
+    const s = sync();
+    if (s) { imported.forEach(p => s.queueUpsert(p)); }
     if (failed && added) toast(`匯入完成：成功 ${added} 個，失敗 ${failed} 個（缺少 plandata）`, 'warn', 3600);
     else if (failed)     toast(`匯入失敗 ${failed} 個檔案（缺少 plandata）`, 'warn', 3600);
     else                 toast(`已匯入 ${added} 個檔期`, 'ok');
@@ -6358,6 +6584,7 @@ function importFiles(fileList){
         const at = plans.findIndex(pl => pl.id === plan.id);
         if (at >= 0){ plan.layout = plan.layout || plans[at].layout; plans[at] = plan; }
         else plans.push(plan);
+        imported.push(plan);
         added++;
       } catch (err){ failed++; }
       if (--pending === 0) finish();
@@ -6374,7 +6601,11 @@ document.getElementById('wipeBtn').addEventListener('click', async () => {
   const ok = await modalConfirm({
     title: '清空資料',
     body: `會刪掉這台瀏覽器上的 ${n} 個檔期，連同 PM 名單和身分設定，而且救不回來。`
-        + '（別人電腦上的資料不受影響。）確定要清掉嗎？',
+        + '（別人電腦上的資料不受影響。）'
+        /* 接了後端之後這顆按鈕只清本機，重新整理又會從 Supabase 拉回來 ——
+           不講清楚會被當成壞掉。真的要全刪要去 Supabase 那邊。 */
+        + (sync() ? '共用資料庫上的檔期不會被清掉，重新整理會再拉回來。' : '')
+        + '確定要清掉嗎？',
     ok: '全部清掉', cancel: '取消', danger: true
   });
   if (!ok) return;
@@ -6602,12 +6833,68 @@ window.addEventListener('beforeunload', e => {
    BOOT
    ========================================================================== */
 
+/* 行銷端存進來的 layout 還是兩段 HTML，轉成樹再讓任何人碰它 —— 檔期列表就已經在
+   讀 layout 了（buildPlanCard → planProgress），不能等到開檔期才轉。
+   放在 BOOT 不是隨便放的：normalizeLayout 一路走到 pctOf，那是個 const，
+   在它宣告的那一行之前呼叫會 TDZ 炸掉，而且只有真的遇到要轉的檔期才會炸。 */
+if (plans.filter(normalizeLayout).length) savePlans();
+
+/* 拖著檔案在版面上的時候，把畫布那層打開讓它自己收 drop（見 .filedrag 那條 CSS）。
+   dragover 是連續發的，所以用「停了就關」來收尾 —— dragleave 在格子之間穿梭時
+   會亂噴，拿它當結束訊號會一直閃。 */
+(function enableFileDropOnBoards(){
+  const board = document.getElementById('boardOverview');
+  if (!board) return;
+  let off = 0;
+  const stop = () => { clearTimeout(off); off = 0; board.classList.remove('filedrag'); };
+  document.addEventListener('dragover', e => {
+    if (![...(e.dataTransfer && e.dataTransfer.types || [])].includes('Files')) return;
+    board.classList.add('filedrag');
+    clearTimeout(off);
+    off = setTimeout(stop, 250);      // 手離開視窗、或放掉了，就沒有下一發了
+  }, true);
+  ['drop','dragend'].forEach(t => document.addEventListener(t, stop, true));
+})();
+
 document.getElementById('snapToggle').checked = CONFIG.snapOn;
 renderPmSel();
 paintStickTray();     // 這裡才安全：上面該宣告的都宣告完了
 setTool(activeTool);
 syncTools();
 showList();
+
+/* ---- 共用資料庫：開機先用 localStorage 秒開（上面都做完了），再拉一次遠端 ----
+   刻意放在最後、而且不 await：後端慢或掛掉都不影響這一頁開得起來。 */
+(async function bootSync(){
+  const s = sync();
+  const want = new URLSearchParams(location.search).get('plan');
+
+  if (s){
+    try {
+      const rows = await s.pullAll();
+      if (rows && rows.length){
+        /* 同一個 id 以遠端為準。這是 MVP 的取捨：兩個人同時改同一個檔期，後存的贏。
+           只在遠端有的才蓋，本機獨有的檔期留著（還沒上傳過的不會被吃掉）。 */
+        const byId = new Map(plans.map(p => [p.id, p]));
+        rows.forEach(r => { if (r && r.id && r.data) byId.set(r.id, r.data); });
+        plans = [...byId.values()];
+        plans.filter(normalizeLayout);      // 行銷剛提交的還是 HTML，轉成樹再用
+        savePlans();                        // localStorage 當本機快取
+        if (!currentPlan) renderPlans();    // 已經開著檔期就別把人踢回列表
+      }
+    } catch (e){
+      console.warn('開機同步失敗，先用本機資料', e);
+    }
+  }
+
+  /* 行銷「提交給設計」會帶著 ?plan=<id> 跳過來，直接開到那一個檔期。
+     沒接後端也要能用 —— 檔案帶入之後自己貼網址也是這條路。 */
+  if (want && !currentPlan){
+    const p = plans.find(x => x.id === want);
+    if (p) openPlan(p);
+    else toast(`找不到檔期（${want}）—— 可能還沒同步過來`, 'warn', 4000);
+  }
+})();
 /* A window resize streams events; re-fitting the boards redraws every ruler
    tick and re-flows the sheet, so do it once per frame instead of per event. */
 let resizeFrame = 0;
