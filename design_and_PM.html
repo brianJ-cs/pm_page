@@ -109,24 +109,29 @@
      位置、同樣的直排標題）—— 兩頁的「對這個版位做的事」就站在同一個地方。
      沒選版位的時候整條收起來：沒有東西可以調。 */
   #typeWrap{
-    display:none;flex:none;width:74px;margin:2px 18px 10px;border-radius:8px;
+    display:none;flex:none;width:104px;margin:2px 18px 10px;border-radius:8px;
     background:var(--blue);color:var(--surface);
-    flex-direction:column;align-items:center;gap:8px;padding:12px 6px 10px;user-select:none;
+    flex-direction:column;align-items:stretch;gap:7px;padding:12px 8px 10px;user-select:none;
   }
   #typeWrap.on{display:flex}
-  /* 標籤在上、格子在下 —— 直條裡沒有橫的空間放「一價 [__]」 */
-  #typeWrap .tw-n{display:flex;flex-direction:column;align-items:center;gap:3px;
-                  font-size:11.5px;font-weight:800;color:var(--surface)}
-  #typeWrap input{width:58px;padding:4px 5px;border-radius:6px;text-align:center;
+  /* 名字在左、格子在右 —— 一列讀完就是「一價 52」，比上下疊少一半的視線移動。
+     直排標題還是直的，那是這一條在講什麼；每一列自己是橫的。 */
+  #typeWrap .tw-n{display:flex;flex-direction:row;align-items:center;justify-content:space-between;
+                  gap:6px;font-size:11.5px;font-weight:800;color:var(--surface);white-space:nowrap}
+  #typeWrap input{width:52px;flex:none;padding:4px 5px;border-radius:6px;text-align:center;
                   border:1px solid rgba(255,255,255,.45);
                   background:rgba(255,255,255,.14);color:var(--surface);
                   font-family:inherit;font-size:12.5px;font-weight:800}
   #typeWrap input:focus{outline:none;border-color:var(--surface);background:rgba(255,255,255,.28)}
   /* 沒設過的那一格顯示 placeholder「自動」，要看得出來它是空的 */
   #typeWrap input::placeholder{color:rgba(255,255,255,.62);font-weight:700}
-  #typeWrap #typeReset{margin-top:2px;padding:5px 9px;font-size:12px;
+  /* 「還原成自動」用那個轉一圈的箭頭 —— 跟 Ctrl+Z 是同一個手勢，不必讀字。
+     只有圖示，字靠 title 說明。 */
+  #typeWrap #typeReset{align-self:center;margin-top:3px;padding:5px;line-height:0;
+                       display:flex;align-items:center;justify-content:center;
                        background:rgba(255,255,255,.14);color:var(--surface);
-                       border:1px solid rgba(255,255,255,.45)}
+                       border:1px solid rgba(255,255,255,.45);border-radius:8px}
+  #typeWrap #typeReset svg{width:17px;height:17px;display:block}
   #typeWrap #typeReset:hover{background:rgba(255,255,255,.28)}
 
   .toggle{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:800;color:var(--muted);cursor:pointer;user-select:none}
@@ -1453,7 +1458,12 @@
       <label class="tw-n">一價<input type="number" id="price1" min="8" max="200" step="1" placeholder="自動"></label>
       <label class="tw-n">二價<input type="number" id="price2" min="8" max="200" step="1" placeholder="自動"></label>
       <label class="tw-n">三價<input type="number" id="price3" min="8" max="200" step="1" placeholder="自動"></label>
-      <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動">自動</button>
+      <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動" aria-label="還原成自動">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>
+        </svg>
+      </button>
     </div>
     <div id="boardMain">
       <!-- 便利貼蓋在版面上，要看原樣的時候整批收起來。浮在左欄旁邊：它管的是

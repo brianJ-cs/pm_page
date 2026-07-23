@@ -434,17 +434,22 @@ let SKU_FS = 12;
 let PRICE_PX = 0;
 let GROUP_FS = 0;
 let priceWanted = 1;            // 這一格自己算出來、剛好裝得下的比例
-
 /** 這一格有幾個價格 —— 分組就是照這個分的。 */
 function priceCount(bs){ return (bs || BLOCKS).filter(b => b.kind === 'price').length; }
 
-/** 某一塊價格最後要用的比例。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
-function priceFs(b){
+/** 要求的比例，還沒過「絕不溢出」那道夾子。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
+function priceFsRaw(b){
   if(b.fsFix) return b.fsFix;
   if(PRICE_PX) return PRICE_PX / PRICE_BASE;
   if(GROUP_FS) return GROUP_FS;
   return b.fs || 1;
 }
+/* b.shrink 是最後那道夾子：要求的字級整列排不下時，autoSpace 算出剛好排得下的
+   比例存在每一塊上（整組同一個值，數字之間的相對關係不變）。1 ＝ 沒夾。
+   存在 block 上而不是放一個全域的，是因為 blockHTML 也會畫「不是現在這一格」的
+   格子，而 autoSpace 只跑現在這一格 —— 全域的會把這一格的夾子套到別格頭上。
+   轉盤本來允許溢出，談定改成不准 —— 寧可字小一點，也不要壓到隔壁版位。 */
+function priceFs(b){ return priceFsRaw(b) * (b.shrink || 1); }
 
 /** 上層把這個版位的字級設定送下來。 */
 function applyType(t){
@@ -969,7 +974,7 @@ function blockHTML(b,isCur=true){
     const fs=priceFs(b);
     return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${
       b.w2?`;width:${b.w2}px`:''}${
-      fs&&fs!==1?`;font-size:${(PRICE_BASE*fs).toFixed(1)}px`:''}">${b.price.toLocaleString()}</div>`;
+      fs&&fs!==1?`;font-size:${(PRICE_BASE*fs).toFixed(1)}px`:''}">${b.price}</div>`;
   }
   // sku
   return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}">`+
@@ -1147,54 +1152,82 @@ function autoSpace(){
          轉盤縮小 → 被低估 → need 太小、整疊被推到太右邊，而且 w2 比字還窄，
                     text-align:right 在內容溢位時是無效的，字就從右邊噴出去。
        「40 會溢出、52 不會」就是這麼來的 —— 52 剛好是基準，除以 1 等於沒錯。 */
+    /* padding 和 border 不會跟著字級縮（CSS 寫死的 px），所以要把它們從量到的
+       尺寸裡拆出來，只有字的部分才乘比例。整塊一起乘的話，縮小時會把框算得比
+       實際窄，數字就從框的左邊漏出去 —— 量到過漏 5px。 */
     keys.forEach(key=>sizes.set(key, cols.get(key).map(b=>{
       const s=size(b.id)||{w:0,h:0};
       if(b.kind!=='price') return s;                 // 只有價格會縮字
       const e0=priceFs(b)||1;
-      return { w:s.w/e0, h:s.h/e0 };
+      const n=bEl(b.id); let cw=0, ch=0;
+      if(n){ const cs=getComputedStyle(n);
+        cw=(n.offsetWidth-n.clientWidth)+parseFloat(cs.paddingLeft||0)+parseFloat(cs.paddingRight||0);
+        ch=(n.offsetHeight-n.clientHeight)+parseFloat(cs.paddingTop||0)+parseFloat(cs.paddingBottom||0); }
+      return { w:(s.w-cw)/e0, h:(s.h-ch)/e0, cw, ch };
     })));
-    const wide=key=>Math.max(...sizes.get(key).map(s=>s.w));
     const avail=CW-PAD*2;
 
-    /* 價格是這裡最寬的東西（Anton 52px）。欄數一多，光價格就排不下一列 —
-       那就讓價格縮字，而不是讓它們互相疊上去。縮到 0.55 為止，再小就沒意義了。
+    /* 數字自己排一列，不跟著欄寬走 ------------------------------------------
+       本來欄寬取「這一欄最寬的那一塊」，價格再靠右對齊塞進去。價格一旦比 SKU 窄，
+       左邊就多出一塊空白，那塊空白看起來就是「數字之間的距離」—— 於是字級調小、
+       或 SKU 比較長的時候，數字就被推得忽遠忽近（量到過 24 → 74）。
+       改成價格自己一列：右緣釘在 CW-PAD，往左依序擺，數字和數字之間永遠是 COLGAP。
+       規格／SKU 仍然各自對齊自己那個價格的右緣，所以看得出來誰是誰的。 */
+    const prices=[];
+    keys.forEach(key=>{ const list=cols.get(key), hs=sizes.get(key);
+      list.forEach((b,j)=>{ if(b.kind==='price') prices.push({b,key,j}); }); });
 
-       這裡只算出「這一格自己需要縮到多少」（priceWanted）並往上報。真正用哪一個
-       比例由 priceFs() 決定 —— 同一個版位裡同樣價格數的格子要一樣大，那要收齊
-       全部格子才算得出來，一格自己看不到別人。0.55 這個下限只管自動算的這一份，
-       轉盤和單格微調不受它限制。 */
-    let need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
-    priceWanted = need>avail ? Math.max(.55, avail/need) : 1;
+    let priceTop=null, priceH=0;
+    if(prices.length){
+      /* 先問「照要求的字級要多寬」—— 要用 priceFsRaw，問到的才是沒被夾過的原值。 */
+      const want=prices.map(p=>priceFsRaw(p.b));    // 還沒夾過的原值
+      const base=prices.map(p=>sizes.get(p.key)[p.j]);
+      const fixed=base.reduce((a,s)=>a+s.cw,0)+COLGAP*(prices.length-1); // 不縮的部分
+      const inkw=base.reduce((a,s,i)=>a+s.w*want[i],0);                  // 會縮的部分
+      /* 絕不溢出：要求的字級排不下就整組等比例縮到剛好排得下。轉盤本來是允許
+         溢出的，談定改成不准 —— 寧可字小一點，也不要壓到隔壁版位。
+         只有字會縮，框那 10px 不會，所以是這樣解出來的、不是 avail/need。 */
+      const shrink = (inkw+fixed>avail && inkw>0) ? Math.max(0, avail-fixed)/inkw : 1;
+
+      /* 這一格自己需要縮到多少，往上報給同組取最小（同一個版位裡同樣價格數的
+         格子要一樣大，那要收齊全部格子才算得出來，一格自己看不到別人）。 */
+      priceWanted = shrink<1 ? Math.max(.55, shrink) : 1;
+
+      const eff=want.map(w=>w*shrink);            // 夾過之後真正要用的
+      prices.forEach((p,i)=>{
+        const hs=sizes.get(p.key), s=base[i];
+        const was=p.b.fs, wasS=p.b.shrink;
+        p.b.fs=priceWanted; p.b.shrink=shrink;
+        if(was!==p.b.fs || wasS!==p.b.shrink) moved=true;
+        p.w=s.w*eff[i]+s.cw; p.h=s.h*eff[i]+s.ch;   // 字乘比例，框原樣加回去
+        hs[p.j]={ w:p.w, h:p.h };
+        priceH=Math.max(priceH,p.h);
+      });
+      // 右緣釘在 CW-PAD，由右往左擺，間距固定
+      let px=CW-PAD;
+      for(let i=prices.length-1;i>=0;i--){ px-=prices[i].w; prices[i].x=px; px-=COLGAP; }
+      priceTop=CH-PRICE_BOTTOM-priceH;
+      prices.forEach(p=>{ put(p.b,p.x,priceTop); p.b.w2=p.w; });
+      gTop=priceTop;
+    }
+
+    /* 規格／SKU：每一欄靠齊自己那個價格的右緣，由下往上疊。沒有價格的欄
+       （理論上不會有）就退回貼右緣。 */
     keys.forEach(key=>{
       const list=cols.get(key), hs=sizes.get(key);
-      list.forEach((b,j)=>{
-        if(b.kind!=='price') return;
-        const was=b.fs;
-        b.fs=priceWanted;
-        const eff=priceFs(b);
-        if(was!==b.fs) moved=true;
-        hs[j]={ w:hs[j].w*eff, h:hs[j].h*eff };   // 基準尺寸 × 最後真的要用的比例
-      });
-    });
-    need=keys.reduce((a,key)=>a+wide(key),0)+COLGAP*(keys.length-1);
-
-    const widths=keys.map(wide);
-    /* 右緣永遠釘在 CW-PAD，裝不下就往左溢出 —— 這是談定的方向（見 .blk.price 那段
-       CSS 註解）。不能再夾一個 Math.max(PAD, …)：轉盤把字放大到超過整欄寬度時，
-       那個夾子會把整欄推回左邊界，然後整欄從格子的右邊頂出去，蓋到隔壁版位。 */
-    let x=CW-PAD-need;
-    keys.forEach((key,ci)=>{
-      const list=cols.get(key), hs=sizes.get(key);
-      const th=hs.reduce((a,s)=>a+s.h,0)+LINEGAP*(list.length-1);
-      /* 下緣也釘死在 CH-PAD_Y，理由跟上面的 x 一樣：夾一個 Math.max(PAD_Y, …)
-         的話，字放大到比格子還高時整欄會被推回上緣，然後從格子的下面掉出去。
-         右下角是價格的家，放大縮小都從那個角往左往上長。 */
-      /* 價格這一疊離下緣 5px（不是 PAD_Y 的 10）—— 談定的，它要更貼底一點。 */
-      let y=CH-PRICE_BOTTOM-th;
+      const p=prices.find(q=>q.key===key);
+      const right=p ? p.x+p.w : CW-PAD;
+      const rest=list.map((b,j)=>({b,s:hs[j]})).filter(o=>o.b.kind!=='price');
+      if(!rest.length) return;
+      const w=Math.max(...rest.map(o=>o.s.w));
+      let y=(priceTop==null?CH-PRICE_BOTTOM:priceTop)-LINEGAP;
+      for(let i=rest.length-1;i>=0;i--){
+        y-=rest[i].s.h;
+        // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
+        put(rest[i].b, right-w, y); rest[i].b.w2=w;
+        y-=LINEGAP;
+      }
       if(gTop===null || y<gTop) gTop=y;
-      // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
-      list.forEach((b,j)=>{ put(b,x,y); b.w2=widths[ci]; y+=hs[j].h+LINEGAP; });
-      x+=widths[ci]+COLGAP;
     });
   }
 
