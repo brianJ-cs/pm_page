@@ -6905,6 +6905,27 @@ function stressProducts(){
 
 const firstLeaf = node => node.children ? firstLeaf(node.children[0]) : node;
 
+/* 認得出哪些是壓力測試用的假檔期（type 蓋章、id 前綴都行）—— 清舊的、開機收拾
+   重複的都靠它。真檔期不會是這個 type，所以誤刪不到。 */
+const isStressPlan = p => !!p && (p.type === '壓力測試' || String(p.id || '').startsWith('stress-'));
+
+/* 只留一個壓力測試假檔期（陣列最前面那個＝最新，或正在開的那個），其餘清掉。
+   一併叫遠端刪 —— 只清 localStorage 的話，bootSync 下次又把它們從 Supabase 拉回來。
+   開機一次、bootSync 合併完再一次（那時 sync 才真的就緒）。回傳有沒有動過。 */
+function dedupeStressPlans(){
+  const s = sync();
+  let kept = false, changed = false;
+  for (let i = 0; i < plans.length; i++){
+    if (!isStressPlan(plans[i])) continue;
+    const cur = currentPlan && plans[i].id === currentPlan.id;
+    if (!kept || cur){ kept = true; continue; }   // 留第一個（或正在開著的那個）
+    if (s) s.queueRemove(plans[i].id);
+    plans.splice(i, 1); i--;
+    changed = true;
+  }
+  return changed;
+}
+
 function makeStressPlan(){
   const prods = stressProducts();
   if (!prods.length){ alert('沒有商品可塞'); return; }
@@ -6939,6 +6960,13 @@ function makeStressPlan(){
   };
   fill(plan.layout.front); fill(plan.layout.back);
 
+  // 只留一個：先把舊的壓力測試檔期整批清掉（本機＋遠端），不然每按一次就多一筆
+  // 同名的堆在列表裡。這一顆待會會 openPlan 換成新的，舊的孤兒掉沒關係。
+  const s = sync();
+  for (let i = plans.length - 1; i >= 0; i--) if (isStressPlan(plans[i])){
+    if (s) s.queueRemove(plans[i].id);
+    plans.splice(i, 1);
+  }
   plans.unshift(plan);
   savePlans();
   openPlan(plan);
@@ -6982,6 +7010,11 @@ window.addEventListener('beforeunload', e => {
    放在 BOOT 不是隨便放的：normalizeLayout 一路走到 pctOf，那是個 const，
    在它宣告的那一行之前呼叫會 TDZ 炸掉，而且只有真的遇到要轉的檔期才會炸。 */
 if (plans.filter(normalizeLayout).length) savePlans();
+
+/* 開機收拾重複的壓力測試假檔期：舊版本每按一次就多存一筆同名的，堆了一列。
+   只留一個，其餘清掉（純測試資料，收掉不心疼）。這時 sync 可能還沒就緒，遠端那份
+   由 bootSync 合併完再收一次 —— 那裡才刪得到 Supabase。 */
+if (dedupeStressPlans()) savePlans();
 
 /* 拖著檔案在版面上的時候，把畫布那層打開讓它自己收 drop（見 .filedrag 那條 CSS）。
    dragover 是連續發的，所以用「停了就關」來收尾 —— dragleave 在格子之間穿梭時
@@ -7038,6 +7071,9 @@ showList();
         });
         plans = [...byId.values()];
         plans.filter(normalizeLayout);      // 行銷剛提交的還是 HTML，轉成樹再用
+        /* 遠端可能還存著一堆舊的壓力測試假檔期，剛剛被 pullAll 拉回來 —— 這時
+           sync 已就緒，收一次（本機刪＋queueRemove 遠端），只留一個。 */
+        dedupeStressPlans();
         savePlans();                        // localStorage 當本機快取
         if (!currentPlan) renderPlans();    // 已經開著檔期就別把人踢回列表
       }
