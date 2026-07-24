@@ -1480,6 +1480,12 @@
         <span class="track"></span>
         <span>顯示便利貼</span>
       </label>
+      <!-- devtool：一鍵生一個塞滿的假檔期，拿來看拼板在幾十格畫布同時排版時卡不卡。
+           虛線邊、放最上面那條的右邊，看得出來它不是正常流程裡的按鈕。 -->
+      <button id="stressPlanBtn" title="另生一個「壓力測試」假檔期並開起來，真實檔期不動"
+              style="margin-left:12px;padding:5px 11px;font:inherit;font-size:12px;font-weight:800;
+                     border:1.5px dashed var(--muted);border-radius:8px;background:transparent;
+                     color:var(--muted);cursor:pointer">壓力測試：塞滿假檔期</button>
       <div id="boardOverview"></div>
     </div>
     <!-- 意見欄：貼紙從這裡拖到格子上，貼上去的每一則都在下面排成一張卡 -->
@@ -5154,6 +5160,10 @@ addEventListener('message', e => {
     commitAction();                   // 勾了什麼也是一步，Ctrl+Z 回得去
     return;
   }
+  /* 畫布開機時會先報一次「還沒排好」的空狀態，那一下不能把已經指派給這一格的
+     品項清掉 —— 挑了什麼是面板（src==='panel'）說了算，畫布這一路只管位置。
+     一次鋪滿 60 格特別容易撞到：整排畫布同時開機、同時報空，就把塞好的洗光。 */
+  if ((!d.state.picked || !d.state.picked.length) && pickedOf(target).length) return;
   target.board = { state: d.state };  // 畫布報的（含每一塊的位置）
   if (!pickedOf(target).length) paintOneCanvas(target);   // 全取消了就把畫布撤掉
   else markBadge(target);
@@ -6869,6 +6879,80 @@ function openPlan(plan){
   histStack = []; histAt = -1;
   pushHistory();
 }
+
+/* ==========================================================================
+   壓力測試 devtool：一鍵生一個塞滿的假檔期
+   純測試用。按下去另生一筆「壓力測試」檔期，10 個版位、每個約 60 格，每一格
+   輪流塞不同商品／不同價格，然後直接開到拼板第一個版位 —— 拿來看幾十格畫布
+   同時排版卡不卡。真實檔期完全不動（這是 unshift 一筆新的，不是改現有的）。
+   ========================================================================== */
+/* 沒接上共用目錄時的後備商品（＝畫布內建那份的縮影，SKU 對得上就查得到價格）。
+   只留 name/sku，價格由畫布自己那份 ROWS 查 —— 兩邊同一份資料，對得起來。 */
+const STRESS_FALLBACK_ROWS = [
+  ['iPhone 17 Pro Max','2156742'],['iPhone 17 Pro Max','2156739'],['iPhone 17 Pro Max','2156738'],
+  ['iPhone 17 Pro','2156751'],['iPhone 17 Pro','2156749'],['iPhone 17 Pro','2156735'],
+  ['Galaxy A5','2162613'],['Galaxy A5','2162614'],
+  ['iPad Air','2154566'],['iPad Air','2154562'],
+  ['iPad A16','2154573'],['iPad A16','2154572'],
+  ['MacBook Pro','2158956'],
+  ['MacBook Neo Air M5','2162848'],['MacBook Neo Air M5','2162864'],['MacBook Neo Air M5','2162868'],
+  ['AirPods 4','2150080'],['AirPods 4','2150081'],
+  ['AirPods Pro 3','2157982'],
+  ['ANKER 30W 自帶線行動電源','2157669'],
+].map(r => ({ name: r[0], sku: r[1] }));
+
+/* 一種商品一組（同名的 SKU 才會被畫布併成同一張卡）。優先用共用目錄，沒有就用後備。 */
+function stressProducts(){
+  const rows = (CATALOGUE && Array.isArray(CATALOGUE.rows) && CATALOGUE.rows.length)
+    ? CATALOGUE.rows : STRESS_FALLBACK_ROWS;
+  const by = new Map();
+  rows.forEach(r => { const n = r.name; if (!by.has(n)) by.set(n, []); by.get(n).push(String(r.sku)); });
+  return [...by.values()].filter(a => a.length);
+}
+
+const firstLeaf = node => node.children ? firstLeaf(node.children[0]) : node;
+
+function makeStressPlan(){
+  const prods = stressProducts();
+  if (!prods.length){ alert('沒有商品可塞'); return; }
+
+  // 一頁 5 個版位（左欄 3、右欄 2），前後兩頁共 10 個；每個版位 60 格。
+  const stressPage = base => {
+    const b = (n, size) => blk('壓測' + String(n).padStart(2,'0'),
+                               [{ name:'商品', count:60 }], size);
+    return { dir:'row', fold:true, size:null, children:[
+      { dir:'col', size:50, children:[ b(base+1,34), b(base+2,33), b(base+3,null) ] },
+      { dir:'col', size:50, children:[ b(base+4,50), b(base+5,null) ] }
+    ]};
+  };
+  const plan = {
+    id: 'stress-' + Date.now(),
+    name: '壓力測試（假檔期）',
+    type: '壓力測試',
+    tags: ['壓測'],
+    start: SEED_PLANS[0].start,
+    durs: SEED_PLANS[0].durs.slice(),
+    layout: { front: stressPage(0), back: stressPage(5) }
+  };
+
+  // 把每一格塞滿：輪流換商品，取前 6 個 SKU（同商品跨價位＝1~3 個價格欄）。
+  let ci = 0;
+  const fill = node => {
+    if (node.children){ node.children.forEach(fill); return; }
+    (sheetOf(node).cells || []).forEach(c => {
+      const prod = prods[ci++ % prods.length];
+      c.board = { state: { picked: prod.slice(0, 6) } };
+    });
+  };
+  fill(plan.layout.front); fill(plan.layout.back);
+
+  plans.unshift(plan);
+  savePlans();
+  openPlan(plan);
+  switchTab('board');                       // 直接落在拼板；mount 會自己選第一個版位、畫好
+}
+const stressBtn = document.getElementById('stressPlanBtn');
+if (stressBtn) stressBtn.onclick = makeStressPlan;
 
 /* Always ask before leaving, and say plainly whether the work is safe — the
    answer is different depending on whether a write is still queued. */
