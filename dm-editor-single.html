@@ -6961,13 +6961,45 @@ function makeStressPlan(){
     layout: { front: stressPage(0), back: stressPage(5) }
   };
 
-  // 把每一格塞滿：輪流換商品，取前 6 個 SKU（同商品跨價位＝1~3 個價格欄）。
+  /* 便利貼也塞一些，才看得出貼滿標記的樣子：三種（補貼紙／補贈品／留言）× 設計和
+     三位 PM（顏色＝誰貼的），有的已處理、有的還沒。位置、種類都照格號變化，不用亂數
+     也每格不一樣。 */
+  const NOTE_KINDS = ['sticker', 'gift', 'other'];
+  const NOTE_WHO = [
+    { whoId:'design',  who:'設計' },
+    { whoId:'pm:pm1',  who:'PM 甲' },
+    { whoId:'pm:pm2',  who:'PM 乙' },
+    { whoId:'pm:pm3',  who:'PM 丙' }
+  ];
+  const NOTE_TEXTS = ['價格再確認','這張圖要換','補一個加價購','SKU 對嗎？',
+                      '位置往上一點','','客訴要注意','要不要做貼紙'];
+  const stressNotes = idx => {
+    const n = idx % 3;                 // 0、1、2 顆：三格裡兩格有便利貼
+    const out = [];
+    for (let j = 0; j < n; j++){
+      const a = NOTE_WHO[(idx + j) % NOTE_WHO.length];
+      out.push({
+        id: 'sn' + idx + '-' + j,
+        key: NOTE_KINDS[(idx * 2 + j) % NOTE_KINDS.length],
+        text: NOTE_TEXTS[(idx + j) % NOTE_TEXTS.length],
+        who: a.who, whoId: a.whoId, time: stamp(), done: (idx + j) % 4 === 0,
+        x: 18 + ((idx * 17 + j * 37) % 64),
+        y: 18 + ((idx * 23 + j * 13) % 58),
+        replies: []
+      });
+    }
+    return out;
+  };
+
+  // 把每一格塞滿：輪流換商品，取前 6 個 SKU（同商品跨價位＝1~3 個價格欄），再貼便利貼。
   let ci = 0;
   const fill = node => {
     if (node.children){ node.children.forEach(fill); return; }
     (sheetOf(node).cells || []).forEach(c => {
-      const prod = prods[ci++ % prods.length];
+      const prod = prods[ci % prods.length];
       c.board = { state: { picked: prod.slice(0, 6) } };
+      c.notes = stressNotes(ci);
+      ci++;
     });
   };
   fill(plan.layout.front); fill(plan.layout.back);
