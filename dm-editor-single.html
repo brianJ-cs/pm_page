@@ -315,10 +315,6 @@
   #blockHead{white-space:nowrap;flex:none}
   #boardOverview .cell{pointer-events:auto;cursor:pointer;user-select:none;
     transition:outline-color .12s,background .12s,opacity .12s}
-  /* 拼板 也能換刊頭圖：整條刊頭開回點擊／拖放（設計才有，PM 不改版）。
-     長度和位置還是 落版 在拉，所以那條調長度的把手在這裡不開放。 */
-  #boardOverview:not(.pm) .masthead{pointer-events:auto;cursor:pointer}
-  #boardOverview .mh-grab{pointer-events:none}
   /* 搬列用的 ⋮⋮ 是 落版 的工具：PM 不搬列，那條就不該在他眼前 */
   #boardOverview.pm .grip{display:none}
   /* 不歸這位 PM 管的格子：看得到位置，但不是他的活，點不進去 */
@@ -3658,7 +3654,6 @@ function buildMasthead(sh, pxPerCm, maxHcm){
     sh.masthead = null;
     sh.mhSide = null;                  // 站哪裡的記錄跟著刊頭一起走
     renderHead(); renderGrid(activeBlock);
-    if (activeTab === 'board') paintBoardThumbs();   // 拼板：畫布／便利貼補畫回來
     commitAction();                    // deleting a 刊頭 must be undoable
     toast('已刪除刊頭　⌘/Ctrl+Z 可復原', 'info', 2600);
   });
@@ -3880,9 +3875,6 @@ function readImage(file, sh){
   fr.onload = () => {
     sh.masthead.image = fr.result;
     renderGrid(activeBlock);
-    /* 拼板 換刊頭圖：renderGrid 整塊重排（sig 從 box 變 img），格子裡的畫布和
-       便利貼會一起被洗掉 —— 補畫一次。落版沒有畫布，paintBoardThumbs 自己跳過。 */
-    if (activeTab === 'board') paintBoardThumbs();
     commitAction();
   };
   fr.readAsDataURL(file);
