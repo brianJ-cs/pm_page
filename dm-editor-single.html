@@ -114,6 +114,10 @@
     flex-direction:column;align-items:stretch;gap:7px;padding:12px 8px 10px;user-select:none;
   }
   #typeWrap.on{display:flex}
+  /* 字級這條的標題橫著寫：這條比工具列寬、每一列本來就是橫的（「SKU 12」），
+     標題再直排就跟下面對不上，也白佔一截高度。工具列那條窄、還是直的。 */
+  #typeWrap .rail-title{writing-mode:horizontal-tb;text-orientation:mixed;
+                        letter-spacing:2px;text-align:center;margin-bottom:8px}
   /* 名字在左、格子在右 —— 一列讀完就是「一價 52」，比上下疊少一半的視線移動。
      直排標題還是直的，那是這一條在講什麼；每一列自己是橫的。 */
   #typeWrap .tw-n{display:flex;flex-direction:row;align-items:center;justify-content:space-between;
@@ -5188,7 +5192,8 @@ const priceEls  = [1, 2, 3].map(n => document.getElementById('price' + n));
 
 /** 把現在的設定寫回輸入框；沒設過的留空，placeholder 會顯示「自動」。 */
 function syncTypeBar(){
-  const on = activeTab === 'board' && !!activeBlock;
+  // 字級（SKU／價格大小）是設計排版的事，PM 只挑貨，不給他這一條。
+  const on = activeTab === 'board' && !!activeBlock && activeMode !== 'pm';
   typeWrap.classList.toggle('on', on);
   if (!on) return;
   const t = typeOf(sheetOf(activeBlock));
