@@ -60,12 +60,8 @@ console.log(`  主程式 ${kb(main.length)} + 商品版面 ${kb(pick.length)} �
 await mkdir(PUB, { recursive: true });
 await writeFile(join(PUB, 'editor.html'), out, 'utf8');
 await copyFile(join(here, '落版單系統.html'), join(PUB, 'index.html'));
-/* 壓力測試 devtool 走自己的門：商品版面本人原封不動擺成 /stress。它是整支
-   canvas 加上「壓力測試：價格拖曳」那顆鈕，全螢幕、跟真實檔期完全隔離 ——
-   在線上開 /stress 就能示範重壓下的排版，永遠碰不到 localStorage 裡的檔期。 */
-await copyFile(join(here, '2cell-product-pick.html'), join(PUB, 'stress.html'));
 for (const f of ['config.js', 'supabase-sync.js', '_redirects'])
   await copyFile(join(here, f), join(PUB, f));
 
-console.log(`寫出 ${PUB}${'\\'} —— index.html(行銷) / editor.html(編輯器) / stress.html(壓力測試) / config.js / supabase-sync.js / _redirects`);
+console.log(`寫出 ${PUB}${'\\'} —— index.html(行銷) / editor.html(編輯器) / config.js / supabase-sync.js / _redirects`);
 console.log('  驗一下：node .claude/skills/run-pm-page/driver.mjs --file dm-editor-single.html?seed=1 --wait 800');
