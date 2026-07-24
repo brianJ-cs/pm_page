@@ -282,6 +282,8 @@ body.ui-stage .safe{display:none !important}
   <span class="tlabel" style="margin-left:0">邊界</span>
   <input id="pad" type="range" min="0" max="60" value="10">
   <span class="tinfo" id="padv">10 px</span>
+  <span class="tsep"></span>
+  <button class="mini" id="stressDrag" style="margin:0">壓力測試：價格拖曳</button>
 </div>
 
 <div id="stage">
@@ -443,6 +445,17 @@ function priceFsRaw(b){
   if(PRICE_PX) return PRICE_PX / PRICE_BASE;
   if(GROUP_FS) return GROUP_FS;
   return b.fs || 1;
+}
+/* autoSpace 要「這一塊本來想要多大」時用這個，不用 priceFsRaw —— 差別在最後那一段：
+   priceFsRaw 沒有轉盤／同組時會回 b.fs，而 b.fs 正是 autoSpace 自己上一輪算完寫回去的。
+   拿它當這一輪的輸入 → 排版吃自己的上一個結果 → 每次縮放（轉盤忽大忽小、放大又還原）
+   都要多排一次才收斂，中間那一幀位置是舊的。這裡把自動那段固定回基準 1，autoSpace
+   一次就算得準；b.fs 只當輸出，不再回頭當輸入。 */
+function priceReq(b){
+  if(b.fsFix) return b.fsFix;
+  if(PRICE_PX) return PRICE_PX / PRICE_BASE;
+  if(GROUP_FS) return GROUP_FS;
+  return 1;
 }
 /* b.shrink 是最後那道夾子：要求的字級整列排不下時，autoSpace 算出剛好排得下的
    比例存在每一塊上（整組同一個值，數字之間的相對關係不變）。1 ＝ 沒夾。
@@ -1080,9 +1093,13 @@ function whenPriceFont(){
 }
 
 /* 把「規格／SKU／價格」那一整組上下對準：最低的那一塊離下緣正好 PRICE_BOTTOM。
-   整組一起搬，欄與欄、上下行的相對關係都不動。有搬過才回 true。 */
+   整組一起搬，欄與欄、上下行的相對關係都不動。有搬過才回 true。
+   釘住的價格（b.placed）不貼底 —— 它的位置是手動放的；連它那一欄的 SKU／規格
+   也一起排除，不然整組被貼底就把手動的價格又拉回下緣（就是那個「y 跳回去」）。 */
 function nudgeGroupBottom(blocks){
-  const grp=(blocks||[]).filter(b=>b.col!=null);
+  const placedCols=new Set((blocks||[])
+    .filter(b=>b.kind==='price'&&b.placed).map(b=>b.col));
+  const grp=(blocks||[]).filter(b=>b.col!=null&&!placedCols.has(b.col));
   if(!grp.length) return false;
   let low=-Infinity;
   grp.forEach(b=>{ const n=bEl(b.id); if(!n) return;
@@ -1177,13 +1194,38 @@ function autoSpace(){
     keys.forEach(key=>{ const list=cols.get(key), hs=sizes.get(key);
       list.forEach((b,j)=>{ if(b.kind==='price') prices.push({b,key,j}); }); });
 
+    /* 拖過的價格（b.placed）不再自動排：位置是你放的，字級是它當下那一級。
+       沒拖過的（autoP）才走「貼右下、等距、絕不溢出」那條路。兩種價格的 SKU／
+       規格都要對齊「自己那個價格」，所以 placed 的也得先量出寬高、記下自己的頂端。 */
+    const autoP  = prices.filter(p=>!p.b.placed);
+    const fixedP = prices.filter(p=> p.b.placed);
+
     let priceTop=null, priceH=0;
-    if(prices.length){
-      /* 先問「照要求的字級要多寬」—— 要用 priceFsRaw，問到的才是沒被夾過的原值。 */
-      const want=prices.map(p=>priceFsRaw(p.b));    // 還沒夾過的原值
-      const base=prices.map(p=>sizes.get(p.key)[p.j]);
-      const fixed=base.reduce((a,s)=>a+s.cw,0)+COLGAP*(prices.length-1); // 不縮的部分
-      const inkw=base.reduce((a,s,i)=>a+s.w*want[i],0);                  // 會縮的部分
+
+    // 已釘住的：位置照舊，只把寬高量出來給 SKU／規格靠。p.top 是它自己的上緣。
+    fixedP.forEach(p=>{
+      const s=sizes.get(p.key)[p.j], e=priceFs(p.b)||1;   // 它現在用的那一級字
+      p.w=s.w*e+s.cw; p.h=s.h*e+s.ch;
+      sizes.get(p.key)[p.j]={ w:p.w, h:p.h };
+      /* 位置是手動放的，不重排 —— 但轉盤／字型把它放大到凸出邊線時，從邊界往回
+         退到剛好貼齊，不讓它壓到隔壁版位。只夾這一塊，相對關係不碰；夾完寫回
+         b.x/b.y，所以夾過一次就穩住了（下一次已經在界內，不會再動）。 */
+      let x=p.b.x, y=p.b.y;
+      if(x+p.w>CW-PAD)   x=CW-PAD-p.w;
+      if(x<PAD)          x=PAD;           // 比整條界還寬就貼左，右邊只能溢（字太大）
+      if(y+p.h>CH-PAD_Y) y=CH-PAD_Y-p.h;
+      if(y<PAD_Y)        y=PAD_Y;
+      if(Math.abs(x-p.b.x)>.5||Math.abs(y-p.b.y)>.5){ p.b.x=x; p.b.y=y; moved=true; }
+      p.x=p.b.x; p.top=p.b.y;
+    });
+
+    if(autoP.length){
+      /* 先問「照要求的字級要多寬」—— 用 priceReq（不吃 b.fs），autoSpace 才不會
+         把自己上一輪的結果又當這一輪的輸入（見 priceReq）。 */
+      const want=autoP.map(p=>priceReq(p.b));
+      const base=autoP.map(p=>sizes.get(p.key)[p.j]);
+      const fixed=base.reduce((a,s)=>a+s.cw,0)+COLGAP*(autoP.length-1); // 不縮的部分
+      const inkw=base.reduce((a,s,i)=>a+s.w*want[i],0);                 // 會縮的部分
       /* 絕不溢出：要求的字級排不下就整組等比例縮到剛好排得下。轉盤本來是允許
          溢出的，談定改成不准 —— 寧可字小一點，也不要壓到隔壁版位。
          只有字會縮，框那 10px 不會，所以是這樣解出來的、不是 avail/need。 */
@@ -1194,7 +1236,7 @@ function autoSpace(){
       priceWanted = shrink<1 ? Math.max(.55, shrink) : 1;
 
       const eff=want.map(w=>w*shrink);            // 夾過之後真正要用的
-      prices.forEach((p,i)=>{
+      autoP.forEach((p,i)=>{
         const hs=sizes.get(p.key), s=base[i];
         const was=p.b.fs, wasS=p.b.shrink;
         p.b.fs=priceWanted; p.b.shrink=shrink;
@@ -1205,14 +1247,15 @@ function autoSpace(){
       });
       // 右緣釘在 CW-PAD，由右往左擺，間距固定
       let px=CW-PAD;
-      for(let i=prices.length-1;i>=0;i--){ px-=prices[i].w; prices[i].x=px; px-=COLGAP; }
+      for(let i=autoP.length-1;i>=0;i--){ px-=autoP[i].w; autoP[i].x=px; px-=COLGAP; }
       priceTop=CH-PRICE_BOTTOM-priceH;
-      prices.forEach(p=>{ put(p.b,p.x,priceTop); p.b.w2=p.w; });
+      autoP.forEach(p=>{ put(p.b,p.x,priceTop); p.b.w2=p.w; p.top=priceTop; });
       gTop=priceTop;
     }
 
-    /* 規格／SKU：每一欄靠齊自己那個價格的右緣，由下往上疊。沒有價格的欄
-       （理論上不會有）就退回貼右緣。 */
+    /* 規格／SKU：每一欄靠齊自己那個價格的右緣，由下往上疊。價格被釘走的那一欄
+       就靠著釘住的位置，SKU 跟著價格一起搬；其餘欄照舊貼右下。沒有價格的欄
+       （理論上不會有）才退回貼右緣、貼底。 */
     keys.forEach(key=>{
       const list=cols.get(key), hs=sizes.get(key);
       const p=prices.find(q=>q.key===key);
@@ -1220,7 +1263,7 @@ function autoSpace(){
       const rest=list.map((b,j)=>({b,s:hs[j]})).filter(o=>o.b.kind!=='price');
       if(!rest.length) return;
       const w=Math.max(...rest.map(o=>o.s.w));
-      let y=(priceTop==null?CH-PRICE_BOTTOM:priceTop)-LINEGAP;
+      let y=(p ? p.top : CH-PRICE_BOTTOM)-LINEGAP;
       for(let i=rest.length-1;i>=0;i--){
         y-=rest[i].s.h;
         // b.w2＝這一欄的寬度：整欄靠右對齊靠的就是這個固定寬度框（見 blockHTML）
@@ -1614,7 +1657,16 @@ addEventListener('mouseup',e=>{
         selected.clear(); selected.add(tgt.id);
       }
     }
-    if(drag.moved) dragHappened=true;
+    if(drag.moved){
+      dragHappened=true;
+      /* 拖過的價格就釘在你放的地方 —— 之後 autoSpace 不再把它排回右下（見那邊的
+         placed 分流）。沒拖過的價格照舊自動貼右下、自動縮字。重選商品會整組重建，
+         placed 也跟著沒了，回到全自動。 */
+      for(const id of drag.ids){
+        const b=BLOCKS.find(x=>x.id===id);
+        if(b&&b.kind==='price') b.placed=true;
+      }
+    }
     drag=null; guides=[]; renderCell();
   }
   if(marq){
@@ -1926,6 +1978,94 @@ document.getElementById('gapply').onclick=()=>{
   loadCell(curCell);
   CELLS.forEach((x,i)=>renderOne(i));
 };
+
+/* ====== 價格拖曳壓力測試（看得到的那顆）====================================
+   headless 的 fuzzer 是給機器對數字用的；這顆是給人看的：就在目前這一格裡，
+   一步一步把價格釘到隨機位置、轉盤忽大忽小、偶爾放開一個回自動，你就盯著看
+   「拖過釘住、沒拖的自動貼右下、放大凸出就夾回邊界」到底對不對。右上角三盞燈
+   每一步亮一次：定位穩不穩、釘住的有沒有超界、自動那排有沒有溢出 —— 綠＝對。
+   再按一次停。純 dev 工具，嵌在落版裡也不礙事（那邊 topbar 看不到它）。 */
+let stressTimer=0;
+function stressHud(){
+  let h=document.getElementById('stresshud');
+  if(!h){ h=document.createElement('div'); h.id='stresshud';
+    h.style.cssText='position:fixed;right:14px;top:60px;z-index:95;width:224px;background:#111;color:#fff;'
+      +'font:inherit;font-size:12px;line-height:1.6;padding:10px 12px;border-radius:10px;'
+      +'box-shadow:0 6px 24px rgba(0,0,0,.3)';
+    document.body.appendChild(h); }
+  return h;
+}
+const stressLamp=ok=>`<span style="color:${ok?'#37d67a':'#ff5b5b'}">●</span>`;
+/* 三個不變量：定位再排一次不變、釘住的在界內、自動那排不溢出。 */
+function stressCheck(){
+  const q=id=>cellEl().querySelector(`[data-b="${id}"]`);
+  const ps=BLOCKS.filter(b=>b.kind==='price');
+  let inb=true, ov=false;
+  for(const p of ps){ const n=q(p.id); if(!n) continue;
+    if(p.placed){ if(p.x<PAD-1||p.x+n.offsetWidth>CW-PAD+1||p.y<PAD_Y-1||p.y+n.offsetHeight>CH-PAD_Y+1) inb=false; }
+    else if(p.x+n.offsetWidth>CW-PAD+1) ov=true;
+  }
+  /* 「再排一次不變」要留 1px 容差：量測→定位→再量測本來就有 getComputedStyle／
+     offsetWidth 的次像素捨入，那不是版位在跳，是浮點雜訊。>1px 才算真的不穩。 */
+  const pos=()=>BLOCKS.map(b=>({x:b.x,y:b.y}));
+  const before=pos(); renderOne(curCell,true); const after=pos();
+  const stable=before.every((p,i)=>Math.abs(p.x-after[i].x)<1&&Math.abs(p.y-after[i].y)<1);
+  return { stable, inb, noov:!ov };
+}
+let stressFlash=null;
+function stressStep(){
+  const ps=BLOCKS.filter(b=>b.kind==='price');
+  if(!ps.length) return '這一格沒有價格';
+  const r=Math.random(); let msg; stressFlash=null;
+  if(r<.5){                                   // 釘一個到隨機位置（故意偶爾擺出界）
+    const p=ps[Math.floor(Math.random()*ps.length)];
+    p.placed=true;
+    p.x=Math.round(PAD-20+Math.random()*(CW-2*PAD+40));
+    p.y=Math.round(PAD_Y-20+Math.random()*(CH-2*PAD_Y+40));
+    stressFlash=p.id; msg=`釘住 ${p.id} → 丟到隨機位置`;
+  }else if(r<.8){                             // 轉盤忽大忽小
+    const px=[0,64,88,120][Math.floor(Math.random()*4)];
+    applyType({pricePx:px}); msg=`轉盤字級 → ${px||'自動'}`;
+  }else{                                      // 放開一個回自動
+    const placed=ps.filter(p=>p.placed);
+    if(placed.length){ const p=placed[Math.floor(Math.random()*placed.length)];
+      p.placed=false; msg=`放開 ${p.id}（回自動貼右下）`; }
+    else msg='（目前沒有釘住的可放開）';
+  }
+  renderOne(curCell,true);
+  return msg;
+}
+function runPriceStress(){
+  const btn=document.getElementById('stressDrag');
+  if(stressTimer){ clearTimeout(stressTimer); stressTimer=0;
+    btn.textContent='壓力測試：價格拖曳';
+    const h=document.getElementById('stresshud'); if(h) h.style.opacity='.45';
+    return;
+  }
+  $('#side').classList.remove('on');           // 收起後台，畫布整個露出來
+  // 這一格沒有多價格商品就先鋪一個：iPhone 17 Pro Max 有三個價格，看得出分流
+  if(BLOCKS.filter(b=>b.kind==='price').length<2){
+    picked=new Set(ROWS.filter(r=>r.name==='iPhone 17 Pro Max').slice(0,6).map(r=>r.sku));
+    layoutKey=''; PRICE_PX=0; GROUP_FS=0; buildBlocks(); saveCell(); renderOne(curCell,true);
+  }
+  btn.textContent='停止壓力測試';
+  const hud=stressHud(); hud.style.opacity='1';
+  let step=0, fails=0;
+  const tick=()=>{
+    step++;
+    const msg=stressStep();
+    const c=stressCheck();
+    if(!(c.stable&&c.inb&&c.noov)) fails++;
+    if(stressFlash){ const n=cellEl().querySelector(`[data-b="${stressFlash}"]`);
+      if(n){ n.style.boxShadow='0 0 0 3px #0a84ff'; setTimeout(()=>{ if(n) n.style.boxShadow=''; }, 520); } }
+    hud.innerHTML=`<b>價格拖曳壓力測試</b><br>第 ${step} 步：${msg}<br>`
+      +`${stressLamp(c.stable)} 定位穩定　${stressLamp(c.inb)} 釘住在界內<br>`
+      +`${stressLamp(c.noov)} 自動不溢出　　累計問題 <b>${fails}</b>`;
+    stressTimer=setTimeout(tick, 850);
+  };
+  tick();
+}
+document.getElementById('stressDrag').onclick=runPriceStress;
 
 document.documentElement.style.setProperty('--pad','10px');
 applyRole(ROLE);
