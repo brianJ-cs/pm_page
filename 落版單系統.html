@@ -162,12 +162,13 @@
 
   /* ---- 小地圖：跟編輯器裡那一張是同一張（同一棵 layout 樹、同一套比例），
          只是不能點。形狀就是版面本人，所以「哪一塊還沒做」看得出是版上哪裡。 */
-  .mm-wrap{display:flex;gap:18px;flex-wrap:wrap}
+  /* 兩張版平均分掉整行，中間留一大段 —— 正面和背面是兩張不同的紙，
+     貼在一起會看成一張被切開的版。標籤也各自站在自己那張的上面。 */
+  .mm-wrap{display:flex;gap:36px;width:100%;align-items:flex-start}
   .mm-wrap.shut{display:none}
-  .mm-side{display:flex;align-items:center;gap:7px}
-  .mm-tag{font-size:11.5px;font-weight:800;color:var(--muted);writing-mode:vertical-rl;letter-spacing:3px}
-  .mm-page{width:246px;height:174px;border:2px solid var(--ink);background:#fff;flex:none;
-           display:flex;overflow:hidden}
+  .mm-side{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+  .mm-tag{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:3px}
+  .mm-page{border:2px solid var(--ink);background:#fff;display:flex;overflow:hidden}
   .mm-split{display:flex;width:100%;height:100%;overflow:hidden}
   .mm-fold{width:3px;background:#3d444f;flex:none}
   /* 底色＝這一塊挑到哪了。灰＝還沒開始、半綠＝挑了一部分、全綠＝每一格都有貨 */
@@ -178,9 +179,10 @@
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     line-height:1.15;color:#5d6675;font-weight:800;text-align:center;
   }
-  /* 字級是 miniNode 照這一塊真正多大算好寫在 style 上的，這兩行跟著它縮 */
+  /* 字級是 miniNode 照這一塊真正多大算好寫在 style 上的，這兩行跟著它縮。
+     版位名是主角（要認得出是版上哪一塊），PM 和進度是副標。 */
   .mm-blk b{font-size:1em;font-weight:800}
-  .mm-blk span{font-size:.92em;font-weight:800;font-variant-numeric:tabular-nums;opacity:.85}
+  .mm-blk span{font-size:.82em;font-weight:800;font-variant-numeric:tabular-nums;opacity:.85}
   .mm-blk.part{background:linear-gradient(to top,#cfe9d8 var(--fill,50%),#fff var(--fill,50%));
                border-color:#9fc4ae;color:#33724d}
   .mm-blk.done{background:var(--green);border-color:var(--green);color:#fff}
@@ -945,7 +947,8 @@ function effSizes(node){
   return out;
 }
 
-const MM_PAGE = { w: 246, h: 174 };     // 要跟 .mm-page 一樣
+const MM_RATIO = 174 / 246;   // 一張版的長寬比（跟編輯器那張小地圖同一個比例）
+const MM_GAP   = 36;          // 正面和背面中間留多少（要跟 .mm-wrap 的 gap 一樣）
 /* 哪幾張卡的小地圖是開著的。放在這裡而不是 DOM 上，因為卡片會被整批重建。 */
 const mapOpen = new Set();
 
@@ -958,18 +961,19 @@ function miniNode(node, wpx, hpx){
                  + (who ? '' : ' unowned');
     if (p.state === 'doing' && p.total)
       el.style.setProperty('--fill', Math.round(p.done / p.total * 100) + '%');
-    /* 字級照這一塊真正有多大算，跟編輯器的 miniFontSize 同一個道理：整張版
-       只有 150px 寬，窄的版位分到的可能不到 40px，寫死字級就會被切掉半截。
-       兩行加上行距約 2.4 個字高，所以高度那邊除以 2.4。 */
-    const fs = Math.max(6, Math.min(11, Math.floor(Math.min(hpx / 2.4, wpx / 3.4))));
+    /* 字級照這一塊真正有多大算，跟編輯器的 miniFontSize 同一個道理：窄的版位
+       分到的可能不到 60px 寬，寫死字級就會被切掉半截。兩行加上行距約 2.9 個
+       字高，所以高度那邊除以 2.9。 */
+    const fs = Math.max(7, Math.min(14, Math.floor(Math.min(hpx / 2.9, wpx / 4.4))));
     el.style.fontSize = fs + 'px';
-    /* 名字只留後面那個字（「PM 甲」→「甲」）—— 一塊版位在這裡大概 50px 寬，
-       寫全名就只剩「PM…」，等於什麼都沒說。全名在 title 裡。 */
-    /* 太薄的版位（版面上真的有那種一長條的）就只留顏色 —— 塞字進去只會被切掉
-       半個字，看起來像壞掉。要知道是誰的，滑上去有 title。 */
-    el.innerHTML = hpx < 13 ? ''
-                 : `<b>${who ? who.replace(/^PM\s*/, '') : '－'}</b>`
-                   + (p.total && hpx > 20 ? `<span>${p.done}/${p.total}</span>` : '');
+    /* 版位名是主角 —— 「小家電」才認得出是版上哪一塊，PM 的名字認不出來。
+       PM 只留後面那個字（「PM 甲」→「甲」），全名在 title 裡。
+       太薄的版位（版面上真的有那種一長條的）就只留顏色，塞字進去只會被切掉
+       半個字，看起來像壞掉。 */
+    el.innerHTML = hpx < 14 ? ''
+                 : `<b>${node.name || '版位'}</b>`
+                   + (hpx > 30 ? `<span>${who ? who.replace(/^PM\s*/, '') : '未指派'}${
+                       p.total ? '　' + p.done + '/' + p.total : ''}</span>` : '');
     el.title = `${node.name || '版位'}・${who || '未指派 PM'}　`
              + (p.total ? `${p.done}/${p.total} 格挑好貨` : '還沒排版');
     return el;
@@ -1204,6 +1208,30 @@ function buildCard(plan, now, past){
     const open = mapOpen.has(plan.id);
     wrap.className = 'mm-wrap' + (open ? '' : ' shut');
 
+    /* 兩張版是打開的時候才畫的 —— 要照卡片實際多寬去分，那件事得等它進到
+       畫面上才量得到。順便：關著的卡片一張都不用畫。 */
+    const drawMaps = () => {
+      wrap.innerHTML = '';
+      const room = wrap.clientWidth || 700;
+      const w = Math.max(150, Math.floor((room - MM_GAP) / 2));
+      const h = Math.round(w * MM_RATIO);
+      [['front','正面'], ['back','背面']].forEach(([side, title]) => {
+        if (!plan.layout[side]) return;
+        const box = document.createElement('div');
+        box.className = 'mm-side';
+        const tag = document.createElement('span');
+        tag.className = 'mm-tag';
+        tag.textContent = title;
+        const page = document.createElement('div');
+        page.className = 'mm-page';
+        page.style.width = w + 'px';
+        page.style.height = h + 'px';
+        page.appendChild(miniNode(plan.layout[side], w - 3, h - 3));
+        box.append(tag, page);
+        wrap.appendChild(box);
+      });
+    };
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mm-toggle' + (open ? ' on' : '');
@@ -1213,24 +1241,13 @@ function buildCard(plan, now, past){
       now ? mapOpen.add(plan.id) : mapOpen.delete(plan.id);
       wrap.classList.toggle('shut', !now);
       btn.classList.toggle('on', now);
+      if (now) drawMaps();
     });
     line.appendChild(btn);
     pmRow.appendChild(line);
-
-    [['front','正面'], ['back','背面']].forEach(([side, title]) => {
-      if (!plan.layout[side]) return;
-      const box = document.createElement('div');
-      box.className = 'mm-side';
-      const tag = document.createElement('span');
-      tag.className = 'mm-tag';
-      tag.textContent = title;
-      const page = document.createElement('div');
-      page.className = 'mm-page';
-      page.appendChild(miniNode(plan.layout[side], MM_PAGE.w - 3, MM_PAGE.h - 3));
-      box.append(tag, page);
-      wrap.appendChild(box);
-    });
     pmRow.appendChild(wrap);
+    // 重畫卡片時本來就開著的那幾張要補畫（clientWidth 要等它進 DOM 才量得到）
+    if (open) setTimeout(drawMaps, 0);
   }
   card.appendChild(pmRow);
   return card;
