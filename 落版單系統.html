@@ -133,6 +133,70 @@
     content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;
     border-radius:50%;background:#f5a623;
   }
+  /* ---- PM 進度小地圖：一位 PM 一列，一個小方塊一個版位 ----------------
+     顏色照編輯器那一套（小地圖和總體共用的）：灰＝還沒輪到、白＝手上、綠＝完成。
+     方塊只是狀態，不是可以點的東西 —— 這一頁是看板，動手要回編輯器。 */
+  .pm-row{
+    display:flex;flex-direction:column;align-items:flex-start;gap:9px;
+    margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);
+  }
+  .pm-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pm-who{font-size:13.5px;font-weight:700;color:#5d6675}
+  .pm-who.all{color:var(--green);font-weight:800}
+
+  /* ---- 收起來的樣子：一條方塊，一格一個版位。平常只要看得出「還有幾塊沒做」，
+         真的要知道是版上哪一塊，才點開小地圖。 */
+  .pm-map{display:flex;gap:3px;flex-wrap:wrap;max-width:300px}
+  .pm-blk{width:11px;height:11px;border-radius:3px;background:#eef0f4;border:1px solid #dfe3ea}
+  .pm-blk.part{background:linear-gradient(to top,var(--green) var(--fill,50%),#fff var(--fill,50%));
+               border-color:#9fc4ae}
+  .pm-blk.done{background:var(--green);border-color:var(--green)}
+  .mm-toggle{
+    appearance:none;border:1px solid var(--line);background:#fff;border-radius:20px;
+    padding:3px 11px;font:inherit;font-size:12.5px;font-weight:800;color:#5d6675;cursor:pointer;
+  }
+  .mm-toggle:hover{border-color:var(--blue);color:var(--blue)}
+  .mm-toggle .arw{font-size:10px;margin-left:3px;display:inline-block}
+  .mm-toggle.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  .mm-toggle.on .arw{transform:rotate(180deg)}
+
+  /* ---- 小地圖：跟編輯器裡那一張是同一張（同一棵 layout 樹、同一套比例），
+         只是不能點。形狀就是版面本人，所以「哪一塊還沒做」看得出是版上哪裡。 */
+  .mm-wrap{display:flex;gap:18px;flex-wrap:wrap}
+  .mm-wrap.shut{display:none}
+  .mm-side{display:flex;align-items:center;gap:7px}
+  .mm-tag{font-size:11.5px;font-weight:800;color:var(--muted);writing-mode:vertical-rl;letter-spacing:3px}
+  .mm-page{width:246px;height:174px;border:2px solid var(--ink);background:#fff;flex:none;
+           display:flex;overflow:hidden}
+  .mm-split{display:flex;width:100%;height:100%;overflow:hidden}
+  .mm-fold{width:3px;background:#3d444f;flex:none}
+  /* 底色＝這一塊挑到哪了。灰＝還沒開始、半綠＝挑了一部分、全綠＝每一格都有貨 */
+  /* 邊線要看得出一塊到哪裡結束 —— 淡灰在白底上等於沒有，兩塊沒做的版位會黏成
+     一大片。深一階的線，而且相鄰兩塊各畫各的，接縫自然變成雙線。 */
+  .mm-blk{
+    border:1.5px solid #8a93a4;background:#f4f6f9;overflow:hidden;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    line-height:1.15;color:#5d6675;font-weight:800;text-align:center;
+  }
+  /* 字級是 miniNode 照這一塊真正多大算好寫在 style 上的，這兩行跟著它縮 */
+  .mm-blk b{font-size:1em;font-weight:800}
+  .mm-blk span{font-size:.92em;font-weight:800;font-variant-numeric:tabular-nums;opacity:.85}
+  .mm-blk.part{background:linear-gradient(to top,#cfe9d8 var(--fill,50%),#fff var(--fill,50%));
+               border-color:#9fc4ae;color:#33724d}
+  .mm-blk.done{background:var(--green);border-color:var(--green);color:#fff}
+  /* 沒指派 PM 的版位：整塊更灰，跟編輯器的小地圖同一個講法 */
+  .mm-blk.unowned{background:#e9ecf2;border-color:#cdd4e0;color:#a5adbb}
+  .pm-cnt{font-size:13px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pm-cnt.all{color:var(--green)}
+  .pm-sum{
+    font-size:13px;font-weight:800;color:#5d6675;background:#f3f5f9;
+    border:1px solid var(--line);border-radius:20px;padding:2px 10px;margin-right:4px;
+    font-variant-numeric:tabular-nums;
+  }
+  .pm-sum.all{color:var(--green);background:var(--green-bg);border-color:#cdeeda}
+  /* 還沒進編輯器排過版的檔期，layout 是空的 —— 那就一個字都不要說 */
+  .pm-row.empty{display:none}
+
   .empty-hint{color:var(--muted);text-align:center;margin-top:60px;font-size:18px}
 
   /* ============ VIEW 2 : PLANNING ============ */
@@ -202,14 +266,20 @@
   .tl-panel{padding:6px 6px 2px;user-select:none;-webkit-user-select:none}
   .stack-layer{position:relative;height:130px;margin:0 7px}
   .bar-wrap{position:relative;padding:0 7px}
-  .bar{position:relative;height:40px;border:1px solid #d5dae4;border-radius:4px;overflow:hidden}
-  .grid-line{position:absolute;top:0;bottom:0;width:1px;pointer-events:none}
+  .bar{position:relative;height:40px;border:1px solid #d5dae4;border-radius:4px;overflow:hidden;
+       background:#fff}
+  /* 一天一塊：這個階段做幾天，就有幾塊。本來是一條漸層，看得出顏色換在哪裡，
+     但數不出「這一段是幾天」—— 現在一格就是一天，用數的。
+     上下要頂滿整條 bar：留白會讓它看起來像浮在軌道上的貼紙，而不是軌道本身。
+     一格一格的分界交給本來就在的 grid-line，不必再自己畫白邊。 */
+  .day-blk{position:absolute;top:0;bottom:0;z-index:0}
+  .grid-line{position:absolute;top:0;bottom:0;width:1px;pointer-events:none;z-index:2}
   .grid-line.major{background:rgba(20,30,50,.35)}
   .grid-line.minor{background:rgba(20,30,50,.12)}
   /* weekends/holidays are painted solid white — they punch a blank gap in the
      coloured bar, labelled 周 / 末 (one character per day-block). */
   .we-shade{
-    position:absolute;top:0;bottom:0;pointer-events:none;background:#fff;
+    position:absolute;top:0;bottom:0;pointer-events:none;background:#fff;z-index:1;
     display:flex;align-items:center;justify-content:center;
     font-size:20px;font-weight:900;color:#1e2530;
   }
@@ -336,6 +406,11 @@
   .region-label{pointer-events:none;text-align:center;padding:2px;z-index:1}
   .region-label div{font-weight:800;color:#5a4a3c;line-height:1.35;overflow-wrap:anywhere}
   .region-label .cnt{color:var(--red)}
+  /* 還沒填東西的區塊：虛線框起來。提交前一定要填，不圈起來的話一張版切了
+     十幾塊，漏掉的那一塊得自己一格一格找。 */
+  .window-node.empty-seg{outline:2px dashed var(--red);outline-offset:-2px}
+  .btn:disabled{background:#c3cbd8;box-shadow:none;cursor:not-allowed}
+  .hint.warn{color:var(--red);font-weight:800}
   .window-node.swap-src{outline:3px solid var(--blue);outline-offset:-3px}
   .window-node.swap-target{outline:3px dashed #e0662f;outline-offset:-3px}
   /* a cut line reads as part of the layout, not as UI furniture: 1px of real
@@ -467,18 +542,20 @@
   .cat-field{flex:1;display:flex;flex-direction:column;min-width:0}
   #catInput{width:100%}
   #qtyInput{width:64px;flex:none}
-  /* white suggestion list, same width + font size as 品類 — no native dropdown */
+  /* 品類清單：看得到現有品類、點一下就填進去。
+     沒有「反白最接近的那一筆」了 —— 你已經把字打完了，再反白一筆一模一樣的
+     只是重複；而且那一列是藍的，藍色在這個專案是「你正在點的東西」，
+     一個沒被點過的建議不該長那樣。 */
   #catMenu{
     margin-top:4px;max-height:132px;overflow-y:auto;background:#fff;
     border:1px solid var(--line);border-radius:6px;font-size:15px;
   }
+  #catMenu:empty{display:none}
   #catMenu .opt{
     padding:7px 10px;cursor:pointer;font-weight:700;color:var(--ink);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   #catMenu .opt:hover{background:#f2f5fa}
-  #catMenu .opt.sel{background:#e8f0ff;color:var(--blue)}   /* the closest match */
-  #catMenu .empty{padding:7px 10px;font-weight:700;color:var(--muted)}
   /* 加入 is a small blue cross that appears only when there IS something to add */
   .pop .plus{
     display:none;width:36px;height:36px;flex:none;padding:0;border:none;border-radius:50%;
@@ -588,6 +665,7 @@
     <span id="layoutTitle"></span>
     <div class="spacer"></div>
     <span class="hint">💡 滾輪切換方向，拖曳調整線也能 Undo/Redo</span>
+    <span class="hint warn hidden" id="emptyHint"></span>
     <button class="btn" id="submitBtn">提交給設計</button>
   </div>
 
@@ -818,9 +896,128 @@ function fmtCountdown(ms){
   return `倒數 ${Math.ceil(h/24)} 天`;
 }
 
+/* ================= PM 進度（讀編輯器存下來的東西） =================
+   版位、負責 PM、挑好的貨全都在 plan.layout 裡（編輯器那邊的 snapshot 就是它），
+   所以這一頁不必另外存什麼，讀就有。這裡一律唯讀 —— 要動手是回編輯器的事。 */
+const PM_LIST_KEY = 'board_pms_v1';
+function pmRoster(){
+  try { return JSON.parse(localStorage.getItem(PM_LIST_KEY)) || null; } catch (e){ return null; }
+}
+/* 名單是編輯器那邊維護的。版位記的是 id，名單被改過（有人被刪掉、或這台
+   瀏覽器還沒開過編輯器）就查不到名字 —— 那就照 id 講，總比一片空白好。 */
+const pmLabel = id => ((pmRoster() || []).find(p => p.id === id) || {}).name
+                   || String(id || '').replace(/^pm/i, 'PM ');
+
+/* 樹葉節點就是一個版位（跟編輯器的 collectBlocks 同一個判斷：沒有 children） */
+function planBlocks(plan){
+  const out = [];
+  const walk = n => { if (!n) return; n.children ? n.children.forEach(walk) : out.push(n); };
+  if (plan.layout){ walk(plan.layout.front); walk(plan.layout.back); }
+  return out.filter(b => b.sheet);
+}
+
+/* 一個版位對 PM 來說走到哪了：
+     wait  一格都還沒挑
+     doing 挑了一部分
+     done  每一格都挑好貨了
+   「做完了」用「每一格都有貨」認，因為那正是 PM 在拼板要做的事；
+   編輯器裡「PM 動過手」也是看同一件事（見 makeCard 的 pmFilled）。
+
+   確認列排列（sheet.confirmed）不拿來當條件，只拿來解釋為什麼還沒開始 ——
+   本來是「沒鎖定就一律算還沒開始」，結果每一格都塞滿了卻整條是灰的，
+   等於在說 PM 什麼都沒做。看板要說的是「實際做到哪」，不是「流程跑到哪」。 */
+function blockProgress(b){
+  const cells = (b.sheet.cells) || [];
+  const done = cells.filter(c => ((c.board && c.board.state && c.board.state.picked) || []).length).length;
+  const state = !cells.length || !done ? 'wait' : done === cells.length ? 'done' : 'doing';
+  return { done, total: cells.length, state };
+}
+const blockPmState = b => blockProgress(b).state;
+
+/* ---- 小地圖：把編輯器那一張搬過來 --------------------------------------
+   照抄的是形狀的算法（renderMiniNode／effSizes）：同一棵樹、同一套百分比，
+   所以這裡畫出來的比例跟設計在編輯器裡看到的一模一樣。差別只有兩點 ——
+   這裡不能點，而且每一塊寫的是「PM 挑到哪」而不是版位名稱。 */
+function effSizes(node){
+  const out = node.children.map(k => k.size);
+  const i = out.indexOf(null);
+  if (i >= 0) out[i] = Math.max(0, 100 - out.reduce((s,v) => s + (v || 0), 0));
+  return out;
+}
+
+const MM_PAGE = { w: 246, h: 174 };     // 要跟 .mm-page 一樣
+/* 哪幾張卡的小地圖是開著的。放在這裡而不是 DOM 上，因為卡片會被整批重建。 */
+const mapOpen = new Set();
+
+function miniNode(node, wpx, hpx){
+  if (!node.children){
+    const p = blockProgress(node);
+    const who = node.sheet.pm ? pmLabel(node.sheet.pm) : '';
+    const el = document.createElement('div');
+    el.className = 'mm-blk ' + (p.state === 'doing' ? 'part' : p.state === 'done' ? 'done' : '')
+                 + (who ? '' : ' unowned');
+    if (p.state === 'doing' && p.total)
+      el.style.setProperty('--fill', Math.round(p.done / p.total * 100) + '%');
+    /* 字級照這一塊真正有多大算，跟編輯器的 miniFontSize 同一個道理：整張版
+       只有 150px 寬，窄的版位分到的可能不到 40px，寫死字級就會被切掉半截。
+       兩行加上行距約 2.4 個字高，所以高度那邊除以 2.4。 */
+    const fs = Math.max(6, Math.min(11, Math.floor(Math.min(hpx / 2.4, wpx / 3.4))));
+    el.style.fontSize = fs + 'px';
+    /* 名字只留後面那個字（「PM 甲」→「甲」）—— 一塊版位在這裡大概 50px 寬，
+       寫全名就只剩「PM…」，等於什麼都沒說。全名在 title 裡。 */
+    /* 太薄的版位（版面上真的有那種一長條的）就只留顏色 —— 塞字進去只會被切掉
+       半個字，看起來像壞掉。要知道是誰的，滑上去有 title。 */
+    el.innerHTML = hpx < 13 ? ''
+                 : `<b>${who ? who.replace(/^PM\s*/, '') : '－'}</b>`
+                   + (p.total && hpx > 20 ? `<span>${p.done}/${p.total}</span>` : '');
+    el.title = `${node.name || '版位'}・${who || '未指派 PM'}　`
+             + (p.total ? `${p.done}/${p.total} 格挑好貨` : '還沒排版');
+    return el;
+  }
+  const el = document.createElement('div');
+  el.className = 'mm-split';
+  const row = node.dir === 'row';
+  el.style.flexDirection = row ? 'row' : 'column';
+
+  const sizes = effSizes(node);
+  const folds = node.fold ? 2 * (node.children.length - 1) : 0;   // .mm-fold 的寬
+  const availW = row ? wpx - folds : wpx;
+  const availH = row ? hpx : hpx - folds;
+
+  node.children.forEach((kid, i) => {
+    if (i > 0 && node.fold){
+      const f = document.createElement('div');
+      f.className = 'mm-fold';
+      el.appendChild(f);
+    }
+    const kw = row ? (sizes[i] / 100) * availW : availW;
+    const kh = row ? availH : (sizes[i] / 100) * availH;
+    const k = miniNode(kid, kw, kh);
+    k.style.flex = `${sizes[i]} 1 0%`;
+    k.style.minWidth = '0px';
+    k.style.minHeight = '0px';
+    el.appendChild(k);
+  });
+  return el;
+}
+
+/* 版面上每一個版位一筆，照版上的順序（正面到背面）。
+   一個版位一位 PM 是編輯器的規矩（ensurePmPerBlock），所以「一位 PM 一條小地圖」
+   會變成每個人只有一格 —— 小地圖畫整張 DM，PM 的名字掛在各自那一格上。 */
+function pmProgress(plan){
+  return planBlocks(plan).map(b => {
+    const p = blockProgress(b);
+    return { block: b.name || '版位',
+             who: b.sheet.pm ? pmLabel(b.sheet.pm) : '未指派',
+             state: p.state, done: p.done, total: p.total };
+  });
+}
+
 /* stage schedule of a plan: [{name, from:Date, to:Date}] */
 function planStages(plan){
   const start = parseYMD(plan.start);
+  /* 天數是「工作天」：週末沒有人上班，所以不佔天數，時間軸上也不會有它的方塊。
+     （中間試過改成日曆天，談定還是工作天。） */
   const base = addDays(isWE(start) ? nextWork(start) : start, -1); // day before first valid workday
   let prev = base;
   return plan.durs.map((dur, i) => {
@@ -959,6 +1156,83 @@ function buildCard(plan, now, past){
     row.appendChild(chip);
   });
   card.appendChild(row);
+
+  /* 誰負責哪幾個版位、做到哪裡。排過版才有東西可講，沒有就整條不出現。 */
+  const blks = pmProgress(plan);
+  const pmRow = document.createElement('div');
+  pmRow.className = 'pm-row' + (blks.length ? '' : ' empty');
+  if (blks.length){
+    const done = blks.filter(b => b.state === 'done').length;
+    const line = document.createElement('div');
+    line.className = 'pm-line';
+
+    const sum = document.createElement('span');
+    sum.className = 'pm-sum' + (done === blks.length ? ' all' : '');
+    sum.textContent = `版位 ${done}/${blks.length} 挑完`;
+    line.appendChild(sum);
+
+    /* 誰身上還有事。列沒做完的人就好 —— 全部列出來的話，做完的人也佔一個名字，
+       就變成「一排名字」而不是「還缺誰」。 */
+    const owing = [...new Set(blks.filter(b => b.state !== 'done').map(b => b.who))];
+    const all   = [...new Set(blks.map(b => b.who))];
+    const who = document.createElement('span');
+    who.className = 'pm-who' + (owing.length ? '' : ' all');
+    /* 一個都還沒動的時候，「還沒挑完」等於把全公司的名字念一遍 —— 那不是在
+       點名，是在報名冊。這種時候只說一句還沒開始；真的只剩幾個人才值得列名字。 */
+    who.textContent = !owing.length          ? '都挑完了'
+                    : owing.length === all.length ? '還沒開始'
+                    : owing.length > 3       ? '還沒挑完：' + owing.slice(0,3).join('、') + ` 等 ${owing.length} 人`
+                    : '還沒挑完：' + owing.join('、');
+    /* 收起來的樣子：一塊版位一個方塊，填多少＝挑了幾格。看的是「還剩幾塊」，
+       要知道是版上哪一塊才點開小地圖 —— 每張卡都攤開一張版，列表就沒法看了。 */
+    const map = document.createElement('span');
+    map.className = 'pm-map';
+    blks.forEach(b => {
+      const sq = document.createElement('i');
+      sq.className = 'pm-blk' + (b.state === 'done' ? ' done' : b.state === 'doing' ? ' part' : '');
+      if (b.state === 'doing' && b.total)
+        sq.style.setProperty('--fill', Math.round(b.done / b.total * 100) + '%');
+      sq.title = `${b.block}・${b.who}　${b.total ? `${b.done}/${b.total} 格挑好貨` : '還沒排版'}`;
+      map.appendChild(sq);
+    });
+    line.appendChild(map);
+    line.appendChild(who);
+
+    const wrap = document.createElement('div');
+    /* 開合狀態記在 mapOpen 裡，不是記在 DOM 上 —— renderHome 每次都把卡片整批
+       重建，記在 DOM 上的話倒數計時一跳（每分鐘）你打開的小地圖就自己收起來。 */
+    const open = mapOpen.has(plan.id);
+    wrap.className = 'mm-wrap' + (open ? '' : ' shut');
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mm-toggle' + (open ? ' on' : '');
+    btn.innerHTML = '小地圖<span class="arw">▾</span>';
+    btn.addEventListener('click', () => {
+      const now = !mapOpen.has(plan.id);
+      now ? mapOpen.add(plan.id) : mapOpen.delete(plan.id);
+      wrap.classList.toggle('shut', !now);
+      btn.classList.toggle('on', now);
+    });
+    line.appendChild(btn);
+    pmRow.appendChild(line);
+
+    [['front','正面'], ['back','背面']].forEach(([side, title]) => {
+      if (!plan.layout[side]) return;
+      const box = document.createElement('div');
+      box.className = 'mm-side';
+      const tag = document.createElement('span');
+      tag.className = 'mm-tag';
+      tag.textContent = title;
+      const page = document.createElement('div');
+      page.className = 'mm-page';
+      page.appendChild(miniNode(plan.layout[side], MM_PAGE.w - 3, MM_PAGE.h - 3));
+      box.append(tag, page);
+      wrap.appendChild(box);
+    });
+    pmRow.appendChild(wrap);
+  }
+  card.appendChild(pmRow);
   return card;
 }
 
@@ -1299,8 +1573,10 @@ function dursFromFlags(){
   return flagDates.map(f => { const d = workBetween(prev, f); prev = f; return d; });
 }
 // last weekday the axis can hold; flags may never be dragged past it
+/* 軸上只有 UNITS 格（n = 0…UNITS-1），最後一支旗子要站在最後一格的尾巴上，
+   所以最遠只能到 UNITS-1 那一天 —— 再往右就沒有方塊給它站了。 */
 function lastValid(){
-  const d = addDays(START, UNITS);
+  const d = addDays(START, UNITS - 1);
   return isWE(d) ? prevWork(d) : d;
 }
 function clampFlags(){
@@ -1444,8 +1720,38 @@ function labelRow(i){
   return row;
 }
 
+/* 這一天在做哪一個階段：第一個「還沒結束」的就是它。0 天的階段結束日跟前一支
+   一樣，所以它不會分到任何一天 —— 那正是「同日結束」的意思。 */
+function stageOfDay(d){
+  const t = +atMid(d);
+  for (let i = 0; i < N; i++) if (t <= +atMid(flagDates[i])) return i;
+  return -1;                       // 最後一支旗子之後，沒人認領
+}
+
+/* 一天一塊。週末不畫（不算天數）、開工日之前不畫。 */
+function paintDayBlocks(){
+  bar.querySelectorAll('.day-blk').forEach(n => n.remove());
+  const start = +atMid(baseDay());
+  for (let n = 0; n < UNITS; n++){
+    const d = addDays(START, n);
+    if (isWE(d) || +atMid(d) <= start) continue;
+    const i = stageOfDay(d);
+    if (i < 0) continue;
+    const el = document.createElement('div');
+    el.className = 'day-blk';
+    el.style.left  = (n / UNITS * 100) + '%';
+    el.style.width = (1 / UNITS * 100) + '%';
+    el.style.background = segColor(i);
+    el.title = `${STAGES[i]}　${fmtMDW(d)}`;
+    bar.appendChild(el);
+  }
+}
+
 function render(){
-  const pos = flagDates.map(f => dayOffset(START, f) / UNITS);
+  /* 旗子插在「最後一塊的尾巴」，不是那一天的開頭 —— 期限是那天下班前，
+     旗子就該站在那一格的右緣。所以是 +1 格寬。 */
+  const pos = flagDates.map(f => Math.min(1, (dayOffset(START, f) + 1) / UNITS));
+  paintDayBlocks();
 
   // stages ending on the same day form one stack
   const groups = [];
@@ -1454,29 +1760,9 @@ function render(){
     if (g) g.push(i); else groups.push([i]);
   });
 
-  // segment s = the region left of flag s. A stack's members leave zero-width
-  // segments behind them, so the one real segment to their left fades through
-  // every member's color — the overlap stays visible instead of hiding
-  // everyone but the frontmost flag.
-  const bounds = [0, ...pos, 1];
-  const parts = [];
-  for (let s = 0; s < bounds.length - 1; s++) {
-    const a = bounds[s], b = bounds[s+1];
-    if (b - a < 1e-9) continue;
-    const group = s < N ? groups.find(g => g.includes(s)) : null;
-    const colors = (group && group.length > 1)
-      ? group.map(gi => segColor(gi))
-      : [segColor(s)];
-    if (colors.length === 1) {
-      parts.push(`${colors[0]} ${(a*100).toFixed(3)}%, ${colors[0]} ${(b*100).toFixed(3)}%`);
-    } else {
-      colors.forEach((c,k) => {
-        const stop = a + (b - a) * (k / (colors.length - 1));
-        parts.push(`${c} ${(stop*100).toFixed(3)}%`);
-      });
-    }
-  }
-  bar.style.background = `linear-gradient(to right, ${parts.join(', ')})`;
+  /* 這裡本來是一條 linear-gradient，色標算得很細（同日結束的階段還要在同一段裡
+     漸層過去）。改成一天一塊之後那整段都不需要了 —— 顏色由 paintDayBlocks() 一格
+     一格畫，同日結束的階段本來就分不到方塊，看到的就是「它沒有佔到任何一天」。 */
 
   els.forEach((el,i) => {
     const group = groups.find(g => g.includes(i));
@@ -1530,9 +1816,10 @@ function render(){
 /* drag: snap to weekdays; order is kept by collapsing neighbours onto the
    dragged flag's day (they stack) rather than shoving them further out, so
    dragging never stretches the schedule beyond where you dropped the flag */
+/* 週末沒有方塊，旗子也就不該停在那裡：拖到週末就退到前一個工作天（六→五、日→五）。
+   往前不往後 —— 期限提前趕得上，延後就是遲交。 */
 function snapWeekday(d){
-  if (!isWE(d)) return d;
-  return d.getDay() === 6 ? prevWork(d) : nextWork(d);
+  return isWE(d) ? prevWork(d) : d;
 }
 function setFlagDate(i, date){
   date = snapWeekday(atMid(date));
@@ -1549,10 +1836,12 @@ function setFlagDate(i, date){
     else break;
   }
 }
+/* 旗子畫在「那一格的右緣」，所以游標落在第 n 格中間時要換算回第 n 天：
+   四捨五入抓到的是最近的格線（第 n+1 條），減一格才是那一天本人。 */
 function dateFromClientX(clientX){
   const r = track.getBoundingClientRect();
   const p = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-  return addDays(START, Math.round(p * UNITS));
+  return addDays(START, Math.max(0, Math.round(p * UNITS) - 1));
 }
 
 track.addEventListener('pointerdown', e => {
@@ -1903,7 +2192,6 @@ document.body.style.setProperty('--cursor-h', cur(svgH));
 document.body.style.setProperty('--cursor-vadj', cur(svgVA).replace('40 16','58 16'));
 document.body.style.setProperty('--cursor-hadj', cur(svgHA).replace('40 16','58 16'));
 
-const CATEGORIES = ['刮鬍刀','小家電','空調','五機','季節家電','冰箱','洗衣機','電視','聲霸','通訊數位商品','揪居家','配件','開學季資訊','無刊頭'];
 
 let mode = 'assign';        // assign (default) | cut | swap
 let cutDir = 'vertical';    // the cut tool's direction, switched by the wheel
@@ -2226,9 +2514,9 @@ boardsWrap.addEventListener('mousedown', e => {
 /* ---- assign popup (點選) ---- */
 const assignPop = document.getElementById('assignPop');
 const catInput = document.getElementById('catInput');
+const catMenu = document.getElementById('catMenu');
 const qtyInput = document.getElementById('qtyInput');
 const itemList = document.getElementById('itemList');
-const catMenu = document.getElementById('catMenu');
 const plusBtn = document.getElementById('addItemBtn');
 let assignTarget = null, assignDirty = false;
 
@@ -2239,12 +2527,13 @@ function syncPopUI(){
   plusBtn.classList.toggle('show', !!catInput.value.trim());
 }
 
-/* ---- 品類 suggestion list ----
-   A plain white scrolling list under the input, not a native <datalist>: the
-   browser's dropdown renders dark and at its own font size, which is what the
-   user rejected. `catShown` mirrors what's on screen so keyboard + click agree. */
-let catShown = [], catSel = 0;
-/* 3 = starts with, 2 = contains, 1 = types in order (fuzzy), -1 = no match */
+/* ---- 品類清單 ----
+   看得到公司現有的品類、點一下填進去，不是自動完成：沒有反白、沒有上下鍵、
+   Enter 也不會替你選 —— 打什麼就是什麼。清單只負責「讓你想起來有哪些」。
+   跟你打的字一模一樣的那一筆不列（那一筆是廢話），沒有相符的就整條收起來。 */
+const CATEGORIES = ['刮鬍刀','小家電','空調','五機','季節家電','冰箱','洗衣機','電視','聲霸',
+                    '通訊數位商品','揪居家','配件','開學季資訊','無刊頭'];
+/* 3 = 開頭就是、2 = 中間有、1 = 照順序出現（模糊）、-1 = 不像 */
 function scoreCat(c, q){
   const i = c.indexOf(q);
   if (i === 0) return 3;
@@ -2255,40 +2544,25 @@ function scoreCat(c, q){
 }
 function renderCatMenu(){
   const q = catInput.value.trim();
-  syncPopUI();   // the cross + hint follow whatever is in the 品類 box
-  catShown = q
+  syncPopUI();                       // 「＋」要不要出現跟著這個框走
+  const shown = (q
     ? CATEGORIES.map(c => ({ c, s: scoreCat(c, q) })).filter(o => o.s > 0)
         .sort((a, b) => b.s - a.s).map(o => o.c)
-    : CATEGORIES.slice();
-  if (catSel >= catShown.length) catSel = 0;
+    : CATEGORIES.slice()
+  ).filter(c => c !== q);
   catMenu.innerHTML = '';
-  if (!catShown.length){
-    const e = document.createElement('div');
-    e.className = 'empty';
-    e.textContent = '沒有相符的品類（可直接輸入）';
-    catMenu.appendChild(e);
-    return;
-  }
-  catShown.forEach((c, i) => {
+  shown.forEach(c => {
     const o = document.createElement('div');
-    o.className = 'opt' + (i === catSel ? ' sel' : '');
+    o.className = 'opt';
     o.textContent = c;
-    o.addEventListener('mousedown', e => {   // mousedown: fires before the input blurs
+    o.addEventListener('mousedown', e => {   // mousedown：比 input 失焦早一步
       e.preventDefault();
       catInput.value = c;
-      catSel = 0;
       renderCatMenu();
       qtyInput.focus();
     });
     catMenu.appendChild(o);
   });
-  const sel = catMenu.children[catSel];
-  if (sel) sel.scrollIntoView({ block: 'nearest' });   // keep the closest match visible
-}
-function moveCatSel(d){
-  if (!catShown.length) return;
-  catSel = (catSel + d + catShown.length) % catShown.length;
-  renderCatMenu();
 }
 
 function renderItemList(){
@@ -2326,7 +2600,6 @@ function openAssign(node, x, y){
   assignDirty = false;
   catInput.value = '';
   qtyInput.value = '';
-  catSel = 0;
   renderItemList();
   renderCatMenu();
   assignPop.classList.remove('hidden');
@@ -2347,7 +2620,6 @@ function addPending(){
   assignDirty = true;
   catInput.value = '';
   qtyInput.value = '';
-  catSel = 0;
   renderItemList();
   renderCatMenu();
   return true;
@@ -2362,21 +2634,11 @@ plusBtn.addEventListener('click', () => {
   addPending();
   catInput.focus();
 });
-// typing re-ranks the list so the closest match is highlighted at the top
-catInput.addEventListener('input', () => { catSel = 0; renderCatMenu(); });
+// 打字時重排清單（順便讓「＋」該不該出現跟著變）
+catInput.addEventListener('input', renderCatMenu);
 // Enter walks 品類 -> 數量 -> 加入, so the whole entry is keyboard-only
 catInput.addEventListener('keydown', e => {
-  if (e.key === 'ArrowDown'){ e.preventDefault(); moveCatSel(1); return; }
-  if (e.key === 'ArrowUp'){ e.preventDefault(); moveCatSel(-1); return; }
-  if (e.key === 'Enter'){
-    e.preventDefault();
-    // take the highlighted suggestion, unless what was typed is already exact
-    if (catShown.length && !CATEGORIES.includes(catInput.value.trim())) {
-      catInput.value = catShown[catSel];
-      renderCatMenu();
-    }
-    qtyInput.focus();
-  }
+  if (e.key === 'Enter'){ e.preventDefault(); qtyInput.focus(); }
 });
 qtyInput.addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); addPending(); catInput.focus(); }
@@ -2385,7 +2647,6 @@ document.getElementById('clearItemsBtn').addEventListener('click', () => {
   if (!assignTarget) return;
   catInput.value = '';
   qtyInput.value = '';
-  catSel = 0;
   setItems(assignTarget, []);
   assignDirty = true;
   renderItemList();
@@ -2653,6 +2914,7 @@ document.getElementById('nextBtn').addEventListener('click', () => {
   applyBodyClass();
   initBoards();
   layoutBoards();   // needs the view visible to measure
+  syncSubmitBtn();  // 一進來就是整版空的，提交要先關起來
 });
 
 /* ---- self-contained 落版單 export (no backend: a Blob download) ---- */
@@ -2729,7 +2991,32 @@ footer{margin-top:22px;font-size:13px;color:#7a8494;text-align:center}
   downloadFile(`落版單_${safeName(plan.name)}.html`, html);
 }
 
-document.getElementById('submitBtn').addEventListener('click', async () => {
+/* ---- 每一塊都要填了才能提交 -------------------------------------------------
+   切出來卻沒填品類的區塊，對設計來說就是一塊不知道要放什麼的空白 —— 與其讓它
+   一路流到編輯器再回頭問，不如在這裡就擋住。空的那幾塊會自己框起來，不用一格
+   一格找。用 MutationObserver 盯著整張版：切、換、刪、Undo、填品類都會動到
+   DOM，一個一個去呼叫遲早會漏掉一條路。 */
+const submitBtn = document.getElementById('submitBtn');
+const emptyHint = document.getElementById('emptyHint');
+function emptySegments(){
+  return [...boardsWrap.querySelectorAll('.window-node')].filter(n => !getItems(n).length);
+}
+function syncSubmitBtn(){
+  if (!boardsWrap.querySelector('.window-node')) return;   // 還沒進到這一頁
+  const empties = emptySegments();
+  boardsWrap.querySelectorAll('.window-node').forEach(n => n.classList.remove('empty-seg'));
+  empties.forEach(n => n.classList.add('empty-seg'));
+  submitBtn.disabled = empties.length > 0;
+  submitBtn.title = empties.length ? `還有 ${empties.length} 個區塊沒有填品類` : '';
+  emptyHint.textContent = empties.length ? `還有 ${empties.length} 個區塊沒填` : '';
+  emptyHint.classList.toggle('hidden', !empties.length);
+}
+new MutationObserver(syncSubmitBtn).observe(boardsWrap, {
+  subtree: true, childList: true, attributes: true, attributeFilter: ['data-items'],
+});
+
+submitBtn.addEventListener('click', async () => {
+  if (submitBtn.disabled) return;
   closeAssign(true);
   clearTransient();
   draft.layout = { front: wsFront.innerHTML, back: wsBack.innerHTML };
