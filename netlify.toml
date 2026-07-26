@@ -1,15 +1,18 @@
 # Netlify 設定。有這一支之後，netlify dev / netlify deploy 都不用再帶參數。
 #
-# 這個專案沒有 npm、沒有相依套件：build 只是把兩支 HTML 併成單檔、再把要公開的
-# 檔案擺進 public/。所以 command 就是那一支 node 腳本。
+# 這個專案沒有 npm、沒有相依套件：build 只是把要公開的檔案複製進 public/。
+# 網站不需要合成單檔 —— Netlify 一次發兩支 HTML 沒問題，編輯器用相對網址載得到
+# 商品版面那一頁。合成只有「寄一個檔案給別人」才需要，那是手動的 --bundle。
 
 [build]
   command = "node build-single.mjs"
   publish = "public"
 
-# 本機預覽：netlify dev 只發 public/ 這個資料夾，不會自己跑 build ——
-# 改完程式要先自己跑一次 node build-single.mjs。
+# 本機預覽：交給 dev.mjs。它開起來先複製一次、之後你存檔就自己再複製一次 ——
+# 不必再手動跑 build-single.mjs（以前忘了跑就會看到舊畫面，那個坑補起來了）。
+# 不想經過 netlify 的話，直接 `node dev.mjs` 也是一樣的東西。
 [dev]
-  framework = "#static"
-  publish = "public"
+  command = "node dev.mjs"
+  framework = "#custom"
+  targetPort = 8080
   port = 8888
