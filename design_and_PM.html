@@ -1387,7 +1387,7 @@
     <button class="btn danger" id="wipeBtn" title="清掉這台瀏覽器存的所有檔期與設定">清空資料</button>
     <button class="btn primary" id="importBtn">匯入</button>
   </div>
-  <input type="file" id="importInput" accept=".html,.htm" multiple hidden>
+  <input type="file" id="importInput" accept=".json,.html,.htm" multiple hidden>
 
   <!-- 身分列：設計 / PM，從檔期列表就在，滑鼠靠近上緣才滑下來 -->
   <div class="modebar" id="modeBar">
@@ -6571,9 +6571,9 @@ setInterval(() => {
 }, 30000);
 
 /* ==========================================================================
-   IMPORT — a 落版單 export carries its plan in <script id="plandata">, and
-   its board layout as split-container markup. Both are converted here: the
-   plan becomes a timeline, the markup becomes this app's layout tree.
+   IMPORT — a 落版單 export is the plan as JSON (older ones wrap it in HTML),
+   carrying its board layout as split-container markup. Both are converted
+   here: the plan becomes a timeline, the markup becomes this app's layout tree.
    ========================================================================== */
 
 const pctOf = flex => {
@@ -6631,6 +6631,17 @@ function normalizeLayout(plan){
 }
 
 
+/* 行銷現在匯出的是純 .json；在那之前出的是一張 HTML 落版單，同一份資料夾在
+   <script id="plandata"> 裡面。欄位兩邊一模一樣，只是外面那層裝飾沒了 ——
+   舊檔還躺在人家的下載資料夾裡，所以兩種都收。 */
+function planFromText(text){
+  text = text.trim();
+  if (text[0] === '{') return JSON.parse(text);
+  const tag = new DOMParser().parseFromString(text, 'text/html').getElementById('plandata');
+  if (!tag) throw new Error('no plandata');
+  return JSON.parse(tag.textContent);
+}
+
 function importFiles(fileList){
   const files = [...fileList];
   let added = 0, failed = 0, pending = files.length;
@@ -6643,8 +6654,8 @@ function importFiles(fileList){
     // 從檔案帶入的檔期也要上去，不然只有這台機器看得到
     const s = sync();
     if (s) { imported.forEach(p => s.queueUpsert(p)); }
-    if (failed && added) toast(`匯入完成：成功 ${added} 個，失敗 ${failed} 個（缺少 plandata）`, 'warn', 3600);
-    else if (failed)     toast(`匯入失敗 ${failed} 個檔案（缺少 plandata）`, 'warn', 3600);
+    if (failed && added) toast(`匯入完成：成功 ${added} 個，失敗 ${failed} 個（讀不到檔期資料）`, 'warn', 3600);
+    else if (failed)     toast(`匯入失敗 ${failed} 個檔案（讀不到檔期資料）`, 'warn', 3600);
     else                 toast(`已匯入 ${added} 個檔期`, 'ok');
   };
 
@@ -6652,15 +6663,12 @@ function importFiles(fileList){
     const fr = new FileReader();
     fr.onload = () => {
       try {
-        const doc = new DOMParser().parseFromString(fr.result, 'text/html');
-        const tag = doc.getElementById('plandata');
-        if (!tag) throw new Error('no plandata');
-        const d = JSON.parse(tag.textContent);
+        const d = planFromText(String(fr.result));
         if (!d.start || !Array.isArray(d.durs)) throw new Error('bad plandata');
 
         const plan = {
           id: d.id || ('imp-' + Date.now() + '-' + added),
-          name: d.name || file.name.replace(/\.html?$/i, ''),
+          name: d.name || file.name.replace(/\.(json|html?)$/i, ''),
           type: d.type || '未指定', tags: d.tags || [],
           start: d.start, durs: d.durs
         };

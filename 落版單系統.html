@@ -2772,25 +2772,39 @@ const confirmMask  = document.getElementById('confirmMask');
 const confirmTitle = document.getElementById('confirmTitle');
 const confirmMsg   = document.getElementById('confirmMsg');
 const confirmOk    = document.getElementById('confirmOk');
+const confirmCancel = document.getElementById('confirmCancel');
 const trashMask    = document.getElementById('trashMask');
 const trashList    = document.getElementById('trashList');
 
-/* generic two-step confirm; the caller supplies what to do on 確定 */
-let confirmCb = null;
-function askConfirm(title, msg, okLabel, cb){
+/* generic two-step confirm; the caller supplies what to do on 確定。
+   opts 是後來加的：問「要不要下載」這種不會弄壞東西的問題時，紅色的確定鍵會讓
+   人以為按下去要出事，所以顏色和取消鍵的字都可以換；而且「取消」在那種問法下
+   不是「什麼都別做」而是「不要那個，但流程照走」—— onCancel 就是走給它看的。 */
+let confirmCb = null, confirmCancelCb = null;
+function askConfirm(title, msg, okLabel, cb, opts){
+  const o = opts || {};
   confirmTitle.textContent = title;
   confirmMsg.textContent = msg;
   confirmOk.textContent = okLabel || '刪除';
+  confirmOk.classList.toggle('danger', o.danger !== false);
+  confirmCancel.textContent = o.cancelLabel || '取消';
   confirmCb = cb;
+  confirmCancelCb = o.onCancel || null;
   confirmMask.classList.remove('hidden');
 }
-function closeConfirm(){ confirmMask.classList.add('hidden'); confirmCb = null; }
+function closeConfirm(){
+  confirmMask.classList.add('hidden');
+  const cc = confirmCancelCb;
+  confirmCb = null; confirmCancelCb = null;
+  if (cc) cc();
+}
 confirmOk.addEventListener('click', () => {
   const cb = confirmCb;
+  confirmCancelCb = null;          // 按了確定就不算取消，別把兩條路都跑一遍
   closeConfirm();
   if (cb) cb();
 });
-document.getElementById('confirmCancel').addEventListener('click', closeConfirm);
+confirmCancel.addEventListener('click', closeConfirm);
 confirmMask.addEventListener('click', e => { if (e.target === confirmMask) closeConfirm(); });
 
 // the 回收桶 button lives in the dev panel now, so its count is redrawn with it
@@ -2955,109 +2969,68 @@ document.getElementById('nextBtn').addEventListener('click', () => {
 });
 
 /* ---- self-contained 落版單 export (no backend: a Blob download) ---- */
-const escHtml = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const safeName = s => (String(s || '落版單').replace(/[\\/:*?"<>|\x00-\x1f]/g,'_').trim() || '落版單');
-function downloadFile(filename, text){
-  const blob = new Blob([text], { type:'text/html;charset=utf-8' });
+function downloadFile(filename, text, mime){
+  const blob = new Blob([text], { type:(mime || 'application/json') + ';charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
-/* one file that (a) shows the finished spread by double-click and (b) carries the
-   full plan JSON so 帶入 can re-load it later */
-function exportPlanFile(plan, boardW, boardH){
-  const stages = planStages(plan);
-  const startD = stages[0].from, endD = stages[stages.length - 1].to;
-  const chips = stages.map(s => {
-    const range = dayOffset(s.from, s.to) === 0 ? fmtMD(s.from)
-      : (s.from.getMonth() === s.to.getMonth()
-          ? `${fmtMD(s.from)}-${String(s.to.getDate()).padStart(2,'0')}`
-          : `${fmtMD(s.from)}-${fmtMD(s.to)}`);
-    return `<div class="ec"><div class="en">${escHtml(s.name)}</div><div class="ed">${range}</div></div>`;
-  }).join('');
-  const tagsHtml = (plan.tags || []).map(t => `<span class="pill tag">${escHtml(t)}</span>`).join('');
-  const json = JSON.stringify(plan).replace(/</g, '\\u003c');  // safe inside <script>
-  const wh = `width:${boardW}px;height:${boardH}px`;
-  const html =
-`<!DOCTYPE html>
-<html lang="zh-TW"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>落版單 · ${escHtml(plan.name)}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#f2f4f8;color:#333a45;font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;padding:28px}
-.sheet{max-width:1200px;margin:0 auto;background:#fff;border:1px solid #e2e6ee;border-radius:14px;padding:26px 30px;box-shadow:0 3px 12px rgba(30,40,60,.08)}
-h1{font-size:24px;font-weight:800;margin-bottom:10px}
-.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.pill{font-size:14px;font-weight:800;border:1px solid #e2e6ee;border-radius:6px;padding:3px 10px;color:#7a8494;background:#fafbfd}
-.pill.tag{color:#4a6fdc;border-color:#ccd8f5;background:#eef2fc}
-.range{font-size:15px;font-weight:800;color:#333a45;margin-left:4px}
-.stages{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 22px}
-.ec{min-width:86px;text-align:center;border:1px solid #e2e6ee;border-radius:8px;padding:8px 12px 7px;background:#fafbfd}
-.ec .en{font-size:15px;font-weight:800;color:#5d6675}
-.ec .ed{font-size:13.5px;color:#7a8494;margin-top:2px}
-.boards{display:flex;gap:26px;flex-wrap:wrap;justify-content:center}
-.board h3{font-size:16px;font-weight:800;color:#7a8494;margin-bottom:8px;text-align:center}
-.board-ws{position:relative;overflow:hidden;background:#fff;box-shadow:0 0 0 1px #98a0ae}
-.split-container{display:flex;width:100%;height:100%;overflow:hidden}
-.fold{width:2px;background:#5b6472;flex:none}
-.window-node{box-sizing:border-box;border:1px solid rgba(90,60,40,.45);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.region-label{pointer-events:none;text-align:center;padding:2px}
-.region-label div{font-weight:800;color:#5a4a3c;line-height:1.35;overflow-wrap:anywhere}
-.region-label .cnt{color:#c0392b}
-.resizer{background:rgba(90,60,40,.55);flex:none;position:relative}
-.resizer-vertical{width:1px}.resizer-horizontal{height:1px}
-footer{margin-top:22px;font-size:13px;color:#7a8494;text-align:center}
-@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border:none}}
-</style></head>
-<body>
-<div class="sheet">
-  <h1>${escHtml(plan.name)}</h1>
-  <div class="meta"><span class="pill">${escHtml(plan.type)}</span>${tagsHtml}<span class="range">${fmtMDW(startD)} → ${fmtMDW(endD)}　出稿 ${fmtMD(endD)} 09:00</span></div>
-  <div class="stages">${chips}</div>
-  <div class="boards">
-    <div class="board"><h3>正面</h3><div class="board-ws" style="${wh}">${plan.layout.front}</div></div>
-    <div class="board"><h3>背面</h3><div class="board-ws" style="${wh}">${plan.layout.back}</div></div>
-  </div>
-  <footer>匯出於 ${new Date().toLocaleString('zh-TW')}　·　此檔可用系統右上「帶入 → 從檔案帶入」重新載入</footer>
-</div>
-<script id="plandata" type="application/json">${json}<\/script>
-</body></html>`;
-  downloadFile(`落版單_${safeName(plan.name)}.html`, html);
+/* 匯出＝一份純資料的 .json。以前出的是一張看得到版面的 HTML，資料偷偷夾在
+   <script id="plandata"> 裡面 —— 設計／PM 從頭到尾只讀那一段，外面那層沒人
+   用程式碰過。純 .json 少了那層裝飾，但傳給對方的內容一個欄位都沒變，
+   所以兩邊不必改讀法（design_and_PM 的匯入同時吃舊的 .html 和這個 .json）。
+   縮排排版過 —— 這個檔會被人打開來看、被貼進信裡。 */
+function exportPlanJson(plan){
+  downloadFile(`落版單_${safeName(plan.name)}.json`, JSON.stringify(plan, null, 2), 'application/json');
 }
 
-/* ---- 每一塊都要填了才能提交 -------------------------------------------------
+/* ---- 每一塊都要填齊了才能提交 -----------------------------------------------
    切出來卻沒填品類的區塊，對設計來說就是一塊不知道要放什麼的空白 —— 與其讓它
    一路流到編輯器再回頭問，不如在這裡就擋住。空的那幾塊會自己框起來，不用一格
    一格找。用 MutationObserver 盯著整張版：切、換、刪、Undo、填品類都會動到
-   DOM，一個一個去呼叫遲早會漏掉一條路。 */
+   DOM，一個一個去呼叫遲早會漏掉一條路。
+
+   「填齊」＝ 有品類，而且每一項都有數量。只寫品類、沒寫數量（qty 存成 null）
+   一樣擋下來：版位切好了、要放什麼也寫了，卻沒說要放幾樣 —— 設計還是排不了版，
+   跟整塊空著的差別只在於它看起來像填過了，那更糟。
+   兩種缺法分開數，不然被擋下來的人只知道「有問題」，不知道要去補哪一種。 */
 const submitBtn = document.getElementById('submitBtn');
 const emptyHint = document.getElementById('emptyHint');
-function emptySegments(){
-  return [...boardsWrap.querySelectorAll('.window-node')].filter(n => !getItems(n).length);
+function unfilledSegments(){
+  const nodes = [...boardsWrap.querySelectorAll('.window-node')];
+  const noCat = nodes.filter(n => !getItems(n).length);
+  const noQty = nodes.filter(n => {
+    const items = getItems(n);
+    return items.length && items.some(it => !(it.qty > 0));
+  });
+  return { noCat, noQty, all: noCat.concat(noQty) };
 }
 function syncSubmitBtn(){
   if (!boardsWrap.querySelector('.window-node')) return;   // 還沒進到這一頁
-  const empties = emptySegments();
+  const { noCat, noQty, all } = unfilledSegments();
   boardsWrap.querySelectorAll('.window-node').forEach(n => n.classList.remove('empty-seg'));
-  empties.forEach(n => n.classList.add('empty-seg'));
-  submitBtn.disabled = empties.length > 0;
-  submitBtn.title = empties.length ? `還有 ${empties.length} 個區塊沒有填品類` : '';
-  emptyHint.textContent = empties.length ? `還有 ${empties.length} 個區塊沒填` : '';
-  emptyHint.classList.toggle('hidden', !empties.length);
+  all.forEach(n => n.classList.add('empty-seg'));
+  submitBtn.disabled = all.length > 0;
+  const parts = [];
+  if (noCat.length) parts.push(`${noCat.length} 個沒填品類`);
+  if (noQty.length) parts.push(`${noQty.length} 個沒填數量`);
+  const msg = parts.length ? '還有 ' + parts.join('、') : '';
+  submitBtn.title = msg;
+  emptyHint.textContent = msg;
+  emptyHint.classList.toggle('hidden', !msg);
 }
 new MutationObserver(syncSubmitBtn).observe(boardsWrap, {
   subtree: true, childList: true, attributes: true, attributeFilter: ['data-items'],
 });
 
-submitBtn.addEventListener('click', async () => {
+submitBtn.addEventListener('click', () => {
   if (submitBtn.disabled) return;
   closeAssign(true);
   clearTransient();
   draft.layout = { front: wsFront.innerHTML, back: wsBack.innerHTML };
-  exportPlanFile(draft, wsFront.offsetWidth, wsFront.offsetHeight);   // download the whole 落版單
   plans.push(draft);
   const submitted = draft;
   savePlans(submitted);
@@ -3066,19 +3039,36 @@ submitBtn.addEventListener('click', async () => {
   renderHome();
   show('home');
 
-  /* 有接共用資料庫就直接把人送進編輯器。先 await flush() 把這個檔期真的寫上去，
-     不然跳過去的編輯器會拉不到它。檔案照樣下載 —— 後端全倒的時候那還是唯一的路。
-     file:// 打開的時候不跳（本機沒有 /editor 這個網址），維持原本的下載流程。 */
+  /* 提交本身已經做完了，檔案只是備份 —— 所以這裡是「要不要」，不是「請稍候」。
+     以前不問就往下載資料夾丟一個檔，接了共用資料庫之後那個檔多半沒人打開。
+     問完才走 afterSubmit：跳編輯器那一下會直接離開這一頁，先跳就沒得問了。 */
+  askConfirm(
+    '要下載一份備份嗎？',
+    `會存成「落版單_${safeName(submitted.name)}.json」，`
+    + '內容跟送給設計／PM 的完全一樣。接得上共用資料庫的話他們那邊已經看得到了，'
+    + '這個檔只有在後端連不上、要用檔案傳給對方的時候才需要。',
+    '下載 .json',
+    () => { exportPlanJson(submitted); afterSubmit(submitted, true); },
+    { danger:false, cancelLabel:'不用', onCancel: () => afterSubmit(submitted, false) }
+  );
+});
+
+/* 有接共用資料庫就直接把人送進編輯器。先 await flush() 把這個檔期真的寫上去，
+   不然跳過去的編輯器會拉不到它。
+   刻意不帶 ?plan= —— 帶了那邊會直接開進那一個檔期的總體，等於替設計決定了下一步。
+   提交完該看到的是整排檔期（這一筆就排在裡面），要開哪一個是他自己的事。
+   file:// 打開的時候不跳（本機沒有 /editor 這個網址）。 */
+async function afterSubmit(submitted, downloaded){
   const s = sync();
   const to = (window.SUPABASE || {}).editorUrl;
   if (s && to && /^https?:$/.test(location.protocol)){
     toast('已提交給設計，正在開啟編輯器…');
     try { await s.flush(); } catch (e) { console.warn('提交同步失敗', e); }
-    location.href = to + '?plan=' + encodeURIComponent(submitted.id);
+    location.href = to;
     return;
   }
-  toast('已提交給設計，並已下載落版單檔案');
-});
+  toast(downloaded ? '已提交給設計，並已下載 .json' : '已提交給設計');
+}
 
 /* ================= boot ================= */
 startInput.value = toYMD(START);
