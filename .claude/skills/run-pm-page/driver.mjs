@@ -240,7 +240,11 @@ async function load(file){
      ? 當成檔名的一部分編碼掉，所以先切開，轉完再接回去。 */
   const q = file.indexOf('?');
   const path = q < 0 ? file : file.slice(0, q);
-  const url = pathToFileURL(resolve(path)).href + (q < 0 ? '' : file.slice(q));
+  /* http:// 就照原樣用 —— 要驗 dev.mjs 發出來的那一份（路由、跨頁共用的
+     localStorage）就得走真的網址，file:// 上兩支檔案不算同一個來源。 */
+  const url = /^https?:\/\//i.test(file)
+    ? file
+    : pathToFileURL(resolve(path)).href + (q < 0 ? '' : file.slice(q));
   await send('Page.navigate', { url });
   await sleep(700);                       // these pages boot synchronously
   console.log('load   ' + url);
@@ -280,12 +284,27 @@ await send('Log.enable');
 await send('Emulation.setDeviceMetricsOverride',
   { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
 
+/* 預設不連 Supabase。config.js 裡是公司正式環境的金鑰，而測試會按到「壓力測試」
+   「示範檔期」這種真的會存檔的按鈕 —— 已經往正式資料庫塞過一次假檔期了。
+   在每個 document 開始跑之前先把 window.SUPABASE 釘成唯讀的空設定：config.js
+   之後那句 window.SUPABASE = {...} 就會靜靜地失敗（非嚴格模式不報錯），
+   PlanSync.ok() 回 false，整支走純 localStorage。
+   真的要測同步再加 --live。 */
+if (!argv.includes('--live')) {
+  await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+    Object.defineProperty(window, 'SUPABASE', {
+      value: { url:'', anonKey:'', bucket:'', editorUrl:'editor' },
+      writable: false, configurable: false,
+    });
+  `});
+}
+
 try {
   for (let i = 0; i < argv.length; i++){
     const step = argv[i];
     const arg = () => argv[++i];
     switch (step){
-      case '--headed': break;
+      case '--headed': case '--live': break;   // 開瀏覽器 / 允許連 Supabase，都在啟動時處理過了
       case '--file':      await load(arg()); break;
       case '--wait':      await sleep(+arg()); break;
       case '--waitfor':   await waitFor(arg()); break;

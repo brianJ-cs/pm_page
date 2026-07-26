@@ -16,7 +16,46 @@ description: Launch pm_page's single-file HTML apps (design_and_PM.html, 2cell-p
 - 改顏色、改版面之後 —— 用 `--eval` 量 computed style，比用眼睛猜可靠。
 - 說「修好了」之前。
 
-## 怎麼跑
+## 先看這個：`scenario.mjs`
+
+固定的前置動作（開檔期 → 切到拼板 → 塞滿假資料 → 放大 → 打開一格 → 點中一個零件）
+收成了四個名字。**不要再一個一個參數重打** —— 那是十幾個參數，每驗一次重打一次，
+而且很容易在 shell 的引號上出錯。
+
+```bash
+cd C:/Users/User/Documents/work/pm_page
+S=".claude/skills/run-pm-page/scenario.mjs"
+
+node $S smoke                  # 四個畫面走一輪，看有沒有炸
+node $S board --shot out/b.png # 開到拼板、每一格都有商品
+node $S cell  --shot out/c.png # ↑ 再放大、打開一格（面板開著）
+node $S blk                    # ↑ 再點中格子裡的第一個價格（工具列會出現）
+```
+
+後面接的參數原封不動交給 `driver.mjs`。多認一個 **`--assert <js>`**：跟 `--eval` 一樣，
+但在**畫布 iframe 裡面**跑，`d` 就是那一格畫布的 document。
+
+```bash
+# 選到一個零件之後：工具列上寫什麼、版上還剩幾塊
+node $S blk --assert "[d.querySelectorAll('.blk').length, d.querySelector('#props').textContent]"
+
+# 按 Delete、看有沒有進 localStorage、再 Ctrl+Z（鍵盤事件要送進畫布，不是送給主程式）
+node $S blk \
+  --assert "d.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',bubbles:true}))&&'deleted'" \
+  --wait 1200 \
+  --eval "(localStorage.getItem('catalogue_plans_v1')||'').split('\"off\":{\"').length-1"
+```
+
+為什麼要 `--assert` 而不是直接 `--eval`：畫布裡的 `BLOCKS`、`selected` 都是 `let`／`const`，
+**頂層的 `let` 不會掛到 `window` 上**，從外面 evaluate 讀不到。只能透過 `contentDocument`
+問 DOM。同理，畫布裡的零件不能用 `--click` 點 —— 選擇器會先命中別格畫布裡的同名元素。
+
+> ⚠️ **參數裡不要放正規表示式。** `\{` 這種東西經過 shell 會讓整行卡住不動（沒有輸出、
+> 也不會結束）。要數東西用 `split(...).length-1`。
+
+## 怎麼跑（driver.mjs 本人）
+
+`scenario.mjs` 蓋不到的才直接用它。
 
 ```bash
 cd C:/Users/User/Documents/work/pm_page
@@ -57,6 +96,24 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1" \
 
 ```bash
 node .claude/skills/run-pm-page/driver.mjs --file 2cell-product-pick.html --wait 800 --shot out/pick.png
+```
+
+單獨開這一頁時，頂層的 `let` 就在同一個 scope 裡，`--eval` 直接讀得到（`BLOCKS`、`picked`、
+`cell()`）—— 要驗畫布自己的邏輯，這樣比透過拼板那一層快得多：
+
+```bash
+node .claude/skills/run-pm-page/driver.mjs --file 2cell-product-pick.html \
+  --wait 500 --click ".cell" --wait 300 \
+  --eval "picked=new Set(['2156742','2156739']);cell().picked=picked;layoutKey='';renderOne(0,true);BLOCKS.length"
+```
+
+## 部署那一份
+
+`public/` 是 `node build-single.mjs` 複製出來的（**不是**合成單檔，那是 `--bundle`，
+只有要寄檔案給別人才需要）。要驗 Netlify 上跑的到底是不是好的，就直接跑那一份：
+
+```bash
+node .claude/skills/run-pm-page/scenario.mjs blk --file "public/editor.html?seed=1"
 ```
 
 單獨開的時候它是完整的編輯器；`?ui=stage` 和 `?ui=panel` 是被主程式嵌進去的兩種樣子。
