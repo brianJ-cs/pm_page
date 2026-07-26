@@ -107,7 +107,10 @@
   .plan-card{
     background:var(--card);border:1px solid var(--line);border-radius:12px;
     padding:16px 20px;box-shadow:0 2px 8px rgba(30,40,60,.06);
+    position:relative;                 /* 小地圖的把手掛在下緣，要有這個才定得住 */
   }
+  /* 把手凸出卡片外，所以卡片之間要多留一點，否則會壓到下一張 */
+  #planList .plan-card{margin-bottom:6px}
   .plan-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
   .plan-name{font-size:20px;font-weight:800}
   .pill{
@@ -151,14 +154,21 @@
   .pm-blk.part{background:linear-gradient(to top,var(--green) var(--fill,50%),#fff var(--fill,50%));
                border-color:#9fc4ae}
   .pm-blk.done{background:var(--green);border-color:var(--green)}
-  .mm-toggle{
-    appearance:none;border:1px solid var(--line);background:#fff;border-radius:20px;
-    padding:3px 11px;font:inherit;font-size:12.5px;font-weight:800;color:#5d6675;cursor:pointer;
+  /* 展開小地圖的把手：從卡片下緣凸出來一塊，像書籤 —— 跟編輯器那根收合把手
+     同一個講法（.fold-tab）。不做成按鈕是因為它不是一個「動作」，
+     是這張卡片本身還有一截沒拉開。 */
+  .mm-tab{
+    position:absolute;left:50%;transform:translateX(-50%);bottom:-13px;z-index:3;
+    appearance:none;font-family:inherit;font-size:12px;font-weight:800;line-height:1;
+    padding:0 16px;height:22px;cursor:pointer;
+    border:1px solid var(--line);border-top:0;border-radius:0 0 10px 10px;
+    background:var(--card);color:#5d6675;
+    display:flex;align-items:center;gap:5px;
+    box-shadow:0 3px 6px rgba(30,40,60,.10);
   }
-  .mm-toggle:hover{border-color:var(--blue);color:var(--blue)}
-  .mm-toggle .arw{font-size:10px;margin-left:3px;display:inline-block}
-  .mm-toggle.on{background:var(--blue);border-color:var(--blue);color:#fff}
-  .mm-toggle.on .arw{transform:rotate(180deg)}
+  .mm-tab:hover{background:#eef2fc;border-color:var(--blue);color:var(--blue)}
+  .mm-tab .arw{font-size:10px;display:inline-block;transition:transform .15s}
+  .mm-tab.on .arw{transform:rotate(180deg)}
 
   /* ---- 小地圖：跟編輯器裡那一張是同一張（同一棵 layout 樹、同一套比例），
          只是不能點。形狀就是版面本人，所以「哪一塊還沒做」看得出是版上哪裡。 */
@@ -172,10 +182,10 @@
   .mm-split{display:flex;width:100%;height:100%;overflow:hidden}
   .mm-fold{width:3px;background:#3d444f;flex:none}
   /* 底色＝這一塊挑到哪了。灰＝還沒開始、半綠＝挑了一部分、全綠＝每一格都有貨 */
-  /* 邊線要看得出一塊到哪裡結束 —— 淡灰在白底上等於沒有，兩塊沒做的版位會黏成
-     一大片。深一階的線，而且相鄰兩塊各畫各的，接縫自然變成雙線。 */
+  /* 版位之間用黑線分開。淡灰在白底上等於沒有，兩塊沒做的版位會黏成一大片；
+     黑線跟外框（也是 var(--ink)）同一個顏色，整張版看起來就是切出來的。 */
   .mm-blk{
-    border:1.5px solid #8a93a4;background:#f4f6f9;overflow:hidden;
+    border:1.5px solid var(--ink);background:#f4f6f9;overflow:hidden;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     line-height:1.15;color:#5d6675;font-weight:800;text-align:center;
   }
@@ -962,17 +972,19 @@ function miniNode(node, wpx, hpx){
     if (p.state === 'doing' && p.total)
       el.style.setProperty('--fill', Math.round(p.done / p.total * 100) + '%');
     /* 字級照這一塊真正有多大算，跟編輯器的 miniFontSize 同一個道理：窄的版位
-       分到的可能不到 60px 寬，寫死字級就會被切掉半截。兩行加上行距約 2.9 個
-       字高，所以高度那邊除以 2.9。 */
-    const fs = Math.max(7, Math.min(14, Math.floor(Math.min(hpx / 2.9, wpx / 4.4))));
+       分到的可能不到 60px 寬，寫死字級就會被切掉半截。
+       除數和上下限都是「原本的 ÷ 1.8 / × 1.8」—— 談定字要大 80%，
+       所以整條公式一起放大，不是只把上限拉高（那樣小格子還是小）。 */
+    const fs = Math.max(13, Math.min(25, Math.floor(Math.min(hpx / 1.6, wpx / 2.4))));
     el.style.fontSize = fs + 'px';
     /* 版位名是主角 —— 「小家電」才認得出是版上哪一塊，PM 的名字認不出來。
        PM 只留後面那個字（「PM 甲」→「甲」），全名在 title 裡。
        太薄的版位（版面上真的有那種一長條的）就只留顏色，塞字進去只會被切掉
        半個字，看起來像壞掉。 */
-    el.innerHTML = hpx < 14 ? ''
+    /* 字變大了，塞得下的門檻也跟著抬高（原本的 14 / 30 × 1.8） */
+    el.innerHTML = hpx < 25 ? ''
                  : `<b>${node.name || '版位'}</b>`
-                   + (hpx > 30 ? `<span>${who ? who.replace(/^PM\s*/, '') : '未指派'}${
+                   + (hpx > 54 ? `<span>${who ? who.replace(/^PM\s*/, '') : '未指派'}${
                        p.total ? '　' + p.done + '/' + p.total : ''}</span>` : '');
     el.title = `${node.name || '版位'}・${who || '未指派 PM'}　`
              + (p.total ? `${p.done}/${p.total} 格挑好貨` : '還沒排版');
@@ -1213,7 +1225,8 @@ function buildCard(plan, now, past){
     const drawMaps = () => {
       wrap.innerHTML = '';
       const room = wrap.clientWidth || 700;
-      const w = Math.max(150, Math.floor((room - MM_GAP) / 2));
+      // 滿寬的 0.7：談定版面縮 30%（字反而放大了，所以看起來更滿）
+      const w = Math.max(150, Math.floor((room - MM_GAP) / 2 * 0.7));
       const h = Math.round(w * MM_RATIO);
       [['front','正面'], ['back','背面']].forEach(([side, title]) => {
         if (!plan.layout[side]) return;
@@ -1232,18 +1245,22 @@ function buildCard(plan, now, past){
       });
     };
 
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mm-toggle' + (open ? ' on' : '');
-    btn.innerHTML = '小地圖<span class="arw">▾</span>';
-    btn.addEventListener('click', () => {
+    /* 把手掛在卡片下緣（不是這一行裡）—— 它是「這張卡還有一截沒拉開」的意思，
+       所以站在卡片的邊上，不是站在資訊列裡當一顆按鈕。 */
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'mm-tab' + (open ? ' on' : '');
+    tab.innerHTML = '小地圖<span class="arw">▾</span>';
+    tab.title = open ? '收起小地圖' : '展開小地圖';
+    tab.addEventListener('click', () => {
       const now = !mapOpen.has(plan.id);
       now ? mapOpen.add(plan.id) : mapOpen.delete(plan.id);
       wrap.classList.toggle('shut', !now);
-      btn.classList.toggle('on', now);
+      tab.classList.toggle('on', now);
+      tab.title = now ? '收起小地圖' : '展開小地圖';
       if (now) drawMaps();
     });
-    line.appendChild(btn);
+    card.appendChild(tab);
     pmRow.appendChild(line);
     pmRow.appendChild(wrap);
     // 重畫卡片時本來就開著的那幾張要補畫（clientWidth 要等它進 DOM 才量得到）
