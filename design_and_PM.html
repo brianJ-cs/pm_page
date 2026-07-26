@@ -5005,6 +5005,7 @@ function openBoardCell(anchor, block, cells, at){
                   + '&cell=' + encodeURIComponent(boardCell.cell.id));
     boardLoaded = boardCell.cell.id;
   } else tellBoardRole();      // 同一格再打開：iframe 沒重載，內容還在
+  tellStageEditing();
 }
 
 function closeBoardCell(){
@@ -5012,6 +5013,18 @@ function closeBoardCell(){
   document.getElementById('boardStage').classList.remove('on');
   updateRailTab();
   boardEl.querySelectorAll('.cell.editing').forEach(n => n.classList.remove('editing'));
+  tellStageEditing();
+}
+
+/* 哪一格正在編輯 —— 版上每一塊畫布都要知道，因為只有正在編輯的那一格
+   摸得到（其餘的 pointer-events 是關的）。畫布靠這個決定要不要露出自己的
+   小工具列和「刪掉的」那顆 ＋：關掉面板之後還留著一條工具列浮在版上，
+   看起來就像那一格還開著。每塊畫布自己比對 id，這裡只管廣播。 */
+function tellStageEditing(){
+  const id = boardCell ? String(boardCell.cell.id) : '';
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    try { f.contentWindow.postMessage({ stageEditing: id }, '*'); } catch (_){}
+  });
 }
 
 /* 面板貼著那一格的右邊放。座標是版面自己的座標（不是螢幕的），所以捲動、平移
@@ -5101,9 +5114,19 @@ addEventListener('message', e => {
     .find(c => String(c.id) === String(d.boardCell));
   if (!target) return;
 
+  /* 焦點在畫布裡的時候 Ctrl+Z 到不了這一層 —— 畫布把它轉過來，這裡照常走
+     自己的歷史。畫布只轉「按了什麼」，回不回得去是這邊說了算。 */
+  if (d.boardHistory){
+    d.boardHistory === 'redo' ? redo() : undo();
+    return;
+  }
+
   if (d.ready){                       // iframe 起來了：身分、共用目錄和上次的內容送回去
     e.source.postMessage({ boardRole: activeMode,
                            catalogue: CATALOGUE || undefined,
+                           /* 版面重畫時畫布是整批重掛的，開著的那一格也在裡面 ——
+                              它一起來就要知道自己是不是那一格。 */
+                           stageEditing: boardCell ? String(boardCell.cell.id) : '',
                            boardRestore: (target.board || {}).state || null }, '*');
     return;
   }

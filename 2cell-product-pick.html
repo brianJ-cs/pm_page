@@ -8,7 +8,8 @@
 <style>
 :root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px;
   --drop:#4a6fdc;   /* 藍＝放下去的位置 */
-  --missing:#d31f2b}   /* 紅＝這裡還缺東西（還沒換上商品圖） */
+  --missing:#d31f2b;   /* 紅＝這裡還缺東西（還沒換上商品圖） */
+  --danger-ink:#b3261e; --danger-tint:rgba(179,38,30,.08)}   /* 刪掉東西的那顆按鈕 */
 *{box-sizing:border-box}
 body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-box;background:var(--bg);color:var(--ink);
   font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;display:flex}
@@ -80,11 +81,16 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .blk:hover{border-color:#c3cbd8}
 .blk.sel{border-color:var(--accent);background:rgba(211,31,43,.06)}
 .blk.drop{border-color:#0a7;background:rgba(0,170,119,.12)}
-.blk.name{font-size:30px;font-weight:800;letter-spacing:.5px}
-.blk.model{font-size:13px;font-weight:700;color:#666;letter-spacing:.3px}
+/* --bs＝這一塊自己被放大縮小過幾倍（工具列上的 ＋／−，見 SC_STEP）。基準的數字
+   留在這裡不搬進 JS：改版面規範的人是在改 CSS，不該還要去程式裡找 30 在哪。
+   沒調過就沒有 --bs，calc 吃預設的 1，跟以前一模一樣。價格不走這條路 ——
+   它有自己那套（fsFix → 轉盤 → 同組 → shrink），兩套疊起來會互相追。 */
+.blk.name{font-size:calc(30px * var(--bs,1));font-weight:800;letter-spacing:.5px}
+.blk.model{font-size:calc(13px * var(--bs,1));font-weight:700;color:#666;letter-spacing:.3px}
 /* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
-.blk.brand .bimg{height:26px;display:block;pointer-events:none}
-.bph{position:relative;display:inline-block;width:120px;height:28px}
+.blk.brand .bimg{height:calc(26px * var(--bs,1));display:block;pointer-events:none}
+.bph{position:relative;display:inline-block;
+  width:calc(120px * var(--bs,1));height:calc(28px * var(--bs,1))}
 .bph svg{width:100%;height:100%;display:block}
 .bph i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
@@ -92,8 +98,10 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .blk.img .ph{height:170px}
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:52px;line-height:1}
 .spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
-  font-size:14px;font-weight:800;margin-bottom:3px}
-.sku{font-size:var(--sku-fs,12px);color:#333;line-height:1.35;white-space:nowrap}
+  font-size:calc(14px * var(--bs,1));font-weight:800;margin-bottom:3px}
+/* SKU 的基準是版位那支轉盤（--sku-fs），單塊微調是再乘上去 —— 乘的是轉盤現在
+   那一級，不是寫死的 12，所以轉盤一動，調過的那幾塊也跟著一起動。 */
+.sku{font-size:calc(var(--sku-fs,12px) * var(--bs,1));color:#333;line-height:1.35;white-space:nowrap}
 /* 規格／SKU／價格整欄靠右：右緣對齊欄的右邊界，字級放大時往左溢出、右緣不動。
    靠的是 autoSpace 量好的欄寬（b.w2）當固定寬度框 + text-align:right —— 這樣
    轉盤把價格放大也不會把右緣推出格子外（本來是靠左，一放大就往右頂）。 */
@@ -202,10 +210,42 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 #props::after{content:'';position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);
   width:9px;height:9px;background:#fff;border-right:1px solid var(--line);
   border-bottom:1px solid var(--line);rotate:45deg}
+/* 選到最上面那一排時工具列改掛在下面，箭頭跟著翻上去 */
+#props.under::after{bottom:auto;top:-5px;rotate:225deg}
 .pbtn{appearance:none;border:1px solid var(--line);background:#fbfcfe;border-radius:6px;
   padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 .pbtn:hover{border-color:#111}
 .pbtn.act{background:#111;color:#fff;border-color:#111}
+/* ＋／− 是同一顆按鈕的兩半，做成方的才看得出是一組 */
+.pbtn.sq{padding:5px 0;width:26px;text-align:center;font-size:14px}
+.pbtn.dis{opacity:.35;cursor:default}
+.pbtn.dis:hover{border-color:var(--line)}
+.pbtn.danger{color:var(--danger-ink)}
+.pbtn.danger:hover{border-color:var(--danger-ink);background:var(--danger-tint)}
+/* 目前是幾成大。調過才顯示，沒調過不佔位置 */
+.pnum{font-size:11px;font-weight:800;color:#999;padding:0 3px;align-self:center;min-width:30px;
+  text-align:center}
+/* 藏起來的零件：格子右上角一顆 ＋，數字是藏了幾個。點開是一張清單，
+   打勾就回來 —— 跟 devtools 刪掉節點還找得回來是同一件事。 */
+#restore{position:absolute;display:none;z-index:71}
+#restore.on{display:block}
+.rbtn{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;
+  padding:4px 9px;font:inherit;font-size:12px;font-weight:800;color:#666;cursor:pointer;
+  box-shadow:0 3px 10px rgba(0,0,0,.14);display:flex;align-items:center;gap:5px}
+.rbtn:hover{border-color:#111;color:#111}
+.rbtn .rn{font-size:11px;color:#fff;background:#999;border-radius:999px;padding:0 5px;min-width:16px;
+  text-align:center}
+.rbtn:hover .rn{background:#111}
+.rlist{display:none;position:absolute;right:0;top:calc(100% + 5px);width:210px;max-height:210px;
+  overflow:auto;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px;
+  box-shadow:0 6px 20px rgba(0,0,0,.18)}
+#restore.open .rlist{display:block}
+.ritem{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:6px;cursor:pointer;
+  font-size:12.5px;color:#444}
+.ritem:hover{background:#f4f6fa}
+.ritem input{width:15px;height:15px;accent-color:var(--accent);flex-shrink:0}
+.ritem span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rhead{font-size:11px;font-weight:800;color:#aab;padding:3px 6px 5px}
 #tip{position:fixed;pointer-events:none;z-index:99;background:#111;color:#fff;font-size:12px;
   font-weight:700;padding:5px 9px;border-radius:7px;transform:translate(14px,16px);display:none;white-space:nowrap}
 
@@ -250,8 +290,11 @@ body.ui-panel,body.ui-panel .pbody,body.ui-panel .side-bd{overscroll-behavior:co
    落版上那一格裡面放的就是這個：同一支程式、同一份內容，只是照那一格的大小
    整個縮起來。所以那一格不是縮圖，它就是畫布本人。 */
 body.ui-stage{padding-top:0;background:transparent}
+/* #props（浮動小工具列）以前也關在這裡。拼板就是這個模式 —— 關掉它等於
+   「格子裡的零件不能改大小、不能刪」，所以現在留著。#tip 還是關：那是跟著
+   游標跑的說明，一格一個 iframe 會滿版都是。 */
 body.ui-stage #topbar,body.ui-stage #side,body.ui-stage #rcol,
-body.ui-stage #props,body.ui-stage #tip{display:none !important}
+body.ui-stage #tip{display:none !important}
 body.ui-stage #stage{padding:0;overflow:hidden;height:100vh}
 body.ui-stage #rig{display:block;height:100%}
 body.ui-stage #wrap{height:100%;justify-content:center;align-items:center}
@@ -291,6 +334,7 @@ body.ui-stage .safe{display:none !important}
   <div id="wrap">
     <div id="grid"></div>
     <div id="props"></div>
+    <div id="restore"></div>
   </div>
   <div id="rcol">
     <div class="panel" id="panel">
@@ -436,8 +480,13 @@ let SKU_FS = 12;
 let PRICE_PX = 0;
 let GROUP_FS = 0;
 let priceWanted = 1;            // 這一格自己算出來、剛好裝得下的比例
-/** 這一格有幾個價格 —— 分組就是照這個分的。 */
-function priceCount(bs){ return (bs || BLOCKS).filter(b => b.kind === 'price').length; }
+/** 這一格有幾個價格 —— 分組就是照這個分的。
+    藏起來的不算：版上看不到的價格不該把這一格拖進「三個價格」那一組，
+    不然它會照別人的字級縮，而且會把同組其他格子一起帶偏。 */
+function priceCount(bs, off){
+  const o = off || {};
+  return (bs || BLOCKS).filter(b => b.kind === 'price' && !o[b.uid]).length;
+}
 
 /** 要求的比例，還沒過「絕不溢出」那道夾子。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
 function priceFsRaw(b){
@@ -621,12 +670,26 @@ function applyRole(r){
   if(r==='pm' && !UI_PANEL) document.getElementById('lay').classList.remove('on');
   if(UI_PANEL) openPanels(true);        // 這個模式下面板就是全部，永遠開著
 }
+/* 版上正在編輯的是不是我這一格。只有那一格摸得到（其餘的 pointer-events 是關的），
+   所以工具列和「刪掉的」那顆 ＋ 也只有那一格該露出來 —— 面板一關就把選取清掉，
+   不然那條工具列會一直浮在版上，看起來像那一格還開著。
+   單獨開這一頁（不是拼板裡的畫布）沒有人會講，所以預設就是開著的。 */
+let STAGE_EDIT = !UI_STAGE || window.parent === window;
+function applyStageEditing(id){
+  const on = String(id||'') === String(CELL_ID);
+  if(on === STAGE_EDIT) return;
+  STAGE_EDIT = on;
+  if(!on){ selected.clear(); activeImg=null; }
+  renderCell();                 // 重畫會順手把工具列和 ＋ 一起重算
+}
+
 addEventListener('message',e=>{
   const d = e.data || {};
   if(d.boardRole==='pm'||d.boardRole==='design') applyRole(d.boardRole);
   /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
      CW 還停在預設值的話就會照錯的比例縮。 */
   if(d.stageCm) applyStageCm(d.stageCm);
+  if(d.stageEditing !== undefined) applyStageEditing(d.stageEditing);
   if(d.type) applyType(d.type);          // 這個版位的字級設定（SKU、價格）
   /* 共用的商品目錄要在 restoreBoard 之前收：picked 存的是 SKU，目錄還是內建的
      那份時對不上，畫布會整格空掉。 */
@@ -919,7 +982,39 @@ function buildBlocks(){
     });
   }
   BLOCKS=B;
+  assignUids(BLOCKS);
 }
+
+/* 每一塊在版面上的「身分」，跟 b.id 不一樣：id 是重建時從 0 數的流水號，
+   換一組商品之後同一個號碼就是別人了。藏起來的零件記在格子身上（c.off），
+   重選商品整批重建之後還要認得出誰是誰，靠的就是這個。
+   認的是「哪一種、第幾欄、同類的第幾個」—— 這些都是照 picked 推出來的，
+   同一組商品重建幾次都一樣。 */
+function assignUids(B){
+  const n={};
+  B.forEach(b=>{
+    const base = b.kind==='img' ? 'img|'+b.key : b.kind+'|'+(b.col==null?'-':b.col);
+    n[base]=(n[base]||0)+1;
+    b.uid = base+'#'+n[base];
+  });
+}
+/* 舊檔沒有 uid。補的時候要整批一起補（跟重建時同一套規則），
+   補一半會撞號。 */
+function ensureUids(B){ if(B && B.length && !B[0].uid) assignUids(B); }
+
+/* 這一格藏起來的零件：{uid: 顯示用的名字}。名字要一起存 —— 清單得說得出
+   「你藏起來的是哪一塊」，而那一塊已經不在版上了，問不到它自己。
+   跟換過的商品圖（cellImgs）一樣掛在格子上，理由也一樣：掛在零件身上，
+   重選商品整批重做就跟著不見了。 */
+function offMap(c){
+  c = c || cell();
+  if(!c) return {};
+  if(!c.off) c.off = {};
+  return c.off;
+}
+function isOff(b, c){ return !!offMap(c)[b.uid]; }
+/* 還在版上的（沒被藏起來的）。排版、對齊、分組一律只算這些。 */
+function liveBlocks(){ return BLOCKS.filter(b=>!isOff(b)); }
 
 /** 商品圖疊成一排往右：整排置中，超出邊界就把間距縮小，不會擠出格子外。 */
 function stackImgs(B, rows, w, y, nextId){
@@ -973,9 +1068,13 @@ function xrayDim(b){
   return b.z>a.z ? .5 : 1;
 }
 
+/* 這一塊自己調過的倍率。沒調過就不寫，CSS 那邊 var(--bs,1) 吃預設值。 */
+function bsVar(b){ return (b.sc && b.sc!==1) ? `;--bs:${b.sc}` : ''; }
+
 function blockHTML(b,isCur=true){
   const on = (isCur&&selected.has(b.id))?' sel':'';
-  if(b.kind==='name')  return `<div class="blk name${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${b.text}</div>`;
+  const bs = bsVar(b);
+  if(b.kind==='name')  return `<div class="blk name${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}">${b.text}</div>`;
   if(b.kind==='img'){
     const dim = isCur?xrayDim(b):1;
     const noimg = (cellImgs()[b.key]||IMG[b.key]) ? '' : ' noimg';   // 還沒換圖＝框紅的
@@ -984,9 +1083,9 @@ function blockHTML(b,isCur=true){
       ${imgHTML(b.key)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
-  if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${brandHTML(b.name)}</div>`;
-  if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">機型：${b.text}</div>`;
-  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
+  if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}">${brandHTML(b.name)}</div>`;
+  if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}">機型：${b.text}</div>`;
+  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
   /* 價格用哪一級字由 priceFs() 決定：單格微調 > 轉盤 > 同組最小 > 自己算的。
      轉盤是允許溢出的（談定的），所以這裡不夾上限。 */
   if(b.kind==='price'){
@@ -996,7 +1095,7 @@ function blockHTML(b,isCur=true){
       fs&&fs!==1?`;font-size:${(PRICE_BASE*fs).toFixed(1)}px`:''}">${b.price}</div>`;
   }
   // sku
-  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${b.w2?`;width:${b.w2}px`:''}">`+
+  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}">`+
     `<div class="sku">${skuLine(b.vs)}</div></div>`;
 }
 
@@ -1031,9 +1130,12 @@ function renderOne(i, force){
       },0); }
     else { picked=savedP; BLOCKS=savedB; }
   }
-  const blocks = isCur?BLOCKS:c.blocks;
+  /* 藏起來的零件在這裡就被濾掉：不畫、不量、不參與排版。留在 c.blocks 裡不刪，
+     所以打勾放回來的時候它連位置、調過的大小都還在原地，不必整組重建。 */
+  const hid = c.off || {};
+  const blocks = (isCur?BLOCKS:c.blocks).filter(b=>!hid[b.uid]);
   el.className='cell'+(isCur?' cur':'')+row1;
-  if(isCur) setTimeout(renderProps,0);
+  if(isCur) setTimeout(()=>{ renderProps(); renderRestore(); },0);
   const paint = hidden => {
     el.innerHTML = '<div class="cstage'+(hidden?' measuring':'')+'">'
       + blocks.map(b=>blockHTML(b,isCur)).join('')
@@ -1138,6 +1240,9 @@ function oldLayout(bs){
    回傳有沒有動過，動過才值得重畫。 */
 function autoSpace(){
   const el=cellEl(); if(!el || !BLOCKS.length) return false;
+  /* 藏起來的不排：它沒有畫出來，量到的是 null，跟著排會佔掉一個欄位、
+     把後面的整排往旁邊推 —— 看起來就是「刪掉一個價格，其他價格還是分那麼開」。 */
+  const VIS=liveBlocks();
   /* offsetWidth/offsetHeight 本來就是排版座標，不必再除縮放 —— 以前是量
      getBoundingClientRect() 再除 scaleOf()，那條路會吃掉 padding 那 4px，
      於是價格離下緣永遠少 4（設 5 只看得到 1）。這裡量的就是 CSS 定位用的同一套數字。 */
@@ -1151,7 +1256,7 @@ function autoSpace(){
   /* 上面留白也是白費的空間：品牌／品名這一疊貼齊上緣（PAD），
      價格那一排本來就貼齊下緣 —— 兩頭都到底，中間留給商品圖。 */
   let hy=PAD_Y;
-  ['brand','name','model'].map(kind=>BLOCKS.find(b=>b.kind===kind)).filter(Boolean)
+  ['brand','name','model'].map(kind=>VIS.find(b=>b.kind===kind)).filter(Boolean)
     .forEach(b=>{
       const sz=size(b.id)||{w:0,h:0};
       put(b, PAD, hy);
@@ -1160,7 +1265,7 @@ function autoSpace(){
 
   // 多欄：規格／SKU／價格整組靠右下，欄與欄之間留得下最寬的那一塊
   const cols=new Map();
-  BLOCKS.forEach(b=>{ if(b.col==null) return;
+  VIS.forEach(b=>{ if(b.col==null) return;
     if(!cols.has(b.col)) cols.set(b.col,[]);
     cols.get(b.col).push(b); });
 
@@ -1281,14 +1386,14 @@ function autoSpace(){
   }
 
   // 舊檔裡單獨貼右下角的價格（現在改走欄位那條路，這段留著讓舊版面還能對齊）
-  BLOCKS.filter(b=>b.anchor==='br').forEach(b=>{
+  VIS.filter(b=>b.anchor==='br').forEach(b=>{
     const s=size(b.id); if(!s) return;
     put(b, Math.max(PAD,CW-PAD-s.w), Math.max(PAD_Y,CH-PAD_Y-s.h));
   });
 
   /* 格子越扁，上下能用的高度越少：商品圖夾在「品牌品名」和「數字那一疊」中間，
      兩頭都不能壓到。擠不下就往上讓 —— 字和價格是要看的，圖可以擋一點。 */
-  BLOCKS.filter(b=>b.kind==='img').forEach(b=>{
+  VIS.filter(b=>b.kind==='img').forEach(b=>{
     const sz=size(b.id); if(!sz) return;
     let y=b.y;
     if(gTop!==null && y+sz.h > gTop-6) y = gTop-6-sz.h;
@@ -1353,7 +1458,7 @@ function snap(movingIds, sizes){
   // 對齊線用安全邊界，不用格子實際邊緣
   const tV=[{v:PAD},{v:CW/2},{v:CW-PAD}], tH=[{v:PAD},{v:CH/2},{v:CH-PAD}];
   for(const b of BLOCKS){
-    if(movingIds.includes(b.id)) continue;
+    if(movingIds.includes(b.id) || isOff(b)) continue;   // 藏起來的不當對齊線
     const s=sizes[b.id]||{w:0,h:0};
     tV.push({v:b.x},{v:b.x+s.w/2},{v:b.x+s.w});
     tH.push({v:b.y},{v:b.y+s.h/2},{v:b.y+s.h});
@@ -1541,7 +1646,8 @@ function normalizeZ(){
 /* ====== 右側圖層面板：顯示這個格子的圖層 ====== */
 function renderLayers(){
   const box=$('#layers');
-  const imgs=BLOCKS.filter(b=>b.kind==='img').sort((a,b)=>b.z-a.z); // 上層在前
+  // 藏起來的圖不列在圖層裡：它不在版上，談不上疊在誰上面（要找回來走右上角那顆 ＋）
+  const imgs=liveBlocks().filter(b=>b.kind==='img').sort((a,b)=>b.z-a.z); // 上層在前
   if(!imgs.length){ box.innerHTML='<div class="empty-hint">尚未選商品</div>'; return; }
   box.innerHTML=imgs.map(b=>
     `<div class="lyr${activeImg===b.id?' on':''}" data-lyr="${b.id}" draggable="true">
@@ -1600,15 +1706,138 @@ function applyLayerOrder(){
   renderCell(); renderLayers();
 }
 
+/* ====== 單塊的大小：放大、縮小、回自動 ======================================
+   每一種零件的「大小」不是同一件事，所以存的地方也不同：
+     圖  → b.w（px 寬，高是等比跟著跑的）
+     價格→ b.fsFix（比例。價格本來就有一套 fsFix > 轉盤 > 同組 > 自動，
+            這裡就是把最前面那一級寫進去）
+     其他→ b.sc（比例，CSS 那邊 --bs 乘上去）
+   共通的一條規矩：這些欄位只給人寫，autoSpace 一律不准回頭寫它們 ——
+   排版讀自己上一輪的輸出當輸入，就會每次都要多排一次才收斂（見 priceReq）。 */
+const SC_STEP=1.08, SC_MIN=.4, SC_MAX=3;
+const clampSc=v=>Math.min(SC_MAX,Math.max(SC_MIN,v));
+
+/* 這一塊現在是幾倍大（1＝沒調過）。給工具列顯示，也給 ＋／− 當起點。 */
+function scaleOfBlock(b){
+  if(b.kind==='img')   return b.w0 ? b.w/b.w0 : 1;
+  if(b.kind==='price') return b.fsFix || 0;      // 0＝還是自動，沒有固定倍率
+  return b.sc || 1;
+}
+function scaleBlock(b, mul){
+  if(b.kind==='img'){
+    if(!b.w0) b.w0=b.w;                          // 第一次調就記下原本多寬，才回得去
+    b.w = +(b.w0 * clampSc((b.w/b.w0) * mul)).toFixed(1);
+    return;
+  }
+  if(b.kind==='price'){
+    /* 起點是它「現在看起來多大」（含轉盤、同組），不是基準 1 ——
+       不然轉盤調過之後按一下 ＋，字會先跳回 52 再放大。 */
+    b.fsFix = +clampSc((b.fsFix || priceFsRaw(b) || 1) * mul).toFixed(3);
+    return;
+  }
+  b.sc = +clampSc((b.sc||1) * mul).toFixed(3);
+}
+function resetBlock(b){
+  if(b.kind==='img'){ if(b.w0){ b.w=b.w0; delete b.w0; } return; }
+  if(b.kind==='price'){ delete b.fsFix; return; }
+  delete b.sc;
+}
+function selBlocks(){
+  /* PM 只能選和看：大小、刪掉都是排版的事（跟拖曳同一條線）。擋在這裡而不是
+     只擋按鈕 —— 按鈕會不會畫出來是版面的事，能不能動到版面是規則的事。 */
+  if(ROLE==='pm') return [];
+  return [...selected].map(id=>BLOCKS.find(b=>b.id===id)).filter(Boolean);
+}
+
+function scaleSelected(mul){
+  const sel=selBlocks(); if(!sel.length) return;
+  sel.forEach(b=>scaleBlock(b,mul));
+  renderOne(curCell,true); reportBoard();
+}
+function resetSelected(){
+  const sel=selBlocks(); if(!sel.length) return;
+  sel.forEach(resetBlock);
+  renderOne(curCell,true); reportBoard();
+}
+
+/* ====== 刪掉／找回來 ========================================================
+   刪掉不是真的丟掉：記在格子的 off 名冊上，版上就不畫了。右上角那顆 ＋
+   列的就是這份名冊，打勾就回到原來的位置 —— 位置、調過的大小都還在，
+   因為那一塊從頭到尾沒有離開過 c.blocks。 */
+function labelOf(b){
+  if(b.kind==='img')   return '商品圖　'+keyLabel(b.key);
+  if(b.kind==='name')  return '品名　'+(b.text||'');
+  if(b.kind==='brand') return '品牌　'+(b.name||'');
+  if(b.kind==='model') return '機型　'+(b.text||'');
+  if(b.kind==='spec')  return '規格　'+(b.spec||'');
+  if(b.kind==='price') return '價格　'+(b.price!=null?'$'+b.price:'');
+  return 'SKU　'+((b.vs&&b.vs.length)?b.vs.map(v=>v.sku).join(' / '):'');
+}
+function hideSelected(){
+  const sel=selBlocks(); if(!sel.length) return;
+  const off=offMap();
+  sel.forEach(b=>{ if(b.uid) off[b.uid]=labelOf(b); });
+  selected.clear(); activeImg=null;
+  /* 少了一塊，右下那一疊要重新靠齊、圖要重新讓開 —— 強制重排一次。 */
+  renderOne(curCell,true); renderLayers(); reportBoard();
+}
+function restoreUid(uid){
+  delete offMap()[uid];
+  renderOne(curCell,true); renderLayers(); reportBoard();
+}
+
+/* 右上角那顆 ＋：藏了東西才出現，沒藏就不佔畫面。 */
+function renderRestore(){
+  const box=$('#restore'); if(!box) return;
+  const off=offMap(), keys=Object.keys(off);
+  const el=cellEl();
+  if(!keys.length || !el || ROLE==='pm' || !STAGE_EDIT){
+    box.classList.remove('on','open'); box.innerHTML=''; return;
+  }
+  box.innerHTML=
+    `<button class="rbtn" data-rtoggle>＋<span class="rn">${keys.length}</span></button>`+
+    `<div class="rlist"><div class="rhead">刪掉的，打勾放回來</div>`+
+    keys.map(k=>`<label class="ritem"><input type="checkbox" data-ruid="${k}"><span>${off[k]}</span></label>`).join('')+
+    `</div>`;
+  // 位置：格子右上角，座標以 #wrap 為基準（跟 #props 同一套）
+  const wrapR=$('#wrap').getBoundingClientRect(), r=el.getBoundingClientRect();
+  box.style.left=(r.right-wrapR.left-8)+'px';
+  box.style.top =(r.top-wrapR.top+8)+'px';
+  box.style.transform='translateX(-100%)';
+  box.classList.add('on');
+
+  box.querySelector('[data-rtoggle]').onmousedown=ev=>{
+    ev.preventDefault(); ev.stopPropagation();
+    box.classList.toggle('open');
+  };
+  box.querySelectorAll('[data-ruid]').forEach(inp=>{
+    inp.onmousedown=ev=>ev.stopPropagation();
+    inp.onchange=()=>restoreUid(inp.dataset.ruid);
+  });
+}
+
 /* ====== 右側面板頂部：依選取的元素顯示可切換的屬性 ====== */
 function renderProps(){
   const box=$('#props');
-  const sel=[...selected].map(id=>BLOCKS.find(b=>b.id===id)).filter(Boolean);
+  const sel=selBlocks().filter(b=>!isOff(b));
+  /* 大小和刪除是排版的事，PM 只能看和選（跟拖曳同一條線）。
+     黑色／劃線本來也只有設計動得到，一起收在這個判斷裡。 */
+  if(!sel.length || ROLE==='pm' || !STAGE_EDIT){ box.classList.remove('on'); box.innerHTML=''; return; }
   const specs=sel.filter(b=>b.kind==='spec');
   const prices=sel.filter(b=>b.kind==='price');
-  if(!specs.length&&!prices.length){ box.classList.remove('on'); box.innerHTML=''; return; }
 
-  let h='';
+  /* 選一塊才報幾成大；選一群的時候每塊倍率不同，報一個數字會是騙人的。 */
+  let now='';
+  if(sel.length===1){
+    const s=scaleOfBlock(sel[0]);
+    now = s ? Math.round(s*100)+'%' : '自動';
+  }
+  const changed = sel.some(b=>scaleOfBlock(b) && scaleOfBlock(b)!==1);
+
+  let h=`<button class="pbtn sq" data-size="down" title="縮小">−</button>`
+       +`<span class="pnum">${now}</span>`
+       +`<button class="pbtn sq" data-size="up" title="放大">＋</button>`
+       +`<button class="pbtn${changed?'':' dis'}" data-size="reset">回自動</button>`;
   if(specs.length){
     const allDark=specs.every(b=>b.dark);
     h+=`<button class="pbtn${allDark?' act':''}" data-prop="dark">黑色</button>`;
@@ -1617,22 +1846,28 @@ function renderProps(){
     const allX=prices.every(b=>b.cross);
     h+=`<button class="pbtn${allX?' act':''}" data-prop="cross">劃線</button>`;
   }
+  h+=`<button class="pbtn danger" data-kill="1" title="刪掉（Delete）">刪掉</button>`;
   box.innerHTML=h;
   box.classList.add('on');
 
   // 定位：所有選中元素的外框上緣中點（座標以 #wrap 為基準）
   const wrapR=$('#wrap').getBoundingClientRect();
-  let L=Infinity,T=Infinity,R=-Infinity;
-  for(const b of [...specs,...prices]){
+  let L=Infinity,T=Infinity,R=-Infinity,B=-Infinity;
+  for(const b of sel){
     const el=bEl(b.id); if(!el) continue;
     const r=el.getBoundingClientRect();
-    L=Math.min(L,r.left); R=Math.max(R,r.right); T=Math.min(T,r.top);
+    L=Math.min(L,r.left); R=Math.max(R,r.right);
+    T=Math.min(T,r.top);  B=Math.max(B,r.bottom);
   }
   if(L===Infinity){ box.classList.remove('on'); return; }
-  const cx=(L+R)/2-wrapR.left, cy=T-wrapR.top;
+  const cx=(L+R)/2-wrapR.left;
   const bh=box.offsetHeight||30;      // 讀取時強制 reflow，取得真實高度
+  /* 選到最上面那一排（品牌、品名）時，工具列擺上面就出了畫面外 ——
+     拼板那一格是 overflow:hidden，出去就等於整條不見了。頂不住就改掛下面。 */
+  const up=T-wrapR.top-bh-9, below=B-wrapR.top+9;
   box.style.left=cx+'px';
-  box.style.top=(cy-bh-9)+'px';
+  box.style.top=(up<0?below:up)+'px';
+  box.classList.toggle('under', up<0);
   box.style.transform='translateX(-50%)';
 
   box.querySelectorAll('[data-prop]').forEach(btn=>btn.onmousedown=ev=>{
@@ -1643,6 +1878,16 @@ function renderProps(){
     targets.forEach(b=>b[k]=turnOn);
     renderCell();
   });
+  box.querySelectorAll('[data-size]').forEach(btn=>btn.onmousedown=ev=>{
+    ev.preventDefault(); ev.stopPropagation();
+    const k=btn.dataset.size;
+    if(k==='reset') resetSelected();
+    else scaleSelected(k==='up'?SC_STEP:1/SC_STEP);
+  });
+  box.querySelector('[data-kill]').onmousedown=ev=>{
+    ev.preventDefault(); ev.stopPropagation();
+    hideSelected();
+  };
 }
 
 function markLayerActive(){
@@ -1856,7 +2101,8 @@ function boardState(){
      上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
   return { v:3, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
            img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
-           nPrice: priceCount(c.blocks), wantFs: priceWanted };
+           off: c.off || {},          // 刪掉的零件（uid → 名字），右上角那顆 ＋ 列的就是它
+           nPrice: priceCount(c.blocks, c.off), wantFs: priceWanted };
 }
 let reportTimer = 0;
 function reportBoard(){
@@ -1874,6 +2120,8 @@ function restoreBoard(s){
   BLOCKS = s.blocks||[];
   layoutKey = s.layoutKey||'';
   if(cell()) cell().img = s.img || {};      // 換過的商品圖跟著這一格回來
+  if(cell()) cell().off = s.off || {};      // 刪掉的也跟著回來（否則一重開就全部復活）
+  ensureUids(BLOCKS);                       // 舊檔沒有 uid，補一次才認得出誰被刪了
   /* 舊檔的座標存的是「每一格都 540 寬」那套；現在每一格照自己的實際尺寸開
      座標系，兩套之間差一個等比例（寬高差的是同一個 k —— 舊的 CH 也是照同一個
      長寬比推出來的）。轉一次就好，轉完 boardState() 會蓋上 v:2。
@@ -1894,6 +2142,31 @@ function restoreBoard(s){
   selected.clear();
   refreshAll();
 }
+
+/* ====== 鍵盤 ==============================================================
+   這一頁本來一個 keydown 都沒有（畫布上沒有東西要打字）。加了刪除就非加不可，
+   而且 Ctrl+Z 一定要一起處理：拼板那一格是 iframe，焦點在裡面的時候
+   keydown 根本傳不到主程式那一層 —— 刪得掉、按 Z 卻沒反應是最嚇人的組合。
+   刪除本身早就是一步歷史了（主程式收到畫布回報就 commitAction），
+   這裡只是把「按鍵在誰身上」這件事接回去。 */
+addEventListener('keydown', e=>{
+  const t=e.target;
+  if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod && (e.key==='z'||e.key==='Z'||e.key==='y'||e.key==='Y')){
+    if(window.parent===window) return;            // 單獨開這一頁就沒有上一層可以問
+    e.preventDefault();
+    const redo = (e.key==='y'||e.key==='Y') || e.shiftKey;
+    try{ parent.postMessage({ boardCell:CELL_ID, boardHistory: redo?'redo':'undo' }, '*'); }catch(_){}
+    return;
+  }
+  if(mod) return;
+  if(e.key==='Delete'||e.key==='Backspace'){
+    if(ROLE==='pm' || !STAGE_EDIT || !selected.size) return;
+    e.preventDefault();
+    hideSelected();
+  }
+});
 
 /* ====== 互動 ====== */
 document.getElementById('grid').onclick=e=>{
