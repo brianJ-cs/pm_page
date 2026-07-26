@@ -193,11 +193,14 @@
      版位名是主角（要認得出是版上哪一塊），PM 和進度是副標。 */
   .mm-blk b{font-size:1em;font-weight:800}
   .mm-blk span{font-size:.82em;font-weight:800;font-variant-numeric:tabular-nums;opacity:.85}
+  /* 三種狀態只換底色和字色，**邊線一律不碰** —— 本來 .done 把 border-color
+     蓋成綠的、.part 蓋成淺綠，於是整張版做完之後那些黑線就消失了，
+     十塊綠色黏成一大片。分隔線講的是「版面切在哪裡」，跟做到哪無關。 */
   .mm-blk.part{background:linear-gradient(to top,#cfe9d8 var(--fill,50%),#fff var(--fill,50%));
-               border-color:#9fc4ae;color:#33724d}
-  .mm-blk.done{background:var(--green);border-color:var(--green);color:#fff}
+               color:#33724d}
+  .mm-blk.done{background:var(--green);color:#fff}
   /* 沒指派 PM 的版位：整塊更灰，跟編輯器的小地圖同一個講法 */
-  .mm-blk.unowned{background:#e9ecf2;border-color:#cdd4e0;color:#a5adbb}
+  .mm-blk.unowned{background:#e9ecf2;color:#a5adbb}
   .pm-cnt{font-size:13px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
   .pm-cnt.all{color:var(--green)}
   .pm-sum{
