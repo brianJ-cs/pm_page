@@ -41,15 +41,24 @@ const ZOOM_IN = `(()=>{
   return 'zoomed';
 })()`;
 
-/* 挑一格「畫面上看得到、而且已經有畫布」的，掛上 id 讓 --click 指得到。
-   第一格通常被放大推到畫面外，不能寫死。 */
+/* 挑一格已經掛上畫布的，掛上 id 讓 --click 指得到。
+   不要寫死座標，也不要要求「整格都在畫面裡」：版位現在一律照它真正的比例畫
+   （列高不夠就整塊等比放大），一塊又寬又扁的版位可以比整個面板還寬，寫死的框框
+   會一格都框不到。改成挑離面板中心最近的那一格，再把它捲到中間 —— driver 是
+   用 elementFromPoint 在中心點驗有沒有被蓋住的，捲到中間就一定點得到。 */
 const PICK_CELL = `(()=>{
-  const t=[...document.querySelectorAll('#boardOverview .cell')].find(c=>{
-    const r=c.getBoundingClientRect();
-    return r.top>150 && r.bottom<850 && r.left>460 && r.right<1180 && c.querySelector('.ccanvas');
-  });
-  if(!t) return 'no visible cell';
+  const pane=document.getElementById('sheetMain');
+  const p=pane.getBoundingClientRect();
+  const cells=[...document.querySelectorAll('#boardOverview .cell')]
+    .filter(c=>{ const r=c.getBoundingClientRect();
+                 return r.width>8 && r.height>8 && c.querySelector('.ccanvas'); });
+  if(!cells.length) return 'no canvas cells';
+  const pcx=p.left+p.width/2, pcy=p.top+p.height/2;
+  const mid=el=>{ const r=el.getBoundingClientRect();
+                  return Math.hypot(r.left+r.width/2-pcx, r.top+r.height/2-pcy); };
+  const t=cells.reduce((a,b)=>mid(b)<mid(a)?b:a);
   t.id='TESTCELL';
+  t.scrollIntoView({block:'center', inline:'center'});
   return 'TESTCELL ready';
 })()`;
 
@@ -80,10 +89,33 @@ const inCanvas = js => `(()=>{
 const OPEN_PLAN = ['--wait','700', '--click','.plan-card .btn.open', '--wait','900'];
 const TO_BOARD  = ['--click-text','拼板', '--wait','1200'];
 
-/* 壓力測試那顆按鈕會塞滿假檔期（每一格都有商品）。便利貼要關掉 ——
-   開著的話點格子會先打開便利貼，點不到底下的畫布。 */
-const FILL = ['--click-text','壓力測試：塞滿假檔期', '--wait','2500',
-              '--click-text','顯示便利貼', '--wait','800'];
+/* 以前這裡按「壓力測試：塞滿假檔期」那顆 devtool 按鈕。那顆拿掉了，所以改成走
+   真正的使用者流程：點第一格 → 在挑貨面板勾三支商品 → 關掉面板。
+   勾完那一格就有畫布了，後面的 PICK_CELL 找得到它。
+   慢一點，但測到的是真的有人會走的路，不是只有測試才存在的捷徑。 */
+const FILL = [
+  '--eval', `(()=>{
+    const c=document.querySelector('#boardOverview .cell');
+    if(!c) return 'no cell';
+    c.id='FILL0'; c.scrollIntoView({block:'center',inline:'center'});
+    return 'cell marked';
+  })()`, '--wait','400',
+  '--click','#FILL0', '--wait','2500',
+  '--eval', `(()=>{
+    const f=document.getElementById('boardFrame'); if(!f) return 'no panel';
+    const d=f.contentDocument;
+    const cbs=[...d.querySelectorAll('#panePick input[type=checkbox]')];
+    if(!cbs.length) return 'no products';
+    cbs.slice(0,3).forEach(cb=>{ cb.checked=true;
+      cb.dispatchEvent(new Event('change',{bubbles:true})); });
+    return 'picked ' + Math.min(3, cbs.length);
+  })()`, '--wait','2500',
+  '--eval', `(()=>{
+    const x=document.querySelector('#boardStage .close');
+    if(x) x.click();
+    return 'panel closed';
+  })()`, '--wait','900',
+];
 
 const SCENES = {
   smoke: [...OPEN_PLAN, '--click-text','落版', '--wait','1000',

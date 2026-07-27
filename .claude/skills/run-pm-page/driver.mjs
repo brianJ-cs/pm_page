@@ -284,8 +284,8 @@ await send('Log.enable');
 await send('Emulation.setDeviceMetricsOverride',
   { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
 
-/* 預設不連 Supabase。config.js 裡是公司正式環境的金鑰，而測試會按到「壓力測試」
-   「示範檔期」這種真的會存檔的按鈕 —— 已經往正式資料庫塞過一次假檔期了。
+/* 預設不連 Supabase。config.js 裡是公司正式環境的金鑰，而測試會按到「示範檔期」
+   這種真的會存檔的按鈕 —— 已經往正式資料庫塞過一次假檔期了。
    在每個 document 開始跑之前先把 window.SUPABASE 釘成唯讀的空設定：config.js
    之後那句 window.SUPABASE = {...} 就會靜靜地失敗（非嚴格模式不報錯），
    PlanSync.ok() 回 false，整支走純 localStorage。

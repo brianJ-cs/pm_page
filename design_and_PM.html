@@ -105,6 +105,34 @@
   #confirmBtn:hover{background:var(--accent-strong);box-shadow:0 12px 32px rgba(0,0,0,.42)}
   #confirmBtn.is-confirmed{background:var(--surface);color:var(--green-ink);border-color:var(--green-rule)}
 
+  /* 還沒鎖的時候，外圈跑一圈虛線 —— 這顆按鈕是整個 落版 的關卡（鎖之前 PM 看不到
+     這個版位，也不能打品名），但它就只是靜靜站在角落，很容易被當成一塊說明文字。
+     會動的東西才看得出「這裡等你按」。鎖上之後就停：那時它已經是狀態顯示，
+     再閃就變成催人解鎖。
+     四條邊各自是一張重複漸層，動的是 background-position —— 虛線沒辦法直接動，
+     這是唯一不用多包一層 DOM 的做法。圓角會把四個角落切掉，看起來就是四條邊
+     各自在跑，那正好。 */
+  #confirmBtn:not(.is-confirmed)::after{
+    content:'';position:absolute;inset:-7px;border-radius:19px;pointer-events:none;
+    background-image:
+      repeating-linear-gradient(90deg, var(--blue) 0 11px, transparent 11px 22px),
+      repeating-linear-gradient(90deg, var(--blue) 0 11px, transparent 11px 22px),
+      repeating-linear-gradient(0deg,  var(--blue) 0 11px, transparent 11px 22px),
+      repeating-linear-gradient(0deg,  var(--blue) 0 11px, transparent 11px 22px);
+    background-size:100% 3px, 100% 3px, 3px 100%, 3px 100%;
+    background-position:0 0, 0 100%, 0 0, 100% 0;
+    background-repeat:no-repeat;
+    animation:confirmAnts 1.1s linear infinite;
+  }
+  @keyframes confirmAnts{
+    to{ background-position:22px 0, -22px 100%, 0 -22px, 100% 22px; }
+  }
+  /* 會動的東西對某些人是干擾，系統設定關掉動畫時就別跑 —— 虛線框本身留著，
+     指的還是同一件事。 */
+  @media (prefers-reduced-motion: reduce){
+    #confirmBtn:not(.is-confirmed)::after{ animation:none }
+  }
+
   /* 字級那一條：拼板 的左邊直條，長得跟 落版 的 #toolRail 一樣（同一個藍、同一個
      位置、同樣的直排標題）—— 兩頁的「對這個版位做的事」就站在同一個地方。
      沒選版位的時候整條收起來：沒有東西可以調。 */
@@ -301,7 +329,7 @@
   #boardOverview{flex:1;min-height:0;display:none;align-items:stretch}
   #boardOverview.on{display:flex}
   #boardOverview #toolRail{display:none}          /* 工具是 落版 的事 */
-  /* 刊頭尺寸、鎖定狀態、怎麼輸入品名 — 那些是 落版 在處理的事，拼板 不必看 */
+  /* 刊頭尺寸、鎖定狀態 — 那些是 落版 在處理的事，拼板 不必看 */
   #boardOverview #blockHead{display:none}
   /* 這一層不編輯版面：整張版關掉滑鼠，只把「格子」開回來當入口 */
   #boardOverview #sheetMain{pointer-events:none}
@@ -416,7 +444,7 @@
   .lg.zero{opacity:.45}
 
   /* 貼紙欄：拖一張下去就是一則 */
-  /* 三張貼紙一列，整疊一定看得到 —— 它是入口，不該被塞進一個小捲軸裡。
+  /* 貼紙一列排開，整疊一定看得到 —— 它是入口，不該被塞進一個小捲軸裡。
      上面那些字讓小一點就排得下，會捲的只有下面的問題清單。 */
   #stickTray{flex:none;overflow:visible;
              border:2px dashed var(--line);border-radius:12px;padding:6px}
@@ -424,7 +452,9 @@
   #stickRow{display:flex;gap:6px;flex-wrap:nowrap}
   /* 貼紙欄裡的也是便利貼：方的一疊，拿起來就往版面上貼 */
   .stick{
-    position:relative;flex:1 1 0;min-width:0;aspect-ratio:1/1;
+    /* max-width 是為了「只剩一種」：flex:1 會讓單獨一張撐滿整條意見欄，變成一塊
+       跟真正的便利貼一點都不像的大色塊。112px 就是以前三張並排時各自的寬度。 */
+    position:relative;flex:1 1 0;min-width:0;max-width:112px;aspect-ratio:1/1;
     font-family:inherit;font-size:13px;font-weight:800;
     cursor:grab;border:0;border-radius:1px;color:var(--ink-strong);
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
@@ -667,6 +697,48 @@
   }
   .window-node.unowned{background:#e9ecf2;border-color:#cdd4e0}
   .window-node.handed{background:#dff0e5;border-color:var(--green-rule)}
+
+  /* 總體上點版位＝選它。藍色是「你正在點的東西」，所以選取畫成藍框而不是藍底 ——
+     底色已經被狀態用掉了（灰／白／綠），再拿去表示選取，兩件事就混在一起。 */
+  #view-total .window-node{cursor:pointer}
+  #view-total .window-node.sel{
+    outline:3px solid var(--blue);outline-offset:-3px;
+    box-shadow:inset 0 0 0 9999px rgba(74,111,220,.07);
+  }
+  /* 狀態小字：固定大小 —— 它是標記，不是版面的一部分，版位縮到多小都要讀得到 */
+  .blk-state{
+    position:absolute;top:3px;left:4px;z-index:2;pointer-events:none;
+    font-size:10.5px;font-weight:800;line-height:1.2;
+    border-radius:999px;padding:1px 7px;
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);
+  }
+  .blk-state.s-done{background:var(--ok-tint);border-color:var(--green-rule);color:var(--ok-ink)}
+  .blk-state.s-wip {background:var(--surface);border-color:#c9d8f8;color:var(--ink-dim)}
+  .blk-state.s-none{background:#e9ecf2;border-color:#cdd4e0;color:#8b95a6}
+
+  /* 批次操作列：浮在 總體 下緣正中間。深色的一條，壓在淺色的版面上才看得清楚，
+     而且擺在中間不會跟右邊那顆確認鍵、左邊的尺搶位置。 */
+  #markBar{
+    /* bottom 抬高到 76：toast 就站在 bottom:34 的正中間，擺 24 的話每按一次
+       「交給 PM」，跳出來的 toast 就正好蓋住這一列 —— 剛動完手的地方被遮住最惱人。 */
+    position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;
+    display:none;align-items:center;gap:9px;
+    background:var(--chrome);border:1px solid var(--chrome-line);border-radius:999px;
+    padding:8px 10px 8px 16px;box-shadow:0 10px 30px rgba(0,0,0,.34);
+    font-size:13px;font-weight:800;color:var(--chrome-ink);
+  }
+  #markBar.on{display:flex}
+  #markBar .hint{color:var(--chrome-muted);font-weight:800}
+  #markBar .n b{color:#fff}
+  #markBar button{
+    font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
+    border:1px solid var(--chrome-line);border-radius:999px;padding:5px 13px;
+    background:var(--chrome-2);color:var(--chrome-ink);
+  }
+  #markBar button:hover{background:#3a4457;border-color:var(--blue)}
+  #markBar button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  #markBar button.primary:hover{filter:brightness(1.08)}
+  #markBar button[hidden]{display:none}
   .window-node.unowned .region-label div,
   .window-node.unowned .region-label .cnt{color:#98a1b2}
   .window-node.handed .region-label div,
@@ -818,6 +890,19 @@
   .mini-blk.confirmed .cnt{color:var(--green-ink)}
   /* confirmed AND selected: keep the green fill, ring it in blue */
   .mini-blk.active.confirmed{border-color:var(--green-rule)}
+  /* 批次交接挑起來的：藍框＋淡藍罩。跟 .active 同一個藍 —— 兩者都是
+     「你正在點的東西」，只是一個是「在看它」、一個是「要交出它」。 */
+  .mini-blk.sel{outline:3px solid var(--blue);outline-offset:-3px;z-index:3;
+                box-shadow:inset 0 0 0 9999px rgba(74,111,220,.16)}
+
+  /* 小地圖最上面那顆批次交接開關 */
+  .mini-mark{
+    display:block;width:100%;margin:0 0 8px;font:inherit;font-size:12px;font-weight:800;
+    cursor:pointer;border:1.5px dashed var(--chrome-line);border-radius:8px;padding:6px 8px;
+    background:transparent;color:var(--chrome-muted);text-align:center;
+  }
+  .mini-mark:hover{border-color:var(--blue);color:var(--chrome-ink)}
+  .mini-mark.on{background:var(--blue);border-style:solid;border-color:var(--blue);color:#fff}
 
   /* --- 工具 rail --- */
   #toolRail{
@@ -964,9 +1049,6 @@
   #sheetMain.tool-zoom.panning,#sheetMain.tool-zoom.panning *{cursor:grabbing !important}
   #sheetMain.tool-move .cell{cursor:grab}
   /* 輸入工具：卡片是拿來打字的；其他地方照樣是「可以拖畫面」的手 */
-  #sheetMain.tool-select{cursor:grab}
-  #sheetMain.tool-select .cell{cursor:default}
-  #sheetMain.tool-select .cell.editable{cursor:text}
   /* 搬移、複製：空白處一樣拖得動畫面 */
   #sheetMain.tool-move,#sheetMain.tool-copy{cursor:grab}
   /* 整格複製：這個工具下不打字，點一格就是挑它 */
@@ -1072,25 +1154,26 @@
   .cell.copy{justify-content:flex-start;
              font-size:calc(15px * var(--z));font-weight:800;line-height:1.25}
   /* 確認前 the sheet is not open for copy — the cards are arrangement, not text */
-  .cell.editable{cursor:text;user-select:text}
-  .cell.editable:focus{outline:2px solid var(--blue);outline-offset:-2px;background:#fbfcff}
-  /* the placeholder stays small and light so it never reads as real copy */
-  .cell.editable:empty::before{content:'輸入品名';color:#c2cad8;font-weight:400;
-                               font-size:calc(10px * var(--z))}
+  /* 落版的格子只有兩種字：未填寫／有填寫 ✓。用 ::before 畫而不是塞進 DOM ——
+     這些 .cell 會被整批搬去拼板放畫布，多一個文字節點就會卡在畫布底下。
+     字跟著縮放（它是版面的一部分，不是螢幕上的標記）。 */
+  #view-sheet .cell{justify-content:center}
+  /* 字級跟著格子走，不是只跟著縮放：刊頭一拉長，列就被擠扁（那是對的，見
+     sheetMetrics），字如果還是原來那麼大，就會頂滿甚至撐破一格。--rowh 是
+     renderGrid 量好的列高（已經含縮放），取它的一個比例；上限那條是為了不要
+     在很高的格子裡變成一塊招牌。 */
+  #view-sheet .cell::before{
+    content:'未填寫';color:var(--ink-dim);
+    font-size:min(calc(var(--rowh, 40px) * .26), calc(13px * var(--z)));
+    font-weight:800;letter-spacing:.04em;line-height:1;
+  }
+  #view-sheet .cell.pm-filled::before{content:'有填寫 ✓';color:var(--ok-ink,#1a7f47)}
   #board.locked .grip{display:none}
   #board.locked .masthead{border-style:solid}
   /* cards keep their hover ring — after the lock they are the thing you move */
   #board.locked .masthead:hover{outline:none}
   #board.locked .mh-x{display:none !important}
 
-  /* 顯示品名 off: the copy goes invisible but keeps its box, so the grid does
-     not re-flow — this is a way to read the layout as pure blocks, not a
-     different layout. The card being typed in stays legible regardless, or
-     you would be entering text you cannot see. */
-  #board.hide-copy .cell{color:transparent}
-  #board.hide-copy .cell.editable:empty::before{color:transparent}
-  #board.hide-copy .cell.editable:focus{color:var(--ink)}
-  #board.hide-copy .cell.editable:focus:empty::before{color:#c2cad8}
 
   .sheet-empty{color:var(--muted);font-size:16px;font-weight:800;margin:40px auto;
                text-align:center;line-height:1.7}
@@ -1226,22 +1309,15 @@
   .note-pop .icard{margin:0;cursor:default}
 
   /* PM 動過的那一格，設計在 落版 看得到。
-     用 ::after 而不是塞一個 <span> 進去：格子是 contentEditable 的，
-     打字時 cell.text 讀的是 el.textContent —— 真的塞一塊進去，
-     「已填寫」三個字就會被存進品名裡。虛擬元素不算在 textContent 裡。
-     只在 落版（#view-sheet）出現；拼板 借同一份 DOM，那邊看得到內容本人。 */
-  /* 整格轉綠，不是角落貼一張小標：綠色在這支程式裡一直是「已經交出去了」
+     整格轉綠，不是角落貼一張小標：綠色在這支程式裡一直是「已經交出去了」
      （版位底色那一套就是灰／白／綠），所以格子本身變綠＝這一格 PM 收過了。
-     一眼掃過去就看得出哪幾格還空著，不必去讀每個角落的小字。 */
+     一眼掃過去就看得出哪幾格還空著，不必去讀每個角落的小字。
+     角落那張「已填寫」小標拿掉了 —— 格子中央現在就寫著有填寫／未填寫，
+     同一件事寫兩次只是讓人多讀一遍。
+     只在 落版（#view-sheet）出現；拼板 借同一份 DOM，那邊看得到內容本人。 */
   #view-sheet .cell.pm-filled{
-    position:relative;
     background:var(--ok-tint,#e6f4ec);
     border-color:var(--green-rule,#9ccfb2);
-  }
-  #view-sheet .cell.pm-filled::after{
-    content:"已填寫";position:absolute;top:3px;right:5px;
-    font-size:10px;font-weight:800;line-height:1.25;
-    color:var(--ok-ink,#1a7f47);pointer-events:none;
   }
 
   /* 小地圖上的貼紙統計：左下角一種一枚，右上角一顆紅色總數。
@@ -1426,11 +1502,6 @@
         <span class="track"></span>
         <span>磁吸對齊</span>
       </label>
-      <label class="toggle" id="copyWrap">
-        <input type="checkbox" id="copyToggle" checked>
-        <span class="track"></span>
-        <span>顯示品名</span>
-      </label>
       <!-- 拼板總覽：格子上疊的是縮圖，落版打的字預設收起來，要對照時才開 -->
       <label class="toggle" id="wordWrap">
         <input type="checkbox" id="wordToggle">
@@ -1477,12 +1548,6 @@
         <span class="track"></span>
         <span>顯示便利貼</span>
       </label>
-      <!-- devtool：一鍵生一個塞滿的假檔期，拿來看拼板在幾十格畫布同時排版時卡不卡。
-           虛線邊、放最上面那條的右邊，看得出來它不是正常流程裡的按鈕。 -->
-      <button id="stressPlanBtn" title="另生一個「壓力測試」假檔期並開起來，真實檔期不動"
-              style="margin-left:12px;padding:5px 11px;font:inherit;font-size:12px;font-weight:800;
-                     border:1.5px dashed var(--muted);border-radius:8px;background:transparent;
-                     color:var(--muted);cursor:pointer">壓力測試：塞滿假檔期</button>
       <div id="boardOverview"></div>
     </div>
     <!-- 意見欄：貼紙從這裡拖到格子上，貼上去的每一則都在下面排成一張卡 -->
@@ -1508,8 +1573,6 @@
       <div class="rail-title">工具</div>
       <!-- 滾輪縮放、拖空白處移動畫面：這兩件事每個工具都能做，不必特地換工具。
            所以工具講的是「點下去會發生什麼」：打字、搬卡片、複製。 -->
-      <button class="tool" data-tool="select" data-key="S"
-              title="輸入 (S)：點卡片輸入品名，Tab 跳下一格">✎</button>
       <button class="tool" data-tool="move" data-key="V" title="搬移 (V)：拖到卡片中央＝交換，拖到邊緣＝插入">⇄</button>
       <!-- 整格複製：同一支商品換個位置再擺一次，不必重挑一遍 -->
       <button class="tool" data-tool="copy" data-key="C"
@@ -1543,6 +1606,15 @@
 <div id="tip"></div>
 <div id="cursorTip"></div>
 <div id="toastHost"></div>
+<!-- 總體 的批次交接列：選幾個版位，一次交給 PM。設計專用（PM 只看得到拼板）。 -->
+<div id="markBar">
+<span class="hint" id="markHint">點版位就選起來，可以連續點好幾個</span>
+<span class="n" id="markCount" hidden></span>
+<button id="markAll">全選還沒交出的</button>
+<button id="markNone" hidden>清除選取</button>
+<button class="primary" id="markDone" hidden>標記完成，交給 PM</button>
+<button id="markUndo" hidden>收回</button>
+</div>
 <div id="modalHost"></div>
 <input type="file" id="mhFile" accept="image/*" hidden>
 
@@ -1606,7 +1678,12 @@ const CONFIG = {
   defaultMasthead: { w: 36.6, h: 13 },   // 刊頭 in cm, editable per block
   minCellW: 64, minRowH: 76,             // legibility floors (minRowH == card min-height)
   maxGridHeightFactor: 1.75,             // how far past the pane a grid may run
-  mastheadMinH: 60, mastheadMaxFrac: 0.6   // 刊頭 may take at most 60% of the block
+  /* 刊頭最多吃掉版位的九成。本來是六成，但那個上限是「我猜你不會想要更長」——
+     真的要一條很長的刊頭時，它就變成一堵拉不動的牆，而且完全不說為什麼。
+     卡片被擠扁是可以接受的結果（列高有 minRowH 擋著，擠到底就換成整疊比版位高），
+     擋住人想做的事不行。留最後一成是因為 cellAspect 要除以 (1 - mhFrac)，
+     真的給到 1 就變成除以 0。 */
+  mastheadMinH: 60, mastheadMaxFrac: 0.9
 };
 
 const FOLD_PX = 2;
@@ -1949,15 +2026,35 @@ function groupLinesHTML(node){
     g.count ? `<span class="cnt">(${g.count})</span>` : ''}</div>`).join('');
 }
 
+/* 總體上被選起來的版位（存 id，不是存節點本身：復原、匯入都會把整棵樹換掉，
+   握著舊節點的參考就會變成孤兒，id 換幾次樹都還認得出來）。 */
+let markSel = new Set();
+
+/* 一個版位現在是什麼狀態。底色本來就照這三種分（灰／白／綠），這裡只是把同一件事
+   用字寫出來 —— 顏色要人記得對照表，字不用，而且列印或轉手給別人看時也留得住。 */
+function blockState(sh){
+  if (sh.confirmed) return { k:'s-done', t:'已交給 PM' };
+  if (!sh.pm)       return { k:'s-none', t:'未指派' };
+  return              { k:'s-wip',  t:'設計中' };
+}
+
 function renderLeaf(node){
   const el = document.createElement('div');
   /* 底色跟小地圖同一套：灰＝還沒指派、白＝設計手上、綠＝已交出 */
   const sh = node.sheet || {};
   el.className = 'window-node'
     + (sh.confirmed ? ' handed' : '')
-    + (sh.pm ? '' : ' unowned');
+    + (sh.pm ? '' : ' unowned')
+    + (markSel.has(node.id) ? ' sel' : '');
+  el.dataset.blockId = node.id;
   el.setAttribute('data-items', JSON.stringify(
     node.groups.map(g => ({ cat: g.name, qty: g.count }))));
+
+  const st = blockState(sh);
+  const badge = document.createElement('div');
+  badge.className = 'blk-state ' + st.k;
+  badge.textContent = st.t;
+  el.appendChild(badge);
 
   const label = document.createElement('div');
   label.className = 'region-label';
@@ -2498,20 +2595,9 @@ document.getElementById('snapToggle').addEventListener('change', e => {
   if (!CONFIG.snapOn) clearSnapFeedback(null);
 });
 
-/* 顯示品名 — a view preference, not document state: it is never written into
-   the plan and never lands in the undo stack. Purely how you are looking at
-   the sheet right now. */
-const copyToggle = document.getElementById('copyToggle');
-let showCopy = true;
-
-function applyShowCopy(){
-  boardEl.classList.toggle('hide-copy', !showCopy);
-}
-copyToggle.addEventListener('change', e => {
-  showCopy = e.target.checked;
-  applyShowCopy();
-  toast(showCopy ? '顯示品名' : '已隱藏品名，只看版面配置', 'info', 1600);
-});
+/* 「顯示品名」那顆切換沒有了 —— 落版的格子現在只寫未填寫／有填寫，沒有品名可以
+   收起來。拼板那邊的「顯示落版文字」留著：舊檔期裡打過的品名還在資料裡，
+   要對照的時候還找得回來。 */
 
 /* ==========================================================================
    參考線 — PS GUIDES (總體)
@@ -2840,7 +2926,9 @@ function renderMiniNode(node, wpx, hpx){
     el.className = 'mini-blk'
       + (activeBlock === node ? ' active' : '')
       + (node.sheet.confirmed ? ' confirmed' : '')
-      + (node.sheet.pm ? '' : ' unowned');
+      + (node.sheet.pm ? '' : ' unowned')
+      + (markMode && markSel.has(node.id) ? ' sel' : '');
+    el.dataset.blockId = node.id;
     // dm-block-zoom's 13px baseline, stepped down only as far as this
     // region's real pixel size demands, so nothing ever clips
     el.style.fontSize = miniFontSize(node, wpx, hpx) + 'px';
@@ -2873,7 +2961,16 @@ function renderMiniNode(node, wpx, hpx){
       dot.title = roll.total + ' 則還沒處理';
       el.appendChild(dot);
     }
-    el.addEventListener('click', () => switchBlock(node));
+    el.addEventListener('click', () => {
+      /* 批次交接開著的時候，點小地圖是「選這一塊」而不是「切過去」——
+         不然每點一個要交出去的版位，整張版就重畫一次，還把你正在看的那一格洗掉。 */
+      if (markMode){
+        if (markSel.has(node.id)) markSel.delete(node.id); else markSel.add(node.id);
+        renderMinimap(); renderMarkBar();
+        return;
+      }
+      switchBlock(node);
+    });
     el.addEventListener('mousemove', e => showTip(e, tipForBlock(node)));
     el.addEventListener('mouseleave', hideTip);
     return el;
@@ -3011,6 +3108,25 @@ function renderMinimap(){
   const wasMini = sheetSide.classList.contains('mini');
   sheetSide.innerHTML = '';
   sheetSide.classList.toggle('mini', wasMini);     // 重畫不該把它打開
+
+  /* 批次交接的開關站在小地圖最上面。只有 拼板、而且是設計看得到：
+     交接是「設計排完 → 給 PM 拼 → PM 有問題再回來」這個來回過程的一步，
+     而那個來回就發生在 拼板，所以開關要在手邊，不是在另一個分頁上。
+     做成開關而不是直接點選，是因為小地圖的點擊本來就有用途（切到那個版位）——
+     一個手勢不能同時是兩件事。 */
+  if (activeTab === 'board' && activeMode !== 'pm'){
+    const hd = document.createElement('button');
+    hd.className = 'mini-mark' + (markMode ? ' on' : '');
+    hd.textContent = markMode ? '✓ 批次交接中（點版位選取）' : '批次交接給 PM';
+    hd.title = '選幾個版位，一次交給 PM';
+    hd.addEventListener('click', () => {
+      markMode = !markMode;
+      if (!markMode) markSel.clear();
+      renderMinimap(); renderMarkBar();
+    });
+    sheetSide.appendChild(hd);
+  }
+
   [['front','正面'], ['back','背面']].forEach(([side, title]) => {
     const lab = document.createElement('div');
     lab.className = 'mini-label';
@@ -3210,7 +3326,7 @@ function renderHead(){
   if (sh.confirmed){
     const badge = document.createElement('span');
     badge.className = 'lockBadge';
-    badge.textContent = '🔒 列已鎖定・可輸入品名・可用搬移工具互換格子';
+    badge.textContent = '🔒 列已鎖定・可用搬移工具互換格子';
     blockHead.appendChild(badge);
   } else if (!sh.masthead){
     const add = document.createElement('button');
@@ -3226,57 +3342,26 @@ function renderHead(){
   }
 }
 
-/* `editable` follows the lock: the row arrangement is settled first, and only
-   then is the sheet opened for copy. Typed text keeps its typography either
-   way, so unlocking to re-arrange never makes the existing copy jump size. */
-function makeCard(cell, confirmed){
+/* 落版的格子只回答一件事：這一格有沒有人動過。
+   以前它同時是輸入框（鎖定後打品名）、提示（輸入品名）、狀態（右上角「已填寫」）
+   三種字擠在同一塊小方塊裡，要看懂得先分辨看到的是哪一種。落版是在決定版面長相，
+   品名是拼板挑完貨才有的東西 —— 那一頁本來就看得到，不必在這裡先寫一次。
+
+   已經打過的品名沒有刪，只是這一頁不再畫它（拼板的「顯示落版文字」還找得回來）。 */
+function makeCard(cell){
   const el = document.createElement('div');
-  /* PM 在這一格動過手（挑了貨、或留了話）＝設計在 落版 就看得到「已填寫」，
+  /* PM 在這一格動過手（挑了貨、或留了話）＝設計在 落版 就看得到「有填寫」，
      不必切到 拼板 一格一格點開來確認。這是交接的反方向：
      confirmed 是設計交給 PM，這個是 PM 交回來的回音。 */
   const pmFilled = !!pickedOf(cell).length || !!notesOf(cell).length;
-  el.className = 'cell copy' + (confirmed ? ' editable' : '')
-                             + (pmFilled ? ' pm-filled' : '')
+  el.className = 'cell copy' + (pmFilled ? ' pm-filled' : '')
                              + (cell.gi === 1 ? ' g2' : '');   // dm-block-zoom .sq.g2
   el.dataset.cellId = cell.id;
   el.dataset.gi = cell.gi;             // 拼板要靠它認出這一格是哪個品類
-  el.textContent = cell.text || '';
-
-  if (!confirmed) return el;           // look, but do not type
-
-  el.contentEditable = 'true';
-  el.spellcheck = false;
-  // write straight to state; never re-render here or the caret is lost
-  el.addEventListener('input', () => {
-    cell.text = el.textContent;
-    markDirty();                       // saved, but not yet a history step
-  });
-  /* One history step per field, not per keystroke — PS records "輸入文字",
-     not each letter. The blur is the commit. */
-  let entry = cell.text || '';
-  el.addEventListener('focus', () => { entry = cell.text || ''; });
-  el.addEventListener('blur', () => { if ((cell.text || '') !== entry) commitAction(); });
-
-  /* Tab / Enter walk the grid like a spreadsheet, which is how these get
-     filled in — one card after another, never with the mouse. */
-  el.addEventListener('keydown', e => {
-    if (e.key !== 'Tab' && e.key !== 'Enter') return;
-    e.preventDefault();
-    const all = [...boardEl.querySelectorAll('.cell')];
-    const at = all.indexOf(el);
-    const to = all[at + (e.shiftKey ? -1 : 1)];
-    if (to){ to.focus(); placeCaretAtEnd(to); }
-    else el.blur();                    // past the last card: commit and stop
-  });
+  /* 未填寫／有填寫那兩個字是 CSS 的 ::before，不是這裡塞的文字節點 ——
+     同一批 .cell 會被原封不動搬去拼板當畫布的容器，真的塞一個文字節點進去，
+     它就會卡在畫布底下（clearBoardThumbs 當初就是為了這件事才存在）。 */
   return el;
-}
-
-/** Focus lands at the start otherwise, so typing would prepend. */
-function placeCaretAtEnd(el){
-  const r = document.createRange();
-  r.selectNodeContents(el); r.collapse(false);
-  const s = getSelection();
-  s.removeAllRanges(); s.addRange(r);
 }
 
 /* Everything renderGrid needs to know about the finished sheet, with no DOM
@@ -3342,15 +3427,28 @@ function sheetMetrics(block){
   // narrow for that, the grid overflows and #sheetMain scrolls sideways
   gridW = Math.max(gridW, widestRow * CONFIG.minCellW + 14 + widestRow * ROW_GAP);
 
-  // split the block's total height between the 刊頭 band and the cell rows
+  /* 把版位的總高分給 刊頭 和 卡片列。
+     ⚠️ 版位的比例是這張版的事實，任何工具都不准改它 —— 尤其是拉刊頭。
+     外框永遠是 gridW × totalH，而 totalH 只由 aspect 決定；刊頭吃掉多少，
+     卡片那一塊就少多少，總高一步都不動。 */
   const totalH = gridW / aspect;
+  /* 刊頭最多吃到 mastheadMaxFrac，卡片那一塊一定留得下來（不然下面會除到 0）。 */
   const mastheadPx = (sh.masthead && !side)
-    ? Math.max(CONFIG.mastheadMinH, totalH * mhFrac)
+    ? Math.min(Math.max(CONFIG.mastheadMinH, totalH * mhFrac),
+               totalH * CONFIG.mastheadMaxFrac)
     : 0;
   const cellAreaH = totalH - mastheadPx - ((sh.masthead && !side) ? ROW_GAP : 0);
-  // subtract the inter-row gaps first, so the finished box matches the
-  // region's aspect exactly rather than being a few % tall
-  let rowH = Math.max(CONFIG.minRowH, (cellAreaH - ROW_GAP * (nRows - 1)) / nRows);
+
+  /* 列高＝剩下的高度均分，沒有下限，而且**不會**因此去動版位的大小。
+     這裡踩過兩種錯，兩種都是拿「版位的樣子」去補「看不清楚」這件事：
+       1. `Math.max(minRowH, …)` —— 列高被墊高，卡片那一疊比版位還高，版位被撐長，
+          比例當場變掉（一塊真實比例 2.08 的版被畫成 0.26）。
+       2. 列太扁就整塊等比放大 —— 比例是保住了，但拉一下刊頭整個版位就跟著脹大，
+          看起來像自己會縮放，一樣是工具在動版面。
+     正確的是：外框永遠是 gridW × totalH，刊頭吃掉多少、卡片就少多少，
+     版位在畫面上的大小和形狀**一步都不動**。列被擠扁是對的 —— 那就是這張版真正的
+     樣子。看不清楚要用縮放拉近，那只是把畫面推近，不會改到印出來的東西。 */
+  let rowH = (cellAreaH - ROW_GAP * (nRows - 1)) / nRows;   // 下面 sheetZoom 會再乘
   let mhPx = mastheadPx;
 
   // 縮放 tool: scale the finished layout uniformly. Applied last so it can go
@@ -3361,9 +3459,8 @@ function sheetMetrics(block){
 
   return {
     sh, counts, gridW, rowH, mhPx, blockHcm, totalH: totalH * sheetZoom,
-    /* 卡片那一疊實際有多高。列高有下限（太扁就看不清楚），碰到下限時這一疊
-       會比版位本身還高 —— 旁邊那根刊頭要跟的是這個數字，不是理論高度，
-       不然它會比卡片矮一截。 */
+    /* 卡片那一疊實際有多高。列高碰到下限時整塊是等比放大的，所以這個數字現在
+       永遠等於扣掉刊頭之後剩下的高度 —— 旁邊那根刊頭跟著它，不會矮一截。 */
     stackH: rowH * counts.length + ROW_GAP * (counts.length - 1),
     // 旁邊那根柱子：哪一邊、佔多寬（含間隙前的實寬）
     side: side ? { at: side.side === 'left' ? 'left' : 'right',
@@ -3377,9 +3474,9 @@ function sheetMetrics(block){
 
 /* What the board is currently showing, structurally: which cards, in what
    order, split how, with the 刊頭 where — and whether the sheet is locked,
-   because that decides whether the cards are built editable. Zoom and pane
-   size are deliberately absent; those only change sizes, which is the cheap
-   path below. */
+   because that decides whether the grips and the 刊頭 border show. Zoom and
+   pane size are deliberately absent; those only change sizes, which is the
+   cheap path below. */
 function sheetSig(m){
   return m.counts.join(',') + '|' + m.mhAt +
          '|' + (m.side ? 'S' + m.side.at : '-') +
@@ -3403,7 +3500,8 @@ function syncPmFilled(sh){
 /** Size-only pass: no DOM is created, so focus, caret and selection survive. */
 function layoutGrid(m){
   syncPmFilled(m.sh);
-  boardEl.style.setProperty('--z', sheetZoom);   // card type scales with it
+  boardEl.style.setProperty('--z', sheetZoom);          // card type scales with it
+  boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
   boardEl.style.width = m.gridW + 'px';
   sizeSideMasthead(m);
   for (const row of boardEl.children){
@@ -3497,7 +3595,7 @@ function renderGrid(block){
     row.appendChild(makeGrip());
     // cards keep the stylesheet's flex:1 1 0, so the row always fills the
     // width whatever its count — that is what keeps the block rectangular
-    sh.cells.slice(at, at + count).forEach(c => row.appendChild(makeCard(c, sh.confirmed)));
+    sh.cells.slice(at, at + count).forEach(c => row.appendChild(makeCard(c)));
     at += count;
     rows.push(row);
   });
@@ -3544,6 +3642,7 @@ function renderGrid(block){
   boardEl.replaceChildren(frag);
 
   boardEl.style.setProperty('--z', sheetZoom);
+  boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
   boardEl.style.width = m.gridW + 'px';
   sizeSideMasthead(m);
   paintMhLabel(m);
@@ -3893,14 +3992,6 @@ function flashReject(el, msg){
 /* Clicking a card before 確認 simply does nothing, which reads as a bug rather
    than a rule. Say why — but at most once every few seconds, or it turns into
    noise while the user is arranging rows. */
-let explainedAt = 0;
-function explainNotYetEditable(){
-  const now = Date.now();
-  if (now - explainedAt < 4000) return;
-  explainedAt = now;
-  toast('確認列排列後才能輸入品名', 'info', 2400);
-}
-
 let shakeTimer = 0;
 function rejectLocked(){
   boardEl.classList.remove('shake');
@@ -4087,7 +4178,6 @@ boardEl.addEventListener('pointerdown', e => {
   }
 
   // the mirror case: cards are not open for copy until the rows are settled
-  if (!locked && e.target.closest('.cell')) explainNotYetEditable();
 
   // 確認前：整列可搬（⋮⋮）。確認後：列鎖定，改成單張卡片可互換。
   const grip = locked ? null : e.target.closest('.grip');
@@ -4346,11 +4436,7 @@ const HINTS = {
 
   copy: hint('⧉', '整格複製', 'C',
     '點一格 → <b>Ctrl/⌘+C</b>，再點另一格 → <b>Ctrl/⌘+V</b>：品名和拼好的內容一起過去',
-    ['<span><kbd>Esc</kbd>放下手上那一格</span>']),
-
-  select: hint('✎', '輸入', 'S',
-    '<b>點卡片</b>輸入品名，<b>Tab</b> 跳下一格（滾輪照樣縮放，拖空白處照樣移動畫面）',
-    ['<span><kbd>⋮⋮</kbd>拖整列</span>', '<span><kbd>Esc</kbd>離開欄位</span>'])
+    ['<span><kbd>Esc</kbd>放下手上那一格</span>'])
 };
 
 function showHint(){
@@ -4373,18 +4459,17 @@ function syncZoomHint(){
 function syncTools(){
   const locked = !!(activeBlock && sheetOf(activeBlock).confirmed);
   const tool = n => document.querySelector(`.tool[data-tool="${n}"]`);
-  const moveBtn = tool('move'), selBtn = tool('select'), copyBtn = tool('copy');
+  const moveBtn = tool('move'), copyBtn = tool('copy');
   if (moveBtn){
     moveBtn.disabled = !locked;
     moveBtn.title = locked
       ? '搬移 (V)：拖到卡片中央＝交換，拖到邊緣＝插入'
       : '確認列排列後可用';
   }
-  /* 鎖定之前這一頁只有一件事可做：排列，所以動得到東西的三顆先收起來，不擺
+  /* 鎖定之前這一頁只有一件事可做：排列，所以動得到東西的那兩顆先收起來，不擺
      按不動的鈕讓人猜。列還是照樣用 ⋮⋮ 拖（見 sheetMain 那段：把手不歸平移管）。 */
   if (moveBtn) moveBtn.style.display = locked ? '' : 'none';
   if (copyBtn) copyBtn.style.display = locked ? '' : 'none';   // 鎖定前沒有內容可複製
-  if (selBtn)  selBtn.style.display  = locked ? '' : 'none';   // 鎖定前不能打字
   if (!locked && activeTool !== 'zoom') setTool('zoom');
 }
 
@@ -4463,7 +4548,6 @@ function setTool(name){
     t.classList.toggle('active', t.dataset.tool === name));
   sheetMainEl.classList.toggle('tool-zoom', name === 'zoom');
   sheetMainEl.classList.toggle('tool-move', name === 'move');
-  sheetMainEl.classList.toggle('tool-select', name === 'select');
   sheetMainEl.classList.toggle('tool-copy', name === 'copy');
   if (name !== 'copy') clearCopySel();        // 換工具就放下手上那一格
   showHint();                          // explain what the tool just did
@@ -4772,7 +4856,6 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'v'){ e.preventDefault(); setTool('move'); }
   else if (k === 'c'){ e.preventDefault(); setTool('copy'); }
-  else if (k === 's'){ e.preventDefault(); setTool('select'); }
   else if (k === 'z'){ e.preventDefault(); setTool('zoom'); }
 });
 
@@ -4824,12 +4907,12 @@ confirmBtn.addEventListener('click', async () => {
   if (sh.confirmed){
     const ok = await modalConfirm({
       title: '解除鎖定',
-      body: '解除後列會重新可以搬動，但搬移工具和品名輸入都會停用。已輸入的品名會保留。要繼續嗎？',
+      body: '解除後列會重新可以搬動，但搬移和整格複製都會停用。已經拼好的內容會保留。要繼續嗎？',
       ok: '解除鎖定', cancel: '取消', danger: true
     });
     if (!ok) return;
     sh.confirmed = false;
-    toast('已解除鎖定，暫時無法輸入品名', 'info', 2600);
+    toast('已解除鎖定，列可以重新搬動', 'info', 2600);
   } else {
     sh.confirmed = true;
     toast('已確認列排列，這個版位交給 PM 了', 'ok');
@@ -4847,7 +4930,6 @@ confirmBtn.addEventListener('click', async () => {
    ========================================================================== */
 
 const snapWrap = document.getElementById('snapWrap');
-const copyWrap = document.getElementById('copyWrap');
 const wordWrap = document.getElementById('wordWrap');
 const markWrap = document.getElementById('markWrap');
 
@@ -4855,7 +4937,6 @@ const VIEWS = {
   total: {
     mount(){
       snapWrap.style.display = 'flex';
-      copyWrap.style.display = 'none';        // there is no copy on this view
       wordWrap.style.display = 'none';
       markWrap.style.display = 'none';
       confirmBtn.style.display = 'none';
@@ -4867,10 +4948,8 @@ const VIEWS = {
   sheet: {
     mount(){
       snapWrap.style.display = 'none';
-      copyWrap.style.display = 'flex';
       wordWrap.style.display = 'none';
       markWrap.style.display = 'none';
-      applyShowCopy();                      // survives a view switch
       hostSheet(document.getElementById('view-sheet'));
       clearBoardThumbs();                   // 拼板的畫布、貼紙、數字都不進這一頁
       /* 第一次看到某個版位（剛開檔期、還沒挑過）＝要先看到它整張，
@@ -4897,7 +4976,6 @@ const VIEWS = {
   board: {
     mount(){
       snapWrap.style.display = 'none';
-      copyWrap.style.display = 'none';
       wordWrap.style.display = 'flex';
       markWrap.style.display = 'flex';
       confirmBtn.style.display = 'none';
@@ -4914,8 +4992,9 @@ const VIEWS = {
   }
 };
 
-/* 顯示落版文字 — 總覽上疊的是縮圖，落版打的品名預設收起來，要對照才開。
-   跟 顯示品名 一樣是「怎麼看」的偏好，不寫進檔期、不進復原。 */
+/* 顯示落版文字 — 總覽上疊的是縮圖，舊檔期在 落版 打過的品名預設收起來，要對照才開。
+   落版 那一頁已經不打品名了，這裡留著是為了還看得到以前打的。
+   這是「怎麼看」的偏好，不寫進檔期、不進復原。 */
 let showWords = false;
 document.getElementById('wordToggle').addEventListener('change', e => {
   showWords = e.target.checked;
@@ -4995,7 +5074,7 @@ function openBoardCell(anchor, block, cells, at){
       cells[at].text ? '・' + cells[at].text : ''}</span>`;
   boardEl.querySelectorAll('.cell.editing').forEach(n => n.classList.remove('editing'));
   if (anchor) anchor.classList.add('editing');
-  placeBoardStage(anchor);          // 面板浮在畫面上，版面一動都不用動
+  placeBoardStage(anchor);          // 設計釘左下角，PM 貼著那一格
 
   const f = document.getElementById('boardFrame');
   if (boardLoaded !== boardCell.cell.id){
@@ -5027,13 +5106,30 @@ function tellStageEditing(){
   });
 }
 
-/* 面板貼著那一格的右邊放。座標是版面自己的座標（不是螢幕的），所以捲動、平移
-   時它跟著那一格走，不會像另外開的視窗那樣浮在畫面上。右邊看不完就翻到左邊，
-   最後把它捲進視野。蓋住旁邊幾格是可以的。 */
+/* 面板放哪裡，兩種身分不一樣。
+
+   設計（圖層）：釘死在畫面左下角，壓在左邊那一欄上。圖層是「這一格裡有哪幾塊、
+   誰疊在誰上面」，一邊拖版面一邊看，位置固定才不用一直重新找它；蓋住的左欄在
+   拼一格的時候本來就用不到。高度也砍一半 —— 圖層通常只有幾筆，原本大半是空的。
+
+   PM（挑貨）：維持原本的做法，貼著正在改的那一格放。PM 是一格一格挑貨，面板和
+   「現在在挑哪一格」必須看得出是同一件事，跑掉就要重新對。
+
+   兩種都一樣：版面本身一步都不動，開面板不該讓你盯著的那一格自己跑掉。 */
 function placeBoardStage(anchor){
   const st = document.getElementById('boardStage');
   const gap = 10;
   const W = innerWidth, H = innerHeight;
+
+  if (myRole() !== 'pm'){                       // 設計：左下角，固定
+    const w = Math.max(280, Math.min(470, W - gap * 2));
+    const h = Math.max(150, Math.min(310, (H - gap * 2) / 2));
+    st.style.width = w + 'px'; st.style.height = h + 'px';
+    st.style.left  = gap + 'px';
+    st.style.top   = (H - h - gap) + 'px';
+    return;
+  }
+
   let w = Math.max(280, Math.min(470, W - gap * 2));
   let h = Math.max(240, Math.min(620, H - gap * 2));
 
@@ -5046,8 +5142,7 @@ function placeBoardStage(anchor){
   }
 
   /* 面板浮在整個畫面上，蓋到小地圖、意見欄、旁邊的格子都沒關係 —— 唯一不能蓋的
-     是正在改的那一格。所以看的是「整個視窗」剩多少空間，不是版面那一欄剩多少。
-     版面本身一步都不動：開面板不該讓你盯著的那一格自己跑掉。 */
+     是正在改的那一格。所以看的是「整個視窗」剩多少空間，不是版面那一欄剩多少。 */
   const room = {
     r: W - (r.right + gap),
     l: r.left - gap,
@@ -5084,10 +5179,11 @@ function placeBoardStage(anchor){
   st.style.top  = y + 'px';
 }
 
-/* 面板是釘在畫面上的，版面一捲它就得重新對位，否則會跟那一格分家。 */
+/* PM 的面板是跟著那一格的，版面一捲就得重新對位，否則會跟那一格分家。
+   設計那邊釘死在左下角，捲動不必重算 —— 所以這裡先問身分再決定要不要動。 */
 let stageFrame = 0;
 sheetMainEl.addEventListener('scroll', () => {
-  if (!boardCell || stageFrame) return;
+  if (!boardCell || stageFrame || myRole() !== 'pm') return;
   stageFrame = requestAnimationFrame(() => {
     stageFrame = 0;
     if (boardCell) placeBoardStage(cardEl(boardCell.cell.id));
@@ -5288,15 +5384,15 @@ function markBadge(c){
    資料存在格子上（cell.notes），跟著檔期一起存。
    ========================================================================== */
 
+/* 只剩「留言」一種。以前還有 補貼紙 ★ 和 補贈品 ⊕ —— 那兩種是「要補一個東西」，
+   但要補什麼、補幾個，講清楚還是得寫在內容裡，種類本身沒有替誰省下一句話，
+   反而每貼一張都要先選一次。留言沒有圖示：只是講一句話，沒有東西可以畫成符號。
+   舊檔裡的 sticker／gift（還有更早的 補商品／補 logo）都會掉到下面的 fallback，
+   一律當留言顯示，內容一個字都不會掉。 */
 const NOTE_KINDS = [
-  { key:'sticker', icon:'★', label:'補貼紙',  color:'#ffd447' },
-  { key:'gift',    icon:'⊕', label:'補贈品',  color:'#8ce29b' },
-  /* 留言沒有圖示：另外兩種是「要補一個東西」，這一種只是講一句話 —— 沒有東西
-     可以畫成符號，硬給一個點反而看起來像少了什麼。空的就讓它空著，
-     貼紙本人（顏色＋角落那個字）已經說完該說的了。 */
-  { key:'other',   icon:'',  label:'留言',    color:'#dfe4ee' }
+  { key:'other', icon:'', label:'留言', color:'#dfe4ee' }
 ];
-// 認不得的（含舊檔裡的 補商品／補 logo）一律當一般問題看
+// 認不得的（含舊檔裡的 補貼紙／補贈品／補商品／補 logo）一律當留言看
 const kindOf = k => NOTE_KINDS.find(n => n.key === k) || NOTE_KINDS[NOTE_KINDS.length - 1];
 /* 沒有圖示的那一種不要留一個空的 <span> —— 它照樣佔 gap，看起來像圖示掉了 */
 const icoHTML = k => k.icon ? `<span class="ico">${k.icon}</span>` : '';
@@ -5400,6 +5496,10 @@ NOTE_KINDS.forEach(k => {
 });
 
 /** 貼紙欄那三張＝你自己的顏色。換身分就換一疊，看得出等一下貼出去是什麼顏色。 */
+/* 兩邊都貼得了「留言」。曾經把設計那邊整塊收起來過，那是還有 補貼紙／補贈品 的時候
+   —— 那兩種是「請 PM 補一個東西」，設計對自己講不通。剩下純留言之後就不一樣了：
+   設計也會需要在某一格留一句話（這裡等圖、這格先別動），
+   而且留言的顏色本來就是「誰貼的」，兩邊各自一色，看得出來是誰說的。 */
 function paintStickTray(){
   const c = ROLE_COLOR[myRole()];
   document.querySelectorAll('.stick').forEach(b => { b.style.background = c; });
@@ -5743,6 +5843,10 @@ function renderRail(){
 
 function renderLegend(){
   const host = document.getElementById('railLegend');
+  /* 只剩一種貼紙的時候，這一排「照種類篩」按不出任何差別 —— 篩完就是全部。
+     數量本身在上面那行「N 則・M 則還沒處理」已經講過了，所以整排收起來。 */
+  if (NOTE_KINDS.length < 2){ host.innerHTML = ''; host.style.display = 'none'; return; }
+  host.style.display = '';
   const base = allNotes().filter(x => !focusCell || x.cell.id === focusCell);
   host.innerHTML = '';
   NOTE_KINDS.forEach(k => {
@@ -5845,7 +5949,11 @@ function noteCard(x){
     if (selNote === n.id) selNote = null;
     commitAction(); renderRail(); paintNoteMarks(cell); refreshNoteCounts();
   });
-  acts.append(send, ok);
+  acts.append(send);
+  /* 「標成已處理」只有設計按得到。便利貼多半是 PM 提的問題，而處理掉它的人是設計 ——
+     讓提問的人自己勾「已處理」，那個勾就不再代表「這件事解決了」，只代表「我覺得可以了」，
+     於是那個數字（還沒處理 N 則）就不能當進度看。PM 想收回自己那則就用「撕掉」。 */
+  if (myRole() !== 'pm') acts.append(ok);
   if (mine) acts.append(del);          // 撕掉別人的標記不是你的權限
   box.append(ta, acts);
   d.appendChild(box);
@@ -6027,8 +6135,8 @@ function paintBoardThumbs(){
   document.getElementById('boardOverview').classList.toggle('nomarks', !showMarks);
 }
 
-/* The cards are contentEditable in 落版 once 確認 — anything we injected would
-   land in cell.text on the next keystroke, so it all comes out on the way out. */
+/* 拼板往格子裡塞的東西（畫布、貼紙、數字）全部是這一頁自己加的，換頁時要清乾淨：
+   落版 借的是同一批 .cell，留著就會疊在未填寫／有填寫那兩個字上面。 */
 function clearBoardThumbs(){
   boardEl.querySelectorAll('.ccanvas,.cbadge,.cmk,.cnb').forEach(n => n.remove());
   boardEl.querySelectorAll('.cell').forEach(n =>
@@ -6105,7 +6213,6 @@ boardOv.addEventListener('wheel', e => {
     sheetMainEl.scrollLeft = px * k - ax;
     sheetMainEl.scrollTop  = py * k - ay;
     zoomVal.textContent = Math.round(sheetZoom * 100) + '%';
-    if (boardCell) placeBoardStage(cardEl(boardCell.cell.id));   // 面板跟著那一格走
   });
 }, { passive: false });
 
@@ -6369,10 +6476,146 @@ function setTab(id){
     document.getElementById('view-' + v).classList.toggle('active', v === id));
   document.getElementById('view-plans').classList.remove('active');
   VIEWS[id].mount();
+  /* 批次交接只活在 拼板：切走就關掉，免得下次回來還掛著上一輪的選取。 */
+  if (id !== 'board'){ markMode = false; markSel.clear(); }
+  renderMarkBar();
 }
 function switchTab(id){ if (id !== activeTab) setTab(id); }
 document.querySelectorAll('.tab').forEach(b => {
   b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+
+/* ==========================================================================
+   拼板：挑幾個版位，一次交給 PM
+   一個一個開進 落版 按「確認列排列」也做得到同一件事，但一張 DM 十幾個版位，
+   排完之後往往是一口氣交出去 —— 那就不該逼人開十幾次。
+   為什麼在 拼板 不在 總體：交接是「設計排完 → PM 拼 → 有問題再回設計」這個
+   來回過程的一步，而那個來回就發生在 拼板。總體 是偶爾看一眼的全景圖，
+   把每天要按的東西放在那裡，等於每次都要先切一次分頁。
+   交出去的意思跟那顆按鈕完全一樣（sheet.confirmed）：PM 在那之前看不到這個版位，
+   所以這裡不是新的狀態，只是同一個開關的另一個入口。
+   ========================================================================== */
+const markBar = document.getElementById('markBar');
+let markMode = false;        // 批次交接模式：點小地圖＝選版位，不是切過去
+
+/** 這個檔期的所有版位，正面接背面。 */
+function allBlocks(){
+  if (!currentPlan || !layout) return [];
+  return collectBlocks(layout.front, []).concat(collectBlocks(layout.back, []));
+}
+
+/** 只有設計、在 拼板、而且真的按下批次交接，才談得上「挑版位交出去」。 */
+function markable(){
+  return activeMode !== 'pm' && activeTab === 'board' && !!currentPlan && markMode;
+}
+
+function renderMarkBar(){
+  if (!markable()){ markBar.classList.remove('on'); return; }
+  markBar.classList.add('on');
+
+  const picked = allBlocks().filter(b => markSel.has(b.id));
+  const undone = allBlocks().filter(b => !b.sheet.confirmed);
+  const canDone = picked.filter(b => !b.sheet.confirmed).length;
+  const canUndo = picked.filter(b => b.sheet.confirmed).length;
+
+  const n = document.getElementById('markCount');
+  n.hidden = !picked.length;
+  n.innerHTML = `已選 <b>${picked.length}</b> 個版位`;
+  document.getElementById('markHint').hidden = !!picked.length;
+
+  document.getElementById('markAll').hidden  = !undone.length || !!picked.length;
+  document.getElementById('markNone').hidden = !picked.length;
+
+  const done = document.getElementById('markDone');
+  done.hidden = !canDone;
+  done.textContent = `標記完成，交給 PM（${canDone}）`;
+
+  const undo = document.getElementById('markUndo');
+  undo.hidden = !canUndo;
+  undo.textContent = `收回（${canUndo}）`;
+}
+
+/** 選取的樣子畫在小地圖上，所以重畫小地圖就好，不必動到右邊那張版。 */
+function paintMarkSel(){
+  renderMinimap();
+  renderMarkBar();
+}
+
+/** 總體 那兩張版是開檔期時建好就留著的，改了 confirmed 要把它們的底色和狀態字
+    就地更新。不走 rebuildAll —— 那會把整棵樹連同 拼板 的畫布全部重建，
+    每個 iframe 都重載一次，只為了改一個布林值，太貴而且畫面會整片閃。 */
+function paintTotalStates(){
+  const by = new Map(allBlocks().map(b => [b.id, b]));
+  editorHost.querySelectorAll('.window-node').forEach(el => {
+    const b = by.get(el.dataset.blockId);
+    if (!b) return;
+    const sh = b.sheet || {};
+    el.classList.toggle('handed', !!sh.confirmed);
+    el.classList.toggle('unowned', !sh.pm);
+    const badge = el.querySelector('.blk-state');
+    if (badge){
+      const st = blockState(sh);
+      badge.className = 'blk-state ' + st.k;
+      badge.textContent = st.t;
+    }
+  });
+}
+
+/** 交出去／收回來。一次一批，但只算一步復原 —— 它在使用者心裡就是一個動作。 */
+function setConfirmed(blocks, value){
+  let changed = 0, touchedActive = false;
+  blocks.forEach(b => {
+    if (!!b.sheet.confirmed === value) return;
+    sheetOf(b);                       // 確保 cells／刊頭 都生出來了，跟單顆按鈕那條路一致
+    b.sheet.confirmed = value;
+    changed++;
+    if (b === activeBlock) touchedActive = true;
+  });
+  if (!changed) return 0;
+  commitAction();
+  paintTotalStates();
+  renderMinimap();
+  updateProgress();
+  renderConfirmBtn();
+  /* 只有「正在看的那一個版位」被改到時才重畫那張版：鎖定會改到格子能不能搬、
+     工具列開不開，那是 renderGrid 的事。其他版位在畫面上只是小地圖上的一塊。 */
+  if (touchedActive && activeBlock){
+    renderGrid(activeBlock);
+    if (activeTab === 'board') paintBoardThumbs();
+  }
+  renderMarkBar();
+  return changed;
+}
+
+document.getElementById('markAll').addEventListener('click', () => {
+  allBlocks().filter(b => !b.sheet.confirmed).forEach(b => markSel.add(b.id));
+  paintMarkSel();
+});
+document.getElementById('markNone').addEventListener('click', () => {
+  markSel.clear(); paintMarkSel();
+});
+document.getElementById('markDone').addEventListener('click', () => {
+  const picked = allBlocks().filter(b => markSel.has(b.id) && !b.sheet.confirmed);
+  const n = setConfirmed(picked, true);
+  if (!n) return;
+  markSel.clear(); paintMarkSel();
+  toast(`已交給 PM：${n} 個版位`, 'ok', 2200);
+});
+document.getElementById('markUndo').addEventListener('click', async () => {
+  const picked = allBlocks().filter(b => markSel.has(b.id) && b.sheet.confirmed);
+  if (!picked.length) return;
+  /* 收回＝PM 那邊整個版位又不見了，而且列會重新可以搬 —— 值得問一次。
+     跟單顆那條路的「解除鎖定」問同一件事，只是這裡一次問一批。 */
+  const ok = await modalConfirm({
+    title: '收回這些版位',
+    body: `${picked.length} 個版位會從 PM 那邊收回來（PM 會看不到它們），`
+        + '列也會重新可以搬動。已經拼好的內容都會留著。要繼續嗎？',
+    ok: '收回', cancel: '取消', danger: true
+  });
+  if (!ok) return;
+  const n = setConfirmed(picked, false);
+  markSel.clear(); paintMarkSel();
+  if (n) toast(`已收回 ${n} 個版位`, 'info', 2200);
 });
 
 /* ==========================================================================
@@ -6836,6 +7079,7 @@ function showList(){
   document.getElementById('view-board').classList.remove('active');
   document.getElementById('view-plans').classList.add('active');
   currentPlan = null;
+  markMode = false; markSel.clear(); renderMarkBar();  // 離開檔期就把選取放掉
   closeBoardCell();                  // 下次進 拼板 從總覽開始
   boardLoaded = null;                // 換檔期就別留著上一張的 iframe
   pmFocus = null;
@@ -6912,140 +7156,6 @@ function openPlan(plan){
   pushHistory();
 }
 
-/* ==========================================================================
-   壓力測試 devtool：一鍵生一個塞滿的假檔期
-   純測試用。按下去另生一筆「壓力測試」檔期，10 個版位、每個約 60 格，每一格
-   輪流塞不同商品／不同價格，然後直接開到拼板第一個版位 —— 拿來看幾十格畫布
-   同時排版卡不卡。真實檔期完全不動（這是 unshift 一筆新的，不是改現有的）。
-   ========================================================================== */
-/* 沒接上共用目錄時的後備商品（＝畫布內建那份的縮影，SKU 對得上就查得到價格）。
-   只留 name/sku，價格由畫布自己那份 ROWS 查 —— 兩邊同一份資料，對得起來。 */
-const STRESS_FALLBACK_ROWS = [
-  ['iPhone 17 Pro Max','2156742'],['iPhone 17 Pro Max','2156739'],['iPhone 17 Pro Max','2156738'],
-  ['iPhone 17 Pro','2156751'],['iPhone 17 Pro','2156749'],['iPhone 17 Pro','2156735'],
-  ['Galaxy A5','2162613'],['Galaxy A5','2162614'],
-  ['iPad Air','2154566'],['iPad Air','2154562'],
-  ['iPad A16','2154573'],['iPad A16','2154572'],
-  ['MacBook Pro','2158956'],
-  ['MacBook Neo Air M5','2162848'],['MacBook Neo Air M5','2162864'],['MacBook Neo Air M5','2162868'],
-  ['AirPods 4','2150080'],['AirPods 4','2150081'],
-  ['AirPods Pro 3','2157982'],
-  ['ANKER 30W 自帶線行動電源','2157669'],
-].map(r => ({ name: r[0], sku: r[1] }));
-
-/* 一種商品一組（同名的 SKU 才會被畫布併成同一張卡）。優先用共用目錄，沒有就用後備。 */
-function stressProducts(){
-  const rows = (CATALOGUE && Array.isArray(CATALOGUE.rows) && CATALOGUE.rows.length)
-    ? CATALOGUE.rows : STRESS_FALLBACK_ROWS;
-  const by = new Map();
-  rows.forEach(r => { const n = r.name; if (!by.has(n)) by.set(n, []); by.get(n).push(String(r.sku)); });
-  return [...by.values()].filter(a => a.length);
-}
-
-const firstLeaf = node => node.children ? firstLeaf(node.children[0]) : node;
-
-/* 認得出哪些是壓力測試用的假檔期（type 蓋章、id 前綴都行）—— 清舊的、開機收拾
-   重複的都靠它。真檔期不會是這個 type，所以誤刪不到。 */
-const isStressPlan = p => !!p && (p.type === '壓力測試' || String(p.id || '').startsWith('stress-'));
-
-/* 只留一個壓力測試假檔期（陣列最前面那個＝最新，或正在開的那個），其餘清掉。
-   一併叫遠端刪 —— 只清 localStorage 的話，bootSync 下次又把它們從 Supabase 拉回來。
-   開機一次、bootSync 合併完再一次（那時 sync 才真的就緒）。回傳有沒有動過。 */
-function dedupeStressPlans(){
-  const s = sync();
-  let kept = false, changed = false;
-  for (let i = 0; i < plans.length; i++){
-    if (!isStressPlan(plans[i])) continue;
-    const cur = currentPlan && plans[i].id === currentPlan.id;
-    if (!kept || cur){ kept = true; continue; }   // 留第一個（或正在開著的那個）
-    if (s) s.queueRemove(plans[i].id);
-    plans.splice(i, 1); i--;
-    changed = true;
-  }
-  return changed;
-}
-
-function makeStressPlan(){
-  const prods = stressProducts();
-  if (!prods.length){ alert('沒有商品可塞'); return; }
-
-  // 一頁 5 個版位（左欄 3、右欄 2），前後兩頁共 10 個；每個版位 60 格。
-  const stressPage = base => {
-    const b = (n, size) => blk('壓測' + String(n).padStart(2,'0'),
-                               [{ name:'商品', count:60 }], size);
-    return { dir:'row', fold:true, size:null, children:[
-      { dir:'col', size:50, children:[ b(base+1,34), b(base+2,33), b(base+3,null) ] },
-      { dir:'col', size:50, children:[ b(base+4,50), b(base+5,null) ] }
-    ]};
-  };
-  const plan = {
-    id: 'stress-' + Date.now(),
-    name: '壓力測試（假檔期）',
-    type: '壓力測試',
-    tags: ['壓測'],
-    start: SEED_PLANS[0].start,
-    durs: SEED_PLANS[0].durs.slice(),
-    layout: { front: stressPage(0), back: stressPage(5) }
-  };
-
-  /* 便利貼也塞一些，才看得出貼滿標記、意見欄排一長串的樣子。三種（補貼紙／補贈品／
-     留言）× 設計和三位 PM（顏色＝誰貼的），有的已處理、有的還沒。位置、種類都照格號
-     變化，不用亂數也每格不一樣。別人的便利貼搬不動是談定的規矩，這裡照樣分好幾位——
-     設計那幾張自己搬得動，就當作真實情境。 */
-  const NOTE_KINDS = ['sticker', 'gift', 'other'];
-  const NOTE_WHO = [
-    { whoId:'design',  who:'設計' },
-    { whoId:'pm:pm1',  who:'PM 甲' },
-    { whoId:'pm:pm2',  who:'PM 乙' },
-    { whoId:'pm:pm3',  who:'PM 丙' }
-  ];
-  const NOTE_TEXTS = ['價格再確認','這張圖要換','補一個加價購','SKU 對嗎？',
-                      '位置往上一點','','客訴要注意','要不要做貼紙'];
-  const stressNotes = idx => {
-    const n = idx % 3;                 // 0、1、2 顆：三格裡兩格有便利貼
-    const out = [];
-    for (let j = 0; j < n; j++){
-      const a = NOTE_WHO[(idx + j) % NOTE_WHO.length];
-      out.push({
-        id: 'sn' + idx + '-' + j,
-        key: NOTE_KINDS[(idx * 2 + j) % NOTE_KINDS.length],
-        text: NOTE_TEXTS[(idx + j) % NOTE_TEXTS.length],
-        who: a.who, whoId: a.whoId, time: stamp(), done: (idx + j) % 4 === 0,
-        x: 18 + ((idx * 17 + j * 37) % 64),
-        y: 18 + ((idx * 23 + j * 13) % 58),
-        replies: []
-      });
-    }
-    return out;
-  };
-
-  // 把每一格塞滿：輪流換商品，取前 6 個 SKU（同商品跨價位＝1~3 個價格欄），再貼便利貼。
-  let ci = 0;
-  const fill = node => {
-    if (node.children){ node.children.forEach(fill); return; }
-    (sheetOf(node).cells || []).forEach(c => {
-      const prod = prods[ci % prods.length];
-      c.board = { state: { picked: prod.slice(0, 6) } };
-      c.notes = stressNotes(ci);
-      ci++;
-    });
-  };
-  fill(plan.layout.front); fill(plan.layout.back);
-
-  // 只留一個：先把舊的壓力測試檔期整批清掉（本機＋遠端），不然每按一次就多一筆
-  // 同名的堆在列表裡。這一顆待會會 openPlan 換成新的，舊的孤兒掉沒關係。
-  const s = sync();
-  for (let i = plans.length - 1; i >= 0; i--) if (isStressPlan(plans[i])){
-    if (s) s.queueRemove(plans[i].id);
-    plans.splice(i, 1);
-  }
-  plans.unshift(plan);
-  savePlans();
-  openPlan(plan);
-  switchTab('board');                       // 直接落在拼板；mount 會自己選第一個版位、畫好
-}
-const stressBtn = document.getElementById('stressPlanBtn');
-if (stressBtn) stressBtn.onclick = makeStressPlan;
 
 /* Always ask before leaving, and say plainly whether the work is safe — the
    answer is different depending on whether a write is still queued. */
@@ -7083,10 +7193,6 @@ window.addEventListener('beforeunload', e => {
    在它宣告的那一行之前呼叫會 TDZ 炸掉，而且只有真的遇到要轉的檔期才會炸。 */
 if (plans.filter(normalizeLayout).length) savePlans();
 
-/* 開機收拾重複的壓力測試假檔期：舊版本每按一次就多存一筆同名的，堆了一列。
-   只留一個，其餘清掉（純測試資料，收掉不心疼）。這時 sync 可能還沒就緒，遠端那份
-   由 bootSync 合併完再收一次 —— 那裡才刪得到 Supabase。 */
-if (dedupeStressPlans()) savePlans();
 
 /* 拖著檔案在版面上的時候，把畫布那層打開讓它自己收 drop（見 .filedrag 那條 CSS）。
    dragover 是連續發的，所以用「停了就關」來收尾 —— dragleave 在格子之間穿梭時
@@ -7143,9 +7249,6 @@ showList();
         });
         plans = [...byId.values()];
         plans.filter(normalizeLayout);      // 行銷剛提交的還是 HTML，轉成樹再用
-        /* 遠端可能還存著一堆舊的壓力測試假檔期，剛剛被 pullAll 拉回來 —— 這時
-           sync 已就緒，收一次（本機刪＋queueRemove 遠端），只留一個。 */
-        dedupeStressPlans();
         savePlans();                        // localStorage 當本機快取
         if (!currentPlan) renderPlans();    // 已經開著檔期就別把人踢回列表
       }

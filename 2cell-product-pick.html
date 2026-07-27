@@ -96,7 +96,8 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
   font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
 .blk.img img,.blk.img .ph{width:100%;display:block;pointer-events:none}
 .blk.img .ph{height:170px}
-.blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:52px;line-height:1}
+/* 這個 52→64 要跟 PRICE_BASE 一起改，兩邊是同一個數字 */
+.blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:64px;line-height:1}
 .spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
   font-size:calc(14px * var(--bs,1));font-weight:800;margin-bottom:3px}
 /* SKU 的基準是版位那支轉盤（--sku-fs），單塊微調是再乘上去 —— 乘的是轉盤現在
@@ -475,7 +476,11 @@ let CW = LEGACY_CW, CH = 420;
    同一個版位裡同樣價格數的格子要一樣大，那件事只有看得到全部格子的人算得出來。
    PRICE_PX：轉盤指定的絕對大小，蓋過自動縮放，允許溢出（談定的）。
    GROUP_FS：上層收齊同組的需求、取最小之後廣播回來的比例。 */
-const PRICE_BASE = 52;
+/* 52 → 64：紅色數字是這張版上最先被看到的東西，本來的預設偏保守。
+   這只是「起點」—— 擠不下的時候 autoSpace 照樣會把它縮回去，
+   所以調大不會讓任何一格溢出，只會讓有空間的格子把數字放到該有的大小。
+   CSS 的 .blk.price 是同一個數字，改這裡要一起改。 */
+const PRICE_BASE = 64;
 let SKU_FS = 12;
 let PRICE_PX = 0;
 let GROUP_FS = 0;
@@ -1016,7 +1021,9 @@ function isOff(b, c){ return !!offMap(c)[b.uid]; }
 /* 還在版上的（沒被藏起來的）。排版、對齊、分組一律只算這些。 */
 function liveBlocks(){ return BLOCKS.filter(b=>!isOff(b)); }
 
-/** 商品圖疊成一排往右：整排置中，超出邊界就把間距縮小，不會擠出格子外。 */
+/** 商品圖疊成一排往右：整排置中，超出邊界就把間距縮小，不會擠出格子外。
+    ⚠️ 那個 18px 的上限不是隨便訂的：圖寬 190、數字那一疊從 x=190 開始，
+    圖再往右散就會壓到價格。想改「散開一點」之前先看 stackImgs 的量測紀錄。 */
 function stackImgs(B, rows, w, y, nextId){
   const n = rows.length;
   const room = CW - PAD*2 - w;
