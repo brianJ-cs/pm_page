@@ -95,7 +95,9 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .bph i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
 .blk.img img,.blk.img .ph{width:100%;display:block;pointer-events:none}
-.blk.img .ph{height:170px}
+/* 預留圖是正方形：高度跟著寬度走，不要寫死。寫死 170 的話，三支商品擠一格、
+   圖被縮窄之後就變成細長條，看起來不像「一張商品圖」而像一根柱子。 */
+.blk.img .ph{aspect-ratio:1/1;height:auto}
 /* 這個 52→64 要跟 PRICE_BASE 一起改，兩邊是同一個數字 */
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:64px;line-height:1}
 .spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
@@ -163,6 +165,29 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
   padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;margin:6px 4px 0 0}
 .mini:hover{border-color:var(--accent);color:var(--accent)}
 
+/* 把手長得跟 Word 的圖片一樣：八個白色小圓點（四角＋四邊中點），
+   選取框是一圈實線。四角等比、四邊單向 —— 手感跟 Word／PPT 對得起來。
+   固定大小、不跟著版面縮放：它是操作用的，不是版面的一部分。 */
+.rz{
+  position:absolute;width:8px;height:8px;z-index:70;
+  background:#fff;border:1.5px solid #2b7fd4;border-radius:50%;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+/* 把手貼在邊框「裡面」，不是掛在外面：靠右下的零件（價格、SKU 本來就對齊右下）
+   如果把手往外突出，就會掉到畫布外被裁掉 —— 看不到也抓不到。 */
+.rz-nw{left:0;top:0;cursor:nwse-resize}
+.rz-ne{right:0;top:0;cursor:nesw-resize}
+.rz-se{right:0;bottom:0;cursor:nwse-resize}
+.rz-sw{left:0;bottom:0;cursor:nesw-resize}
+/* 選取框：跟 Word 一樣是一圈細實線，把手騎在上面 */
+.blk.sel{outline:1.5px solid #2b7fd4;outline-offset:0}
+/* 拖曳時鋪一層格線：知道自己吸到哪一格上，不用猜 */
+.gridlines{
+  position:absolute;inset:0;pointer-events:none;z-index:5;
+  background-image:linear-gradient(to right,rgba(0,122,204,.16) 1px,transparent 1px),
+                   linear-gradient(to bottom,rgba(0,122,204,.16) 1px,transparent 1px);
+  background-size:10px 10px;
+}
 .blk.img{overflow:visible}
 .blk.img.actimg{border-color:#007acc;box-shadow:0 0 12px rgba(0,122,204,.45);opacity:1!important}
 .tobtn{position:absolute;right:8px;bottom:8px;display:none;appearance:none;
@@ -237,7 +262,8 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .rbtn .rn{font-size:11px;color:#fff;background:#999;border-radius:999px;padding:0 5px;min-width:16px;
   text-align:center}
 .rbtn:hover .rn{background:#111}
-.rlist{display:none;position:absolute;right:0;top:calc(100% + 5px);width:210px;max-height:210px;
+/* 清單往上開：按鈕移到左下角之後，往下開會掉到格子外面 */
+.rlist{display:none;position:absolute;left:0;bottom:calc(100% + 5px);width:210px;max-height:210px;
   overflow:auto;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px;
   box-shadow:0 6px 20px rgba(0,0,0,.18)}
 #restore.open .rlist{display:block}
@@ -280,7 +306,11 @@ body.ui-panel #side{display:none !important}
 body.ui-panel #stage{padding:0;display:block;overflow:hidden}
 body.ui-panel #rig{display:block;height:100%}
 body.ui-panel #wrap{position:absolute;left:-10000px;top:0;visibility:hidden}
-body.ui-panel #rcol{margin:0;width:100%;height:100%;gap:0}
+/* 用 100vh 不是 100%：這一頁被嵌成 iframe 的時候，視窗就是那塊面板，所以 vh 剛好
+   等於面板高度。用 % 的話要一路從 html/body 都有高度才算得出來，而這一頁沒有，
+   於是 #lay 只會長到內容那麼高 —— 下面那截就露出 iframe 自己的白底，看起來像
+   面板裡面又疊了一個空白箱子。 */
+body.ui-panel #rcol{margin:0;width:100%;height:100vh;max-height:none;gap:0}
 body.ui-panel .panel,
 body.ui-panel #lay{width:100%;height:100%;max-height:none;border:0;border-radius:0;box-shadow:none}
 /* 被嵌在落版旁邊時，這塊面板捲到底就停 — 不要把剩下的滾輪推給外面那張版，
@@ -493,12 +523,23 @@ function priceCount(bs, off){
   return (bs || BLOCKS).filter(b => b.kind === 'price' && !o[b.uid]).length;
 }
 
+/* 一格裡的價格越多，每一個就得小一點 —— 同樣一塊寬度要塞更多組數字，
+   而且數字之間還要留得出間隔。所以「預設多大」是照價格數決定的：
+     一個價 → 最大（一格只講一個價，那個數字就是主角）
+     兩個價 → 中間
+     三個以上 → PRICE_BASE 本身，也就是最小的那一級
+   這只是「起點」：排不下的時候 autoSpace 照樣會把整組再夾小，所以放大不會溢出。
+   分組本來就是照價格數分的（見 priceCount），所以同一組裡每一格拿到的起點一樣，
+   一個版位裡同樣價格數的格子還是一樣大。 */
+const PRICE_COUNT_FS = { 1: 1.55, 2: 1.25 };
+const countFs = () => PRICE_COUNT_FS[priceCount()] || 1;
+
 /** 要求的比例，還沒過「絕不溢出」那道夾子。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
 function priceFsRaw(b){
   if(b.fsFix) return b.fsFix;
   if(PRICE_PX) return PRICE_PX / PRICE_BASE;
   if(GROUP_FS) return GROUP_FS;
-  return b.fs || 1;
+  return b.fs || countFs();
 }
 /* autoSpace 要「這一塊本來想要多大」時用這個，不用 priceFsRaw —— 差別在最後那一段：
    priceFsRaw 沒有轉盤／同組時會回 b.fs，而 b.fs 正是 autoSpace 自己上一輪算完寫回去的。
@@ -509,7 +550,7 @@ function priceReq(b){
   if(b.fsFix) return b.fsFix;
   if(PRICE_PX) return PRICE_PX / PRICE_BASE;
   if(GROUP_FS) return GROUP_FS;
-  return 1;
+  return countFs();          // 自動那一段的基準：照這一格有幾個價格
 }
 /* b.shrink 是最後那道夾子：要求的字級整列排不下時，autoSpace 算出剛好排得下的
    比例存在每一塊上（整組同一個值，數字之間的相對關係不變）。1 ＝ 沒夾。
@@ -956,7 +997,7 @@ function buildBlocks(){
     /* 一支的時候也照同一條規矩：數字（SKU、價格）整組靠右下，品牌品名靠左上。
        所以這裡的 SKU 跟價格一律算成「第 0 欄」—— 多欄那套排版程式會把整欄
        貼到右下角，兩種情況看起來就是同一張版。 */
-    stackImgs(B, rows, 200, Math.round(CH*.28), () => 'b'+id++);
+    stackImgs(B, rows, 200, Math.round(CH*.28), () => 'b'+id++, 340);   // 340＝下面那組數字的左緣
     let y = CH-PAD_Y-58-cols[0].lines.length*24;   // 先估，autoSpace 再貼準
     for(const l of cols[0].lines){
       B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),x:340,y,col:0});
@@ -964,11 +1005,12 @@ function buildBlocks(){
     }
     B.push({id:'b'+id++,kind:'price',price:cols[0].price,x:340,y:y+2,col:0});
   }else{
-    stackImgs(B, rows, 190, Math.round(CH*.17), () => 'b'+id++);
-    /* 規格／SKU／價格整組靠右下角：最後一欄貼齊右邊界，往左依序排 */
+    /* 規格／SKU／價格整組靠右下角：最後一欄貼齊右邊界，往左依序排。
+       x0 要先算出來 —— 圖得知道自己可以排到哪裡為止，才不會壓到價格。 */
     const n=cols.length, gap=Math.min(170,(CW-PAD*2)/n);
     const groupW=gap*n;
     const x0=CW-PAD-groupW;           // 整組左緣，使右緣落在 CW-PAD
+    stackImgs(B, rows, 190, Math.round(CH*.17), () => 'b'+id++, x0);
     // 每欄高度：規格(26)+SKU(24) 各行 + 價格(約56)
     const rowsH = Math.max(...cols.map(c=>
       c.lines.reduce((a,l)=>a+(l.spec?26:0)+24,0)));
@@ -1021,16 +1063,22 @@ function isOff(b, c){ return !!offMap(c)[b.uid]; }
 /* 還在版上的（沒被藏起來的）。排版、對齊、分組一律只算這些。 */
 function liveBlocks(){ return BLOCKS.filter(b=>!isOff(b)); }
 
-/** 商品圖疊成一排往右：整排置中，超出邊界就把間距縮小，不會擠出格子外。
-    ⚠️ 那個 18px 的上限不是隨便訂的：圖寬 190、數字那一疊從 x=190 開始，
-    圖再往右散就會壓到價格。想改「散開一點」之前先看 stackImgs 的量測紀錄。 */
-function stackImgs(B, rows, w, y, nextId){
+/** 商品圖並排，彼此不重疊，而且停在數字那一疊前面。
+    limit＝右界（數字那一疊的左緣）；沒給就用格子的右邊界。
+
+    以前是「固定寬度、往右疊一點點」（間距上限 18px），所以三張圖幾乎疊成一坨。
+    直接把間距拉開又會壓到價格 —— 圖寬 190、數字從 x=190 開始，三張 190 寬的圖
+    要並排得 570px，而畫布總共才 540：**固定寬度時，不重疊是幾何上做不到的**。
+    所以這裡改成先決定寬度：n 張要塞進 [PAD, limit] 這一段，每張最多 band/n。
+    圖會變小，但那是這一格真實的樣子 —— 三支商品擠一格，圖本來就該小。 */
+function stackImgs(B, rows, w, y, nextId, limit){
   const n = rows.length;
-  const room = CW - PAD*2 - w;
-  const step = n > 1 ? Math.max(6, Math.min(18, room / (n - 1))) : 0;
+  const band = Math.max(60, (limit == null ? CW - PAD : limit) - PAD);
+  const ww = Math.max(44, Math.min(w, band / n));      // 44 是「還看得出是什麼」的下限
+  const step = n > 1 ? (band - ww) / (n - 1) : 0;
   const x0 = PAD;                 // 圖靠左：左上是品牌品名，圖接著站在同一條左邊界上
   rows.forEach((r, i) => B.push({ id:nextId(), kind:'img', row:r, key:imgKey(r),
-                                  x:x0 + i*step, y, w, z:i+1 }));
+                                  x:x0 + i*step, y, w:ww, z:i+1 }));
 }
 
 /* 這一格自己換過的商品圖：key 是商品（品名|規格|顏色），值是 Storage 的網址。
@@ -1106,7 +1154,28 @@ function blockHTML(b,isCur=true){
     `<div class="sku">${skuLine(b.vs)}</div></div>`;
 }
 
-function renderCell(){ renderOne(curCell); reportBoard(); }
+function renderCell(){ renderOne(curCell); paintHandles(); reportBoard(); }
+
+/* 選中一塊就在四個角長出把手，拖角落等比放大縮小 —— 跟 PPT 一樣的手感。
+   只在「剛好選一塊」時出現：多選時每一塊各自的基準倍率不同，一個角落沒辦法
+   同時代表全部，硬做出來的結果只會跟你想的不一樣。工具列上的 ＋／− 才是多選用的。
+   在 render 之後補上去，不塞進 blockHTML —— 那支函式一種零件一條分支，
+   每條都補一次把手，遲早漏掉一種。 */
+function paintHandles(){
+  if(ROLE==='pm' || selected.size!==1) return;
+  const el=bEl([...selected][0]); if(!el) return;
+  /* 只有四個角。每一塊零件的「大小」只有一個倍率（圖是 b.w、價格是 b.fsFix、
+     其他是 b.sc），沒有分開的寬和高可以拉 —— 所以邊中點那四顆做出來也只會等比縮放，
+     長得像 Word 卻不是 Word 的行為，比沒有更糟。真的要單向拉伸，得先讓零件有
+     寬高兩個維度，那是另一件事。 */
+  ['nw','ne','sw','se'].forEach(c=>{
+    const h=document.createElement('i');
+    h.className='rz rz-'+c;
+    h.dataset.corner=c;
+    h.title='拖曳改大小（按住 Shift 微調）';
+    el.appendChild(h);
+  });
+}
 
 /* 渲染單一格子（i 可為任一格） */
 function renderOne(i, force){
@@ -1145,6 +1214,8 @@ function renderOne(i, force){
   if(isCur) setTimeout(()=>{ renderProps(); renderRestore(); },0);
   const paint = hidden => {
     el.innerHTML = '<div class="cstage'+(hidden?' measuring':'')+'">'
+      /* 只在拖曳中鋪格線：平常不該有一層網子壓在版面上，那會干擾你看真正的排版 */
+      + ((isCur && drag && drag.moved) ? '<div class="gridlines"></div>' : '')
       + blocks.map(b=>blockHTML(b,isCur)).join('')
       + (isCur?guides.map(g=>g.dir==='v'
           ? `<div class="guide gv" style="left:${g.pos}px"></div>`
@@ -1349,9 +1420,12 @@ function autoSpace(){
          只有字會縮，框那 10px 不會，所以是這樣解出來的、不是 avail/need。 */
       const shrink = (inkw+fixed>avail && inkw>0) ? Math.max(0, avail-fixed)/inkw : 1;
 
-      /* 這一格自己需要縮到多少，往上報給同組取最小（同一個版位裡同樣價格數的
-         格子要一樣大，那要收齊全部格子才算得出來，一格自己看不到別人）。 */
-      priceWanted = shrink<1 ? Math.max(.55, shrink) : 1;
+      /* 這一格自己想要多大，往上報給同組取最小（同一個版位裡同樣價格數的
+         格子要一樣大，那要收齊全部格子才算得出來，一格自己看不到別人）。
+         要乘上 countFs()：報上去的必須是「絕對想要多大」，不能只報「我需要縮多少」。
+         只報縮放比例的話，一價那一格報 1、三價那一格也報 1，上層看起來一模一樣，
+         於是「一個價要大一點」這件事在傳上去的路上就被抹平了。 */
+      priceWanted = (shrink<1 ? Math.max(.55, shrink) : 1) * countFs();
 
       const eff=want.map(w=>w*shrink);            // 夾過之後真正要用的
       autoP.forEach((p,i)=>{
@@ -1412,8 +1486,14 @@ function autoSpace(){
 
 /* ====== 拖曳 / 框選 / 合併 ====== */
 let drag=null, marq=null, dragHappened=false;
+let rz=null;                         // 正在拖角落改大小
 let guides=[];                       // 目前要畫的引導線
 const SNAP=6;                        // 弱磁吸半徑(px)，超過就掙脫
+/* 格線：拖曳時先吸到 10px 的格子上，讓「大致對齊」不必手動瞄。
+   對齊線（SNAP）在格線之後才套用，所以「跟另一塊對齊」永遠贏過「貼在格線上」——
+   那是使用者真正想要的那一種對齊，格線只是沒有對齊對象時的底。 */
+const GRID=10;
+const onGrid=v=>Math.round(v/GRID)*GRID;
 
 /* 量測所有 block 的實際尺寸（拖曳開始時做一次） */
 function measure(){
@@ -1519,6 +1599,24 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   openPanels(true); renderLayers();
   if(!picked.size) return;
   if(e.target.closest('.tobtn')) return;   // 按鈕不觸發拖曳
+  /* 拖角落＝改大小，不是搬位置。要在找 .blk 之前攔下來，不然它也算按在那一塊上，
+     會同時開始搬移，變成一邊拉大一邊亂跑。 */
+  const hz=e.target.closest('.rz');
+  if(hz && ROLE!=='pm'){
+    const b=BLOCKS.find(x=>x.id===hz.parentElement.dataset.b);
+    if(b){
+      const r=hz.parentElement.getBoundingClientRect(), k=scaleOf();
+      rz={ id:b.id, corner:hz.dataset.corner, base:scaleBase(b),
+           /* 對角那一點固定不動，量的是「游標離它多遠」的變化 —— 跟 PPT 一樣，
+              拉哪一角就從那一角長出去。 */
+           ax:(hz.dataset.corner.includes('e')?r.left:r.right),
+           ay:(hz.dataset.corner.includes('s')?r.top:r.bottom),
+           d0:0 };
+      rz.d0=Math.hypot(e.clientX-rz.ax, e.clientY-rz.ay)/k || 1;
+    }
+    e.preventDefault(); e.stopPropagation();
+    return;
+  }
   const el=e.target.closest('.blk');
   const p=cellPt(e);
   if(el){
@@ -1553,23 +1651,56 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
 });
 
 addEventListener('mousemove',e=>{
+  if(rz){
+    const b=BLOCKS.find(x=>x.id===rz.id);
+    if(b){
+      const k=scaleOf();
+      const d=Math.hypot(e.clientX-rz.ax, e.clientY-rz.ay)/k;
+      let r=d/rz.d0;
+      if(e.shiftKey) r=1+(r-1)*.35;        // 微調：同樣的手移距離只走三分之一
+      setBlockScale(b, rz.base*r);
+      holdPlace(b);                     // 拉過大小就釘住，別再被自動排版搬走
+      dragHappened=true;
+      renderOne(curCell,true);          // 尺寸變了要重量，不然把手停在舊位置
+      paintHandles();
+    }
+    e.preventDefault();
+    return;
+  }
   if(drag){
     const p=cellPt(e), dx=p.x-drag.start.x, dy=p.y-drag.start.y;
     if(Math.abs(dx)>2||Math.abs(dy)>2) drag.moved=true;
+    /* 格線是主，對齊線是輔。
+       量的是「主角那一塊」落在哪一格，整組平移同樣的量 —— 多選拖曳時彼此的
+       相對位置一步都不會跑掉。按住 Alt 不吸格線，要微調的時候用。 */
+    const o=drag.orig[drag.main] || drag.orig[drag.ids[0]];
+    let gx=dx, gy=dy;
+    if(!e.altKey && o){
+      gx=onGrid(o.x+dx)-o.x;
+      gy=onGrid(o.y+dy)-o.y;
+    }
     for(const id of drag.ids){
       const b=BLOCKS.find(x=>x.id===id);
-      b.x=drag.orig[id].x+dx; b.y=drag.orig[id].y+dy;
+      b.x=drag.orig[id].x+gx; b.y=drag.orig[id].y+gy;
     }
     clampAll(drag.ids, drag.sizes);
-    // 弱磁吸：先算出對齊修正量，再整組平移；拉遠超過 SNAP 自然掙脫
+    /* 弱磁吸只當「微調」用：吸完格線之後，如果離某條對齊線已經很近（FINE 以內），
+       才讓它把最後那幾 px 補上。
+       原本是對齊線說了算，但那等於格線白吸了 —— 版面上每一塊的邊和中線都是候選線，
+       六個 px 內幾乎永遠找得到一條，於是不管怎麼拖都落在別人的邊上，
+       格線一次都感覺不到。現在反過來：先站上格子，真的快對齊了才貼過去。 */
     guides=[];
     if(drag.sizes){
+      const FINE=3;
       const sn=snap(drag.ids, drag.sizes);
-      if(sn.dx||sn.dy) for(const id of drag.ids){
-        const b=BLOCKS.find(x=>x.id===id); b.x+=sn.dx; b.y+=sn.dy;
+      const ax=Math.abs(sn.dx)<=FINE?sn.dx:0, ay=Math.abs(sn.dy)<=FINE?sn.dy:0;
+      if(ax||ay){
+        for(const id of drag.ids){
+          const b=BLOCKS.find(x=>x.id===id); b.x+=ax; b.y+=ay;
+        }
+        guides=sn.guides.filter(g=>(g.dir==='v'?ax:ay)!==0);
+        clampAll(drag.ids, drag.sizes);
       }
-      guides=sn.guides;
-      clampAll(drag.ids, drag.sizes);
     }
     // 合併預示
     const src=BLOCKS.find(x=>x.id===drag.main);
@@ -1599,13 +1730,24 @@ addEventListener('mousemove',e=>{
 });
 
 /* ====== 滾輪：在游標下重疊的圖層之間循環 ====== */
+/* 嵌在版面裡的畫布（?ui=stage）：滾輪是外面那張版的縮放，不是捲這個 iframe。
+   不轉出去的話，滾輪會被 iframe 自己吃掉 —— 游標一移到格子上，縮放就失靈，
+   而格子正好佔滿整張版，等於整片都不能縮放。
+   疊在圖上時仍然先給「切換圖層」用（那是這裡本來就有的手勢），沒有圖才轉出去。 */
+function relayWheel(e){
+  if(!UI_STAGE) return false;
+  e.preventDefault();
+  try{ parent.postMessage({ stageWheel:{ deltaY:e.deltaY, x:e.screenX, y:e.screenY } }, '*'); }catch(_){}
+  return true;
+}
+
 document.getElementById('grid').addEventListener('wheel',e=>{
-  const ce=e.target.closest('.cell'); if(!ce) return;
+  const ce=e.target.closest('.cell'); if(!ce){ relayWheel(e); return; }
   const idx=+ce.dataset.cell;
   if(idx!==curCell){ saveCell(); loadCell(idx); CELLS.forEach((c,i)=>renderOne(i)); renderPick(); renderLayers(); }
-  if(!picked.size) return;
+  if(!picked.size){ relayWheel(e); return; }
   const imgs=BLOCKS.filter(b=>b.kind==='img');
-  if(!imgs.length) return;
+  if(!imgs.length){ relayWheel(e); return; }
   const hit=e.target.closest('.blk');
   // 游標下所有 img block（由 z 大到小）
   const p=cellPt(e), c=cellEl().getBoundingClientRect();
@@ -1616,7 +1758,7 @@ document.getElementById('grid').addEventListener('wheel',e=>{
     const bx=(r.left-c.left)/k, by=(r.top-c.top)/k;
     return p.x>=bx&&p.x<=bx+r.width/k&&p.y>=by&&p.y<=by+r.height/k;
   }).sort((a,b)=>b.z-a.z);
-  if(!under.length){ activeImg=null; renderCell(); return; }
+  if(!under.length){ activeImg=null; renderCell(); relayWheel(e); return; }
   e.preventDefault();
   const ids=under.map(b=>b.id).join(',');
   if(ids!==stackUnder.join(',')){ stackUnder=under.map(b=>b.id); cycleIndex=0; }
@@ -1730,6 +1872,21 @@ function scaleOfBlock(b){
   if(b.kind==='price') return b.fsFix || 0;      // 0＝還是自動，沒有固定倍率
   return b.sc || 1;
 }
+/** 直接設定倍率（拖角落用）。scaleBlock 是乘的，一路拖會愈乘愈歪 ——
+    拉大小要的是「從按下去那一刻的倍率算到現在」，所以這裡收絕對值。 */
+function setBlockScale(b, s){
+  const v = clampSc(s);
+  if(b.kind==='img'){ if(!b.w0) b.w0=b.w; b.w=+(b.w0*v).toFixed(1); return; }
+  if(b.kind==='price'){ b.fsFix=+v.toFixed(3); return; }
+  b.sc=+v.toFixed(3);
+}
+/** 按下角落那一刻它是幾倍大。價格的 0 代表「還在自動」，要換算成它現在真正的倍率。 */
+function scaleBase(b){
+  const s=scaleOfBlock(b);
+  if(b.kind==='price') return s || priceFsRaw(b) || 1;
+  return s || 1;
+}
+
 function scaleBlock(b, mul){
   if(b.kind==='img'){
     if(!b.w0) b.w0=b.w;                          // 第一次調就記下原本多寬，才回得去
@@ -1756,9 +1913,15 @@ function selBlocks(){
   return [...selected].map(id=>BLOCKS.find(b=>b.id===id)).filter(Boolean);
 }
 
+/* 自己動過大小的那一塊，就從自動排版手上接管過來（跟拖過一次是同一個意思）。
+   不釘住的話，改完大小 renderOne(force) 會重跑一次 autoSpace，把價格重新靠右下
+   對齊、把圖重新讓開 —— 看起來就是「我只是想放大一點，結果整格跳了位置」。
+   誰動過誰負責：手動調過的位置和大小都留在原地，沒動過的照舊自動排。 */
+function holdPlace(b){ if(b.kind==='price') b.placed=true; }
+
 function scaleSelected(mul){
   const sel=selBlocks(); if(!sel.length) return;
-  sel.forEach(b=>scaleBlock(b,mul));
+  sel.forEach(b=>{ scaleBlock(b,mul); holdPlace(b); });
   renderOne(curCell,true); reportBoard();
 }
 function resetSelected(){
@@ -1806,11 +1969,14 @@ function renderRestore(){
     `<div class="rlist"><div class="rhead">刪掉的，打勾放回來</div>`+
     keys.map(k=>`<label class="ritem"><input type="checkbox" data-ruid="${k}"><span>${off[k]}</span></label>`).join('')+
     `</div>`;
-  // 位置：格子右上角，座標以 #wrap 為基準（跟 #props 同一套）
+  /* 位置：格子左下角，座標以 #wrap 為基準（跟 #props 同一套）。
+     本來在右上角，但外面那層的紅色未處理數字也釘在右上角，兩個疊在一起 ——
+     一個是「還有幾則沒處理」，一個是「藏了幾個零件」，數字長得像、意思完全不同。
+     左下角是這張版最空的一角（品牌品名在左上、數字在右下）。 */
   const wrapR=$('#wrap').getBoundingClientRect(), r=el.getBoundingClientRect();
-  box.style.left=(r.right-wrapR.left-8)+'px';
-  box.style.top =(r.top-wrapR.top+8)+'px';
-  box.style.transform='translateX(-100%)';
+  box.style.left=(r.left-wrapR.left+8)+'px';
+  box.style.top =(r.bottom-wrapR.top-8)+'px';
+  box.style.transform='translateY(-100%)';
   box.classList.add('on');
 
   box.querySelector('[data-rtoggle]').onmousedown=ev=>{
@@ -1903,6 +2069,9 @@ function markLayerActive(){
 }
 
 addEventListener('mouseup',e=>{
+  /* 放手才回報：拖的過程每一格都 reportBoard() 的話，外面那層會被存檔洗版。
+     renderOne(force) 跟 ＋／− 那條路一樣，重新量一次尺寸再畫。 */
+  if(rz){ rz=null; renderOne(curCell,true); reportBoard(); return; }
   if(drag){
     const p=cellPt(e);
     const src=BLOCKS.find(x=>x.id===drag.main);
