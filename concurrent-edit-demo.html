@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>兩個設計同時改同一個檔期會怎樣</title>
+<!--
+  這一支是**示範**，不是產品的一部分，也不會被 build-single.mjs 發布。
+  伺服器是假的、跑在這一頁裡面 —— **絕對不會碰到正式的 Supabase**，可以放心亂按。
+
+  預設的三個開關全關＝現在 supabase-sync.js 真正的行為：
+    整包覆蓋、沒有版本檢查、600ms debounce、只有開機才 pullAll()。
+  把開關打開，就是把「修法」一個一個加上去，同一個劇本再跑一次看差在哪。
+-->
+<style>
+  :root{
+    --chrome:#26303f; --chrome-2:#2f3a4b; --chrome-line:#3d4859;
+    --chrome-ink:#e8edf5; --chrome-muted:#96a1b3;
+    --surface:#fff; --surface-2:#f4f6fa; --line:#e2e6ee;
+    --ink:#333a45; --ink-dim:#4b5566; --muted:#7a8494;
+    --blue:#4a6fdc; --blue-tint:#eef2fc;
+    --danger:#c0392b; --danger-tint:#fdecea;
+    --ok-ink:#17663a; --ok-tint:#e6f6ea;
+    --warn-ink:#8a6100; --warn-tint:#fff4d9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--chrome);color:var(--chrome-ink);
+    font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    padding:22px 26px 60px;line-height:1.6;
+  }
+  h1{font-size:23px;font-weight:800;margin-bottom:6px}
+  .lede{color:var(--chrome-muted);font-size:14.5px;max-width:78ch}
+  .lede b{color:var(--chrome-ink)}
+  .safe{
+    display:inline-block;margin:10px 0 18px;font-size:12.5px;font-weight:800;
+    color:#8ce29b;background:rgba(140,226,155,.12);
+    border:1px solid rgba(140,226,155,.35);border-radius:999px;padding:4px 12px;
+  }
+
+  .panel{
+    background:var(--chrome-2);border:1px solid var(--chrome-line);border-radius:12px;
+    padding:13px 15px;margin-bottom:14px;
+  }
+  .panel h3{font-size:13.5px;font-weight:800;margin-bottom:4px}
+  .panel p{font-size:12.5px;color:var(--chrome-muted);margin-bottom:9px;max-width:84ch}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{
+    font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
+    border:1px solid var(--chrome-line);border-radius:8px;padding:6px 12px;
+    background:var(--chrome);color:var(--chrome-ink);
+  }
+  button:hover{background:#3a4457;border-color:var(--blue)}
+  button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  button.primary:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.45;cursor:default}
+
+  /* ---- 修法開關 ---- */
+  .fixes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:9px}
+  .fix{
+    display:flex;gap:9px;align-items:flex-start;cursor:pointer;
+    background:var(--chrome);border:1px solid var(--chrome-line);border-radius:10px;padding:9px 11px;
+  }
+  .fix:hover{border-color:var(--blue)}
+  .fix.on{border-color:var(--blue);background:rgba(74,111,220,.16)}
+  .fix input{margin-top:3px;flex:none;accent-color:var(--blue);width:15px;height:15px}
+  .fix .t{font-size:13px;font-weight:800}
+  .fix .d{font-size:11.5px;color:var(--chrome-muted);font-weight:400;line-height:1.45}
+  .fix.on .d{color:#c3cede}
+
+  /* ---- 三欄 ---- */
+  .stage{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start;margin-bottom:16px}
+  @media (max-width:1080px){ .stage{grid-template-columns:1fr} }
+  .card{background:var(--surface);color:var(--ink);border-radius:12px;overflow:hidden;
+        box-shadow:0 6px 20px rgba(0,0,0,.28)}
+  .card > h2{
+    font-size:14px;font-weight:800;padding:9px 13px;
+    background:var(--surface-2);border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;
+  }
+  .who{width:9px;height:9px;border-radius:50%;flex:none}
+  .who.a{background:var(--blue)} .who.b{background:#c77dff} .who.s{background:var(--muted)}
+  .card .body{padding:11px 13px 13px}
+  .stale{margin-left:auto;font-size:11px;font-weight:800;border-radius:999px;padding:2px 9px}
+  .stale.fresh{background:var(--ok-tint);color:var(--ok-ink)}
+  .stale.old{background:var(--warn-tint);color:var(--warn-ink)}
+  .stale.bad{background:var(--danger-tint);color:var(--danger)}
+
+  .presence{
+    font-size:11.5px;font-weight:800;color:var(--warn-ink);background:var(--warn-tint);
+    border:1px solid #f0dca8;border-radius:8px;padding:4px 9px;margin-bottom:8px;display:none;
+  }
+  .presence.on{display:block}
+
+  .slot{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .slot:last-child{border-bottom:0}
+  .slot .nm{font-size:12px;font-weight:800;color:var(--muted);width:42px;flex:none}
+  .slot .val{
+    flex:1;min-width:0;font-size:13px;color:var(--ink);
+    border:1px solid var(--line);border-radius:6px;padding:5px 8px;background:var(--surface);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .slot.changed .val{border-color:var(--blue);background:var(--blue-tint)}
+  .slot.lost .val{border-color:var(--danger);background:var(--danger-tint)}
+  .slot .tag{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 7px;flex:none}
+  .slot .tag.lost{background:var(--danger-tint);color:var(--danger)}
+  .slot .tag.wait{background:var(--warn-tint);color:var(--warn-ink)}
+  .slot .tag.ver {background:var(--surface-2);color:var(--muted)}
+
+  .queue{margin-top:8px;font-size:11.5px;color:var(--muted);min-height:18px}
+  .queue b{color:var(--warn-ink)}
+
+  .srv-row{font-size:12.5px;color:var(--ink-dim);display:flex;gap:8px;padding:2px 0}
+  .srv-row .k{width:56px;flex:none;color:var(--muted);font-weight:800}
+  .srv-row .v{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:800}
+  .writes{margin-top:9px;border-top:1px solid var(--line);padding-top:7px;max-height:190px;overflow:auto}
+  .writes .w{font-size:11.5px;padding:3px 0;color:var(--ink-dim);border-bottom:1px dotted var(--line)}
+  .writes .w:last-child{border-bottom:0}
+  .writes .w b{color:var(--ink)}
+  .writes .w.rej{color:var(--danger)}
+  .writes .w.rej b{color:var(--danger)}
+
+  .verdict{margin-bottom:14px;border-radius:12px;padding:12px 16px;font-size:13.5px;display:none}
+  .verdict.on{display:block}
+  .verdict.bad {background:rgba(192,57,43,.14);border:1px solid rgba(192,57,43,.45);color:#ffb9b0}
+  .verdict.good{background:rgba(23,102,58,.16);border:1px solid rgba(140,226,155,.4);color:#a9e6bd}
+  .verdict.warn{background:rgba(138,97,0,.18);border:1px solid rgba(240,220,168,.4);color:#ffe0a3}
+  .verdict b{color:#fff}
+
+  .log{
+    background:#1c242f;border:1px solid var(--chrome-line);border-radius:12px;
+    padding:11px 14px;max-height:240px;overflow:auto;
+    font-size:12.5px;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  .log .l{padding:2px 0;display:flex;gap:9px}
+  .log .t{color:#63708a;flex:none;width:52px;text-align:right}
+  .log .m{flex:1;min-width:0;overflow-wrap:anywhere}
+  .log .m.a{color:#9db7ff} .log .m.b{color:#dcb0ff}
+  .log .m.s{color:#9fb0c6} .log .m.bad{color:#ff9c8f;font-weight:800}
+  .log .m.good{color:#8ce29b} .log .m.warn{color:#ffd68a}
+
+  table.matrix{border-collapse:collapse;width:100%;margin-top:10px;font-size:12.5px}
+  table.matrix th,table.matrix td{
+    border:1px solid var(--chrome-line);padding:6px 9px;text-align:left;
+  }
+  table.matrix th{background:var(--chrome);color:var(--chrome-ink);font-weight:800}
+  table.matrix td{color:var(--chrome-muted)}
+  table.matrix td.r-bad {color:#ff9c8f;font-weight:800}
+  table.matrix td.r-good{color:#8ce29b;font-weight:800}
+  table.matrix td.r-warn{color:#ffd68a;font-weight:800}
+  table.matrix tr.now td{background:rgba(74,111,220,.14)}
+
+  .notes{margin-top:22px;max-width:90ch;color:var(--chrome-muted);font-size:13.5px}
+  .notes h3{color:var(--chrome-ink);font-size:15px;margin:16px 0 6px}
+  .notes code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-size:12.5px}
+  .notes li{margin:4px 0 4px 20px}
+</style>
+</head>
+<body>
+
+<h1>兩個設計同時改同一個檔期，會發生什麼事</h1>
+<p class="lede">
+  三個開關全關＝<b>現在 supabase-sync.js 真正的行為</b>：存檔是把整包檔期覆蓋上去、
+  沒有版本檢查、只有開機那一次會拉遠端。把開關打開就是把修法一個一個加上去，
+  同一個劇本再跑一次，看差在哪。
+</p>
+<span class="safe">● 伺服器是假的，跑在這一頁裡面 —— 正式的 Supabase 一個字都不會動到</span>
+
+<div class="panel">
+  <h3>修法（可以疊著開）</h3>
+  <p>由便宜到貴。前兩個各自解決一半問題，第三個是「感覺像 Google Docs」的那一味。</p>
+  <div class="fixes">
+    <label class="fix" id="fixVerWrap">
+      <input type="checkbox" id="fixVer">
+      <span><span class="t">① 版本檢查</span><br>
+        <span class="d">寫入時比對「我讀到的時候是第幾版」。對不上就擋下來，
+        叫人重新載入。不會合併，但<b>不會安靜地弄丟</b>。幾十行，不動資料表。</span></span>
+    </label>
+    <label class="fix" id="fixRowWrap">
+      <input type="checkbox" id="fixRow">
+      <span><span class="t">② 一個版位一列</span><br>
+        <span class="d">只送動到的那個版位，不是整包檔期。兩個人改不同版位就
+        <b>物理上不可能互相覆蓋</b>。要改資料表形狀。</span></span>
+    </label>
+    <label class="fix" id="fixRtWrap">
+      <input type="checkbox" id="fixRt">
+      <span><span class="t">③ 即時同步</span><br>
+        <span class="d">別人存檔，你這邊立刻更新（Supabase Realtime）。
+        自己沒改過的欄位才會跟著動，<b>不會蓋掉你手上正在打的東西</b>。</span></span>
+    </label>
+    <label class="fix" id="fixPreWrap">
+      <input type="checkbox" id="fixPre">
+      <span><span class="t">④ 在場提示</span><br>
+        <span class="d">「另一位設計也開著這個檔期」。<b>技術上什麼都沒解決</b>，
+        但人看到就會自己去喊一聲 —— 團隊小的時候投報率意外地高。</span></span>
+    </label>
+  </div>
+</div>
+
+<div class="panel">
+  <h3>劇本</h3>
+  <p>兩個設計在同一時間各改各的 —— 沒有人做錯任何事，也沒有任何錯誤訊息。</p>
+  <div class="row">
+    <button class="primary" id="runRace">▶ 同時改<b>不同</b>版位</button>
+    <button id="runSame">▶ 同時改<b>同一個</b>版位</button>
+    <button id="runReload">▶ A 改完，B 才進來</button>
+    <button id="runMatrix">▦ 四種組合各跑一次，列成表</button>
+    <button id="reset">重設</button>
+  </div>
+  <div id="matrixWrap"></div>
+</div>
+
+<div class="verdict" id="verdict"></div>
+
+<div class="stage">
+  <div class="card">
+    <h2><span class="who a"></span>設計 A 的瀏覽器<span class="stale fresh" id="staleA">一致</span></h2>
+    <div class="body">
+      <div class="presence" id="presA">● 設計 B 也開著這個檔期</div>
+      <div id="slotsA"></div>
+      <div class="row" style="margin-top:10px">
+        <button data-act="edit" data-who="A">改一個版位</button>
+        <button data-act="reload" data-who="A">重新整理頁面</button>
+      </div>
+      <div class="queue" id="queueA"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="who s"></span>共用資料庫</h2>
+    <div class="body">
+      <div class="srv-row"><span class="k">id</span><span class="v">p-demo-1</span></div>
+      <div class="srv-row"><span class="k">整包版本</span><span class="v" id="srvVer">v0</span></div>
+      <div class="srv-row"><span class="k">最後寫入</span><span class="v" id="srvBy">—</span></div>
+      <div id="slotsS" style="margin-top:7px"></div>
+      <div class="writes" id="writes"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="who b"></span>設計 B 的瀏覽器<span class="stale fresh" id="staleB">一致</span></h2>
+    <div class="body">
+      <div class="presence" id="presB">● 設計 A 也開著這個檔期</div>
+      <div id="slotsB"></div>
+      <div class="row" style="margin-top:10px">
+        <button data-act="edit" data-who="B">改一個版位</button>
+        <button data-act="reload" data-who="B">重新整理頁面</button>
+      </div>
+      <div class="queue" id="queueB"></div>
+    </div>
+  </div>
+</div>
+
+<h3 style="font-size:15px;margin:4px 0 7px">事件時間軸</h3>
+<div class="log" id="log"></div>
+
+<div class="notes">
+  <h3>為什麼原本會掉東西</h3>
+  <ul>
+    <li><code>upsert()</code> 送的是 <code>{ id, data: 整包 plan }</code> —— 存檔不是「改這個欄位」，
+        而是<b>把整包檔期覆蓋上去</b>。B 送出的那一份裡面，A 剛改的東西根本不存在。</li>
+    <li>寫入時<b>沒有版本檢查</b>：沒有比對 <code>updated_at</code>、沒有 If-Match。誰後送誰贏。</li>
+    <li>只有開機的 <code>bootSync()</code> 會 <code>pullAll()</code>。開著頁面的人永遠不會自動看到別人的改動。</li>
+    <li>就算重新整理，<code>if (currentPlan &amp;&amp; r.id === currentPlan.id) return;</code> 還會刻意跳過
+        正在開的那一個檔期 —— 那行本來是為了保護「手上正在編輯的物件不要被換掉」
+        （換掉會變成改到孤兒物件），副作用是別人的更新也一起被擋掉。
+        <b>要做 ③ 即時同步，就得先正面解掉這一行。</b></li>
+  </ul>
+
+  <h3>建議的順序</h3>
+  <ul>
+    <li><b>先做 ① + ④。</b>把「安靜消失」變成「明確擋下」，再讓人在撞車前就先知道。
+        幾十行，不動資料表。</li>
+    <li><b>再做 ②。</b>你們的工作本來就照版位切乾淨了（一個版位一位 PM），
+        所以這一步做完，真實的撞車機率基本歸零。</li>
+    <li><b>最後才是 ③。</b>體驗最好，但要先處理上面那行 <code>return</code>。</li>
+    <li><b>OT / CRDT（Google Docs 那一套）跳過。</b>那要引入套件和自己的持久化模型，
+        直接殺掉「兩支單檔 HTML、瀏覽器打開就是完整程式」這件事 ——
+        為了一天發生不到一次的情境，代價不成比例。</li>
+  </ul>
+</div>
+
+<script>
+/* ==========================================================================
+   假的 Supabase。關掉所有開關時，行為跟 supabase-sync.js 一模一樣。
+   ========================================================================== */
+const DEBOUNCE = 600;                       // supabase-sync.js 也是 600
+const SLOTS = ['版位1', '版位2', '版位3'];
+const BLANK = '（還沒填）';
+let T0 = Date.now();
+
+const opt = { ver:false, row:false, rt:false, pre:false };
+
+/* 伺服器：每個版位自己的值和版本，外加一個「整包版本」。
+   整包覆蓋模式只看整包版本；一個版位一列的模式看各自的版本。 */
+const server = { slots:{}, ver:0, by:null, writes:[] };
+
+function serverInit(){
+  server.slots = {};
+  SLOTS.forEach(s => server.slots[s] = { text: BLANK, ver: 0 });
+  server.ver = 0; server.by = null; server.writes = [];
+}
+
+/* ---- 一個「瀏覽器分頁」 ---------------------------------------------------- */
+function makeClient(who){
+  return {
+    who,
+    slots:{}, seen:{},        // 手上的值 / 讀到它時那個版位是第幾版
+    seenVer:0,                // 讀到整包時是第幾版
+    dirty:new Set(), timer:0,
+    blocked:false,            // 被版本檢查擋下來，要重新載入
+
+    /** 開機：拉一次遠端。這是唯一一次主動去看別人改了什麼。 */
+    boot(quiet){
+      SLOTS.forEach(s => { this.slots[s] = server.slots[s].text;
+                           this.seen[s]  = server.slots[s].ver; });
+      this.seenVer = server.ver;
+      this.dirty.clear(); clearTimeout(this.timer); this.timer = 0;
+      this.blocked = false;
+      if (!quiet) log(who, 'pullAll()：拉到伺服器上那一份（v' + server.ver + '）');
+      render();
+    },
+
+    /** 改一個欄位：先寫本機，排隊，600ms 後才真的送出去。 */
+    edit(slot, text){
+      this.slots[slot] = text;
+      this.dirty.add(slot);
+      this.blocked = false;
+      log(who, `改了「${slot}」→ ${text}（先寫本機，排隊等 ${DEBOUNCE}ms）`);
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => { this.timer = 0; this.flush(); }, DEBOUNCE);
+      render();
+    },
+
+    flush(){
+      if (!this.dirty.size) return;
+      const slots = [...this.dirty];
+
+      if (opt.row) this.flushRows(slots);
+      else         this.flushWhole(slots);
+
+      render();
+      checkLoss();
+      if (opt.rt) broadcast(this.who);
+    },
+
+    /* 整包覆蓋 —— 這就是現在的行為。送出去的是**整包**，直接蓋掉伺服器那一列。 */
+    flushWhole(slots){
+      if (opt.ver && this.seenVer !== server.ver){
+        this.blocked = true;
+        note(this.who, `擋下來：我看到的是 v${this.seenVer}，伺服器已經是 v${server.ver}`, true);
+        log(this.who, `upsert 被擋下：版本對不上（我 v${this.seenVer} / 伺服器 v${server.ver}）`
+              + ' —— 東西還在我手上，沒有被丟掉，但要重新載入才寫得進去', 'warn');
+        return;                                   // 排隊的東西留著，等重新載入
+      }
+      server.ver++;
+      SLOTS.forEach(s => { server.slots[s] = { text: this.slots[s], ver: server.ver }; });
+      server.by = '設計 ' + this.who;
+      this.dirty.clear();
+      SLOTS.forEach(s => this.seen[s] = server.ver);
+      this.seenVer = server.ver;
+      note(this.who, `整包覆蓋 → v${server.ver}`, false, SLOTS.map(s => server.slots[s].text));
+      log(this.who, `upsert：整包覆蓋伺服器那一列 → v${server.ver}`);
+    },
+
+    /* 一個版位一列 —— 只送動到的那幾個。別人改的版位一個字都不會被碰到。 */
+    flushRows(slots){
+      const wrote = [], stale = [];
+      slots.forEach(s => {
+        if (opt.ver && this.seen[s] !== server.slots[s].ver){ stale.push(s); return; }
+        server.ver++;
+        server.slots[s] = { text: this.slots[s], ver: server.ver };
+        this.seen[s] = server.ver;
+        this.dirty.delete(s);
+        wrote.push(s);
+      });
+      this.seenVer = server.ver;
+      if (wrote.length){
+        server.by = '設計 ' + this.who;
+        note(this.who, `只寫「${wrote.join('、')}」`, false, wrote.map(s => server.slots[s].text));
+        log(this.who, `upsert：只送「${wrote.join('、')}」這 ${wrote.length} 列，其他列沒碰`);
+      }
+      if (stale.length){
+        this.blocked = true;
+        note(this.who, `擋下來：「${stale.join('、')}」已經被別人改過`, true);
+        log(this.who, `「${stale.join('、')}」被擋下：那一列已經被別人改過 —— `
+              + '東西還在我手上，重新載入才寫得進去', 'warn');
+      }
+    }
+  };
+}
+
+const A = makeClient('A');
+const B = makeClient('B');
+const other = c => (c === 'A' ? B : A);
+
+/* ---- 即時同步：別人寫完，其他人立刻跟上 ------------------------------------
+   只更新「自己沒有正在改」的欄位 —— 直接整包換掉就會蓋掉人家手上打到一半的字，
+   那正是主程式裡 `if (currentPlan && r.id === currentPlan.id) return;` 在防的事。
+   真正要做的不是「不要更新」，而是「只更新沒被碰過的部分」。 */
+function broadcast(fromWho){
+  const c = other(fromWho);
+  let took = 0;
+  SLOTS.forEach(s => {
+    if (c.dirty.has(s)) return;                  // 我正在改這一格，不准動
+    if (c.slots[s] === server.slots[s].text && c.seen[s] === server.slots[s].ver) return;
+    c.slots[s] = server.slots[s].text;
+    c.seen[s]  = server.slots[s].ver;
+    took++;
+  });
+  c.seenVer = server.ver;
+  if (took) log(c.who, `即時同步：跟上了 ${took} 個版位（自己正在改的沒有被動到）`, 'good');
+  render();
+}
+
+/* ---- 誰的東西不見了 -------------------------------------------------------
+   判斷：某個分頁手上有一個自己打的值，伺服器上卻沒有，而且它已經沒有東西在排隊
+   （排隊中的不算 —— 那只是還沒送），也沒有被擋下來（擋下來的東西還在，只是寫不進去）。 */
+function lostOf(c){
+  if (c.dirty.size || c.blocked) return [];
+  return SLOTS.filter(s => c.slots[s] !== server.slots[s].text && c.slots[s] !== BLANK);
+}
+let verdictShown = false;
+function checkLoss(){
+  [A, B].forEach(c => {
+    const lost = lostOf(c);
+    if (lost.length && !verdictShown){
+      verdictShown = true;
+      log('!', `設計 ${c.who} 改的「${lost.join('、')}」已經不在伺服器上了 —— `
+            + `沒有錯誤訊息，${c.who} 的畫面上還是看得到自己打的字`, 'bad');
+      setVerdict('bad', `<b>設計 ${c.who} 的工作不見了。</b>「${lost.join('、')}」在 ${c.who} 的螢幕上`
+        + `還在，但伺服器上那一份已經被另一個人的整包覆蓋掉。下次誰重新整理，看到的就是`
+        + `沒有 ${c.who} 那份的版本 —— 而且從頭到尾沒有任何警告。`);
+    }
+  });
+}
+function setVerdict(kind, html){
+  const el = document.getElementById('verdict');
+  el.className = 'verdict on ' + kind;
+  el.innerHTML = html;
+}
+
+/* ---- 畫面 ---------------------------------------------------------------- */
+function renderSlots(host, c){
+  host.innerHTML = '';
+  SLOTS.forEach(s => {
+    const mine = c ? c.slots[s] : server.slots[s].text;
+    const srv  = server.slots[s].text;
+    let cls = '', tag = null;
+    if (c){
+      /* 跟伺服器不一樣有四種，差別很大，不能混成一種顏色：
+           排隊中 / 被擋下來 / 我打的字被蓋掉了 / 別人改的我還沒看到 */
+      if (mine !== srv){
+        if (c.dirty.has(s))        { cls = 'changed'; tag = { k:'wait', t:'等著送出' }; }
+        else if (c.blocked)        { cls = 'changed'; tag = { k:'wait', t:'擋下來了' }; }
+        else if (mine !== BLANK)   { cls = 'lost';    tag = { k:'lost', t:'已被蓋掉' }; }
+        else                       { tag = { k:'wait', t:'別人改的' }; }
+      }
+    } else {
+      tag = { k:'ver', t:'v' + server.slots[s].ver };
+    }
+    const d = document.createElement('div');
+    d.className = 'slot' + (cls ? ' ' + cls : '');
+    d.innerHTML = `<span class="nm">${s}</span><span class="val"></span>`
+                + (tag ? `<span class="tag ${tag.k}">${tag.t}</span>` : '');
+    d.querySelector('.val').textContent = mine;
+    host.appendChild(d);
+  });
+}
+
+function render(){
+  renderSlots(document.getElementById('slotsA'), A);
+  renderSlots(document.getElementById('slotsB'), B);
+  renderSlots(document.getElementById('slotsS'), null);
+
+  document.getElementById('srvVer').textContent = 'v' + server.ver;
+  document.getElementById('srvBy').textContent  = server.by || '—';
+
+  [['A', A], ['B', B]].forEach(([k, c]) => {
+    document.getElementById('queue' + k).innerHTML = c.dirty.size
+      ? `<b>${c.dirty.size} 個版位排隊中…</b> ${DEBOUNCE}ms 後送出`
+        + (opt.row ? '（只送這幾列）' : '（整包覆蓋）')
+      : (c.blocked ? '<b>被擋下來了</b>　重新整理才寫得進去' : '沒有待送的變更');
+
+    const s = document.getElementById('stale' + k);
+    const lost = lostOf(c).length;
+    s.className = 'stale ' + (c.blocked ? 'bad' : (lost ? 'old' : 'fresh'));
+    s.textContent = c.blocked ? '要重新載入'
+                  : c.dirty.size ? '有變更還沒送出'
+                  : lost ? '手上這份跟伺服器不一樣' : '一致';
+    document.getElementById('pres' + k).classList.toggle('on', opt.pre);
+  });
+
+  const w = document.getElementById('writes');
+  w.innerHTML = server.writes.slice(-8).map(x =>
+    `<div class="w${x.rej ? ' rej' : ''}">+${x.at}ms　<b>設計 ${x.by}</b>　${x.what}`
+    + (x.vals ? '　' + x.vals.join(' / ') : '') + `</div>`).join('')
+    || '<div class="w">還沒有人寫入</div>';
+}
+
+function note(by, what, rej, vals){
+  server.writes.push({ at: Date.now() - T0, by, what, rej, vals });
+}
+
+/* ---- 時間軸 -------------------------------------------------------------- */
+function log(who, msg, kind){
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.className = 'l';
+  const cls = kind === 'bad' ? 'bad' : kind === 'good' ? 'good' : kind === 'warn' ? 'warn'
+            : who === 'A' ? 'a' : who === 'B' ? 'b' : 's';
+  d.innerHTML = `<span class="t">+${Date.now() - T0}ms</span>`
+              + `<span class="m ${cls}">${who === '!' ? '⚠ ' : '設計 ' + who + '：'}${msg}</span>`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ---- 開關 ---------------------------------------------------------------- */
+[['fixVer','ver'], ['fixRow','row'], ['fixRt','rt'], ['fixPre','pre']].forEach(([id, key]) => {
+  const cb = document.getElementById(id);
+  cb.addEventListener('change', () => {
+    opt[key] = cb.checked;
+    document.getElementById(id + 'Wrap').classList.toggle('on', cb.checked);
+    resetAll(true);
+    log('!', '設定變了：' + describeOpts() + '　—— 重設，再跑一次劇本比比看', 'good');
+    render();
+  });
+});
+function describeOpts(){
+  const on = [];
+  if (opt.ver) on.push('版本檢查');
+  if (opt.row) on.push('一個版位一列');
+  if (opt.rt)  on.push('即時同步');
+  if (opt.pre) on.push('在場提示');
+  return on.length ? on.join(' + ') : '全關（＝現在的行為）';
+}
+
+/* ---- 手動按鈕 ------------------------------------------------------------ */
+let editN = { A:0, B:0 };
+document.querySelectorAll('[data-act]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const c = btn.dataset.who === 'A' ? A : B;
+    if (btn.dataset.act === 'edit'){
+      const i = editN[c.who] % SLOTS.length;
+      editN[c.who]++;
+      c.edit(SLOTS[i], `${c.who} 寫的 ${SLOTS[i]}`);
+    } else {
+      c.boot();
+    }
+  });
+});
+
+/* ---- 劇本 ---------------------------------------------------------------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function resetAll(quiet){
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('verdict').className = 'verdict';
+  verdictShown = false;
+  T0 = Date.now();
+  serverInit();
+  editN = { A:0, B:0 };
+  A.boot(true); B.boot(true);
+  if (!quiet) log('!', '重設完成：兩邊都剛開機，手上是同一份。目前設定 —— ' + describeOpts(), 'good');
+  render();
+}
+
+/** 跑完之後回報這一輪的結果，讓組合矩陣也能用同一套判斷。 */
+function outcome(){
+  const lostA = lostOf(A), lostB = lostOf(B);
+  if (lostA.length || lostB.length) return { k:'bad',  t:'有人的東西不見了' };
+  if (A.blocked || B.blocked)       return { k:'warn', t:'被擋下來（要重載，沒掉）' };
+  return { k:'good', t:'兩個人的都在' };
+}
+
+async function race(){
+  resetAll(true);
+  log('!', '兩個設計同時打開同一個檔期，各改各的版位。設定：' + describeOpts(), 'good');
+  await sleep(350);
+  A.edit('版位1', 'A 排好的 版位1');
+  await sleep(120);                       // 幾乎同時 —— 兩邊都還沒送出去
+  B.edit('版位2', 'B 排好的 版位2');
+  await sleep(1500);
+  finish();
+}
+
+async function sameSlot(){
+  resetAll(true);
+  log('!', '兩個設計同時改「同一個」版位。設定：' + describeOpts(), 'good');
+  await sleep(350);
+  A.edit('版位1', 'A 說：放冷氣');
+  await sleep(120);
+  B.edit('版位1', 'B 說：放冰箱');
+  await sleep(1500);
+  finish();
+}
+
+async function reloadFirst(){
+  resetAll(true);
+  log('!', '這一次 B 是在 A 存完之後才重新整理進來的。設定：' + describeOpts(), 'good');
+  await sleep(300);
+  A.edit('版位1', 'A 排好的 版位1');
+  await sleep(1000);
+  B.boot();
+  await sleep(350);
+  B.edit('版位2', 'B 排好的 版位2');
+  await sleep(1300);
+  finish();
+  log('!', '只要兩個人不重疊，原本那套就不會出問題 —— 這就是為什麼平常「感覺沒事」', 'good');
+}
+
+function finish(){
+  const o = outcome();
+  const map = {
+    bad:  '<b>有人的東西不見了。</b>而且從頭到尾沒有任何警告。',
+    warn: '<b>沒有人的東西不見。</b>後送的那一個被版本檢查擋下來了 —— 東西還在他手上，'
+        + '重新載入之後再做一次就好。這就是①的價值：把「安靜消失」換成「明確擋下」。',
+    good: '<b>兩個人的東西都在。</b>'
+  };
+  setVerdict(o.k, map[o.k] + `　（設定：${describeOpts()}）`);
+  log('!', '結果：' + o.t, o.k === 'bad' ? 'bad' : o.k === 'warn' ? 'warn' : 'good');
+}
+
+document.getElementById('runRace').onclick   = race;
+document.getElementById('runSame').onclick   = sameSlot;
+document.getElementById('runReload').onclick = reloadFirst;
+document.getElementById('reset').onclick     = () => resetAll();
+
+/* ---- 四種組合各跑一次 ------------------------------------------------------ */
+const COMBOS = [
+  { ver:false, row:false, name:'全關（現在的行為）' },
+  { ver:true,  row:false, name:'① 版本檢查' },
+  { ver:false, row:true,  name:'② 一個版位一列' },
+  { ver:true,  row:true,  name:'① + ②' },
+];
+
+document.getElementById('runMatrix').onclick = async () => {
+  const btn = document.getElementById('runMatrix');
+  btn.disabled = true;
+  const keep = { ...opt };
+  const rows = [];
+  for (const combo of COMBOS){
+    for (const [k, v] of Object.entries({ ver:combo.ver, row:combo.row })) opt[k] = v;
+    // 同時改不同版位
+    resetAll(true);
+    A.edit('版位1', 'A 排好的 版位1'); await sleep(120);
+    B.edit('版位2', 'B 排好的 版位2'); await sleep(1400);
+    const diff = outcome();
+    // 同時改同一個版位
+    resetAll(true);
+    A.edit('版位1', 'A 說：放冷氣'); await sleep(120);
+    B.edit('版位1', 'B 說：放冰箱'); await sleep(1400);
+    const same = outcome();
+    rows.push({ name: combo.name, diff, same, ver: combo.ver, row: combo.row });
+  }
+  Object.assign(opt, keep);
+  resetAll(true);
+  renderMatrix(rows);
+  btn.disabled = false;
+  log('!', '四種組合跑完了 —— 看上面那張表', 'good');
+};
+
+function renderMatrix(rows){
+  const now = (r) => r.ver === opt.ver && r.row === opt.row;
+  document.getElementById('matrixWrap').innerHTML =
+    `<table class="matrix">
+      <tr><th>設定</th><th>同時改<b>不同</b>版位</th><th>同時改<b>同一個</b>版位</th></tr>
+      ${rows.map(r => `<tr class="${now(r) ? 'now' : ''}">
+        <td style="color:var(--chrome-ink);font-weight:800">${r.name}</td>
+        <td class="r-${r.diff.k}">${r.diff.t}</td>
+        <td class="r-${r.same.k}">${r.same.t}</td>
+      </tr>`).join('')}
+    </table>
+    <p style="margin-top:8px;font-size:12.5px;color:var(--chrome-muted)">
+      「被擋下來」不是壞事 —— 東西還在那個人手上，重新載入再做一次就好。
+      真正的問題是第一列那種：<b>沒有人知道東西掉了</b>。
+      ③ 即時同步不在這張表裡，因為它不是「衝突怎麼收場」，而是<b>讓衝突不要發生</b>：
+      別人一存檔你就跟上，於是你送出去的時候手上那份本來就是最新的。
+    </p>`;
+}
+
+serverInit();
+resetAll(true);
+log('!', '兩邊都剛開機，手上是同一份。目前設定 —— ' + describeOpts() + '。按上面的按鈕開始。', 'good');
+render();
+</script>
+</body>
+</html>
