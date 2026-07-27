@@ -594,15 +594,22 @@
   /* 別人的便利貼：看得到、點得開，但搬不動 */
   .cmk.theirs{cursor:pointer}
   .cmk.done{opacity:.4}
+  /* 讓開：畫布裡選了一塊零件，工具列剛好開在這張貼紙底下。工具列在 iframe 裡面，
+     貼紙在外面，iframe 裡的 z-index 壓不過外面 —— 只好讓貼紙自己退開。
+     只退「真的疊到」的那幾張，其餘照樣看得見；一放掉選取就回來。 */
+  .cmk.dodge{opacity:0;pointer-events:none}
   .cmk.sel{outline:3px solid var(--ink-strong);outline-offset:1px}
   /* 格子本身 overflow:hidden，而且最邊上那排格子外面就是版面邊界 —
      所以這顆數字貼在格子「裡面」的角落，不掛在外面，才不會被切掉。 */
   .cnb{
-    position:absolute;right:3px;top:3px;z-index:4;pointer-events:none;
+    /* 貼左上角：右上角是畫布自己那顆 ＋（放回刪掉的零件）的位置。兩顆數字長得像、
+       意思完全不同，疊在一起只會讓人點錯 —— 讓開的是這一顆，它是外面貼上去的提示，
+       ＋ 才是版面自己的東西。 */
+    position:absolute;left:3px;top:3px;z-index:4;pointer-events:none;
     /* 跟便利貼同一套：大小是固定的，縮放走 transform，數字才不會抖。
        只往下縮、不往上長：版面縮小它跟著縮，放大時它就停在原本大小 ——
        它是一個提示，不是版面的一部分，湊近看不該變成一顆紅球。 */
-    transform:scale(min(1, var(--z,1)));transform-origin:100% 0;
+    transform:scale(min(1, var(--z,1)));transform-origin:0 0;
     min-width:20px;height:20px;padding:0 5px;border-radius:999px;
     background:var(--danger);color:var(--surface);font-size:12px;font-weight:800;
     display:flex;align-items:center;justify-content:center;
@@ -6459,6 +6466,25 @@ function reflowBoard(){
    佔滿整張版，等於縮放整片失靈。畫布那邊沒用到的滾輪會 postMessage 轉過來
    （見 2cell 的 relayWheel），這裡當成同一件事處理。
    用 screenX/screenY 換算回這一頁的座標：那是唯一跨 iframe 還對得起來的座標系。 */
+/* 畫布報上來「零件工具列現在開在哪」：把壓在它上面的那幾張貼紙請開。
+   認是哪一格看 e.source，不看「現在開著哪一格」—— 版面重畫時畫布是整批重掛的。 */
+addEventListener('message', e => {
+  const d = e.data || {};
+  if (!('propsBar' in d)) return;
+  boardOv.querySelectorAll('.cmk.dodge').forEach(n => n.classList.remove('dodge'));
+  const r = d.propsBar;
+  if (!r) return;
+  const f = [...boardOv.querySelectorAll('.ccanvas')].find(x => x.contentWindow === e.source);
+  const cell = f && f.closest('.cell');
+  if (!cell) return;
+  const fr = f.getBoundingClientRect();
+  const L = fr.left + r.left, T = fr.top + r.top, R = fr.left + r.right, B = fr.top + r.bottom;
+  cell.querySelectorAll('.cmk').forEach(n => {
+    const b = n.getBoundingClientRect();
+    if (b.right > L && b.left < R && b.bottom > T && b.top < B) n.classList.add('dodge');
+  });
+});
+
 addEventListener('message', e => {
   const w = e.data && e.data.stageWheel;
   if (!w) return;

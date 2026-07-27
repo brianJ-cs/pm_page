@@ -190,14 +190,20 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 }
 .blk.img{overflow:visible}
 .blk.img.actimg{border-color:#007acc;box-shadow:0 0 12px rgba(0,122,204,.45);opacity:1!important}
-.tobtn{position:absolute;right:8px;bottom:8px;display:none;appearance:none;
-  border:1px solid rgba(0,0,0,.15);border-bottom-width:2px;
-  background:linear-gradient(#fff,#eef1f6);color:#1b3a57;font:inherit;font-size:11px;font-weight:800;
-  padding:5px 10px;border-radius:7px;cursor:pointer;z-index:5;
+/* 「最上面」是在幾張圖疊在一起的時候用的，它不該把圖本身蓋掉 —— 本來是一顆
+   寫著三個字的按鈕，圖一小就整塊被它佔滿，連拖都拖不動。縮成一顆小圓點，
+   貼在下緣正中間：四個角是縮放把手的地盤，站上去就搶不到把手。 */
+.tobtn{position:absolute;left:50%;bottom:3px;transform:translateX(-50%);display:none;appearance:none;
+  border:1px solid rgba(0,0,0,.18);
+  background:rgba(255,255,255,.94);color:#1b3a57;font:inherit;font-size:11px;line-height:1;font-weight:800;
+  width:19px;height:19px;padding:0;border-radius:999px;cursor:pointer;z-index:5;
   box-shadow:0 2px 5px rgba(0,0,0,.18)}
-.tobtn:hover{background:linear-gradient(#fff,#dfe6f0);border-color:#007acc;color:#007acc}
-.tobtn:active{transform:translateY(1px);border-bottom-width:1px;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.tobtn:hover{background:#fff;border-color:#007acc;color:#007acc}
+.tobtn:active{transform:translateX(-50%) translateY(1px);box-shadow:0 1px 3px rgba(0,0,0,.18)}
 .blk.img:hover .tobtn,.blk.img.actimg .tobtn{display:block}
+/* 選中就收起來：那正是要拖、要縮的時候，一顆按鈕站在圖上只會擋路。
+   要換疊放順序，右邊圖層面板那一排「最上面」一直都在。 */
+.blk.img.sel .tobtn{display:none}
 /* 圖層面板：位於選商品面板正下方，獨立窗口 */
 #lay{display:none;width:400px;flex:1;min-height:150px;background:#fff;
   border:1px solid var(--line);border-radius:14px;flex-direction:column;overflow:hidden;
@@ -262,8 +268,8 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .rbtn .rn{font-size:11px;color:#fff;background:#999;border-radius:999px;padding:0 5px;min-width:16px;
   text-align:center}
 .rbtn:hover .rn{background:#111}
-/* 清單往上開：按鈕移到左下角之後，往下開會掉到格子外面 */
-.rlist{display:none;position:absolute;left:0;bottom:calc(100% + 5px);width:210px;max-height:210px;
+/* 清單往下開，靠右對齊按鈕：按鈕在右上角，往上開會掉到格子外面 */
+.rlist{display:none;position:absolute;right:0;top:calc(100% + 5px);width:210px;max-height:210px;
   overflow:auto;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px;
   box-shadow:0 6px 20px rgba(0,0,0,.18)}
 #restore.open .rlist{display:block}
@@ -1136,7 +1142,7 @@ function blockHTML(b,isCur=true){
     return `<div class="blk img${on}${noimg}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
       style="left:${b.x}px;top:${b.y}px;width:${b.w}px;z-index:${b.z};opacity:${dim}">
       ${imgHTML(b.key)}
-      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
+      <button class="tobtn" data-top="${b.id}" title="移到最上層">⬆</button></div>`;
   }
   if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}">${brandHTML(b.name)}</div>`;
   if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px${bs}">機型：${b.text}</div>`;
@@ -1956,12 +1962,15 @@ function restoreUid(uid){
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
 
-/* 右上角那顆 ＋：藏了東西才出現，沒藏就不佔畫面。 */
+/* 右上角那顆 ＋：藏了東西才出現，沒藏就不佔畫面。
+   只要這一格藏著東西就一直在，不管現在有沒有在編輯那一格 —— 不然「東西不見了」
+   跟「東西被我收起來了」在畫面上長得一模一樣，得先點進去才分得出來。
+   沒在編輯的時候畫布是 pointer-events:none，那一下會先幫你打開這一格，再點才展開清單。 */
 function renderRestore(){
   const box=$('#restore'); if(!box) return;
   const off=offMap(), keys=Object.keys(off);
   const el=cellEl();
-  if(!keys.length || !el || ROLE==='pm' || !STAGE_EDIT){
+  if(!keys.length || !el || ROLE==='pm'){
     box.classList.remove('on','open'); box.innerHTML=''; return;
   }
   box.innerHTML=
@@ -1969,14 +1978,14 @@ function renderRestore(){
     `<div class="rlist"><div class="rhead">刪掉的，打勾放回來</div>`+
     keys.map(k=>`<label class="ritem"><input type="checkbox" data-ruid="${k}"><span>${off[k]}</span></label>`).join('')+
     `</div>`;
-  /* 位置：格子左下角，座標以 #wrap 為基準（跟 #props 同一套）。
-     本來在右上角，但外面那層的紅色未處理數字也釘在右上角，兩個疊在一起 ——
-     一個是「還有幾則沒處理」，一個是「藏了幾個零件」，數字長得像、意思完全不同。
-     左下角是這張版最空的一角（品牌品名在左上、數字在右下）。 */
+  /* 位置：格子右上角，座標以 #wrap 為基準（跟 #props 同一套）。
+     這裡本來跟外面那層的紅色未處理數字撞在一起 —— 兩顆數字長得像、意思完全不同
+     （一個是「還有幾則沒處理」，一個是「藏了幾個零件」）。讓開的是紅點：
+     它是外面貼上去的提示，這顆 ＋ 才是版面自己的東西。 */
   const wrapR=$('#wrap').getBoundingClientRect(), r=el.getBoundingClientRect();
-  box.style.left=(r.left-wrapR.left+8)+'px';
-  box.style.top =(r.bottom-wrapR.top-8)+'px';
-  box.style.transform='translateY(-100%)';
+  box.style.left=(r.right-wrapR.left-8)+'px';
+  box.style.top =(r.top-wrapR.top+8)+'px';
+  box.style.transform='translateX(-100%)';
   box.classList.add('on');
 
   box.querySelector('[data-rtoggle]').onmousedown=ev=>{
@@ -1995,7 +2004,7 @@ function renderProps(){
   const sel=selBlocks().filter(b=>!isOff(b));
   /* 大小和刪除是排版的事，PM 只能看和選（跟拖曳同一條線）。
      黑色／劃線本來也只有設計動得到，一起收在這個判斷裡。 */
-  if(!sel.length || ROLE==='pm' || !STAGE_EDIT){ box.classList.remove('on'); box.innerHTML=''; return; }
+  if(!sel.length || ROLE==='pm' || !STAGE_EDIT){ box.classList.remove('on'); box.innerHTML=''; reportPropsBar(); return; }
   const specs=sel.filter(b=>b.kind==='spec');
   const prices=sel.filter(b=>b.kind==='price');
 
@@ -2061,6 +2070,22 @@ function renderProps(){
     ev.preventDefault(); ev.stopPropagation();
     hideSelected();
   };
+  reportPropsBar();
+}
+
+/* 工具列住在畫布 iframe 裡，便利貼貼在外面那一層 —— 誰疊在誰上面是 iframe
+   整塊決定的，這裡面寫多少 z-index 都壓不過外面那張紙。所以把工具列的位置
+   報上去，讓外面把「剛好壓在上面」的那幾張讓開。報的是 iframe 自己的視窗座標，
+   外面加上 iframe 的位置就對得起來（iframe 本身沒有被縮放）。 */
+function reportPropsBar(){
+  if(!UI_STAGE || window.parent===window) return;
+  const box=$('#props');
+  let r=null;
+  if(box.classList.contains('on')){
+    const b=box.getBoundingClientRect();
+    r={left:b.left,top:b.top,right:b.right,bottom:b.bottom};
+  }
+  try{ parent.postMessage({ propsBar:r }, '*'); }catch(_){}
 }
 
 function markLayerActive(){
