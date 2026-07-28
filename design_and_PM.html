@@ -451,6 +451,25 @@
              border:2px dashed var(--line);border-radius:12px;padding:6px}
   #stickTray .hint{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:5px}
   #stickRow{display:flex;gap:6px;flex-wrap:nowrap}
+  /* 「交給 PM」：綠色，跟版位、格子的「已交出」同一個顏色 —— 按下去之後版上會
+     長出來的就是那個綠。它不是便利貼，所以不做成方的一張，也不歪 —— 一眼要看得出
+     它跟旁邊那疊是兩種東西。 */
+  #stampBtn{
+    display:flex;align-items:center;gap:9px;width:100%;margin-top:8px;
+    font:inherit;text-align:left;cursor:pointer;
+    border:2px solid var(--green-rule);border-radius:10px;padding:8px 10px;
+    background:var(--ok-tint);color:var(--ok-ink);
+  }
+  #stampBtn[hidden]{display:none}
+  #stampBtn:hover{filter:brightness(.97)}
+  #stampBtn .ico{font-size:20px;line-height:1;flex:none}
+  #stampBtn .tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+  #stampBtn .tx b{font-size:13.5px;font-weight:800}
+  #stampBtn .tx small{font-size:11px;font-weight:800;opacity:.8}
+  /* 開著的時候整顆反白：這是一個模式，不是按一下就結束的動作 —— 現在點格子
+     的意思跟平常不一樣，那件事要一直看得見。 */
+  #stampBtn.on{background:var(--green-ink,#1a7f47);border-color:var(--green-ink,#1a7f47);color:#fff}
+  #stampBtn.on .tx small{opacity:.9}
   /* 貼紙欄裡的也是便利貼：方的一疊，拿起來就往版面上貼 */
   .stick{
     /* max-width 是為了「只剩一種」：flex:1 會讓單獨一張撐滿整條意見欄，變成一塊
@@ -1661,6 +1680,12 @@
       <div id="stickTray">
         <div class="hint">把貼紙拖到格子上（或先點貼紙，再點格子）</div>
         <div id="stickRow"></div>
+        <!-- 蓋章站在貼紙旁邊，因為它們是同一件事的兩半：貼紙是「我有話跟 PM 說」，
+             蓋章是「這幾格給你了」。都是對 PM 做的動作，手就該在同一個地方。 -->
+        <button id="stampBtn" hidden>
+          <span class="ico">📮</span>
+          <span class="tx"><b>交給 PM</b><small>蓋章：一格一格交出去</small></span>
+        </button>
       </div>
       <div id="armHint"></div>
       <div id="railList"></div>
@@ -3247,19 +3272,9 @@ function renderMinimap(){
   sheetSide.innerHTML = '';
   sheetSide.classList.toggle('mini', wasMini);     // 重畫不該把它打開
 
-  /* 蓋章的開關站在小地圖最上面。只有 拼板、而且是設計看得到：
-     交接是「設計排完 → 給 PM 拼 → PM 有問題再回來」這個來回過程的一步，
-     而那個來回就發生在 拼板，所以開關要在手邊，不是在另一個分頁上。
-     做成開關而不是隨手點就蓋，是因為點格子本來就有用途（開那一格的面板）——
-     一個手勢不能同時是兩件事。 */
-  if (activeTab === 'board' && activeMode !== 'pm'){
-    const hd = document.createElement('button');
-    hd.className = 'mini-mark' + (stampMode ? ' on' : '');
-    hd.textContent = stampMode ? '✓ 蓋章中（點格子／拖出一個框）' : '蓋章交給 PM';
-    hd.title = '一格一格蓋章，蓋了 PM 才看得到那一格';
-    hd.addEventListener('click', () => setStampMode(!stampMode));
-    sheetSide.appendChild(hd);
-  }
+  /* 蓋章的開關不在這裡 —— 它站在右邊意見欄的貼紙旁邊（#stampBtn）。
+     貼紙和蓋章是同一件事的兩半：一個是「我有話跟 PM 說」，一個是「這幾格給你了」，
+     兩個都是對 PM 做的動作，手就該在同一個地方。 */
 
   /* 進度站在小地圖上面：下面那兩張圖是「哪一塊在哪」，這一顆是「還剩多少」——
      同一個問題的兩個問法。擺在上面是因為那兩張圖夠高，放底下就得先捲一段才看得到。 */
@@ -3409,6 +3424,7 @@ function switchBlock(block){
     closeBoardCell();
     focusCell = null; selNote = null;
     paintBoardThumbs(); applyPmFocus(); renderRail(); applyFocusCell();
+    renderStampBar();       // 換版位＝換一套「交出幾格」的數字
     syncTypeBar();          // 換版位＝換一套字級設定
     queueType(block);
   }
@@ -6524,7 +6540,10 @@ document.addEventListener('mousedown', e => {
   closeBoardCell();
 }, true);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && boardCell){ closeBoardCell(); e.stopPropagation(); }
+  if (e.key !== 'Escape') return;
+  if (boardCell){ closeBoardCell(); e.stopPropagation(); return; }
+  // 那一格的面板先收，收完了再一次 Esc 才離開蓋章 —— 由近到遠，跟關視窗一樣
+  if (stampMode){ setStampMode(false); e.stopPropagation(); }
 }, true);
 
 /* ---- 總覽的手感：滾輪縮放、按著拖動平移 ---------------------------------
@@ -6911,7 +6930,20 @@ function stampable(){
   return activeMode !== 'pm' && activeTab === 'board' && !!currentPlan && !!activeBlock;
 }
 
+/** 貼紙旁邊那顆「交給 PM」。只有設計、在 拼板、而且真的有版位攤在眼前才出現。 */
+function renderStampBtn(){
+  const b = document.getElementById('stampBtn');
+  if (!b) return;
+  b.hidden = !stampable();
+  b.classList.toggle('on', stampMode);
+  b.querySelector('.tx').innerHTML = stampMode
+    ? '<b>蓋章中 — 交給 PM</b><small>點一格／拖出一個框・按 Esc 收工</small>'
+    : '<b>交給 PM</b><small>蓋章：一格一格交出去</small>';
+  b.title = stampMode ? '再按一次就離開蓋章' : '蓋了章的格，PM 那邊才看得到';
+}
+
 function renderStampBar(){
+  renderStampBtn();
   if (!stampMode || !stampable()){ stampBar.classList.remove('on'); return; }
   stampBar.classList.add('on');
   const cells = stampCellsOf();
@@ -6930,7 +6962,6 @@ function setStampMode(on){
   boardOv.classList.toggle('stamping', on);
   if (!on) endStampDrag(true);
   renderStampBar();
-  renderMinimap();
 }
 
 /** 蓋章／收回。一次一批只算一步復原 —— 框一片起來蓋，在使用者心裡就是一個動作。 */
@@ -6970,6 +7001,7 @@ document.getElementById('stampNone').addEventListener('click', async () => {
   if (n) toast(`已收回 ${n} 格`, 'info', 2000);
 });
 document.getElementById('stampExit').addEventListener('click', () => setStampMode(false));
+document.getElementById('stampBtn').addEventListener('click', () => setStampMode(!stampMode));
 
 /* ---- 框選：按著拖出一個框，框到的格子一次蓋完 ----------------------------
    用視窗座標畫框（position:fixed），不換算成版面座標 —— 版面本身會縮放、
