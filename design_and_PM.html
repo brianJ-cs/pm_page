@@ -616,6 +616,20 @@
     border:2px solid var(--surface);box-shadow:0 2px 5px rgba(0,0,0,.3);
   }
   #boardOverview.nomarks .cmk,#boardOverview.nomarks .cnb{display:none}
+  /* 這一格在誰手上。跟紅色數字同一套：固定大小、只縮不放 —— 它是貼在版面上的
+     一個提示，不是版面的一部分，湊近看不該跟著長大。 */
+  .cst{
+    position:absolute;right:3px;top:3px;z-index:4;pointer-events:none;
+    transform:scale(min(1, var(--z,1)));transform-origin:100% 0;
+    padding:2px 6px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.5;
+    border:1px solid;white-space:nowrap;
+  }
+  .cst.wip{background:var(--surface);border-color:#c9d8f8;color:var(--ink-dim)}
+  .cst.ok {background:var(--ok-tint);border-color:var(--green-rule);color:var(--ok-ink)}
+  /* PM 看到的空位子：格子還在（不然版面形狀就錯了），但裡面什麼都沒有。
+     不給 hover、不給點 —— 那一格對他來說根本還不存在。 */
+  #boardOverview .cell.notyet{background:var(--surface-2);color:transparent;cursor:default}
+  #boardOverview .cell.notyet:hover{outline:none;background:var(--surface-2)}
   /* 拖著貼紙經過時，那一格自己站出來 */
   #boardOverview .cell.drop{outline:4px solid var(--warn);outline-offset:-4px;background:#fff6e6}
   #boardOverview.arming .cell{cursor:copy}
@@ -723,30 +737,47 @@
   .blk-state.s-done{background:var(--ok-tint);border-color:var(--green-rule);color:var(--ok-ink)}
   .blk-state.s-wip {background:var(--surface);border-color:#c9d8f8;color:var(--ink-dim)}
   .blk-state.s-none{background:#e9ecf2;border-color:#cdd4e0;color:#8b95a6}
+  /* 交出一半：黃的。綠色代表「這塊沒你的事了」，交一半還不到那個程度。 */
+  .blk-state.s-half{background:var(--warn-tint,#fff6e6);border-color:#e8c98a;color:#8a5a12}
 
-  /* 批次操作列：浮在 總體 下緣正中間。深色的一條，壓在淺色的版面上才看得清楚，
+  /* 蓋章列：浮在 拼板 下緣正中間。深色的一條，壓在淺色的版面上才看得清楚，
      而且擺在中間不會跟右邊那顆確認鍵、左邊的尺搶位置。 */
-  #markBar{
-    /* bottom 抬高到 76：toast 就站在 bottom:34 的正中間，擺 24 的話每按一次
-       「交給 PM」，跳出來的 toast 就正好蓋住這一列 —— 剛動完手的地方被遮住最惱人。 */
+  #stampBar{
+    /* bottom 抬高到 76：toast 就站在 bottom:34 的正中間，擺 24 的話每蓋一次章，
+       跳出來的 toast 就正好蓋住這一列 —— 剛動完手的地方被遮住最惱人。 */
     position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:60;
     display:none;align-items:center;gap:9px;
     background:var(--chrome);border:1px solid var(--chrome-line);border-radius:999px;
     padding:8px 10px 8px 16px;box-shadow:0 10px 30px rgba(0,0,0,.34);
     font-size:13px;font-weight:800;color:var(--chrome-ink);
   }
-  #markBar.on{display:flex}
-  #markBar .hint{color:var(--chrome-muted);font-weight:800}
-  #markBar .n b{color:#fff}
-  #markBar button{
+  #stampBar.on{display:flex}
+  #stampBar .hint{color:var(--chrome-muted);font-weight:800}
+  #stampBar .n b{color:#fff}
+  #stampBar button{
     font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
     border:1px solid var(--chrome-line);border-radius:999px;padding:5px 13px;
     background:var(--chrome-2);color:var(--chrome-ink);
   }
-  #markBar button:hover{background:#3a4457;border-color:var(--blue)}
-  #markBar button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
-  #markBar button.primary:hover{filter:brightness(1.08)}
-  #markBar button[hidden]{display:none}
+  #stampBar button:hover{background:#3a4457;border-color:var(--blue)}
+  #stampBar button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+  #stampBar button.primary:hover{filter:brightness(1.08)}
+  #stampBar button[hidden]{display:none}
+  /* 蓋章中：游標換成章，格子一格一格清楚地分開（平常那是連在一起的一張版）。 */
+  #boardOverview.stamping{cursor:crosshair}
+  #boardOverview.stamping .cell{cursor:crosshair}
+  #boardOverview.stamping .cell:hover{outline:3px solid var(--blue);outline-offset:-3px}
+  /* 框選中被框到的格子：藍色＝「你正在點的東西」，跟分頁、選取同一套 */
+  #boardOverview .cell.stamp-sel{outline:3px solid var(--blue);outline-offset:-3px;
+    background:var(--accent-tint)}
+  /* 橡皮筋框本身。畫在視窗座標上（position:fixed），所以版面怎麼縮放平移都不影響。 */
+  .stamp-box{
+    position:fixed;z-index:210;display:none;pointer-events:none;
+    border:1.5px solid var(--blue);background:rgba(31,110,235,.12);border-radius:2px;
+  }
+  .stamp-box.on{display:block}
+  /* 按住 Alt 是收回：框子自己換個顏色，不必回頭看提示才知道現在是哪一種 */
+  .stamp-box.take{border-color:var(--danger);background:rgba(200,40,40,.12)}
   .window-node.unowned .region-label div,
   .window-node.unowned .region-label .cnt{color:#98a1b2}
   .window-node.handed .region-label div,
@@ -1697,14 +1728,13 @@
   </div>
 </div>
 
-<!-- 總體 的批次交接列：選幾個版位，一次交給 PM。設計專用（PM 只看得到拼板）。 -->
-<div id="markBar">
-<span class="hint" id="markHint">點版位就選起來，可以連續點好幾個</span>
-<span class="n" id="markCount" hidden></span>
-<button id="markAll">全選還沒交出的</button>
-<button id="markNone" hidden>清除選取</button>
-<button class="primary" id="markDone" hidden>標記完成，交給 PM</button>
-<button id="markUndo" hidden>收回</button>
+<!-- 蓋章列：拼板 蓋章模式開著的時候浮在下緣。設計專用（PM 不蓋章）。 -->
+<div id="stampBar">
+<span class="hint">點一格＝蓋章／收回・拖出一個框＝框到的一次蓋完・按住 Alt 拖＝收回</span>
+<span class="n" id="stampCount"></span>
+<button class="primary" id="stampAll">整個版位一次蓋完</button>
+<button id="stampNone" hidden>全部收回</button>
+<button id="stampExit">離開蓋章</button>
 </div>
 <div id="modalHost"></div>
 <input type="file" id="mhFile" accept="image/*" hidden>
@@ -2140,26 +2170,29 @@ function groupLinesHTML(node){
     g.count ? `<span class="cnt">(${g.count})</span>` : ''}</div>`).join('');
 }
 
-/* 總體上被選起來的版位（存 id，不是存節點本身：復原、匯入都會把整棵樹換掉，
-   握著舊節點的參考就會變成孤兒，id 換幾次樹都還認得出來）。 */
-let markSel = new Set();
-
 /* 一個版位現在是什麼狀態。底色本來就照這三種分（灰／白／綠），這裡只是把同一件事
    用字寫出來 —— 顏色要人記得對照表，字不用，而且列印或轉手給別人看時也留得住。 */
 function blockState(sh){
-  if (sh.confirmed) return { k:'s-done', t:'已交給 PM' };
-  if (!sh.pm)       return { k:'s-none', t:'未指派' };
-  return              { k:'s-wip',  t:'設計中' };
+  /* 交接的單位是格，所以一個版位可以「交出去一半」——那正是設計蓋章蓋到一半的
+     樣子，不寫出來的話它跟「一格都還沒交」長得一模一樣。 */
+  const cells = (sh && sh.cells) || [];
+  const n = cells.filter(cellHanded).length;
+  if (n && n === cells.length) return { k:'s-done', t:'已交給 PM' };
+  if (n)                       return { k:'s-half', t:`交出 ${n}/${cells.length} 格` };
+  if (!sh.pm)                  return { k:'s-none', t:'未指派' };
+  return                         { k:'s-wip',  t:'設計中' };
 }
 
 function renderLeaf(node){
   const el = document.createElement('div');
   /* 底色跟小地圖同一套：灰＝還沒指派、白＝設計手上、綠＝已交出 */
   const sh = node.sheet || {};
+  /* 綠底＝「這塊沒你的事了」，所以要整塊都交出去才給綠。交了一半還在設計手上，
+     底色留白、由角落那顆黃色的「交出 8/14 格」把進度講清楚 —— 顏色只有三級，
+     講不出「一半」，硬塞給它就會有人以為都好了。 */
   el.className = 'window-node'
-    + (sh.confirmed ? ' handed' : '')
-    + (sh.pm ? '' : ' unowned')
-    + (markSel.has(node.id) ? ' sel' : '');
+    + (blockState(sh).k === 's-done' ? ' handed' : '')
+    + (sh.pm ? '' : ' unowned');
   el.dataset.blockId = node.id;
   el.setAttribute('data-items', JSON.stringify(
     node.groups.map(g => ({ cat: g.name, qty: g.count }))));
@@ -3039,9 +3072,9 @@ function renderMiniNode(node, wpx, hpx){
        選中是藍框，不是藍底 —— 底色是「東西的狀態」，藍色是「你在哪裡」。 */
     el.className = 'mini-blk'
       + (activeBlock === node ? ' active' : '')
-      + (node.sheet.confirmed ? ' confirmed' : '')
-      + (node.sheet.pm ? '' : ' unowned')
-      + (markMode && markSel.has(node.id) ? ' sel' : '');
+      + (handedCells(node.sheet).length === (node.sheet.cells || []).length
+         && (node.sheet.cells || []).length ? ' confirmed' : '')
+      + (node.sheet.pm ? '' : ' unowned');
     el.dataset.blockId = node.id;
     // dm-block-zoom's 13px baseline, stepped down only as far as this
     // region's real pixel size demands, so nothing ever clips
@@ -3075,16 +3108,7 @@ function renderMiniNode(node, wpx, hpx){
       dot.title = roll.total + ' 則還沒處理';
       el.appendChild(dot);
     }
-    el.addEventListener('click', () => {
-      /* 批次交接開著的時候，點小地圖是「選這一塊」而不是「切過去」——
-         不然每點一個要交出去的版位，整張版就重畫一次，還把你正在看的那一格洗掉。 */
-      if (markMode){
-        if (markSel.has(node.id)) markSel.delete(node.id); else markSel.add(node.id);
-        renderMinimap(); renderMarkBar();
-        return;
-      }
-      switchBlock(node);
-    });
+    el.addEventListener('click', () => switchBlock(node));
     el.addEventListener('mousemove', e => showTip(e, tipForBlock(node)));
     el.addEventListener('mouseleave', hideTip);
     return el;
@@ -3223,21 +3247,17 @@ function renderMinimap(){
   sheetSide.innerHTML = '';
   sheetSide.classList.toggle('mini', wasMini);     // 重畫不該把它打開
 
-  /* 批次交接的開關站在小地圖最上面。只有 拼板、而且是設計看得到：
+  /* 蓋章的開關站在小地圖最上面。只有 拼板、而且是設計看得到：
      交接是「設計排完 → 給 PM 拼 → PM 有問題再回來」這個來回過程的一步，
      而那個來回就發生在 拼板，所以開關要在手邊，不是在另一個分頁上。
-     做成開關而不是直接點選，是因為小地圖的點擊本來就有用途（切到那個版位）——
+     做成開關而不是隨手點就蓋，是因為點格子本來就有用途（開那一格的面板）——
      一個手勢不能同時是兩件事。 */
   if (activeTab === 'board' && activeMode !== 'pm'){
     const hd = document.createElement('button');
-    hd.className = 'mini-mark' + (markMode ? ' on' : '');
-    hd.textContent = markMode ? '✓ 批次交接中（點版位選取）' : '批次交接給 PM';
-    hd.title = '選幾個版位，一次交給 PM';
-    hd.addEventListener('click', () => {
-      markMode = !markMode;
-      if (!markMode) markSel.clear();
-      renderMinimap(); renderMarkBar();
-    });
+    hd.className = 'mini-mark' + (stampMode ? ' on' : '');
+    hd.textContent = stampMode ? '✓ 蓋章中（點格子／拖出一個框）' : '蓋章交給 PM';
+    hd.title = '一格一格蓋章，蓋了 PM 才看得到那一格';
+    hd.addEventListener('click', () => setStampMode(!stampMode));
     sheetSide.appendChild(hd);
   }
 
@@ -3271,31 +3291,35 @@ function renderMinimap(){
 const progMask = document.getElementById('progMask');
 
 /** 每位 PM：他負責、而且已經交到他手上的那些格子，挑好貨的有幾格。
-    只算 confirmed 的版位 —— 還沒交出去的版位對 PM 根本不存在，
-    算進去只會讓每個人的分母憑空變大，看起來像大家都在拖。 */
+    只算蓋過章的格 —— 沒蓋章的格對 PM 根本不存在，算進去只會讓每個人的分母
+    憑空變大，看起來像大家都在拖。 */
 function pmProgress(){
   const rows = new Map();
   allBlocks().forEach(b => {
     const sh = b.sheet || {};
-    if (!sh.confirmed) return;
+    const mine = handedCells(sh);
+    if (!mine.length) return;
     const key = sh.pm || '';
     const r = rows.get(key) || { done: 0, total: 0 };
-    (sh.cells || []).forEach(c => { r.total++; if (pickedOf(c).length) r.done++; });
+    mine.forEach(c => { r.total++; if (pickedOf(c).length) r.done++; });
     rows.set(key, r);
   });
   return rows;
 }
 
 /* 進度面板裡那張小地圖：跟 renderMiniNode 同一套幾何，但不掛任何事件也不看
-   activeBlock／markSel —— 它是一張報表，不是操作介面。所以另外寫一個薄的，
+   activeBlock —— 它是一張報表，不是操作介面。所以另外寫一個薄的，
    不去污染那支已經被四個地方共用的函式。 */
 function progNode(node){
   if (isLeaf(node)){
     const sh = node.sheet || {};
+    const st = blockState(sh);
     const el = document.createElement('div');
-    el.className = 'prog-blk' + (sh.confirmed ? ' done' : (sh.pm ? '' : ' none'));
+    /* 交出一半的版位畫成「還在設計手上」那一格：綠色留給真的整塊交完的，
+       不然一眼掃過去會以為都好了。字上面寫得出 n/m，顏色寫不出。 */
+    el.className = 'prog-blk' + (st.k === 's-done' ? ' done' : (st.k === 's-none' ? ' none' : ''));
     el.textContent = node.name;
-    el.title = `${node.name}　${sh.confirmed ? '已交給 PM' : (sh.pm ? '設計中' : '未指派')}`;
+    el.title = `${node.name}　${st.t}`;
     return el;
   }
   const el = document.createElement('div');
@@ -3319,26 +3343,28 @@ function progNode(node){
 
 function openProgress(){
   if (!currentPlan) return;
-  const all = allBlocks();
-  const done = all.filter(b => b.sheet && b.sheet.confirmed).length;
-  const pct = all.length ? Math.round(done / all.length * 100) : 0;
+  const p = planProgress(currentPlan) || { done: 0, total: 0 };
+  const done = p.done, total = p.total;
+  const pct = total ? Math.round(done / total * 100) : 0;
 
   document.getElementById('progName').textContent = currentPlan.name || '';
   document.getElementById('progPct').innerHTML = pct + '<small>%</small>';
   document.getElementById('progBarFill').style.width = pct + '%';
-  document.getElementById('progCount').textContent = `已交出 ${done} / ${all.length} 個版位`;
+  document.getElementById('progCount').textContent = `已交出 ${done} / ${total} 格`;
 
   /* 真正的小地圖：照版面比例畫兩張，一眼看得出還沒交的是哪幾塊、在哪、有多大 */
   const grid = document.getElementById('progGrid');
   grid.innerHTML = '';
   ['front', 'back'].forEach(side => {
     const bs = collectBlocks(layout[side], []);
-    const d = bs.filter(b => b.sheet && b.sheet.confirmed).length;
+    let d = 0, t = 0;
+    bs.forEach(b => { const cs = (b.sheet && b.sheet.cells) || [];
+                      t += cs.length; d += cs.filter(cellHanded).length; });
     const wrap = document.createElement('div');
     wrap.className = 'prog-map';
     const lb = document.createElement('div');
     lb.className = 'lb';
-    lb.textContent = `${side === 'front' ? '正面' : '背面'}　${d}/${bs.length}`;
+    lb.textContent = `${side === 'front' ? '正面' : '背面'}　${d}/${t} 格`;
     const page = document.createElement('div');
     page.className = 'prog-page';
     page.appendChild(progNode(layout[side]));
@@ -3584,7 +3610,7 @@ function makeCard(cell){
   const el = document.createElement('div');
   /* PM 在這一格動過手（挑了貨、或留了話）＝設計在 落版 就看得到「有填寫」，
      不必切到 拼板 一格一格點開來確認。這是交接的反方向：
-     confirmed 是設計交給 PM，這個是 PM 交回來的回音。 */
+     cell.ok（蓋章）是設計交給 PM，這個是 PM 交回來的回音。 */
   const pmFilled = !!pickedOf(cell).length || !!notesOf(cell).length;
   el.className = 'cell copy' + (pmFilled ? ' pm-filled' : '')
                              + (cell.gi === 1 ? ' g2' : '');   // dm-block-zoom .sq.g2
@@ -5110,17 +5136,25 @@ window.addEventListener('blur', () => { if (handMode) setHandMode(false); });
 const confirmBtn = document.getElementById('confirmBtn');
 const bannerProg = document.getElementById('bannerProg');
 
-/** 已確認 X / Y — counted over both 正面 and 背面. */
+/** 交出去幾格 / 總共幾格 — 正面背面一起算。
+    數的是格不是版位：交接的單位換成格之後，「12 個版位交了 5 個」會把
+    「另外七個其實各交了一半」講成沒進度。 */
 function planProgress(pl){
   if (!pl || !pl.layout) return null;
   const all = collectBlocks(pl.layout.front, []).concat(collectBlocks(pl.layout.back, []));
   if (!all.length) return null;
-  return { done: all.filter(b => b.sheet && b.sheet.confirmed).length, total: all.length };
+  let done = 0, total = 0;
+  all.forEach(b => {
+    const cells = (b.sheet && b.sheet.cells) || [];
+    total += cells.length;
+    done  += cells.filter(cellHanded).length;
+  });
+  return total ? { done, total } : null;
 }
 
 function updateProgress(){
   const p = planProgress(currentPlan);
-  bannerProg.innerHTML = p ? `已確認 <b>${p.done}</b> / <b>${p.total}</b> 版位` : '';
+  bannerProg.innerHTML = p ? `已交出 <b>${p.done}</b> / <b>${p.total}</b> 格` : '';
 }
 
 function renderConfirmBtn(){
@@ -5141,7 +5175,8 @@ confirmBtn.addEventListener('click', async () => {
   if (sh.confirmed){
     const ok = await modalConfirm({
       title: '解除鎖定',
-      body: '解除後列會重新可以搬動，但搬移和整格複製都會停用。已經拼好的內容會保留。要繼續嗎？',
+      body: '解除後列會重新可以搬動，但搬移和整格複製都會停用。已經拼好的內容、'
+          + '已經蓋章交出去的格都會保留。要繼續嗎？',
       ok: '解除鎖定', cancel: '取消', danger: true
     });
     if (!ok) return;
@@ -5149,7 +5184,9 @@ confirmBtn.addEventListener('click', async () => {
     toast('已解除鎖定，列可以重新搬動', 'info', 2600);
   } else {
     sh.confirmed = true;
-    toast('已確認列排列，這個版位交給 PM 了', 'ok');
+    /* 鎖定只是「列不要再搬了」。交給 PM 是 拼板 蓋章那一條路 —— 兩件事分開之後
+       這裡就不能再說「交給 PM 了」，不然按完會等著 PM 動，而 PM 什麼都沒收到。 */
+    toast('已確認列排列，列不能再搬了（要交給 PM 請到 拼板 蓋章）', 'ok', 3200);
   }
   renderMinimap();     // 按了確認的變綠色
   renderHead();
@@ -5781,7 +5818,10 @@ function armKind(key){
 /* ---- 拖到格子上 ---- */
 const cellUnder = (x, y) => {
   const el = document.elementFromPoint(x, y);
-  return el && el.closest ? el.closest('#boardOverview .cell') : null;
+  const cell = el && el.closest ? el.closest('#boardOverview .cell') : null;
+  /* 還沒交到 PM 手上的格是個空位子 —— 不能往上面貼東西，也不能把貼紙拖過去。
+     那一格對他來說不存在，貼上去的話那句話就沒有人看得到了。 */
+  return (cell && cell.classList.contains('notyet')) ? null : cell;
 };
 let dropHot = null;
 function hotCell(el){
@@ -5845,6 +5885,7 @@ function dropNote(key, el, cx, cy){
 /* ---- 格子上的貼紙 ---- */
 function paintNoteMarks(c){
   if (activeTab !== 'board') return;      // 落版 的卡片上不該有貼紙
+  if (!pmSeesCell(c)) return;             // 還沒交出去的格，PM 那邊整格是空的
   const el = cardEl(c.id);
   if (!el) return;
   el.querySelectorAll('.cmk,.cnb').forEach(n => n.remove());
@@ -6067,6 +6108,7 @@ function allNotes(){
   if (!activeBlock) return [];
   const out = [];
   (sheetOf(activeBlock).cells || []).forEach((c, at) => {
+    if (!pmSeesCell(c)) return;        // 那一格對他不存在，上面的話也還不到他看的時候
     notesOf(c).forEach(n => out.push({ n, cell:c, at }));
   });
   return out;
@@ -6380,9 +6422,18 @@ function paintOneCanvas(c){
   if (activeTab !== 'board') return;
   const el = cardEl(c.id);
   if (!el) return;
+  /* 還沒蓋章的格對 PM 不存在：畫布、貼紙、狀態一律不畫，只留一個空位子。
+     位子要留著 —— 拿掉的話整排格子會往前遞補，PM 看到的版面形狀就是錯的。 */
+  el.classList.toggle('notyet', !pmSeesCell(c));
+  if (!pmSeesCell(c)){
+    const old = el.querySelector('.ccanvas'); if (old) old.remove();
+    el.querySelectorAll('.cmk,.cnb,.cst').forEach(n => n.remove());
+    el.classList.remove('filled');
+    return;
+  }
   const n = pickedOf(c).length;
   let f = el.querySelector('.ccanvas');
-  if (!n){ if (f) f.remove(); markBadge(c); paintNoteMarks(c); return; }
+  if (!n){ if (f) f.remove(); markBadge(c); paintNoteMarks(c); paintCellState(c); return; }
   const cm = cellCm(c, el);
   if (!f){
     f = document.createElement('iframe');
@@ -6399,6 +6450,28 @@ function paintOneCanvas(c){
   }
   markBadge(c);
   paintNoteMarks(c);        // 標記跟著這一格走，重畫版面也不會掉
+  paintCellState(c);
+}
+
+/** 每一格右上角那一顆：這一格現在在誰手上。
+    右上角是刻意的 —— 那是這一格唯一一個不會被版面內容（品牌在左上、價格在右下、
+    紅色未處理數字在左上）佔走的角。畫布裡那顆 ＋ 因此讓到左下角。 */
+function paintCellState(c){
+  const el = cardEl(c.id);
+  if (!el) return;
+  let s = el.querySelector('.cst');
+  /* 只有設計看得到這一顆。PM 看得到的格「一定」都在他手上（沒蓋章的根本不出現），
+     一顆永遠寫同一句話的標記不是資訊，只是壓在版面上的雜訊。 */
+  if (activeTab !== 'board' || activeMode === 'pm'){ if (s) s.remove(); return; }
+  if (!s){
+    s = document.createElement('span');
+    s.contentEditable = 'false';      // 格子本身是 contentEditable，這顆不是
+    el.appendChild(s);
+  }
+  const ok = cellHanded(c);
+  s.className = 'cst ' + (ok ? 'ok' : 'wip');
+  s.textContent = ok ? '在 PM' : '設計中';
+  s.title = ok ? '已經蓋章交給 PM' : '還在設計手上，PM 看不到這一格';
 }
 
 /** 整張版：每一格該有畫布的都給它。只有 拼板 這一頁會叫。 */
@@ -6412,9 +6485,9 @@ function paintBoardThumbs(){
 /* 拼板往格子裡塞的東西（畫布、貼紙、數字）全部是這一頁自己加的，換頁時要清乾淨：
    落版 借的是同一批 .cell，留著就會疊在未填寫／有填寫那兩個字上面。 */
 function clearBoardThumbs(){
-  boardEl.querySelectorAll('.ccanvas,.cbadge,.cmk,.cnb').forEach(n => n.remove());
+  boardEl.querySelectorAll('.ccanvas,.cbadge,.cmk,.cnb,.cst').forEach(n => n.remove());
   boardEl.querySelectorAll('.cell').forEach(n =>
-    n.classList.remove('filled', 'dim', 'editing', 'focus', 'drop'));
+    n.classList.remove('filled', 'dim', 'editing', 'focus', 'drop', 'notyet', 'stamp-sel'));
 }
 
 /* 總覽裡的格子只是入口：不給打字、不給搬，點下去就在旁邊開面板。
@@ -6430,11 +6503,16 @@ boardOv.addEventListener('click', e => {
   clearNoteSel();            // 點到便利貼以外的地方＝放開它，意見欄回到全部問題
   const el = e.target.closest('.cell');
   if (!el || !activeBlock) return;
-  // 手上拿著貼紙：這一下是貼上去，不是進去編輯
-  if (armedKind){ dropNote(armedKind, el, e.clientX, e.clientY); return; }
   const cells = sheetOf(activeBlock).cells || [];
   const at = cells.findIndex(c => String(c.id) === el.dataset.cellId);
   if (at < 0) return;
+  // 蓋章模式：點格子＝蓋章／收回，不是進去編輯（一個手勢不能同時是兩件事）
+  if (stampMode && stampable()){ stampCells([cells[at]], !cellHanded(cells[at])); return; }
+  /* 還沒交到 PM 手上的格，他點不進去也貼不上去 —— 那一格對他來說根本不存在，
+     連「我想在這裡留一句話」都還輪不到。 */
+  if (!pmSeesCell(cells[at])) return;
+  // 手上拿著貼紙：這一下是貼上去，不是進去編輯
+  if (armedKind){ dropNote(armedKind, el, e.clientX, e.clientY); return; }
   hideTip();
   openBoardCell(el, activeBlock, cells, at);
 });
@@ -6531,6 +6609,9 @@ let boardPan = null, boardDragged = false;
 boardOv.addEventListener('pointerdown', e => {
   if (e.button !== 0 || activeTab !== 'board') return;
   if (e.target.closest && e.target.closest('#boardStage')) return;   // 面板不是版面
+  /* 蓋章中，同一個手勢是框選 —— 平移讓位。兩個都收下的話，你框到哪版面就跟著
+     跑到哪，框子和格子永遠對不齊。 */
+  if (stampMode) return;
   boardPan = { x: e.clientX, y: e.clientY, moved: false,
                left: sheetMainEl.scrollLeft, top: sheetMainEl.scrollTop };
 });
@@ -6631,10 +6712,19 @@ function ensurePmPerBlock(){
   if (dirty) markDirty();            // 這是開檔期時補的，不算你做的一步
 }
 
-/* 設計按了「確認列排列（鎖定）」才算交出去。在那之前，那個版位對 PM 來說
-   不存在 —— 不是壓暗、不是點不進去，是整個不出現。半成品讓人看，只會收到
-   一堆「這裡怎麼還沒好」的問題。 */
-const handedOver = b => !!(b && sheetOf(b).confirmed);
+/* 交接的單位是「格」，不是版位：設計在 拼板 上一格一格蓋章，蓋了那一格就在
+   PM 手上。沒蓋的格對 PM 來說不存在 —— 不是壓暗、不是點不進去，是整個不出現。
+   半成品讓人看，只會收到一堆「這裡怎麼還沒好」的問題。
+   （以前是整個版位一次交出去，看 sheet.confirmed。confirmed 現在只剩它原本
+     的另一個意思：列排列鎖定 —— 那是「別再搬列了」，不是「給你了」。）
+   寫成 function 而不是 const 箭頭：這幾支被畫版面的程式碼叫，而那些程式碼
+   寫在檔案更上面 —— 用 const 的話只要有人在載入途中叫一次就是 ReferenceError。 */
+function cellHanded(c){ return !!(c && c.ok); }
+function handedCells(sh){ return ((sh && sh.cells) || []).filter(cellHanded); }
+/* 版位還是有「出不出現」這回事：一格都沒交的版位，PM 連進去都不必進去。 */
+function handedOver(b){ return !!(b && handedCells(sheetOf(b)).length); }
+/** 這一格 PM 看不看得到。設計永遠看得到自己排的每一格。 */
+function pmSeesCell(c){ return activeMode !== 'pm' || cellHanded(c); }
 /* 一個版位一位 PM。記在版位身上（sheet.pm），所以跟著檔期存、跟著 Ctrl+Z 復原。
    還沒指派的版位每位 PM 都看得到 —— 寧可多看到，也不要有版位沒人管。 */
 const pmOf = b => (b && sheetOf(b).pm) || '';
@@ -6785,8 +6875,8 @@ function setTab(id){
   document.getElementById('view-plans').classList.remove('active');
   VIEWS[id].mount();
   /* 批次交接只活在 拼板：切走就關掉，免得下次回來還掛著上一輪的選取。 */
-  if (id !== 'board'){ markMode = false; markSel.clear(); }
-  renderMarkBar();
+  if (id !== 'board') setStampMode(false);
+  renderStampBar();
 }
 function switchTab(id){ if (id !== activeTab) setTab(id); }
 document.querySelectorAll('.tab').forEach(b => {
@@ -6794,17 +6884,16 @@ document.querySelectorAll('.tab').forEach(b => {
 });
 
 /* ==========================================================================
-   拼板：挑幾個版位，一次交給 PM
-   一個一個開進 落版 按「確認列排列」也做得到同一件事，但一張 DM 十幾個版位，
-   排完之後往往是一口氣交出去 —— 那就不該逼人開十幾次。
-   為什麼在 拼板 不在 總體：交接是「設計排完 → PM 拼 → 有問題再回設計」這個
-   來回過程的一步，而那個來回就發生在 拼板。總體 是偶爾看一眼的全景圖，
-   把每天要按的東西放在那裡，等於每次都要先切一次分頁。
-   交出去的意思跟那顆按鈕完全一樣（sheet.confirmed）：PM 在那之前看不到這個版位，
-   所以這裡不是新的狀態，只是同一個開關的另一個入口。
+   蓋章：一格一格交給 PM
+   交接的單位是「格」。設計在這裡蓋章，蓋了的那一格才會出現在 PM 那邊。
+   為什麼在 拼板 不在 落版：交接是「設計排完 → PM 拼 → 有問題再回設計」這個
+   來回過程的一步，而那個來回就發生在 拼板。落版 是決定形狀的地方。
+   做成一個模式，不是隨手點就蓋 —— 點格子本來就有用途（開那一格的面板），
+   一個手勢不能同時是兩件事。
    ========================================================================== */
-const markBar = document.getElementById('markBar');
-let markMode = false;        // 批次交接模式：點小地圖＝選版位，不是切過去
+const stampBar = document.getElementById('stampBar');
+let stampMode = false;
+let stampDrag = null;                       // 框選中：{x,y,add,box,before}
 
 /** 這個檔期的所有版位，正面接背面。 */
 function allBlocks(){
@@ -6812,119 +6901,164 @@ function allBlocks(){
   return collectBlocks(layout.front, []).concat(collectBlocks(layout.back, []));
 }
 
-/** 只有設計、在 拼板、而且真的按下批次交接，才談得上「挑版位交出去」。 */
-function markable(){
-  return activeMode !== 'pm' && activeTab === 'board' && !!currentPlan && markMode;
+/** 現在這一版位的格。蓋章一次只對「正在看的那一個版位」動手。 */
+function stampCellsOf(){
+  return activeBlock ? (sheetOf(activeBlock).cells || []) : [];
 }
 
-function renderMarkBar(){
-  if (!markable()){ markBar.classList.remove('on'); return; }
-  markBar.classList.add('on');
-
-  const picked = allBlocks().filter(b => markSel.has(b.id));
-  const undone = allBlocks().filter(b => !b.sheet.confirmed);
-  const canDone = picked.filter(b => !b.sheet.confirmed).length;
-  const canUndo = picked.filter(b => b.sheet.confirmed).length;
-
-  const n = document.getElementById('markCount');
-  n.hidden = !picked.length;
-  n.innerHTML = `已選 <b>${picked.length}</b> 個版位`;
-  document.getElementById('markHint').hidden = !!picked.length;
-
-  document.getElementById('markAll').hidden  = !undone.length || !!picked.length;
-  document.getElementById('markNone').hidden = !picked.length;
-
-  const done = document.getElementById('markDone');
-  done.hidden = !canDone;
-  done.textContent = `標記完成，交給 PM（${canDone}）`;
-
-  const undo = document.getElementById('markUndo');
-  undo.hidden = !canUndo;
-  undo.textContent = `收回（${canUndo}）`;
+/** 只有設計、在 拼板、而且真的有一個版位攤在眼前，才談得上蓋章。 */
+function stampable(){
+  return activeMode !== 'pm' && activeTab === 'board' && !!currentPlan && !!activeBlock;
 }
 
-/** 選取的樣子畫在小地圖上，所以重畫小地圖就好，不必動到右邊那張版。 */
-function paintMarkSel(){
+function renderStampBar(){
+  if (!stampMode || !stampable()){ stampBar.classList.remove('on'); return; }
+  stampBar.classList.add('on');
+  const cells = stampCellsOf();
+  const n = cells.filter(cellHanded).length;
+  document.getElementById('stampCount').innerHTML =
+    `已交出 <b>${n}</b> / <b>${cells.length}</b> 格`;
+  document.getElementById('stampAll').hidden  = n === cells.length;
+  document.getElementById('stampNone').hidden = !n;
+}
+
+/** 開關蓋章模式。關掉的時候把框選殘留一起收乾淨。 */
+function setStampMode(on){
+  on = !!on && stampable();
+  if (on === stampMode) return;
+  stampMode = on;
+  boardOv.classList.toggle('stamping', on);
+  if (!on) endStampDrag(true);
+  renderStampBar();
   renderMinimap();
-  renderMarkBar();
 }
 
-/** 總體 那兩張版是開檔期時建好就留著的，改了 confirmed 要把它們的底色和狀態字
-    就地更新。不走 rebuildAll —— 那會把整棵樹連同 拼板 的畫布全部重建，
-    每個 iframe 都重載一次，只為了改一個布林值，太貴而且畫面會整片閃。 */
+/** 蓋章／收回。一次一批只算一步復原 —— 框一片起來蓋，在使用者心裡就是一個動作。 */
+function stampCells(cells, on){
+  let changed = 0;
+  cells.forEach(c => {
+    if (!!c.ok === on) return;
+    if (on) c.ok = true; else delete c.ok;   // 沒交出去的格不留欄位，存檔小一點
+    changed++;
+  });
+  if (!changed) return 0;
+  commitAction();
+  cells.forEach(paintCellState);
+  paintTotalStates();
+  renderMinimap();
+  updateProgress();
+  renderStampBar();
+  return changed;
+}
+
+document.getElementById('stampAll').addEventListener('click', () => {
+  const n = stampCells(stampCellsOf(), true);
+  if (n) toast(`蓋章交給 PM：${n} 格`, 'ok', 2000);
+});
+document.getElementById('stampNone').addEventListener('click', async () => {
+  const picked = stampCellsOf().filter(cellHanded);
+  if (!picked.length) return;
+  /* 收回＝PM 那邊整格不見了，值得問一次。已經拼好的內容不會動。 */
+  const ok = await modalConfirm({
+    title: '全部收回',
+    body: `${picked.length} 格會從 PM 那邊收回來（PM 會看不到它們）。`
+        + '已經拼好的內容、貼在上面的便利貼都會留著。要繼續嗎？',
+    ok: '收回', cancel: '取消', danger: true
+  });
+  if (!ok) return;
+  const n = stampCells(picked, false);
+  if (n) toast(`已收回 ${n} 格`, 'info', 2000);
+});
+document.getElementById('stampExit').addEventListener('click', () => setStampMode(false));
+
+/* ---- 框選：按著拖出一個框，框到的格子一次蓋完 ----------------------------
+   用視窗座標畫框（position:fixed），不換算成版面座標 —— 版面本身會縮放、
+   會平移，換算一次就多一個會算錯的地方，而框只活在按住的那幾秒。
+   拖版面（平移）在蓋章模式下讓位：那幾秒你是在選格子，不是在看別的地方。 */
+function stampCellElsIn(box){
+  const cells = stampCellsOf();
+  const out = [];
+  cells.forEach(c => {
+    const el = cardEl(c.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.right > box.l && r.left < box.r && r.bottom > box.t && r.top < box.b) out.push(c);
+  });
+  return out;
+}
+
+function stampBoxOf(e){
+  return { l: Math.min(stampDrag.x, e.clientX), r: Math.max(stampDrag.x, e.clientX),
+           t: Math.min(stampDrag.y, e.clientY), b: Math.max(stampDrag.y, e.clientY) };
+}
+
+function paintStampBox(box){
+  const el = stampDrag.box;
+  el.style.left = box.l + 'px'; el.style.top = box.t + 'px';
+  el.style.width = (box.r - box.l) + 'px'; el.style.height = (box.b - box.t) + 'px';
+  el.classList.toggle('take', !stampDrag.add);
+  const hit = new Set(stampCellElsIn(box).map(c => String(c.id)));
+  stampCellsOf().forEach(c => {
+    const cel = cardEl(c.id);
+    if (cel) cel.classList.toggle('stamp-sel', hit.has(String(c.id)));
+  });
+}
+
+function endStampDrag(cancel){
+  if (!stampDrag) return;
+  stampDrag.box.remove();
+  boardEl.querySelectorAll('.stamp-sel').forEach(n => n.classList.remove('stamp-sel'));
+  const d = stampDrag;
+  stampDrag = null;
+  if (cancel || !d.moved) return;
+  const hit = stampCellElsIn(d.last);
+  const n = stampCells(hit, d.add);
+  if (n) toast(d.add ? `蓋章交給 PM：${n} 格` : `已收回 ${n} 格`, d.add ? 'ok' : 'info', 1800);
+}
+
+boardOv.addEventListener('pointerdown', e => {
+  if (!stampMode || !stampable() || e.button !== 0) return;
+  if (e.target.closest && e.target.closest('#boardStage')) return;
+  e.preventDefault();
+  const box = document.createElement('div');
+  box.className = 'stamp-box';
+  document.body.appendChild(box);
+  // 按住 Alt 是收回：跟蓋章反過來，同一個手勢不必再找一顆按鈕
+  stampDrag = { x:e.clientX, y:e.clientY, add:!e.altKey, box, moved:false, last:null };
+  stampDrag.last = stampBoxOf(e);
+  paintStampBox(stampDrag.last);
+});
+document.addEventListener('pointermove', e => {
+  if (!stampDrag) return;
+  if (!stampDrag.moved &&
+      Math.abs(e.clientX - stampDrag.x) + Math.abs(e.clientY - stampDrag.y) < 5) return;
+  stampDrag.moved = true;                  // 沒動就當成一次點擊，交給 click 那條路
+  stampDrag.box.classList.add('on');
+  stampDrag.last = stampBoxOf(e);
+  paintStampBox(stampDrag.last);
+});
+document.addEventListener('pointerup', () => endStampDrag(false));
+document.addEventListener('pointercancel', () => endStampDrag(true));
+
+/* 總體 那兩張版是開檔期時建好就留著的，狀態變了要就地更新底色和狀態字。
+   不走 rebuildAll —— 那會把整棵樹連同 拼板 的畫布全部重建，每個 iframe 都重載
+   一次，只為了改一個狀態，太貴而且畫面會整片閃。 */
 function paintTotalStates(){
   const by = new Map(allBlocks().map(b => [b.id, b]));
   editorHost.querySelectorAll('.window-node').forEach(el => {
     const b = by.get(el.dataset.blockId);
     if (!b) return;
     const sh = b.sheet || {};
-    el.classList.toggle('handed', !!sh.confirmed);
+    const st = blockState(sh);
+    el.classList.toggle('handed', st.k === 's-done');   // 綠底只給整塊交完的，見 renderLeaf
     el.classList.toggle('unowned', !sh.pm);
     const badge = el.querySelector('.blk-state');
     if (badge){
-      const st = blockState(sh);
       badge.className = 'blk-state ' + st.k;
       badge.textContent = st.t;
     }
   });
 }
-
-/** 交出去／收回來。一次一批，但只算一步復原 —— 它在使用者心裡就是一個動作。 */
-function setConfirmed(blocks, value){
-  let changed = 0, touchedActive = false;
-  blocks.forEach(b => {
-    if (!!b.sheet.confirmed === value) return;
-    sheetOf(b);                       // 確保 cells／刊頭 都生出來了，跟單顆按鈕那條路一致
-    b.sheet.confirmed = value;
-    changed++;
-    if (b === activeBlock) touchedActive = true;
-  });
-  if (!changed) return 0;
-  commitAction();
-  paintTotalStates();
-  renderMinimap();
-  updateProgress();
-  renderConfirmBtn();
-  /* 只有「正在看的那一個版位」被改到時才重畫那張版：鎖定會改到格子能不能搬、
-     工具列開不開，那是 renderGrid 的事。其他版位在畫面上只是小地圖上的一塊。 */
-  if (touchedActive && activeBlock){
-    renderGrid(activeBlock);
-    if (activeTab === 'board') paintBoardThumbs();
-  }
-  renderMarkBar();
-  return changed;
-}
-
-document.getElementById('markAll').addEventListener('click', () => {
-  allBlocks().filter(b => !b.sheet.confirmed).forEach(b => markSel.add(b.id));
-  paintMarkSel();
-});
-document.getElementById('markNone').addEventListener('click', () => {
-  markSel.clear(); paintMarkSel();
-});
-document.getElementById('markDone').addEventListener('click', () => {
-  const picked = allBlocks().filter(b => markSel.has(b.id) && !b.sheet.confirmed);
-  const n = setConfirmed(picked, true);
-  if (!n) return;
-  markSel.clear(); paintMarkSel();
-  toast(`已交給 PM：${n} 個版位`, 'ok', 2200);
-});
-document.getElementById('markUndo').addEventListener('click', async () => {
-  const picked = allBlocks().filter(b => markSel.has(b.id) && b.sheet.confirmed);
-  if (!picked.length) return;
-  /* 收回＝PM 那邊整個版位又不見了，而且列會重新可以搬 —— 值得問一次。
-     跟單顆那條路的「解除鎖定」問同一件事，只是這裡一次問一批。 */
-  const ok = await modalConfirm({
-    title: '收回這些版位',
-    body: `${picked.length} 個版位會從 PM 那邊收回來（PM 會看不到它們），`
-        + '列也會重新可以搬動。已經拼好的內容都會留著。要繼續嗎？',
-    ok: '收回', cancel: '取消', danger: true
-  });
-  if (!ok) return;
-  const n = setConfirmed(picked, false);
-  markSel.clear(); paintMarkSel();
-  if (n) toast(`已收回 ${n} 個版位`, 'info', 2200);
-});
 
 /* ==========================================================================
    BOOT
@@ -7387,7 +7521,7 @@ function showList(){
   document.getElementById('view-board').classList.remove('active');
   document.getElementById('view-plans').classList.add('active');
   currentPlan = null;
-  markMode = false; markSel.clear(); renderMarkBar();  // 離開檔期就把選取放掉
+  setStampMode(false);                 // 離開檔期就把蓋章模式收掉
   closeBoardCell();                  // 下次進 拼板 從總覽開始
   boardLoaded = null;                // 換檔期就別留著上一張的 iframe
   pmFocus = null;
@@ -7424,6 +7558,7 @@ function rebuildAll(keepId){
     if (activeMode === 'pm') renderPmTree(); else renderMinimap();
     renderHead(); renderGrid(activeBlock);
     paintBoardThumbs(); applyPmFocus(); renderRail(); applyFocusCell();
+    renderStampBar();               // 復原掉的可能就是幾個章，那一列的數字要跟著回去
   }
   updateProgress();
 }

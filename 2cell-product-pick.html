@@ -269,8 +269,8 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .rbtn .rn{font-size:11px;color:#fff;background:#999;border-radius:999px;padding:0 5px;min-width:16px;
   text-align:center}
 .rbtn:hover .rn{background:#111}
-/* 清單往下開，靠右對齊按鈕：按鈕在右上角，往上開會掉到格子外面 */
-.rlist{display:none;position:absolute;right:0;top:calc(100% + 5px);width:210px;max-height:210px;
+/* 清單往上開：按鈕在左下角，往下開會掉到格子外面 */
+.rlist{display:none;position:absolute;left:0;bottom:calc(100% + 5px);width:210px;max-height:210px;
   overflow:auto;background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px;
   box-shadow:0 6px 20px rgba(0,0,0,.18)}
 #restore.open .rlist{display:block}
@@ -1802,7 +1802,7 @@ function normalizeZ(){
 /* ====== 右側圖層面板：顯示這個格子的圖層 ====== */
 function renderLayers(){
   const box=$('#layers');
-  // 藏起來的圖不列在圖層裡：它不在版上，談不上疊在誰上面（要找回來走右上角那顆 ＋）
+  // 藏起來的圖不列在圖層裡：它不在版上，談不上疊在誰上面（要找回來走左下角那顆 ＋）
   const imgs=liveBlocks().filter(b=>b.kind==='img').sort((a,b)=>b.z-a.z); // 上層在前
   if(!imgs.length){ box.innerHTML='<div class="empty-hint">尚未選商品</div>'; return; }
   box.innerHTML=imgs.map(b=>
@@ -1938,7 +1938,7 @@ function resetSelected(){
 }
 
 /* ====== 刪掉／找回來 ========================================================
-   刪掉不是真的丟掉：記在格子的 off 名冊上，版上就不畫了。右上角那顆 ＋
+   刪掉不是真的丟掉：記在格子的 off 名冊上，版上就不畫了。左下角那顆 ＋
    列的就是這份名冊，打勾就回到原來的位置 —— 位置、調過的大小都還在，
    因為那一塊從頭到尾沒有離開過 c.blocks。 */
 function labelOf(b){
@@ -1963,7 +1963,7 @@ function restoreUid(uid){
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
 
-/* 右上角那顆 ＋：藏了東西才出現，沒藏就不佔畫面。
+/* 左下角那顆 ＋：藏了東西才出現，沒藏就不佔畫面。
    只要這一格藏著東西就一直在，不管現在有沒有在編輯那一格 —— 不然「東西不見了」
    跟「東西被我收起來了」在畫面上長得一模一樣，得先點進去才分得出來。
    沒在編輯的時候畫布是 pointer-events:none，那一下會先幫你打開這一格，再點才展開清單。 */
@@ -1979,14 +1979,13 @@ function renderRestore(){
     `<div class="rlist"><div class="rhead">刪掉的，打勾放回來</div>`+
     keys.map(k=>`<label class="ritem"><input type="checkbox" data-ruid="${k}"><span>${off[k]}</span></label>`).join('')+
     `</div>`;
-  /* 位置：格子右上角，座標以 #wrap 為基準（跟 #props 同一套）。
-     這裡本來跟外面那層的紅色未處理數字撞在一起 —— 兩顆數字長得像、意思完全不同
-     （一個是「還有幾則沒處理」，一個是「藏了幾個零件」）。讓開的是紅點：
-     它是外面貼上去的提示，這顆 ＋ 才是版面自己的東西。 */
+  /* 位置：格子左下角，座標以 #wrap 為基準（跟 #props 同一套）。
+     四個角現在各有各的東西 —— 左上是紅色未處理數字、右上是「這一格在誰手上」，
+     版面自己的品牌品名在左上、價格在右下。左下是唯一空著的一角。 */
   const wrapR=$('#wrap').getBoundingClientRect(), r=el.getBoundingClientRect();
-  box.style.left=(r.right-wrapR.left-8)+'px';
-  box.style.top =(r.top-wrapR.top+8)+'px';
-  box.style.transform='translateX(-100%)';
+  box.style.left=(r.left-wrapR.left+8)+'px';
+  box.style.top =(r.bottom-wrapR.top-8)+'px';
+  box.style.transform='translateY(-100%)';
   box.classList.add('on');
 
   box.querySelector('[data-rtoggle]').onmousedown=ev=>{
@@ -2303,7 +2302,7 @@ function boardState(){
      上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
   return { v:3, picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
            img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
-           off: c.off || {},          // 刪掉的零件（uid → 名字），右上角那顆 ＋ 列的就是它
+           off: c.off || {},          // 刪掉的零件（uid → 名字），左下角那顆 ＋ 列的就是它
            nPrice: priceCount(c.blocks, c.off), wantFs: priceWanted };
 }
 let reportTimer = 0;

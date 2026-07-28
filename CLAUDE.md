@@ -47,7 +47,8 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1" \
 
 - `catalogue_plans_v1` —— 整包檔期。版位、格子、便利貼（`cell.notes`）、拼好的畫布（`cell.board.state`）全都在 `plan.layout` 裡面。
 - 因為都在 `layout` 底下，`snapshot()` 一序列化就全部有了 —— 存檔和 Ctrl+Z 是免費的。**改了資料要進歷史就叫 `commitAction()`，只想存檔叫 `markDirty()`。**
-- 交接：設計按「確認列排列（鎖定）」＝ `sheet.confirmed` ＝ 交給 PM。**鎖定之前那個版位對 PM 完全不存在**（不是壓暗，是不出現）。
+- 交接的單位是**格**：設計在 拼板 開「蓋章」，一格一格蓋（或拖一個框一次蓋一片）＝ `cell.ok`。**沒蓋章的格對 PM 完全不存在**（不是壓暗，是留一個空位子 —— 位子要留著，不然 PM 看到的版面形狀是錯的）。
+- `sheet.confirmed` 只剩「列排列鎖定」一個意思，不再等於交給 PM。版位的狀態由蓋了幾格算出來（`blockState()`）：全蓋＝綠、蓋一半＝黃色的「交出 8/14 格」、沒蓋＝白／灰。**綠色只給整塊交完的** —— 顏色只有三級，講不出「一半」。
 - 一個版位一位 PM（`sheet.pm`），開檔期時 `ensurePmPerBlock()` 照順序自動分。未指派＝每位 PM 都看得到。
 - 沒有存檔時預設是空的，要範例資料在網址加 `?seed=1`。檔期列表右上角有「清空資料」。
 
