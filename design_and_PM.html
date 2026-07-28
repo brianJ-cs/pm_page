@@ -451,7 +451,7 @@
              border:2px dashed var(--line);border-radius:12px;padding:6px}
   #stickTray .hint{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:5px}
   #stickRow{display:flex;gap:6px;flex-wrap:nowrap}
-  /* 「交給 PM」：綠色，跟版位、格子的「已交出」同一個顏色 —— 按下去之後版上會
+  /* 換手鍵：綠色，跟版位、格子「在對方手上」同一個顏色 —— 按下去之後版上會
      長出來的就是那個綠。它不是便利貼，所以不做成方的一張，也不歪 —— 一眼要看得出
      它跟旁邊那疊是兩種東西。 */
   #stampBtn{
@@ -643,12 +643,16 @@
     padding:2px 6px;border-radius:999px;font-size:10.5px;font-weight:800;line-height:1.5;
     border:1px solid;white-space:nowrap;
   }
-  .cst.wip{background:var(--surface);border-color:#c9d8f8;color:var(--ink-dim)}
-  .cst.ok {background:var(--ok-tint);border-color:var(--green-rule);color:var(--ok-ink)}
-  /* PM 看到的空位子：格子還在（不然版面形狀就錯了），但裡面什麼都沒有。
-     不給 hover、不給點 —— 那一格對他來說根本還不存在。 */
-  #boardOverview .cell.notyet{background:var(--surface-2);color:transparent;cursor:default}
-  #boardOverview .cell.notyet:hover{outline:none;background:var(--surface-2)}
+  /* 在你手上＝藍框（藍就是「你正在動的東西」）；在對方手上＝綠底。
+     深色那一段會蓋掉繼承來的顏色，所以兩種都自己寫死 color。 */
+  .cst.mine  {background:var(--surface);border-color:var(--blue);color:var(--blue)}
+  .cst.theirs{background:var(--ok-tint);border-color:var(--green-rule);color:var(--ok-ink)}
+  /* 不是你的回合：壓暗、碰不到，但整張版一直都在 —— 排版是整張版的事，
+     而且棒子傳出去之後你還得看得到它變成什麼樣。 */
+  #boardOverview .cell.notmine{opacity:.45;cursor:default}
+  #boardOverview .cell.notmine:hover{outline:none}
+  /* 蓋章模式例外：那時候你就是在管棒子，對方那幾格也要點得到（蓋錯了要拿得回來）。 */
+  #boardOverview.stamping .cell.notmine{opacity:.75;cursor:crosshair}
   /* 拖著貼紙經過時，那一格自己站出來 */
   #boardOverview .cell.drop{outline:4px solid var(--warn);outline-offset:-4px;background:#fff6e6}
   #boardOverview.arming .cell{cursor:copy}
@@ -795,7 +799,7 @@
     border:1.5px solid var(--blue);background:rgba(31,110,235,.12);border-radius:2px;
   }
   .stamp-box.on{display:block}
-  /* 按住 Alt 是收回：框子自己換個顏色，不必回頭看提示才知道現在是哪一種 */
+  /* 按住 Alt 是拿回來：框子自己換個顏色，不必回頭看提示才知道現在是哪一種 */
   .stamp-box.take{border-color:var(--danger);background:rgba(200,40,40,.12)}
   .window-node.unowned .region-label div,
   .window-node.unowned .region-label .cnt{color:#98a1b2}
@@ -927,7 +931,7 @@
   .mini-split{display:flex;width:100%;height:100%;overflow:hidden}
   .mini-fold{width:3px;background:#3d444f;flex:none}
 /* 小地圖是一張進度表，不是裝飾：底色只講這一塊走到哪了。
-   灰＝還沒人管　白＝設計手上　綠＝已交出給 PM。三個都不搶眼 ——
+   灰＝還沒人管　白＝還在設計手上　綠＝整塊都在 PM。三個都不搶眼 ——
    整個畫面上最有顏色的東西應該是版面本身和貼在上面的便利貼。 */
   .mini-blk{
     border:1.5px solid var(--line-strong);background:var(--surface);cursor:pointer;overflow:hidden;
@@ -943,7 +947,7 @@
   /* 選中：藍框，底色照舊 —— 換掉底色就看不出它本來是什麼狀態了 */
   .mini-blk.active{outline:3px solid var(--blue);outline-offset:-3px;
                    border-color:#2f4b96;z-index:2}
-  /* 已交出給 PM（＝按了確認鎖定）：綠底，這一塊就不在設計手上了 */
+  /* 整塊都在 PM 手上：綠底，這一塊現在不在設計手上 */
   .mini-blk.confirmed{background:#dff0e5;border-color:var(--green-rule);color:var(--green-ink)}
   .mini-blk.confirmed .cnt{color:var(--green-ink)}
   /* confirmed AND selected: keep the green fill, ring it in blue */
@@ -1002,7 +1006,7 @@
   .prog-bar i{display:block;height:100%;background:var(--green-rule);border-radius:999px}
   /* 面板裡的小地圖：跟左欄那張同一個形狀，只是不能點。
      用真正的版面比例畫，不是一排等大的方塊 —— 才看得出還沒交的是哪幾塊、有多大。
-     顏色跟小地圖同一套：灰＝未指派、白＝設計手上、綠＝已交出。 */
+     顏色跟小地圖同一套：灰＝未指派、白＝還在設計手上、綠＝整塊都在 PM。 */
   .prog-maps{display:flex;gap:10px;margin-top:12px}
   .prog-map{flex:1;min-width:0}
   .prog-map .lb{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:4px}
@@ -1684,7 +1688,7 @@
              蓋章是「這幾格給你了」。都是對 PM 做的動作，手就該在同一個地方。 -->
         <button id="stampBtn" hidden>
           <span class="ico">📮</span>
-          <span class="tx"><b>交給 PM</b><small>蓋章：一格一格交出去</small></span>
+          <span class="tx"><b>交給 PM</b><small>蓋章：這幾格我做完了</small></span>
         </button>
       </div>
       <div id="armHint"></div>
@@ -1738,7 +1742,7 @@
       <button class="close" id="progClose">關閉</button></h3>
     <div class="prog-cols">
       <div class="prog-col">
-        <h4>版位　設計交給 PM 了沒</h4>
+        <h4>版位　棒子在誰手上</h4>
         <div class="prog-big" id="progPct"></div>
         <div class="prog-bar"><i id="progBarFill"></i></div>
         <div class="prog-side" id="progCount"></div>
@@ -1755,10 +1759,10 @@
 
 <!-- 蓋章列：拼板 蓋章模式開著的時候浮在下緣。設計專用（PM 不蓋章）。 -->
 <div id="stampBar">
-<span class="hint">點一格＝蓋章／收回・拖出一個框＝框到的一次蓋完・按住 Alt 拖＝收回</span>
+<span class="hint">點一格＝換手・拖出一個框＝框到的一次換完・按住 Alt 拖＝拿回來</span>
 <span class="n" id="stampCount"></span>
-<button class="primary" id="stampAll">整個版位一次蓋完</button>
-<button id="stampNone" hidden>全部收回</button>
+<button class="primary" id="stampAll">這個版位全部換手</button>
+<button id="stampNone" hidden>全部拿回來</button>
 <button id="stampExit">離開蓋章</button>
 </div>
 <div id="modalHost"></div>
@@ -2198,19 +2202,19 @@ function groupLinesHTML(node){
 /* 一個版位現在是什麼狀態。底色本來就照這三種分（灰／白／綠），這裡只是把同一件事
    用字寫出來 —— 顏色要人記得對照表，字不用，而且列印或轉手給別人看時也留得住。 */
 function blockState(sh){
-  /* 交接的單位是格，所以一個版位可以「交出去一半」——那正是設計蓋章蓋到一半的
-     樣子，不寫出來的話它跟「一格都還沒交」長得一模一樣。 */
+  /* 棒子是一格一格傳的，所以一個版位可以「一半在 PM」—— 那正是做到一半的樣子，
+     不寫出來的話它跟「整塊都還在設計手上」長得一模一樣。 */
   const cells = (sh && sh.cells) || [];
-  const n = cells.filter(cellHanded).length;
-  if (n && n === cells.length) return { k:'s-done', t:'已交給 PM' };
-  if (n)                       return { k:'s-half', t:`交出 ${n}/${cells.length} 格` };
+  const n = cellsAt(sh, 'pm').length;
+  if (n && n === cells.length) return { k:'s-done', t:'都在 PM' };
+  if (n)                       return { k:'s-half', t:`在 PM ${n}/${cells.length} 格` };
   if (!sh.pm)                  return { k:'s-none', t:'未指派' };
-  return                         { k:'s-wip',  t:'設計中' };
+  return                         { k:'s-wip',  t:'在設計' };
 }
 
 function renderLeaf(node){
   const el = document.createElement('div');
-  /* 底色跟小地圖同一套：灰＝還沒指派、白＝設計手上、綠＝已交出 */
+  /* 底色跟小地圖同一套：灰＝還沒指派、白＝還在設計手上、綠＝整塊都在 PM */
   const sh = node.sheet || {};
   /* 綠底＝「這塊沒你的事了」，所以要整塊都交出去才給綠。交了一半還在設計手上，
      底色留白、由角落那顆黃色的「交出 8/14 格」把進度講清楚 —— 顏色只有三級，
@@ -3093,12 +3097,11 @@ function miniFontSize(node, wpx, hpx){
 function renderMiniNode(node, wpx, hpx){
   if (isLeaf(node)){
     const el = document.createElement('div');
-    /* 底色講的是這一塊現在的狀態：沒人負責 / 設計手上 / 已交給 PM。
+    /* 底色講的是這一塊現在的狀態：沒人負責 / 還在設計手上 / 整塊都在 PM。
        選中是藍框，不是藍底 —— 底色是「東西的狀態」，藍色是「你在哪裡」。 */
     el.className = 'mini-blk'
       + (activeBlock === node ? ' active' : '')
-      + (handedCells(node.sheet).length === (node.sheet.cells || []).length
-         && (node.sheet.cells || []).length ? ' confirmed' : '')
+      + (blockState(node.sheet).k === 's-done' ? ' confirmed' : '')
       + (node.sheet.pm ? '' : ' unowned');
     el.dataset.blockId = node.id;
     // dm-block-zoom's 13px baseline, stepped down only as far as this
@@ -3273,8 +3276,8 @@ function renderMinimap(){
   sheetSide.classList.toggle('mini', wasMini);     // 重畫不該把它打開
 
   /* 蓋章的開關不在這裡 —— 它站在右邊意見欄的貼紙旁邊（#stampBtn）。
-     貼紙和蓋章是同一件事的兩半：一個是「我有話跟 PM 說」，一個是「這幾格給你了」，
-     兩個都是對 PM 做的動作，手就該在同一個地方。 */
+     貼紙和蓋章是同一件事的兩半：一個是「我有話跟對面說」，一個是「這幾格換你了」，
+     兩個都是對另一邊做的動作，手就該在同一個地方。 */
 
   /* 進度站在小地圖上面：下面那兩張圖是「哪一塊在哪」，這一顆是「還剩多少」——
      同一個問題的兩個問法。擺在上面是因為那兩張圖夠高，放底下就得先捲一段才看得到。 */
@@ -3305,14 +3308,14 @@ function renderMinimap(){
    ========================================================================== */
 const progMask = document.getElementById('progMask');
 
-/** 每位 PM：他負責、而且已經交到他手上的那些格子，挑好貨的有幾格。
-    只算蓋過章的格 —— 沒蓋章的格對 PM 根本不存在，算進去只會讓每個人的分母
-    憑空變大，看起來像大家都在拖。 */
+/** 每位 PM：現在在他手上的那些格子，挑好貨的有幾格。
+    只算在他手上的 —— 還在設計那邊的格輪不到他做，算進去只會讓分母憑空變大，
+    看起來像大家都在拖。 */
 function pmProgress(){
   const rows = new Map();
   allBlocks().forEach(b => {
     const sh = b.sheet || {};
-    const mine = handedCells(sh);
+    const mine = cellsAt(sh, 'pm');
     if (!mine.length) return;
     const key = sh.pm || '';
     const r = rows.get(key) || { done: 0, total: 0 };
@@ -3330,7 +3333,7 @@ function progNode(node){
     const sh = node.sheet || {};
     const st = blockState(sh);
     const el = document.createElement('div');
-    /* 交出一半的版位畫成「還在設計手上」那一格：綠色留給真的整塊交完的，
+    /* 一半在 PM 的版位畫成「還在設計手上」那一格：綠色留給整塊都在 PM 的，
        不然一眼掃過去會以為都好了。字上面寫得出 n/m，顏色寫不出。 */
     el.className = 'prog-blk' + (st.k === 's-done' ? ' done' : (st.k === 's-none' ? ' none' : ''));
     el.textContent = node.name;
@@ -3358,14 +3361,15 @@ function progNode(node){
 
 function openProgress(){
   if (!currentPlan) return;
-  const p = planProgress(currentPlan) || { done: 0, total: 0 };
-  const done = p.done, total = p.total;
+  const p = planProgress(currentPlan) || { pm: 0, design: 0, total: 0 };
+  const done = p.pm, total = p.total;
   const pct = total ? Math.round(done / total * 100) : 0;
 
   document.getElementById('progName').textContent = currentPlan.name || '';
   document.getElementById('progPct').innerHTML = pct + '<small>%</small>';
   document.getElementById('progBarFill').style.width = pct + '%';
-  document.getElementById('progCount').textContent = `已交出 ${done} / ${total} 格`;
+  document.getElementById('progCount').textContent =
+    `在 PM ${done} 格・在設計 ${p.design} 格`;
 
   /* 真正的小地圖：照版面比例畫兩張，一眼看得出還沒交的是哪幾塊、在哪、有多大 */
   const grid = document.getElementById('progGrid');
@@ -3374,7 +3378,7 @@ function openProgress(){
     const bs = collectBlocks(layout[side], []);
     let d = 0, t = 0;
     bs.forEach(b => { const cs = (b.sheet && b.sheet.cells) || [];
-                      t += cs.length; d += cs.filter(cellHanded).length; });
+                      t += cs.length; d += cellsAt(b.sheet, 'pm').length; });
     const wrap = document.createElement('div');
     wrap.className = 'prog-map';
     const lb = document.createElement('div');
@@ -3386,13 +3390,13 @@ function openProgress(){
     wrap.appendChild(lb); wrap.appendChild(page);
     grid.appendChild(wrap);
   });
-  document.getElementById('progSides').textContent = '灰＝未指派　白＝設計手上　綠＝已交給 PM';
+  document.getElementById('progSides').textContent = '灰＝未指派　白＝還在設計手上　綠＝整塊都在 PM';
 
   const host = document.getElementById('progPms');
   const rows = pmProgress();
   host.innerHTML = '';
   if (!rows.size){
-    host.innerHTML = '<div class="prog-empty">還沒有版位交給 PM —— 交出去之後這裡才算得出進度。</div>';
+    host.innerHTML = '<div class="prog-empty">還沒有格子換到 PM 手上 —— 換手之後這裡才算得出進度。</div>';
   } else {
     /* 未指派的排最後：它不是某個人的進度，是「還沒決定給誰」 */
     [...rows.entries()].sort((a, b) => (a[0] ? 0 : 1) - (b[0] ? 0 : 1)).forEach(([id, r]) => {
@@ -3626,7 +3630,7 @@ function makeCard(cell){
   const el = document.createElement('div');
   /* PM 在這一格動過手（挑了貨、或留了話）＝設計在 落版 就看得到「有填寫」，
      不必切到 拼板 一格一格點開來確認。這是交接的反方向：
-     cell.ok（蓋章）是設計交給 PM，這個是 PM 交回來的回音。 */
+     cell.at（蓋章換手）是誰現在拿著棒子，這個是 PM 那邊做了什麼的回音。 */
   const pmFilled = !!pickedOf(cell).length || !!notesOf(cell).length;
   el.className = 'cell copy' + (pmFilled ? ' pm-filled' : '')
                              + (cell.gi === 1 ? ' g2' : '');   // dm-block-zoom .sq.g2
@@ -5152,25 +5156,26 @@ window.addEventListener('blur', () => { if (handMode) setHandMode(false); });
 const confirmBtn = document.getElementById('confirmBtn');
 const bannerProg = document.getElementById('bannerProg');
 
-/** 交出去幾格 / 總共幾格 — 正面背面一起算。
-    數的是格不是版位：交接的單位換成格之後，「12 個版位交了 5 個」會把
-    「另外七個其實各交了一半」講成沒進度。 */
+/** 球在哪：在 PM 幾格、在設計幾格 — 正面背面一起算。
+    數的是格不是版位（「12 個版位交了 5 個」會把「另外七個各交了一半」講成沒進度），
+    而且不講「完成度」—— 棒子會來回傳，沒有單調遞增的那種進度。 */
 function planProgress(pl){
   if (!pl || !pl.layout) return null;
   const all = collectBlocks(pl.layout.front, []).concat(collectBlocks(pl.layout.back, []));
   if (!all.length) return null;
-  let done = 0, total = 0;
+  let pm = 0, total = 0;
   all.forEach(b => {
     const cells = (b.sheet && b.sheet.cells) || [];
     total += cells.length;
-    done  += cells.filter(cellHanded).length;
+    pm    += cellsAt(b.sheet, 'pm').length;
   });
-  return total ? { done, total } : null;
+  return total ? { pm, design: total - pm, total } : null;
 }
 
 function updateProgress(){
   const p = planProgress(currentPlan);
-  bannerProg.innerHTML = p ? `已交出 <b>${p.done}</b> / <b>${p.total}</b> 格` : '';
+  bannerProg.innerHTML = p
+    ? `在 PM <b>${p.pm}</b>・在設計 <b>${p.design}</b> 格` : '';
 }
 
 function renderConfirmBtn(){
@@ -5192,7 +5197,7 @@ confirmBtn.addEventListener('click', async () => {
     const ok = await modalConfirm({
       title: '解除鎖定',
       body: '解除後列會重新可以搬動，但搬移和整格複製都會停用。已經拼好的內容、'
-          + '已經蓋章交出去的格都會保留。要繼續嗎？',
+          + '每一格現在在誰手上都會保留。要繼續嗎？',
       ok: '解除鎖定', cancel: '取消', danger: true
     });
     if (!ok) return;
@@ -5202,7 +5207,7 @@ confirmBtn.addEventListener('click', async () => {
     sh.confirmed = true;
     /* 鎖定只是「列不要再搬了」。交給 PM 是 拼板 蓋章那一條路 —— 兩件事分開之後
        這裡就不能再說「交給 PM 了」，不然按完會等著 PM 動，而 PM 什麼都沒收到。 */
-    toast('已確認列排列，列不能再搬了（要交給 PM 請到 拼板 蓋章）', 'ok', 3200);
+    toast('已確認列排列，列不能再搬了（要把格子交給 PM 請到 拼板 蓋章）', 'ok', 3200);
   }
   renderMinimap();     // 按了確認的變綠色
   renderHead();
@@ -5731,7 +5736,7 @@ function noteRollup(block){
    一個管道一件事 —— 以前顏色管種類，結果版上最搶眼的訊號在回答最不急的問題。
    只分兩色：設計一色、PM 一色。十一位 PM 十一個顏色沒有人記得住。 */
 /* 設計＝淡紫、PM＝黃。兩個都不用藍（藍是「你正在點的東西」）、不用綠
-   （綠是「已交出」）、不用粉（粉是小地圖上的版位）—— 一個顏色只講一件事。 */
+   （綠是「在對方手上」）、不用粉（粉是小地圖上的版位）—— 一個顏色只講一件事。 */
 /* 便利貼的顏色＝誰貼的。設計本來是淡紫（#d9d3f4），在白底版面上太淺看不清 ——
    改成看得見的天藍 #87CEEB。PM 維持黃。 */
 const ROLE_COLOR = { design:'#87CEEB', pm:'#ffd447' };
@@ -5835,9 +5840,9 @@ function armKind(key){
 const cellUnder = (x, y) => {
   const el = document.elementFromPoint(x, y);
   const cell = el && el.closest ? el.closest('#boardOverview .cell') : null;
-  /* 還沒交到 PM 手上的格是個空位子 —— 不能往上面貼東西，也不能把貼紙拖過去。
-     那一格對他來說不存在，貼上去的話那句話就沒有人看得到了。 */
-  return (cell && cell.classList.contains('notyet')) ? null : cell;
+  /* 別人手上的格不能往上面貼新的便利貼：那是他正在動的地方，貼上去等於插話。
+     已經貼在上面的照樣看得到、回得了 —— 擋的是「新貼」，不是「看」。 */
+  return (cell && cell.classList.contains('notmine')) ? null : cell;
 };
 let dropHot = null;
 function hotCell(el){
@@ -5901,7 +5906,6 @@ function dropNote(key, el, cx, cy){
 /* ---- 格子上的貼紙 ---- */
 function paintNoteMarks(c){
   if (activeTab !== 'board') return;      // 落版 的卡片上不該有貼紙
-  if (!pmSeesCell(c)) return;             // 還沒交出去的格，PM 那邊整格是空的
   const el = cardEl(c.id);
   if (!el) return;
   el.querySelectorAll('.cmk,.cnb').forEach(n => n.remove());
@@ -6124,7 +6128,6 @@ function allNotes(){
   if (!activeBlock) return [];
   const out = [];
   (sheetOf(activeBlock).cells || []).forEach((c, at) => {
-    if (!pmSeesCell(c)) return;        // 那一格對他不存在，上面的話也還不到他看的時候
     notesOf(c).forEach(n => out.push({ n, cell:c, at }));
   });
   return out;
@@ -6438,15 +6441,9 @@ function paintOneCanvas(c){
   if (activeTab !== 'board') return;
   const el = cardEl(c.id);
   if (!el) return;
-  /* 還沒蓋章的格對 PM 不存在：畫布、貼紙、狀態一律不畫，只留一個空位子。
-     位子要留著 —— 拿掉的話整排格子會往前遞補，PM 看到的版面形狀就是錯的。 */
-  el.classList.toggle('notyet', !pmSeesCell(c));
-  if (!pmSeesCell(c)){
-    const old = el.querySelector('.ccanvas'); if (old) old.remove();
-    el.querySelectorAll('.cmk,.cnb,.cst').forEach(n => n.remove());
-    el.classList.remove('filled');
-    return;
-  }
+  /* 不是你的回合的格：壓暗，但照樣畫。版面和對話不是權限 —— 排版是整張版的事，
+     看不到另外半張就排不了；貼在那一格上的話也一樣該看得到。 */
+  paintCellTurn(c);
   const n = pickedOf(c).length;
   let f = el.querySelector('.ccanvas');
   if (!n){ if (f) f.remove(); markBadge(c); paintNoteMarks(c); paintCellState(c); return; }
@@ -6469,25 +6466,33 @@ function paintOneCanvas(c){
   paintCellState(c);
 }
 
-/** 每一格右上角那一顆：這一格現在在誰手上。
-    右上角是刻意的 —— 那是這一格唯一一個不會被版面內容（品牌在左上、價格在右下、
+/** 換手之後那一格畫面上要跟著變的兩件事：壓不壓暗、右上角寫什麼。
+    只動這一格，不重畫整張版 —— 框選一次會換掉一片，一片重畫一次就是一片閃。 */
+function paintCellTurn(c){
+  const el = cardEl(c.id);
+  if (el) el.classList.toggle('notmine', !cellMine(c));
+  paintCellState(c);
+}
+
+/** 每一格右上角那一顆：這一格現在在誰手上。兩個身分都看得到 ——
+    在來回的流程裡「球在誰那邊」對兩邊都是真的資訊。
+    右上角是刻意的：那是這一格唯一一個不會被版面內容（品牌在左上、價格在右下、
     紅色未處理數字在左上）佔走的角。畫布裡那顆 ＋ 因此讓到左下角。 */
 function paintCellState(c){
   const el = cardEl(c.id);
   if (!el) return;
   let s = el.querySelector('.cst');
-  /* 只有設計看得到這一顆。PM 看得到的格「一定」都在他手上（沒蓋章的根本不出現），
-     一顆永遠寫同一句話的標記不是資訊，只是壓在版面上的雜訊。 */
-  if (activeTab !== 'board' || activeMode === 'pm'){ if (s) s.remove(); return; }
+  if (activeTab !== 'board'){ if (s) s.remove(); return; }
   if (!s){
     s = document.createElement('span');
     s.contentEditable = 'false';      // 格子本身是 contentEditable，這顆不是
     el.appendChild(s);
   }
-  const ok = cellHanded(c);
-  s.className = 'cst ' + (ok ? 'ok' : 'wip');
-  s.textContent = ok ? '在 PM' : '設計中';
-  s.title = ok ? '已經蓋章交給 PM' : '還在設計手上，PM 看不到這一格';
+  const mine = cellMine(c);
+  s.className = 'cst ' + (mine ? 'mine' : 'theirs');
+  s.textContent = cellAt(c) === 'pm' ? '在 PM' : '在設計';
+  s.title = mine ? '這一格在你手上，做完了就蓋章換手'
+                 : '在對方手上：看得到、碰不到。要拿回來就開蓋章，點它一下';
 }
 
 /** 整張版：每一格該有畫布的都給它。只有 拼板 這一頁會叫。 */
@@ -6523,10 +6528,10 @@ boardOv.addEventListener('click', e => {
   const at = cells.findIndex(c => String(c.id) === el.dataset.cellId);
   if (at < 0) return;
   // 蓋章模式：點格子＝蓋章／收回，不是進去編輯（一個手勢不能同時是兩件事）
-  if (stampMode && stampable()){ stampCells([cells[at]], !cellHanded(cells[at])); return; }
-  /* 還沒交到 PM 手上的格，他點不進去也貼不上去 —— 那一格對他來說根本不存在，
-     連「我想在這裡留一句話」都還輪不到。 */
-  if (!pmSeesCell(cells[at])) return;
+  // 我的就推出去，別人的就拿回來 —— 同一下點擊，看它現在在誰手上
+  if (stampMode && stampable()){ stampCells([cells[at]], cellMine(cells[at])); return; }
+  // 不是你的回合：看得到、碰不到。要動它得先在蓋章模式裡把它拿回來
+  if (!cellMine(cells[at])) return;
   // 手上拿著貼紙：這一下是貼上去，不是進去編輯
   if (armedKind){ dropNote(armedKind, el, e.clientX, e.clientY); return; }
   hideTip();
@@ -6729,21 +6734,41 @@ function ensurePmPerBlock(){
   });
   if (grew){ savePMs(); renderPmSel(); }
   if (dirty) markDirty();            // 這是開檔期時補的，不算你做的一步
+  migrateCellOk(blocks);
 }
 
-/* 交接的單位是「格」，不是版位：設計在 拼板 上一格一格蓋章，蓋了那一格就在
-   PM 手上。沒蓋的格對 PM 來說不存在 —— 不是壓暗、不是點不進去，是整個不出現。
-   半成品讓人看，只會收到一堆「這裡怎麼還沒好」的問題。
+/* 短命的中間版本用過 cell.ok（true ＝已交給 PM）。那一版只活了一個下午，但測試
+   時存下來的檔期還在瀏覽器裡 —— 不搬的話那些格會靜靜地回到設計手上，
+   而使用者只會看到「我明明交出去了」。搬完就把舊欄位拿掉，不留兩份真相。 */
+function migrateCellOk(blocks){
+  let moved = 0;
+  blocks.forEach(b => ((b.sheet && b.sheet.cells) || []).forEach(c => {
+    if (!('ok' in c)) return;
+    if (c.ok && !c.at) c.at = 'pm';
+    delete c.ok; moved++;
+  }));
+  if (moved) markDirty();
+}
+
+/* 一格一顆棒子，兩邊來回傳。這不是一道單向的閘門 —— 真正的流程是一個循環：
+     行銷排檔期 → 設計落版 → PM 填格（挑貨） → 設計排版 → PM review → …
+   而且不會交一整個版位。所以每一格記的只是「現在在誰手上」，蓋章＝「我這邊好了，
+   換你」，來回跑到雙方都沒意見為止。
+
+   不是你的回合的格是壓暗，不是消失：排版是整張版的事，看不到另外半張就排不了；
+   棒子傳出去之後你也還得看得到它變成什麼樣。
+
+   格子生出來就在設計手上 —— 落版是設計做的。
    （以前是整個版位一次交出去，看 sheet.confirmed。confirmed 現在只剩它原本
      的另一個意思：列排列鎖定 —— 那是「別再搬列了」，不是「給你了」。）
    寫成 function 而不是 const 箭頭：這幾支被畫版面的程式碼叫，而那些程式碼
    寫在檔案更上面 —— 用 const 的話只要有人在載入途中叫一次就是 ReferenceError。 */
-function cellHanded(c){ return !!(c && c.ok); }
-function handedCells(sh){ return ((sh && sh.cells) || []).filter(cellHanded); }
-/* 版位還是有「出不出現」這回事：一格都沒交的版位，PM 連進去都不必進去。 */
-function handedOver(b){ return !!(b && handedCells(sheetOf(b)).length); }
-/** 這一格 PM 看不看得到。設計永遠看得到自己排的每一格。 */
-function pmSeesCell(c){ return activeMode !== 'pm' || cellHanded(c); }
+function cellAt(c){ return (c && c.at) || 'design'; }
+function cellMine(c){ return cellAt(c) === myRole(); }
+function cellsAt(sh, who){ return ((sh && sh.cells) || []).filter(c => cellAt(c) === who); }
+/* 版位層級仍然是「清單過濾」，不是壓暗：PM 左邊那一欄是他的待辦清單，
+   一格都不在他手上的版位不該佔位置。 */
+function handedOver(b){ return !!(b && cellsAt(sheetOf(b), 'pm').length); }
 /* 一個版位一位 PM。記在版位身上（sheet.pm），所以跟著檔期存、跟著 Ctrl+Z 復原。
    還沒指派的版位每位 PM 都看得到 —— 寧可多看到，也不要有版位沒人管。 */
 const pmOf = b => (b && sheetOf(b).pm) || '';
@@ -6903,10 +6928,10 @@ document.querySelectorAll('.tab').forEach(b => {
 });
 
 /* ==========================================================================
-   蓋章：一格一格交給 PM
-   交接的單位是「格」。設計在這裡蓋章，蓋了的那一格才會出現在 PM 那邊。
-   為什麼在 拼板 不在 落版：交接是「設計排完 → PM 拼 → 有問題再回設計」這個
-   來回過程的一步，而那個來回就發生在 拼板。落版 是決定形狀的地方。
+   蓋章：一格一格換手
+   一格一顆棒子，兩邊來回傳：蓋章＝「我這邊好了，換你」。設計排完換 PM 填貨、
+   PM 填完換設計排版、設計排完換 PM 看過 —— 同一個動作的兩個方向，所以兩個身分
+   都能蓋。為什麼在 拼板 不在 落版：這個來回就發生在 拼板，落版 是決定形狀的地方。
    做成一個模式，不是隨手點就蓋 —— 點格子本來就有用途（開那一格的面板），
    一個手勢不能同時是兩件事。
    ========================================================================== */
@@ -6925,21 +6950,27 @@ function stampCellsOf(){
   return activeBlock ? (sheetOf(activeBlock).cells || []) : [];
 }
 
-/** 只有設計、在 拼板、而且真的有一個版位攤在眼前，才談得上蓋章。 */
+/** 誰是對面那一邊。 */
+function otherSide(){ return myRole() === 'pm' ? 'design' : 'pm'; }
+
+/** 在 拼板、而且真的有一個版位攤在眼前，才談得上換手。兩個身分都能換 ——
+    設計排完說「換你填」，PM 填完說「換你排」，是同一個動作的兩個方向。 */
 function stampable(){
-  return activeMode !== 'pm' && activeTab === 'board' && !!currentPlan && !!activeBlock;
+  return activeTab === 'board' && !!currentPlan && !!activeBlock;
 }
 
-/** 貼紙旁邊那顆「交給 PM」。只有設計、在 拼板、而且真的有版位攤在眼前才出現。 */
+/** 貼紙旁邊那顆換手鍵。文案照身分走 —— 兩邊做的是同一件事，但講出來的話不一樣。 */
 function renderStampBtn(){
   const b = document.getElementById('stampBtn');
   if (!b) return;
   b.hidden = !stampable();
   b.classList.toggle('on', stampMode);
+  const pm = myRole() === 'pm';
   b.querySelector('.tx').innerHTML = stampMode
-    ? '<b>蓋章中 — 交給 PM</b><small>點一格／拖出一個框・按 Esc 收工</small>'
-    : '<b>交給 PM</b><small>蓋章：一格一格交出去</small>';
-  b.title = stampMode ? '再按一次就離開蓋章' : '蓋了章的格，PM 那邊才看得到';
+    ? '<b>蓋章中 — 換手</b><small>點一格＝換手・拖出一個框＝一次換一片・Alt＝拿回來</small>'
+    : (pm ? '<b>交回設計</b><small>蓋章：這幾格我填完了</small>'
+          : '<b>交給 PM</b><small>蓋章：這幾格我做完了</small>');
+  b.title = stampMode ? '再按一次就離開蓋章' : '蓋了章的那一格就換到對方手上';
 }
 
 function renderStampBar(){
@@ -6947,11 +6978,13 @@ function renderStampBar(){
   if (!stampMode || !stampable()){ stampBar.classList.remove('on'); return; }
   stampBar.classList.add('on');
   const cells = stampCellsOf();
-  const n = cells.filter(cellHanded).length;
+  const mine = cells.filter(cellMine).length;
+  /* 兩邊的數字一起講：這一列講的是「球在哪」，不是「進度到哪」——
+     來回的流程裡沒有單調遞增的那種進度。 */
   document.getElementById('stampCount').innerHTML =
-    `已交出 <b>${n}</b> / <b>${cells.length}</b> 格`;
-  document.getElementById('stampAll').hidden  = n === cells.length;
-  document.getElementById('stampNone').hidden = !n;
+    `在你手上 <b>${mine}</b>・在對方 <b>${cells.length - mine}</b>`;
+  document.getElementById('stampAll').hidden  = !mine;
+  document.getElementById('stampNone').hidden = mine === cells.length;
 }
 
 /** 開關蓋章模式。關掉的時候把框選殘留一起收乾淨。 */
@@ -6964,17 +6997,20 @@ function setStampMode(on){
   renderStampBar();
 }
 
-/** 蓋章／收回。一次一批只算一步復原 —— 框一片起來蓋，在使用者心裡就是一個動作。 */
-function stampCells(cells, on){
+/** 換手／拿回來。toOther＝把棒子推給對方，false＝拉回自己。
+    一次一批只算一步復原 —— 框一片起來蓋，在使用者心裡就是一個動作。 */
+function stampCells(cells, toOther){
+  const want = toOther ? otherSide() : myRole();
   let changed = 0;
   cells.forEach(c => {
-    if (!!c.ok === on) return;
-    if (on) c.ok = true; else delete c.ok;   // 沒交出去的格不留欄位，存檔小一點
+    if (cellAt(c) === want) return;
+    if (want === 'design') delete c.at;      // 預設就在設計手上，不留欄位，存檔小一點
+    else c.at = want;
     changed++;
   });
   if (!changed) return 0;
   commitAction();
-  cells.forEach(paintCellState);
+  cells.forEach(paintCellTurn);
   paintTotalStates();
   renderMinimap();
   updateProgress();
@@ -6982,23 +7018,24 @@ function stampCells(cells, on){
   return changed;
 }
 
+const sideName = who => who === 'pm' ? 'PM' : '設計';
 document.getElementById('stampAll').addEventListener('click', () => {
-  const n = stampCells(stampCellsOf(), true);
-  if (n) toast(`蓋章交給 PM：${n} 格`, 'ok', 2000);
+  const n = stampCells(stampCellsOf().filter(cellMine), true);
+  if (n) toast(`${n} 格換手給${sideName(otherSide())}`, 'ok', 2000);
 });
 document.getElementById('stampNone').addEventListener('click', async () => {
-  const picked = stampCellsOf().filter(cellHanded);
+  const picked = stampCellsOf().filter(c => !cellMine(c));
   if (!picked.length) return;
-  /* 收回＝PM 那邊整格不見了，值得問一次。已經拼好的內容不會動。 */
+  /* 拿回來＝對方那邊那幾格就碰不到了，值得問一次。版面和便利貼都不會動。 */
   const ok = await modalConfirm({
-    title: '全部收回',
-    body: `${picked.length} 格會從 PM 那邊收回來（PM 會看不到它們）。`
+    title: '全部拿回來',
+    body: `${picked.length} 格會從${sideName(otherSide())}那邊拿回你手上（他就碰不到了）。`
         + '已經拼好的內容、貼在上面的便利貼都會留著。要繼續嗎？',
-    ok: '收回', cancel: '取消', danger: true
+    ok: '拿回來', cancel: '取消', danger: true
   });
   if (!ok) return;
   const n = stampCells(picked, false);
-  if (n) toast(`已收回 ${n} 格`, 'info', 2000);
+  if (n) toast(`拿回 ${n} 格`, 'info', 2000);
 });
 document.getElementById('stampExit').addEventListener('click', () => setStampMode(false));
 document.getElementById('stampBtn').addEventListener('click', () => setStampMode(!stampMode));
@@ -7045,7 +7082,8 @@ function endStampDrag(cancel){
   if (cancel || !d.moved) return;
   const hit = stampCellElsIn(d.last);
   const n = stampCells(hit, d.add);
-  if (n) toast(d.add ? `蓋章交給 PM：${n} 格` : `已收回 ${n} 格`, d.add ? 'ok' : 'info', 1800);
+  if (n) toast(d.add ? `${n} 格換手給${sideName(otherSide())}` : `拿回 ${n} 格`,
+               d.add ? 'ok' : 'info', 1800);
 }
 
 boardOv.addEventListener('pointerdown', e => {
@@ -7491,6 +7529,7 @@ function applyMode(){
   /* 換身分就是換一個人在看：不要把上一個人開著的那一格留在畫面上。
      拼板一律退回總覽，該身分不能用的面板也就跟著收掉了。 */
   closeBoardCell();
+  setStampMode(false);               // 換身分＝換一個人在看，別讓他一進來就站在別人開的模式裡
   pmFocus = null;
   tellBoardRole();
   if (currentPlan) setTab(pm ? 'board' : designTab);
