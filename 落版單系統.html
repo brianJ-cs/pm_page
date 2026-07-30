@@ -1873,12 +1873,29 @@ function setFlagDate(i, date){
     else break;
   }
 }
+/* 游標指著的是哪一天。週末在軸上照樣佔兩天的寬度（56px 一天），但旗子不能停在
+   那裡 —— 以前那兩天的判定「整份」都算給前面的週五，於是週五拖到週一要走
+   2.5 天 ＝ 140px，週間換一天卻只要 56px，同一個手勢突然變得很重。
+   改成把週末的寬度分給兩邊：週六離週五近就算週五，週日離週一近就算週一。
+   兩個方向都變成 1.5 天 ＝ 84px，而且左右對稱（以前往左只要 0.5 天，太滑了）。
+
+   要再更短就得讓旗子跑在游標前面（週末完全不佔判定），但那樣游標停在週六、
+   旗子已經插在週二，拖曳就不再是「抓著它走」了 —— 這裡選擇讓旗子貼著游標。
+
+   snapWeekday 不動：那是「旗子不准停在週末，而且寧可提前不要延後」的規矩，
+   跟「游標現在指著哪一天」是兩件事。 */
+function nearestWorkday(d){
+  const w = d.getDay();
+  if (w === 6) return prevWork(d);      // 週六 → 退回週五
+  if (w === 0) return nextWork(d);      // 週日 → 進到週一
+  return d;
+}
 /* 旗子畫在「那一格的右緣」，所以游標落在第 n 格中間時要換算回第 n 天：
    四捨五入抓到的是最近的格線（第 n+1 條），減一格才是那一天本人。 */
 function dateFromClientX(clientX){
   const r = track.getBoundingClientRect();
   const p = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
-  return addDays(START, Math.max(0, Math.round(p * UNITS) - 1));
+  return nearestWorkday(addDays(START, Math.max(0, Math.round(p * UNITS) - 1)));
 }
 
 track.addEventListener('pointerdown', e => {
@@ -2568,8 +2585,12 @@ function syncPopUI(){
    看得到公司現有的品類、點一下填進去，不是自動完成：沒有反白、沒有上下鍵、
    Enter 也不會替你選 —— 打什麼就是什麼。清單只負責「讓你想起來有哪些」。
    跟你打的字一模一樣的那一筆不列（那一筆是廢話），沒有相符的就整條收起來。 */
-const CATEGORIES = ['刮鬍刀','小家電','空調','五機','季節家電','冰箱','洗衣機','電視','聲霸',
-                    '通訊數位商品','揪居家','配件','開學季資訊','無刊頭'];
+/* 開學季資訊排第一：檔期一開始就在填它，排在最後每次都要滑到底。
+   「無刊頭」拿掉了 —— 它不是一個品類，是「這一塊沒有刊頭」這個設定，
+   混在品類清單裡只會被當成一種商品挑進去。真的要用還是打得出來
+   （編輯器那邊照舊認 groups[0].name === '無刊頭'）。 */
+const CATEGORIES = ['開學季資訊','刮鬍刀','小家電','空調','五機','季節家電','冰箱','洗衣機',
+                    '電視','聲霸','通訊數位商品','揪居家','配件'];
 /* 3 = 開頭就是、2 = 中間有、1 = 照順序出現（模糊）、-1 = 不像 */
 function scoreCat(c, q){
   const i = c.indexOf(q);

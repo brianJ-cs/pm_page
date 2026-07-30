@@ -814,6 +814,27 @@ function askUpload(name, dataUrl){
   });
 }
 
+/* 後台那幾顆「上傳」跟拖檔案進來走同一條路：縮圖 → 交給上層傳去 Storage → 只留網址。
+   以前這兩顆是自己 readAsDataURL 完就塞進 BIMG／IMG —— 圖看得到，所以看起來成功了，
+   但 IMG 根本沒人存（重整就沒了），BIMG 則是整包 base64 跟著共用目錄一起來回傳。 */
+function pickAndUpload(name, done){
+  const f = document.getElementById('imgFile');
+  if(!f) return;
+  f.onchange = async ()=>{
+    const file = f.files[0]; f.value = '';
+    if(!file) return;
+    if(!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
+    say('傳圖中…');
+    try{
+      done(await askUpload(name + '.png', await shrinkImage(file)));
+      say('換好了');
+    }catch(err){
+      say(String(err && err.message || err));
+    }
+  };
+  f.click();
+}
+
 const imgBlkAt = t => (t && t.closest) ? t.closest('.blk.img') : null;
 let dropHot = null;
 function markDrop(el){
@@ -871,6 +892,7 @@ function applyCatalogue(cat){
   if(cat.model) MODEL = cat.model;
   if(cat.brand) BRAND = cat.brand;
   if(cat.bimg)  BIMG  = cat.bimg;
+  if(cat.img)   IMG   = cat.img;
   /* 每一格都要重排，不是只有正在看的那一格 —— 每個格子各自記著自己的 layoutKey，
      只清掉模組上那一份的話，其他格會繼續顯示改名前的品名。 */
   layoutKey = '';
@@ -879,10 +901,13 @@ function applyCatalogue(cat){
   refreshAll();
 }
 
-/** 現在的目錄長什麼樣 —— 往上報就是報這一包。 */
+/** 現在的目錄長什麼樣 —— 往上報就是報這一包。
+    img（後台上傳的商品圖）也在裡面：它跟品牌圖一樣是「這個商品長什麼樣」，
+    不屬於任何一格。以前漏掉它，於是後台上傳完看得到、重整就沒了。
+    存的都是 Storage 網址，不是圖本身。 */
 function catalogueNow(){
   return { rows: ROWS.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:r.sku,price:r.price})),
-           model: MODEL, brand: BRAND, bimg: BIMG };
+           model: MODEL, brand: BRAND, bimg: BIMG, img: IMG };
 }
 
 /* 後台動過目錄就往上報。跟 reportBoard 一樣壓一下：改一個字會觸發很多次。 */
@@ -2231,32 +2256,22 @@ function renderEdit(){
     reportCatalogue();
   });
   // 上傳品牌 PNG
-  $('#paneEdit').querySelectorAll('[data-bimg]').forEach(b=>b.onclick=()=>{
-    const f=$('#imgFile');
-    f.onchange=()=>{
-      const file=f.files[0]; if(!file) return;
-      const rd=new FileReader();
-      rd.onload=()=>{ BIMG[b.dataset.bimg]=rd.result; f.value=''; refreshAll(); reportCatalogue(); };
-      rd.readAsDataURL(file);
-    };
-    f.click();
-  });
+  $('#paneEdit').querySelectorAll('[data-bimg]').forEach(b=>b.onclick=()=>
+    pickAndUpload('brand-'+b.dataset.bimg, url=>{
+      BIMG[b.dataset.bimg]=url; refreshAll(); reportCatalogue();
+    }));
   $('#paneEdit').querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>{
     delete BIMG[b.dataset.bdel]; refreshAll(); reportCatalogue();
   });
   // 上傳商品圖
-  $('#paneEdit').querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{
-    const f=$('#imgFile');
-    f.onchange=()=>{
-      const file=f.files[0]; if(!file) return;
-      const rd=new FileReader();
-      rd.onload=()=>{ IMG[b.dataset.img]=rd.result; f.value=''; refreshAll(); };
-      rd.readAsDataURL(file);
-    };
-    f.click();
-  });
+  $('#paneEdit').querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>
+    pickAndUpload('item-'+b.dataset.img, url=>{
+      IMG[b.dataset.img]=url; refreshAll(); reportCatalogue();
+    }));
+  /* 清除也要往上報 —— 商品圖現在跟品牌圖一樣是目錄的一部分，
+     只在本機 delete 掉的話，下一次收到目錄它就又回來了。 */
   $('#paneEdit').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=()=>{
-    delete IMG[b.dataset.imgdel]; refreshAll();
+    delete IMG[b.dataset.imgdel]; refreshAll(); reportCatalogue();
   });
   $('#addR').onclick=()=>{ ROWS.push({name:'新商品',spec:'128G',color:'',sku:'0000000',price:0}); reindex(); refreshAll(); reportCatalogue(); };
   $('#stress').onclick=()=>{

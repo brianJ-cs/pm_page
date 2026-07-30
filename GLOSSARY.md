@@ -56,11 +56,22 @@
 | **便利貼 / 貼紙** | 貼在格子上的一則問題，可以拖、可以回覆、可以標成處理完 | `cell.notes[] = {key, x, y, who, time, done, replies}` |
 | **貼紙種類** | 補貼紙 / 補贈品 / 一般問題 | `NOTE_KINDS` |
 | **意見欄** | 右邊那一欄，一則便利貼一張卡 | `#boardRail`、`.icard` |
-| **確認列排列（鎖定）** | 設計說「這個版位排好了」。同時也是**交給 PM**：鎖定之前 PM 完全看不到這個版位 | `sheet.confirmed` |
-| **批次交接** | 在 總體 點版位選起來（可複選），一次把好幾個交給 PM。跟上面那顆按鈕改的是同一個開關，只是入口不同 | `markSel` / `setConfirmed()` |
-| **版位狀態** | 每個版位左上角那行小字：未指派／設計中／已交給 PM。跟底色（灰／白／綠）講同一件事 | `blockState()` |
+| **交棒 / 蓋章** | **一格一顆棒子**：這一格現在在誰手上。蓋章＝「我這邊好了，換你」 | `cell.at` ＝ `'design'`／`'pm'`（沒有就是設計）；`stampCells()` |
+| **蓋章模式** | 拼板 右邊貼紙旁邊那顆開的模式。點一格＝換手、拖一個框＝換一片、Alt＝拿回來 | `stampMode`、`setStampMode()`、`stampCellElsIn()` |
+| **確認列排列（鎖定）** | 設計說「這個版位的列排好了」。**只鎖排列，跟交接無關** —— 鎖了之後格子不能再搬 | `sheet.confirmed` |
+| **版位狀態** | 每個版位左上角那行小字，講的是**球在哪**：未指派／在設計／在 PM n/m 格／都在 PM。跟底色（灰／白／綠）講同一件事，只是顏色講不出「一半」 | `blockState()` |
 | **負責 PM** | 這個版位歸哪一位 PM。未指派＝每位 PM 都看得到 | `sheet.pm`；`pmSees()` / `ownedBy()` |
 | **身分** | 你現在是「設計」還是「PM」 | `activeMode`；`whoAmI()` |
+
+> ⚠️ **`sheet.confirmed` 曾經同時是「交給 PM」，現在不是了。**
+> 交接的單位從版位改成格，改用 `cell.at` 之後 `confirmed` 只剩鎖定列排列一個意思。
+> 看到舊筆記寫「鎖定＝交給 PM」「批次交接」「`setConfirmed()`」都是過期的（那些名字已經不存在）。
+>
+> 真正的流程是一個**循環**，不是一條進度：行銷排檔期 → 設計落版 → PM 填格 → 設計排版 → PM review → …
+> 所以兩個身分都能蓋章，也沒有單調遞增的「完成度」。
+>
+> **不是你的回合的格是壓暗，不是消失** —— 排版是整張版的事，看不到另外半張就排不了。
+> 擋的是「點進去」和「往上面貼新貼紙」，不擋看：便利貼是對話。
 
 ---
 
@@ -103,17 +114,30 @@
 
 | 檔案 | 是什麼 |
 |---|---|
-| `design_and_PM.html` | 主程式：檔期列表、總體、落版、拼板、意見欄 |
+| `design_and_PM.html` | 主程式（編輯器）：檔期列表、總體、落版、拼板、意見欄 |
 | `2cell-product-pick.html` | 商品版面本人。被主程式用兩種方式嵌進去：`?ui=stage`（畫布）、`?ui=panel`（面板） |
-| `cell_clipboard_demo.html` | 整格複製的原型 |
-| `grid-reorder.html` | 拖列排序的原型 |
-| `backup/`、`turn/` | 舊版備份（`turn/` 裡的是舊的，不是現在跑的那份） |
+| `落版單系統.html` | 行銷那一支：排檔期、提交給設計。跟編輯器共用同一個資料庫 |
+| `supabase-sync.js` | 兩支共用的同步層。零相依，只用 `fetch` 打 PostgREST。掛在 `window.PlanSync` |
+| `config.js` | Supabase 網址和 anon key。**沒有 build，所以設定是靠這一支注入的** |
+| `build-single.mjs` | 把要公開的檔案複製進 `public/`（Netlify 的 build）。`--bundle` 才會合成單檔 |
+| `dev.mjs` | 本機預覽。`PM_NO_SYNC=1 node dev.mjs` ＝不連後端 |
+| `public/` | build 產出來的，不是正本。正本是根目錄那幾支 |
+| `clutter/` | 舊版、備份、原型（`cell_clipboard_demo.html`、`grid-reorder.html` 都收在這裡）。整個資料夾不進版控 |
 
 ---
 
 ## 九、資料存在哪裡
 
-全部在**這台瀏覽器**的 `localStorage`，沒有伺服器、不會同步給別人。
+**兩層：`localStorage` 是本機快取，Supabase 是共用的那一份。**
+開機先用 `localStorage` 秒開，再拉一次遠端蓋上去；每次存檔照舊寫 `localStorage`，
+另外 debounce 600ms 上傳。後端不在（`config.js` 還是佔位符、或檔案不在）時
+`PlanSync.ok()` 回 false，整支走純 `localStorage`，跟沒接後端一模一樣。
+
+> ⚠️ **所以「用瀏覽器直接開這幾支」＝在正式資料上按按鈕。**
+> 測試一律走 `PM_NO_SYNC=1 node dev.mjs`，或 `driver.mjs`／`scenario.mjs`（它們自己會擋）。
+> 細節見 `.claude/skills/pm-page-traps`。
+
+### 本機（localStorage）
 
 | key | 內容 |
 |---|---|
@@ -122,4 +146,13 @@
 | `board_pm_owner_v1` | 舊的「品類→PM」對照（目前沒用，改成記在版位身上了） |
 | `board_pm_active_v1` | 現在選的是哪一位 PM |
 
-清空：檔期列表右上角的 **清空資料**。想要範例檔期就在網址加 `?seed=1`。
+### 共用（Supabase）
+
+| 放哪 | 內容 |
+|---|---|
+| `plans` 表 | 一列一個檔期，整包 `data jsonb`。同一個 id **後存的贏** |
+| `catalogue` 表 | 商品目錄，全公司一份，單一列（`id = 'default'`） |
+| Storage `product-images` | 商品圖、品牌圖、刊頭圖。**圖不進 plan，只存網址** —— base64 會把 `localStorage` 撐爆，而且每次存檔重傳一遍 |
+
+清空：檔期列表右上角的 **清空資料**（只清這台瀏覽器；共用資料庫上的重整就會拉回來）。
+想要範例檔期就在網址加 `?seed=1`。
