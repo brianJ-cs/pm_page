@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>同時編輯</title>
+<!--
+  難點：兩個設計同時拼同一格，誰搬的東西會不見。
+
+  這一支示範的是**選定的做法**，三件事一起：
+    1 一塊零件一列   只送動到的那幾塊，不是整格 → 搬不同零件不可能互相覆蓋
+    2 版本檢查       寫入時比對那一塊是第幾版，對不上就擋下來，絕不安靜覆蓋
+    3 即時同步       別人存檔就跟上，但只更新「自己沒有正在搬」的零件
+  外加在場提示（技術上什麼都沒解決，但人看到就會先喊一聲）。
+
+  伺服器是假的、跑在這一頁裡（不會碰到正式 Supabase），行為全部是真的實作：
+  真的拖曳、真的改大小、600ms debounce、逐塊寫入、版本檢查、即時同步都真的跑。
+  資料結構 { id, kind, x, y, s } 和存檔流程跟主專案一致，可以直接搬。
+
+  要弄壞它：同時抓兩邊的同一塊零件拖。版本檢查會擋下後到的那一個 ——
+  東西還在他手上，重新整理再做一次就好，不會像現在這樣安靜消失。
+-->
+<style>
+  :root{
+    --bg:#26303f; --bg2:#2f3a4b; --line:#3d4859; --ink:#e8edf5; --dim:#96a1b3;
+    --surface:#fff; --s2:#f4f6fa; --sline:#e2e6ee; --sink:#333a45; --smuted:#7a8494;
+    --blue:#4a6fdc; --blue-t:#eef2fc;
+    --red:#c0392b; --red-t:#fdecea; --green:#17663a; --green-t:#e6f6ea;
+    --amber:#8a6100; --amber-t:#fff4d9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+    display:flex;flex-direction:column;gap:9px;padding:11px 14px 13px;
+    font-size:13px;line-height:1.5;cursor:default;
+  }
+  .bar{display:flex;align-items:center;gap:7px;flex:none;flex-wrap:wrap}
+  .gap{flex:1}
+  button{
+    font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
+    border:1px solid var(--line);border-radius:8px;padding:6px 12px;
+    background:var(--bg2);color:var(--ink);
+  }
+  button:hover{background:#3a4457;border-color:var(--blue)}
+  button.go{background:var(--blue);border-color:var(--blue);color:#fff}
+
+  .stage{flex:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start}
+  .card{background:var(--surface);color:var(--sink);border-radius:11px;overflow:hidden;
+        box-shadow:0 5px 18px rgba(0,0,0,.28)}
+  .card > h2{
+    font-size:13px;font-weight:800;padding:7px 12px;
+    background:var(--s2);border-bottom:1px solid var(--sline);
+    display:flex;align-items:center;gap:7px;
+  }
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot.a{background:var(--blue)} .dot.b{background:#c77dff} .dot.s{background:var(--smuted)}
+  .pill{margin-left:auto;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px}
+  .pill.ok{background:var(--green-t);color:var(--green)}
+  .pill.warn{background:var(--amber-t);color:var(--amber)}
+  .pill.bad{background:var(--red-t);color:var(--red)}
+  .pres{
+    font-size:11.5px;font-weight:800;color:var(--amber);background:var(--amber-t);
+    border-bottom:1px solid #f0dca8;padding:3px 12px;
+  }
+
+  /* ---- 一格的版面：零件真的可以拖、可以改大小 ---- */
+  .cv{position:relative;height:190px;background:var(--surface);overflow:hidden;
+      border-top:1px solid var(--sline)}
+  .cv.ro{background:var(--s2)}
+  .blk{
+    position:absolute;user-select:none;white-space:nowrap;
+    border:1.5px solid transparent;border-radius:5px;padding:1px 4px;
+    transform-origin:0 0;cursor:grab;
+  }
+  .cv.ro .blk{cursor:default}
+  .blk.dragging{cursor:grabbing}
+  .blk.price{font-family:Anton,"Arial Black",sans-serif;color:var(--red);font-size:23px;line-height:1.05}
+  .blk.name {font-size:12.5px;font-weight:800;color:var(--sink)}
+  .blk.img  {width:44px;height:44px;border:1.5px dashed #c3cbd8;background:#f0f2f6;border-radius:4px}
+  .blk.wait  {border-color:var(--blue);background:var(--blue-t)}
+  .blk.held  {border-color:#e2b878;background:var(--amber-t)}
+  .blk.behind{border-color:#cdd4e0;background:#f7f9fc}
+  .hint{font-size:11px;color:var(--smuted);padding:4px 12px 6px;background:var(--s2)}
+
+  .log{
+    flex:1;min-height:110px;overflow:auto;background:#1c242f;border:1px solid var(--line);
+    border-radius:10px;padding:8px 12px;
+    font-size:12px;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  .log div{padding:1px 0;display:flex;gap:9px}
+  .log .t{color:#63708a;flex:none;width:50px;text-align:right}
+  .log .m.a{color:#9db7ff} .log .m.b{color:#dcb0ff} .log .m.s{color:#9fb0c6}
+  .log .m.bad{color:#ff9c8f;font-weight:800} .log .m.ok{color:#8ce29b} .log .m.warn{color:#ffd68a}
+
+  #tip{
+    position:fixed;z-index:99;pointer-events:none;display:none;
+    background:#0f151d;border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font-size:12px;font-weight:800;color:var(--ink);
+    box-shadow:0 6px 20px rgba(0,0,0,.5);max-width:340px;
+  }
+  #tip.on{display:block}
+  #tip .sub{display:block;font-weight:400;color:var(--dim);font-size:11.5px;margin-top:2px}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <button class="go" id="r1" data-tip="A 搬價格、B 搬商品圖，幾乎同時。">同時搬不同零件</button>
+  <button id="r2" data-tip="A 搬價格、B 同時把同一個價格改大。">同時動同一塊</button>
+  <button id="r3" data-tip="A 存完之後 B 才重新整理進來。">B 後進場</button>
+  <button id="rs" data-tip="回到兩邊剛開機的狀態。">重設</button>
+  <span class="gap"></span>
+</div>
+
+<div class="stage">
+  <div class="card" data-who="A">
+    <h2><span class="dot a"></span>設計 A<span class="pill ok" id="pillA">一致</span></h2>
+    <div class="pres">● 設計 B 也開著這一格</div>
+    <div class="cv" id="cvA"></div>
+    <div class="hint">拖曳搬移・滾輪改大小</div>
+  </div>
+  <div class="card" data-who="S">
+    <h2><span class="dot s"></span>共用資料庫<span class="pill ok" id="pillS">v0</span></h2>
+    <div class="pres">&nbsp;</div>
+    <div class="cv ro" id="cvS"></div>
+    <div class="hint">一塊零件一列，各自有版本</div>
+  </div>
+  <div class="card" data-who="B">
+    <h2><span class="dot b"></span>設計 B<span class="pill ok" id="pillB">一致</span></h2>
+    <div class="pres">● 設計 A 也開著這一格</div>
+    <div class="cv" id="cvB"></div>
+    <div class="hint">拖曳搬移・滾輪改大小</div>
+  </div>
+</div>
+
+<div class="log" id="log"></div>
+<div id="tip"></div>
+
+<script>
+/* ==========================================================================
+   假的 Supabase，但寫入規則就是要搬進主專案的那一套：
+   一塊零件一列、寫入前比對版本、寫完廣播給其他人。
+   ========================================================================== */
+const DEBOUNCE = 600;                 // supabase-sync.js 也是 600
+let T0 = Date.now();
+
+/* 一格裡的零件。座標存在零件身上，跟主專案一樣。 */
+const SEED = [
+  { id:'name',  kind:'name',  label:'iPhone 17 Pro Max', x:10,  y:8,   s:1 },
+  { id:'img',   kind:'img',   label:'商品圖',            x:12,  y:32,  s:1 },
+  { id:'price1',kind:'price', label:'44900',             x:70,  y:120, s:1 },
+  { id:'price2',kind:'price', label:'51900',             x:168, y:120, s:1 },
+];
+const IDS = SEED.map(b => b.id);
+const clone = o => JSON.parse(JSON.stringify(o));
+const nameOf = id => id === 'img' ? '商品圖' : id === 'name' ? '品名'
+                   : '價格' + (id === 'price1' ? '1' : '2');
+
+/* 伺服器：一塊零件一列，每一列自己有版本號。 */
+const server = { blocks:{}, ver:0, by:null };
+function serverInit(){
+  server.blocks = {};
+  SEED.forEach(b => server.blocks[b.id] = { ...clone(b), ver:0 });
+  server.ver = 0; server.by = null;
+}
+
+function makeClient(who){
+  return {
+    /* touched＝這個分頁自己動過哪幾塊。沒有它就分不出「我搬的被蓋掉」和
+       「別人搬的我還沒看到」—— 兩者都是「跟伺服器不一樣」，但一個是事故、一個不是。 */
+    who, blocks:{}, seen:{}, dirty:new Set(), touched:new Set(), timer:0, blocked:false,
+
+    boot(quiet){
+      IDS.forEach(id => { this.blocks[id] = clone(server.blocks[id]);
+                          this.seen[id]  = server.blocks[id].ver; });
+      this.dirty.clear(); this.touched.clear();
+      clearTimeout(this.timer); this.timer = 0; this.blocked = false;
+      if (!quiet) log(who, `pullAll() → v${server.ver}`);
+      render();
+    },
+
+    /** 搬一塊／改一塊的大小：先寫本機，排隊，600ms 後才送。 */
+    edit(id, patch, what){
+      Object.assign(this.blocks[id], patch);
+      this.dirty.add(id); this.touched.add(id);
+      this.blocked = false;
+      if (what) log(who, what);
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => { this.timer = 0; this.flush(); }, DEBOUNCE);
+      render();
+    },
+
+    /** 只送動到的那幾塊，而且每一塊都要先過版本檢查。 */
+    flush(){
+      if (!this.dirty.size) return;
+      const wrote = [], stale = [];
+      [...this.dirty].forEach(id => {
+        /* 我讀到這一塊的時候是第幾版？跟伺服器現在對不上＝別人動過了。
+           不覆蓋、也不猜他想要什麼，就是擋下來 —— 東西還在使用者手上。 */
+        if (this.seen[id] !== server.blocks[id].ver){ stale.push(id); return; }
+        server.ver++;
+        server.blocks[id] = { ...clone(this.blocks[id]), ver:server.ver };
+        this.seen[id] = server.ver;
+        this.dirty.delete(id);
+        wrote.push(id);
+      });
+      if (wrote.length){
+        server.by = this.who;
+        log(this.who, `upsert ${wrote.map(nameOf).join('、')} → v${server.ver}`);
+      }
+      if (stale.length){
+        this.blocked = true;
+        log(this.who, `擋下 ${stale.map(nameOf).join('、')}：那一塊已經被別人改過，`
+              + '沒有覆蓋，重新整理就能重做', 'warn');
+      }
+      render(); checkLoss();
+      broadcast(this.who);
+    }
+  };
+}
+
+const A = makeClient('A'), B = makeClient('B');
+const other = w => (w === 'A' ? B : A);
+
+/* 即時同步：只更新「對方沒有正在搬」的零件。整包換掉會把人家拖到一半的零件拉回去 ——
+   那正是主程式 `if (currentPlan && r.id === currentPlan.id) return;` 在防的事。
+   真正要做的不是「不要更新」，而是「只更新沒被碰過的部分」。 */
+function broadcast(fromWho){
+  const c = other(fromWho);
+  let n = 0;
+  IDS.forEach(id => {
+    if (c.dirty.has(id)) return;
+    if (c.seen[id] === server.blocks[id].ver) return;
+    c.blocks[id] = clone(server.blocks[id]);
+    c.seen[id] = server.blocks[id].ver; n++;
+  });
+  if (n) log(c.who, `即時同步 ${n} 塊（正在搬的沒被動）`, 'ok');
+  render();
+}
+
+const same = (a, b) => a.x === b.x && a.y === b.y && a.s === b.s;
+function lostOf(c){
+  if (c.dirty.size || c.blocked) return [];
+  return IDS.filter(id => c.touched.has(id) && c.blocks[id]
+                       && !same(c.blocks[id], server.blocks[id]));
+}
+let told = false;
+function checkLoss(){
+  [A, B].forEach(c => {
+    const lost = lostOf(c);
+    if (lost.length && !told){
+      told = true;
+      log('!', `${c.who} 搬的 ${lost.map(nameOf).join('、')} 不在伺服器上了`, 'bad');
+    }
+  });
+}
+function outcome(){
+  if (lostOf(A).length || lostOf(B).length) return { k:'bad',  t:'有人搬的東西不見了' };
+  if (A.blocked || B.blocked)               return { k:'warn', t:'被擋下（東西沒掉，重做就好）' };
+  return { k:'ok', t:'兩個人的都在' };
+}
+
+/* ---- 畫面 ---------------------------------------------------------------- */
+function blkState(c, id){
+  if (!c || !c.blocks[id]) return '';
+  if (same(c.blocks[id], server.blocks[id])) return '';
+  if (c.dirty.has(id)) return 'wait';
+  if (!c.touched.has(id)) return 'behind';   // 別人改的，我還沒看到 —— 不是事故
+  if (c.blocked) return 'held';
+  return 'lost';
+}
+const whyState = s =>
+    s === 'wait'   ? '排隊中，還沒送出去'
+  : s === 'held'   ? '被版本檢查擋下，重新整理就能重做'
+  : s === 'behind' ? '別人改過這一塊，你還沒看到'
+  : s === 'lost'   ? '你搬到這裡，但伺服器上不是'
+  : '跟伺服器一樣';
+
+function renderCv(host, c){
+  host.innerHTML = '';
+  IDS.forEach(id => {
+    const b = c ? c.blocks[id] : server.blocks[id];
+    if (!b) return;
+    const st = blkState(c, id);
+    const el = document.createElement('div');
+    el.className = 'blk ' + b.kind + (st ? ' ' + st : '');
+    el.style.left = b.x + 'px';
+    el.style.top  = b.y + 'px';
+    el.style.transform = 'scale(' + b.s + ')';
+    el.textContent = b.kind === 'img' ? '' : b.label;
+    el.dataset.tip = nameOf(id) + `　v${c ? c.seen[id] : b.ver}`;
+    el.dataset.sub = whyState(st);
+    if (c) attachDrag(el, c, id);
+    host.appendChild(el);
+  });
+}
+
+function render(){
+  renderCv(document.getElementById('cvA'), A);
+  renderCv(document.getElementById('cvB'), B);
+  renderCv(document.getElementById('cvS'), null);
+  document.getElementById('pillS').textContent = 'v' + server.ver + (server.by ? '　' + server.by : '');
+  [['A', A], ['B', B]].forEach(([k, c]) => {
+    const p = document.getElementById('pill' + k);
+    const lost = lostOf(c).length;
+    p.className = 'pill ' + (c.blocked ? 'warn' : (lost ? 'bad' : 'ok'));
+    p.textContent = c.blocked ? '被擋下，重新整理'
+                  : c.dirty.size ? c.dirty.size + ' 塊排隊中'
+                  : lost ? '有東西掉了' : '一致';
+  });
+}
+
+/* ---- 真的拖、真的改大小 ---------------------------------------------------- */
+function attachDrag(el, c, id){
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const b = c.blocks[id];
+    const x0 = e.clientX, y0 = e.clientY, bx = b.x, by = b.y;
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+    let moved = false;
+    const mv = ev => {
+      /* 不夾邊界：這一支要示範的是「同時改」，不是排版規則。夾住反而讓人拖到一半
+         被卡住，以為是同步出了問題。畫布 overflow:hidden，超出去自然看不到。 */
+      const nx = bx + ev.clientX - x0;
+      const ny = by + ev.clientY - y0;
+      if (nx === b.x && ny === b.y) return;
+      moved = true;
+      c.edit(id, { x:nx, y:ny });          // 拖曳中就一直 markDirty，跟主專案一樣
+    };
+    const up = () => {
+      el.removeEventListener('pointermove', mv);
+      el.removeEventListener('pointerup', up);
+      el.classList.remove('dragging');
+      if (moved) log(c.who, `搬了 ${nameOf(id)}`);
+    };
+    el.addEventListener('pointermove', mv);
+    el.addEventListener('pointerup', up);
+  });
+  el.addEventListener('wheel', e => {
+    e.preventDefault();
+    const b = c.blocks[id];
+    const s = Math.max(.5, Math.min(2, +(b.s + (e.deltaY < 0 ? .1 : -.1)).toFixed(2)));
+    if (s === b.s) return;
+    c.edit(id, { s }, `${nameOf(id)} 改大小 → ${s}x`);
+  }, { passive:false });
+}
+
+function log(who, msg, kind){
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.innerHTML = `<span class="t">+${Date.now() - T0}</span>`
+              + `<span class="m ${kind || (who === 'A' ? 'a' : who === 'B' ? 'b' : 's')}">`
+              + `${who === '!' ? '⚠ ' : who + '　'}${msg}</span>`;
+  el.appendChild(d); el.scrollTop = el.scrollHeight;
+}
+
+/* ---- 狀態貼在游標旁 -------------------------------------------------------- */
+const tip = document.getElementById('tip');
+const MODE = '一塊零件一列・寫入前比對版本・別人存檔就跟上';
+document.addEventListener('mousemove', e => {
+  /* e.target 不保證是 Element（派到 document 上、或落在文字節點時就不是），
+     直接叫 closest 會整個 handler 爆掉 —— 掛在 mousemove 上，一爆就是每動一下爆一次。 */
+  const t = e.target;
+  const el = (t && typeof t.closest === 'function') ? t.closest('[data-tip],[data-who]') : null;
+  let head = MODE, sub = '';
+  if (el && el.dataset.tip){ head = el.dataset.tip; sub = el.dataset.sub || MODE; }
+  else if (el && el.dataset.who){
+    const c = el.dataset.who === 'A' ? A : el.dataset.who === 'B' ? B : null;
+    head = c ? `設計 ${c.who}` : '共用資料庫　v' + server.ver;
+    sub = (c ? (c.blocked ? '被擋下來，重新整理就能重做'
+              : c.dirty.size ? c.dirty.size + ' 塊排隊中'
+              : lostOf(c).length ? '有東西被蓋掉了' : '跟伺服器一致') + '　' : '') + MODE;
+  }
+  tip.innerHTML = head + (sub ? `<span class="sub">${sub}</span>` : '');
+  tip.classList.add('on');
+  tip.style.left = Math.min(e.clientX + 14, innerWidth  - tip.offsetWidth  - 8) + 'px';
+  tip.style.top  = Math.min(e.clientY + 16, innerHeight - tip.offsetHeight - 8) + 'px';
+});
+document.addEventListener('mouseleave', () => tip.classList.remove('on'));
+
+/* ---- 劇本 ---------------------------------------------------------------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function resetAll(quiet){
+  document.getElementById('log').innerHTML = '';
+  told = false; T0 = Date.now();
+  serverInit(); A.boot(true); B.boot(true); render();
+  if (!quiet) log('!', MODE, 'ok');
+}
+function done(){ const o = outcome(); log('!', o.t, o.k === 'ok' ? 'ok' : o.k); }
+
+async function race(){
+  resetAll(true); log('!', MODE, 'ok');
+  await sleep(280); A.edit('price1', { x:40, y:96 }, '把價格1 往左上搬');
+  await sleep(120); B.edit('img',    { x:150, y:40 }, '把商品圖搬到右邊');
+  await sleep(1400); done();
+}
+async function sameBlock(){
+  resetAll(true); log('!', MODE, 'ok');
+  await sleep(280); A.edit('price1', { x:40, y:96 }, '把價格1 往左上搬');
+  await sleep(120); B.edit('price1', { s:1.6 },      '把價格1 放大到 1.6x');
+  await sleep(1400); done();
+}
+async function later(){
+  resetAll(true); log('!', MODE, 'ok');
+  await sleep(280); A.edit('price1', { x:40, y:96 }, '把價格1 往左上搬');
+  await sleep(1000); B.boot();
+  await sleep(280); B.edit('img', { x:150, y:40 }, '把商品圖搬到右邊');
+  await sleep(1300); done();
+}
+document.getElementById('r1').onclick = race;
+document.getElementById('r2').onclick = sameBlock;
+document.getElementById('r3').onclick = later;
+document.getElementById('rs').onclick = () => resetAll();
+
+serverInit(); resetAll(true); log('!', MODE, 'ok');
+</script>
+</body>
+</html>

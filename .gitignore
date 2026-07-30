@@ -16,6 +16,10 @@ out/
 # Netlify 的發佈資料夾，build-single.mjs 產的 —— 正本是根目錄那幾支
 public/
 
+# 合成單檔也是產出來的（node build-single.mjs --bundle），只有要寄一個檔案給
+# 別人的時候才生。進了版控就會有人拿到過期的那一份 —— 要用再生一次就好。
+dm-editor-single.html
+
 # 手動備份的資料夾，還有隨手截的圖 —— 歷史本身就是備份
 backup0722/
 新增資料夾/
@@ -26,3 +30,6 @@ clutter/
 
 # 從系統下載出來的落版單（是資料，不是程式）
 timelines/
+
+# Local Netlify folder
+.netlify

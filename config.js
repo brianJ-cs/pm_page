@@ -16,5 +16,8 @@ window.SUPABASE = {
 
   /* 行銷按「提交給設計」之後要跳去哪。Netlify 上 _redirects 把 /editor 指到編輯器，
      所以預設就是 'editor'。本機用 file:// 開的時候留空，提交會維持原本的下載檔案。 */
-  editorUrl: 'editor'
+  editorUrl: 'editor',
+
+  /* 編輯器左上角那顆「← 行銷」要跳回哪。Netlify 上 / 就是行銷首頁。 */
+  homeUrl: '/'
 };

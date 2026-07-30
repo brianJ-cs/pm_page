@@ -1,14 +1,20 @@
 #!/usr/bin/env node
-/* 把兩支檔案合成一支：node build-single.mjs
+/* 把要公開的檔案擺進 public/：node build-single.mjs
  *
- * 平常開發還是改 design_and_PM.html 和 2cell-product-pick.html 這兩支 —— 它們是
- * 正本。這支只是把商品版面那一頁整個塞進主程式裡，產出一個「寄給別人也不會壞」
- * 的單檔版本。分開的兩支檔案少了任何一支，拼板就是一片空白，而且不會報錯。
+ * 平常就只是「複製」—— 沒有任何字串處理。Netlify 一次發好幾支檔案完全沒問題，
+ * 編輯器用相對網址載得到商品版面那一頁，拼板就會動。
  *
- * 做法：商品版面那一頁存成 window.__PICK_HTML 這個字串，主程式的 setPickFrame()
- * 看到它就改用 srcdoc 載，不再去要那個相對網址的檔案。
+ *   public/index.html               ← 落版單系統.html（行銷頁；改成 ASCII 名字才好寫 _redirects）
+ *   public/editor.html              ← design_and_PM.html
+ *   public/2cell-product-pick.html  ← 名字不能改：主程式是用這個相對網址載它的
+ *   public/config.js, supabase-sync.js, _redirects
  *
- * 產出的檔案是自動生成的，不要直接改它 —— 改了下次 build 就沒了。
+ * ---- 合成單檔（--bundle）-------------------------------------------------
+ * 只有「要寄一個檔案給別人」的時候才需要：對方沒有第二支檔案也開得起來。
+ * 網站不需要它，所以預設不做 —— 那一段要把 96KB 的 HTML 塞進另一支的 <script>
+ * 裡，是這支腳本唯一會動字串的地方，也是唯一出過事的地方（見下面的 $ 註解）。
+ *
+ *   node build-single.mjs --bundle      → 另外產出 dm-editor-single.html
  */
 
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
@@ -16,16 +22,38 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
+const PUB  = join(here, 'public');
 const MAIN = join(here, 'design_and_PM.html');
 const PICK = join(here, '2cell-product-pick.html');
-const OUT  = join(here, 'dm-editor-single.html');
-const PUB  = join(here, 'public');
+const kb = n => (n / 1024).toFixed(0) + ' KB';
 
+/* ---- 平常這一段就是全部：複製 ------------------------------------------- */
+await mkdir(PUB, { recursive: true });
+await copyFile(join(here, '落版單系統.html'), join(PUB, 'index.html'));
+await copyFile(MAIN, join(PUB, 'editor.html'));
+await copyFile(PICK, join(PUB, '2cell-product-pick.html'));
+for (const f of ['config.js', 'supabase-sync.js', '_redirects'])
+  await copyFile(join(here, f), join(PUB, f));
+
+console.log('寫出 public/ —— index.html(行銷) / editor.html + 2cell-product-pick.html(編輯器)'
+          + ' / config.js / supabase-sync.js / _redirects');
+
+if (!process.argv.includes('--bundle')) {
+  console.log('  （要寄一個檔案給別人才需要合成單檔：node build-single.mjs --bundle）');
+  process.exit(0);
+}
+
+/* ---- --bundle：合成一支寄得出去的單檔 ------------------------------------ */
+const OUT = join(here, 'dm-editor-single.html');
 const [main, pick] = await Promise.all([readFile(MAIN, 'utf8'), readFile(PICK, 'utf8')]);
 
 if (!main.includes('window.__PICK_HTML')) {
   console.error('design_and_PM.html 裡沒有 setPickFrame()／window.__PICK_HTML —— ' +
                 '單檔版靠它才能改用 srcdoc 載。先把那段補回去再 build。');
+  process.exit(1);
+}
+if (!main.includes('<body>')) {
+  console.error('找不到 <body>，不知道要把商品版面那一頁插在哪裡。');
   process.exit(1);
 }
 
@@ -36,32 +64,29 @@ const embedded = JSON.stringify(pick).replace(/<\/script/gi, '<\\/script');
 const banner =
 `<!-- ==========================================================================
      這是自動產生的單檔版本：design_and_PM.html + 2cell-product-pick.html
-     產生方式：node build-single.mjs
+     產生方式：node build-single.mjs --bundle
      不要直接改這一支 —— 改正本那兩支，然後重跑一次。
      ========================================================================== -->
 <script>window.__PICK_HTML = ${embedded};</script>
 `;
 
-if (!main.includes('<body>')) {
-  console.error('找不到 <body>，不知道要把商品版面那一頁插在哪裡。');
+/* 用函式當替換內容，不要直接給字串 —— 字串裡的 $' 是 replace() 的替換樣式
+   （意思是「比對到的後面那一整段」），而商品版面那一頁裡就有 '$'+b.price 這種
+   寫法。給字串的話，$' 會把主程式剩下的兩百多 KB 原封不動塞進那個 JS 字串裡：
+   整包 script 從那裡壞掉、DOM 也跟著錯亂，而且錯誤訊息只說「Invalid or
+   unexpected token」，完全看不出跟 $ 有關。函式版本不做任何 $ 展開。 */
+const out = main.replace('<body>', () => '<body>\n' + banner);
+
+/* 黏完對一下大小。合起來應該約等於兩支相加 —— 差很多就是上面那類意外又發生了，
+   與其讓它安靜地產出一支壞檔，不如在這裡停下來。 */
+const expected = main.length + pick.length;
+if (out.length > expected * 1.2) {
+  console.error(`合成後 ${kb(out.length)}，但兩支加起來才 ${kb(expected)} —— `
+              + '中間多塞了東西，這支八成是壞的。先查 build-single.mjs 的字串處理。');
   process.exit(1);
 }
 
-const out = main.replace('<body>', '<body>\n' + banner);
 await writeFile(OUT, out, 'utf8');
-
-const kb = n => (n / 1024).toFixed(0) + ' KB';
 console.log(`寫出 ${OUT}`);
 console.log(`  主程式 ${kb(main.length)} + 商品版面 ${kb(pick.length)} → 單檔 ${kb(out.length)}`);
-
-/* 順手把要丟上 Netlify 的那一份也擺好。名字改成 ASCII 是有原因的：
-   「落版單系統.html」當網址會變成一長串 %E8%90%BD…，_redirects 裡也很難讀。
-   Netlify：Build command 填 `node build-single.mjs`、Publish directory 填 `public`。 */
-await mkdir(PUB, { recursive: true });
-await writeFile(join(PUB, 'editor.html'), out, 'utf8');
-await copyFile(join(here, '落版單系統.html'), join(PUB, 'index.html'));
-for (const f of ['config.js', 'supabase-sync.js', '_redirects'])
-  await copyFile(join(here, f), join(PUB, f));
-
-console.log(`寫出 ${PUB}${'\\'} —— index.html(行銷) / editor.html(編輯器) / config.js / supabase-sync.js / _redirects`);
-console.log('  驗一下：node .claude/skills/run-pm-page/driver.mjs --file dm-editor-single.html?seed=1 --wait 800');
+console.log('  驗一下：node .claude/skills/run-pm-page/scenario.mjs smoke --file dm-editor-single.html');

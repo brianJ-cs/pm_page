@@ -147,5 +147,34 @@
     return chain;
   }
 
-  window.PlanSync = { ok, pullAll, upsert, remove, queueUpsert, queueRemove, flush, uploadImage };
+  /* ------------------------------------------------------- 商品目錄（共用） --- */
+
+  /* 目錄是「全公司一份」，不屬於任何一個檔期，所以住在自己那張表的單一列上。
+     整包 jsonb 存：它是參考資料，改的頻率低（多半是一次貼一批），
+     為了它去拆成一列一個商品，收益不大、要接的地方卻多很多。 */
+  const CAT_ID = 'default';
+
+  async function pullCatalogue() {
+    if (!ok()) return null;
+    const r = await fetch(`${BASE}/catalogue?id=eq.${CAT_ID}&select=data`, { headers: headers() });
+    if (r.status === 404) return null;                 // 表還沒建，當作沒有
+    if (!r.ok) throw new Error(`pull catalogue ${r.status} ${await r.text()}`);
+    const rows = await r.json();
+    return rows.length ? rows[0].data : null;
+  }
+
+  let catTimer = 0, catPending = null;
+  function queueCatalogue(data) {
+    if (!ok()) return;
+    catPending = data;
+    clearTimeout(catTimer);
+    catTimer = setTimeout(async () => {
+      const body = catPending; catPending = null;
+      try { await upsert([{ id: CAT_ID, data: body }], 'catalogue'); }
+      catch (e) { console.warn('商品目錄上傳失敗，這次的變更只存在本機', e); }
+    }, DEBOUNCE);
+  }
+
+  window.PlanSync = { ok, pullAll, upsert, remove, queueUpsert, queueRemove, flush, uploadImage,
+                      pullCatalogue, queueCatalogue };
 })();
