@@ -63,8 +63,23 @@
   .status-bar{
     flex:none;background:linear-gradient(180deg,#eaf0fd,#e2ebfb);
     border:1px solid #c4d3f2;border-radius:12px;padding:12px 16px;
-    display:flex;flex-direction:column;gap:10px;
+    display:flex;flex-direction:column;gap:10px;position:relative;
   }
+  /* 收起來的把手：整條貼在下緣正中間，往上拉＝收起、往下＝拉回來。
+     收起來之後**它自己還在**（見 .folded），不然收掉就再也開不回來。 */
+  .sb-pull{
+    position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:6px;
+    background:#fff;border:1px solid #c4d3f2;border-radius:0 0 9px 9px;
+    border-top:0;color:#5a6b93;font:inherit;font-size:12.5px;font-weight:800;
+    padding:2px 14px 3px;cursor:pointer;line-height:1.4;z-index:2;
+  }
+  .sb-pull:hover{border-color:var(--blue);color:var(--blue)}
+  /* 收起來：整塊只剩那條把手，位置留著（不是消失，是折起來） */
+  .status-bar.folded{padding:0;min-height:11px;background:transparent;
+    border-color:transparent;box-shadow:none}
+  .status-bar.folded > *:not(.sb-pull){display:none}
+  .status-bar.folded .sb-pull{bottom:0;border-radius:9px;border-top:1px solid #c4d3f2}
   .sb-title{font-size:15px;font-weight:800;color:var(--blue-dark);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
   .sb-title .sb-sub{font-size:13.5px;font-weight:700;color:#6b7ba6}
   .sb-names{display:flex;gap:8px;flex-wrap:wrap}
@@ -350,6 +365,15 @@
   .stacklabel .dur-unit{font-size:11px;font-weight:700;color:var(--muted)}
   .stacklabel .date-tip{font-size:10px;font-weight:700;color:var(--muted)}
   .plan-actions{display:flex;justify-content:flex-end;gap:12px}
+  /* 卡片上那兩顆：站在最右邊，比出稿日還外面 —— 它們是動作，不是資訊。
+     兩顆給不同顏色，因為它們去的地方不一樣：藍＝離開這一頁去看版（那是「去別的地方」），
+     琥珀＝就在這裡改這一檔的日期（跟卡片上那排階段、`.sb-name .st` 的琥珀同一個意思：
+     時間）。同一個灰的話，兩顆看起來就是同一件事的兩半。 */
+  .card-edit{margin-left:10px;padding:4px 12px;font-size:13.5px;font-weight:800}
+  .card-edit.go{color:var(--blue);border-color:#b9c8ee;background:#f2f6ff}
+  .card-edit.go:hover{border-color:var(--blue);background:#e6eeff}
+  .card-edit.when{color:#a05c00;border-color:#e8cf9e;background:#fff8ea}
+  .card-edit.when:hover{border-color:var(--amber);background:#fff1d6}
 
   /* ============ VIEW 3 : LAYOUT EDITOR ============ */
   #layoutTitle{
@@ -446,6 +470,33 @@
   body.mode-assign .window-node{cursor:pointer}
   body.mode-swap .window-node{cursor:grab}
   .hint{font-size:14.5px;color:var(--muted);background:#e9edf4;padding:8px 14px;border-radius:6px}
+  /* 切幾公分：長得跟提示同一塊底，但它是可以打字的，所以框和數字都比較實 */
+  .cutlen{display:flex;align-items:center;gap:6px;font-size:14.5px;font-weight:800;
+    color:var(--ink);background:#e9edf4;padding:6px 12px;border-radius:6px}
+  .cutlen.hidden{display:none}
+  .cutlen input{width:72px;font:inherit;font-size:15px;text-align:right;
+    border:1px solid var(--line);border-radius:5px;padding:3px 6px;background:#fff}
+  /* 這個長度切不下去（比那一塊還長）：閃一下紅，不要靜靜地不動 */
+  .cutlen.bad input{border-color:var(--red);background:#fdeced}
+  .cutlen .btn{padding:5px 12px;font-size:14px}
+
+  /* 紅色預覽線：這一刀會落在哪。position:fixed 掛在 body 上，**不進版位裡面** ——
+     版位的 innerHTML 就是存進歷史的那份資料（saveState），塞一條線進去會被存下來。 */
+  #cutPreview{
+    position:fixed;z-index:400;pointer-events:none;display:none;
+    background:var(--red);box-shadow:0 0 0 1px rgba(255,255,255,.55);
+  }
+  #cutPreview .lbl{
+    position:absolute;background:var(--red);color:#fff;font-size:12px;font-weight:800;
+    padding:2px 6px;border-radius:4px;white-space:nowrap;
+  }
+  /* 直切：線是直的，數字貼在線的上端；橫切反過來 */
+  #cutPreview.v .lbl{left:3px;top:0}
+  #cutPreview.h .lbl{top:3px;left:0}
+  /* 這個數字超出那一塊：線貼在邊上、整條淡掉 —— 看得出「這一刀不成立」 */
+  #cutPreview.over{opacity:.45}
+  /* 指著的那一塊：紅框，好知道這一刀切的是誰（尤其手移到「切下去」那顆之後） */
+  .window-node.cut-aim{outline:2px solid var(--red);outline-offset:-2px}
 
   /* cursor-following status chip */
   #cursorChip{
@@ -592,6 +643,15 @@
     background:#f6f7fa;border-radius:6px;padding:6px 10px;
   }
   #itemList .it .cnt{color:var(--red)}
+  /* 數量在清單上直接改。長得像文字不像輸入框 —— 它平常是「這裡有幾支」的答案，
+     只有要改的時候才需要看起來可以打字（hover／focus 才浮出框線）。 */
+  #itemList .it .cnt-edit{
+    width:46px;flex:none;font:inherit;font-size:12.5px;font-weight:800;color:var(--red);
+    text-align:right;background:transparent;border:1px solid transparent;border-radius:5px;
+    padding:1px 3px;-moz-appearance:textfield;
+  }
+  #itemList .it .cnt-edit:hover{border-color:var(--line)}
+  #itemList .it .cnt-edit:focus{border-color:var(--blue);background:#fff;outline:none}
   #itemList .it b{margin-left:auto;cursor:pointer;opacity:.5}
   #itemList .it b:hover{opacity:1}
   .pop-actions{display:flex;justify-content:space-between}
@@ -610,10 +670,12 @@
   <!-- dev tool: sits above everything else on the home view -->
   <div id="statusBar" class="status-bar hidden"></div>
   <div class="topbar">
-    <!-- 切到設計／PM 那一支。只有部署起來（http）才看得到 —— 本機用 file:// 開
-         的時候沒有 /editor 這個網址可以去，留著只會是一顆按了沒反應的按鈕。 -->
+    <!-- 去看落版／拼板。只有部署起來（http）才看得到 —— 本機用 file:// 開
+         的時候沒有 /editor 這個網址可以去，留著只會是一顆按了沒反應的按鈕。
+         帶 as=mkt：那邊進去就是行銷的身分（看得到全部、只改得動落版），
+         不是去那邊再切一次角色。 -->
     <button class="btn ghost" id="toEditor" style="display:none"
-            title="切到設計／PM 的落版拼板編輯器">設計／PM →</button>
+            title="看設計排出來的落版和拼板（落版可以改，拼板只能看）">落版／拼板 →</button>
     <button class="btn ghost" id="pastBtn">📁 過往檔期</button>
     <button class="btn" id="newPlanBtn">新增</button>
   </div>
@@ -624,7 +686,7 @@
 <div id="viewPlan" class="view hidden">
   <div class="head-row">
     <button class="btn ghost" id="backHomeBtn">← 返回</button>
-    <h2>行銷開檔</h2>
+    <h2 id="planTitle">行銷開檔</h2>
     <div class="spacer"></div>
     <button class="btn ghost" id="importBtn">帶入</button>
   </div>
@@ -679,7 +741,12 @@
     <button class="btn ghost" id="backPlanBtn">← 返回</button>
     <span id="layoutTitle"></span>
     <div class="spacer"></div>
-    <span class="hint">💡 滾輪切換方向，拖曳調整線也能 Undo/Redo</span>
+    <!-- 切幾公分：填了就照數字切，空著就照點下去的位置切。只在切割模式看得到 ——
+         它是那一顆工具的參數，不是整頁的設定。 -->
+    <div id="cutLenWrap" class="cutlen hidden">切在<input id="cutLen" type="number" min="0" step="0.1"
+             placeholder="—" title="從指到的那一塊的左（直切）／上（橫切）緣量起">cm 處<button
+             class="btn" id="cutGo" type="button" disabled>切下去</button></div>
+    <span class="hint">💡 尺規和數字都是公分，滾輪切換方向，拖曳調整線也能 Undo/Redo</span>
     <span class="hint warn hidden" id="emptyHint"></span>
     <button class="btn" id="submitBtn">提交給設計</button>
   </div>
@@ -687,7 +754,7 @@
   <div class="editor-body">
     <div class="toolcol" id="toolcol">
       <button class="tool on" data-mode="assign">✏️<span class="tip"><b>點選</b>　預設模式，點區塊選品類、輸入數量<br>可拖動切割線調整版面</span></button>
-      <button class="tool" data-mode="cut">✂<span class="tip"><b>切割</b>　點區塊切一刀<br>滾輪切換 直／橫</span></button>
+      <button class="tool" data-mode="cut">✂<span class="tip"><b>切割</b>　點區塊切一刀<br>上面填公分就照數字切，空著照點的位置<br>滾輪切換 直／橫</span></button>
       <button class="tool" data-mode="swap">⇄<span class="tip"><b>互換</b>　按住區塊拖到另一塊交換內容</span></button>
       <div class="tool-sep"></div>
       <button class="tool" id="undoBtn" disabled>↶<span class="tip"><b>Undo</b>　Ctrl+Z</span></button>
@@ -719,11 +786,13 @@
 
 <!-- cursor-following status -->
 <div id="cursorChip"></div>
+<!-- 這一刀會切在哪：紅線 ＋ 幾公分 -->
+<div id="cutPreview"><span class="lbl"></span></div>
 
 <!-- import modal -->
 <div class="modal-mask hidden" id="importMask">
   <div class="modal import-modal">
-    <h3>帶入過去檔期設定（類別／標籤／各階段天數）</h3>
+    <h3>帶入過去檔期（類別／標籤／各階段天數／版位切割／品類）</h3>
     <div class="import-panes">
       <!-- left: filters -->
       <div class="imp-side">
@@ -1158,6 +1227,31 @@ function buildCard(plan, now, past){
   outEl.className = 'plan-out';
   outEl.innerHTML = `出稿 <b>${fmtMD(out)} 09:00</b>`;
   head.appendChild(outEl);
+  /* 看這一檔被排成什麼樣：直接跳進編輯器的那一檔（落版／拼板／總體都在那裡）。
+     放在卡片上而不是只有上面那顆總的 —— 行銷心裡想的是「**這一檔**排得怎麼樣」，
+     從卡片點進去才不用進去之後再找一次自己的檔期。 */
+  {
+    const href = editorLinkFor(plan.id);
+    if (href){
+      const go = document.createElement('button');
+      go.className = 'btn ghost card-edit go';
+      go.textContent = '看落版／拼板 →';
+      go.title = '看設計把這一檔排成什麼樣（落版可以改，拼板只能看）';
+      go.addEventListener('click', e => { e.stopPropagation(); goEditor(href); });
+      head.appendChild(go);
+    }
+  }
+  /* 改時程：開回開檔那張表、同一條時間軸。日期改的次數比想像多（印廠改期、
+     檔期提前），而那個工具本來就在這裡 —— 沒有這顆的話只能重開一個檔期。
+     過往檔期上不給：那些已經出稿了，時間軸只剩紀錄的意義。 */
+  if (!past){
+    const ed = document.createElement('button');
+    ed.className = 'btn ghost card-edit when';
+    ed.textContent = '改時程';
+    ed.title = '用開檔那條時間軸改這個檔期的日期和各段天數';
+    ed.addEventListener('click', e => { e.stopPropagation(); openPlanForEdit(plan); });
+    head.appendChild(ed);
+  }
   // no 🗑 on the card — deleting lives in the dev panel (目前階段管理)
   card.appendChild(head);
 
@@ -1296,6 +1390,7 @@ function renderHome(){
   if (active.length) active.forEach(plan => planList.appendChild(buildCard(plan, now, false)));
   else planList.innerHTML = '<div class="empty-hint">目前沒有進行中的檔期，按右上「新增」開檔</div>';
   updatePastBtn();
+  updateEditorBtn();
   renderStatusBar();
 }
 
@@ -1337,6 +1432,28 @@ function exitEditMode(){
   renderStatusBar();
 }
 
+/* 這一條收起來了沒。記在 localStorage：它是「你想怎麼看」，不是資料 ——
+   每次重整都要再收一次的話，那顆把手等於沒有。 */
+const SB_FOLD_KEY = 'catalogue_statusbar_folded';
+let sbFolded = false;
+try { sbFolded = localStorage.getItem(SB_FOLD_KEY) === '1'; } catch (e){}
+
+/** 那條把手：收起來之後它自己還在，不然就再也拉不回來了。 */
+function sbPullBtn(){
+  const b = document.createElement('button');
+  b.className = 'sb-pull';
+  b.type = 'button';
+  b.innerHTML = sbFolded ? '目前階段管理　⌄' : '⌃';
+  b.title = sbFolded ? '拉出「目前階段管理」' : '收起「目前階段管理」';
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    sbFolded = !sbFolded;
+    try { localStorage.setItem(SB_FOLD_KEY, sbFolded ? '1' : '0'); } catch (err){}
+    renderStatusBar();
+  });
+  return b;
+}
+
 function renderStatusBar(){
   // a dev tool: it lists EVERY 檔期, not just the in-flight ones, or it would
   // disappear exactly when all your 檔期 are finished
@@ -1345,6 +1462,13 @@ function renderStatusBar(){
     statusBar.classList.add('hidden');
     statusBar.innerHTML = '';
     barEditMode = false;
+    return;
+  }
+  statusBar.classList.toggle('folded', sbFolded);
+  if (sbFolded){                         // 收起來：只留把手，其他一律不畫
+    statusBar.classList.remove('hidden');
+    statusBar.innerHTML = '';
+    statusBar.appendChild(sbPullBtn());
     return;
   }
   // keep the focus if still valid, else default to the nearest deadline
@@ -1466,6 +1590,7 @@ function renderStatusBar(){
 
     statusBar.appendChild(editor);
   }
+  statusBar.appendChild(sbPullBtn());     // 最後才掛：它是貼在下緣的把手，不是內容
 }
 
 /* keep-alive + outside-click for edit mode (attached once; #statusBar persists) */
@@ -1964,7 +2089,43 @@ startInput.addEventListener('change', () => {
   fitTotalToFlags(); buildGrid(); render();  // a new start date re-sizes its own axis
 });
 
+/* 正在改的那一個檔期（null ＝這是新開的一張）。時程改完就存回它身上，
+   不會多生一筆 —— 檔期是同一個，只是日期換了。 */
+let editingPlan = null;
+
+/** 把一個已經存在的檔期讀回這張表：名字、類別、標籤、開始日、每一段幾天。 */
+function openPlanForEdit(plan){
+  editingPlan = plan;
+  impLayout = null;
+  nameInput.value = plan.name || '';
+  tags = (plan.tags || []).slice(); renderTags();
+  typeBtns.querySelectorAll('.type-btn')
+          .forEach(b => b.classList.toggle('on', b.textContent === plan.type));
+  if (!typeBtns.querySelector('.type-btn.on')) typeBtns.querySelector('.type-btn').classList.add('on');
+  START = parseYMD(plan.start);
+  startInput.value = toYMD(START);
+  flagsFromDurs((plan.durs || DEFAULT_DURS).slice());
+  selected = 0;
+  fitTotalToFlags(); buildGrid(); render();
+  syncPlanMode();
+  show('plan');
+}
+
+/** 這張表現在是「開檔」還是「改時程」—— 標題和那顆鈕都要說得出來。 */
+function syncPlanMode(){
+  const t = document.getElementById('planTitle');
+  const n = document.getElementById('nextBtn');
+  const imp = document.getElementById('importBtn');
+  if (t) t.textContent = editingPlan ? '改時程' : '行銷開檔';
+  if (n) n.textContent = editingPlan ? '儲存' : '下一步';
+  // 帶入是「照上一次的抄一份」，那是開新檔期才有的動作
+  if (imp) imp.style.display = editingPlan ? 'none' : '';
+}
+
 function resetPlanForm(){
+  editingPlan = null;        // 這是新的一張，不是在改誰
+  syncPlanMode();
+  impLayout = null;          // 新開一個檔期＝空白的一張版，不留上一次帶入的版面
   nameInput.value = '';
   tags = []; renderTags();
   typeBtns.querySelectorAll('.type-btn').forEach((b,i) => b.classList.toggle('on', i === 0));
@@ -1975,7 +2136,7 @@ function resetPlanForm(){
   fitTotalToFlags(); buildGrid(); render();
 }
 
-/* 帶入 popup: copy type/tags/durations from a past plan */
+/* 帶入 popup: copy type/tags/durations/layout from a past plan */
 const importMask = document.getElementById('importMask');
 const impSearch  = document.getElementById('impSearch');
 const impTagMenu = document.getElementById('impTagMenu');
@@ -2155,6 +2316,12 @@ function renderImpResults(){
     tt.className = 'pill total';
     tt.textContent = `總長 ${totalDurs(p)} 天`;
     r1.appendChild(tt);
+    /* 帶不帶得到版面是挑哪一份的關鍵 —— 有版位的那幾份才省得掉重切一次 */
+    const segs = planSegCount(p);
+    const sg = document.createElement('span');
+    sg.className = 'pill';
+    sg.textContent = segs ? `版位 ${segs} 塊` : '沒有版面';
+    r1.appendChild(sg);
     card.appendChild(r1);
     const d = document.createElement('div');
     d.className = 'durs';
@@ -2196,15 +2363,100 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !importMask.classList.contains('hidden')) closeImport();
 });
 
-/* apply a plan's settings (類別/標籤/各階段天數) into the open form */
+/* ---- 帶入的版面 ------------------------------------------------------------
+   同一檔期年年在跑，版位怎麼切、每一塊放哪些品類多半是照抄上一次的 —— 只帶
+   天數、讓人對著上一次的版重切一遍，才是真的白工。所以帶入連版面一起帶。
+
+   plan.layout 有兩種形狀：剛提交過的是兩段 HTML（submitBtn 直接存 innerHTML），
+   被設計那支開過的已經被 normalizeLayout() 轉成樹存回來了。帶入是回頭找舊檔期，
+   撞到的多半是後者，所以兩種都要吃。 */
+function planSegCount(p){          // 宣告式：上面的 renderImpResults 就叫得到
+  const L = p && p.layout;
+  if (!L) return 0;
+  if (typeof L.front === 'string'){
+    const d = document.createElement('div');
+    d.innerHTML = (L.front || '') + (L.back || '');
+    return d.querySelectorAll('.window-node').length;
+  }
+  let n = 0;
+  const walk = x => { if (!x) return; x.children ? x.children.forEach(walk) : n++; };
+  walk(L.front); walk(L.back);
+  return n;
+}
+
+/* 樹葉的 groups 轉回這一支的 data-items。設計那邊把沒填品類的版位補成
+   「未命名 0」（parseLayoutChild），轉回來要還原成空的 —— 不然帶入之後那一塊
+   看起來像填過了，卻卡在「沒填數量」提交不出去。 */
+function itemsFromGroups(groups){
+  const items = (groups || []).map(g => ({ cat: g.name || '未命名', qty: g.count > 0 ? g.count : null }));
+  if (items.length === 1 && items[0].cat === '未命名' && items[0].qty == null) return [];
+  return items;
+}
+function treeSplitEl(node){
+  const box = document.createElement('div');
+  box.className = 'split-container';
+  box.style.flexDirection = node.dir === 'col' ? 'column' : 'row';
+  (node.children || []).forEach((kid, i) => {
+    if (i){
+      const sep = document.createElement('div');
+      // 對開的中線不能拖（initBoards 的 .fold），其他都是可以拖的切線
+      sep.className = node.fold ? 'fold'
+                    : 'resizer ' + (node.dir === 'col' ? 'resizer-horizontal' : 'resizer-vertical');
+      box.appendChild(sep);
+    }
+    const k = treeChildEl(kid);
+    k.style.flex = kid.size == null
+      ? '1 1 0%'                                    // 補滿的那一個（pctOf 回 null 的就是它）
+      : `0 0 calc(${kid.size}% - ${(node.fold ? 2 : REZ) / 2}px)`;
+    k.style.minWidth = '0';
+    k.style.minHeight = '0';
+    box.appendChild(k);
+  });
+  return box;
+}
+function treeChildEl(node){
+  if (!node.children){
+    const el = document.createElement('div');
+    el.className = 'window-node';
+    el.style.backgroundColor = pastel();   // 顏色本來就是隨機的，沒有存進樹裡
+    setItems(el, itemsFromGroups(node.groups));
+    return el;
+  }
+  // 切過的區塊自己不再是 window-node，只是外面那層殼（見 cut 的 target 處理）
+  const holder = document.createElement('div');
+  holder.style.backgroundColor = 'transparent';
+  holder.style.border = 'none';
+  holder.appendChild(treeSplitEl(node));
+  return holder;
+}
+/* 回傳 {front, back} 兩段 HTML，就是 initBoards 吃的東西；沒版面就回 null */
+function layoutHtmlOf(p){
+  const L = p && p.layout;
+  if (!L) return null;
+  if (typeof L.front === 'string') return { front: L.front || '', back: L.back || '' };
+  try {
+    return {
+      front: L.front ? treeSplitEl(L.front).outerHTML : '',
+      back:  L.back  ? treeSplitEl(L.back).outerHTML  : '',
+    };
+  } catch (e){ console.warn('帶入版面失敗，只帶設定', e); return null; }
+}
+
+/* 帶入的版面先擱在這裡，按下一步進到切版那一頁才鋪上去 */
+let impLayout = null;
+
+/* apply a plan's settings (類別/標籤/各階段天數) and its layout into the open form */
 function importSettings(p){
   typeBtns.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('on', b.textContent === p.type));
   if (!typeBtns.querySelector('.type-btn.on')) typeBtns.querySelector('.type-btn').classList.add('on');
   tags = (p.tags || []).slice(); renderTags();
   if (Array.isArray(p.durs)) flagsFromDurs(p.durs);
   fitTotalToFlags(); buildGrid(); render();   // an imported plan sizes its own axis
+  impLayout = layoutHtmlOf(p);
+  const segs = planSegCount(p);
   closeImport();
-  toast(`已帶入「${p.name || '檔案'}」的設定`);
+  toast(`已帶入「${p.name || '檔案'}」的設定`
+        + (impLayout && segs ? `，版位和品類（${segs} 塊）在下一步` : ''));
 }
 
 /* 從檔案帶入 — read an exported 落版單 (.html with embedded JSON, or a .json) */
@@ -2257,6 +2509,15 @@ function applyBodyClass(){
 function setMode(m){
   mode = m;
   toolcol.querySelectorAll('.tool[data-mode]').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  /* 「切幾公分」是切割這顆工具的參數，換工具就收起來。用 getElementById 不用上面
+     那個 const —— 那幾個宣告在這個函式下面，開機時 setMode 會比它們早跑到。 */
+  const wrap = document.getElementById('cutLenWrap');
+  if (wrap){
+    wrap.classList.toggle('hidden', m !== 'cut');
+    if (m === 'cut') document.getElementById('cutLen').focus();
+    else aimAt(null);              // 離開切割：紅線和紅框一起收掉
+    syncCutGo();
+  }
   applyBodyClass();
 }
 toolcol.addEventListener('click', e => {
@@ -2333,7 +2594,8 @@ let history = [], historyIndex = -1;
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
 function clearTransient(){
-  boardsWrap.querySelectorAll('.swap-src,.swap-target').forEach(n => n.classList.remove('swap-src','swap-target'));
+  boardsWrap.querySelectorAll('.swap-src,.swap-target,.cut-aim')
+    .forEach(n => n.classList.remove('swap-src','swap-target','cut-aim'));
 }
 function saveState(){
   clearTransient();
@@ -2368,9 +2630,14 @@ document.addEventListener('keydown', e => {
 
 /* every board opens as a 對開 spread: two halves either side of a fixed fold.
    Both halves are flex:1 1 0 and nothing can resize them, so the fold stays
-   dead centre no matter how the halves are cut up afterwards. */
-function initBoards(){
-  [wsFront, wsBack].forEach(ws => {
+   dead centre no matter how the halves are cut up afterwards.
+   帶入舊檔期的時候 from = {front, back} 兩段 HTML，直接鋪上去接著改；
+   認不得或那一面本來就沒切過，就照舊開一張空的對開（沒有 window-node 的版
+   是連切都切不下去的死版）。 */
+function initBoards(from){
+  [wsFront, wsBack].forEach((ws, i) => {
+    ws.innerHTML = (from && (i ? from.back : from.front)) || '';
+    if (ws.querySelector('.window-node')) return;
     ws.innerHTML = '';
     const spread = document.createElement('div');
     spread.className = 'split-container';
@@ -2397,8 +2664,29 @@ function initBoards(){
   saveState();
 }
 
-/* ---- board geometry: a landscape spread, two portrait halves across the fold ---- */
-const BOARD_RATIO = 1.414;   // A3 landscape = two A4 portrait pages
+/* ---- board geometry: a landscape spread, two portrait halves across the fold ----
+   版面是**照實際公分**畫的：長寬比、尺規、輸入的切割長度全部從這張表來。
+   一種 DM 一個尺寸 —— 切版的人心裡想的是「這一塊留 12 公分」，不是「留 87 個 px」。
+
+   ⚠️ 這幾個數字是照常見的發印尺寸填的，**要照貴公司真正的發印尺寸校正**：
+   改這裡一個地方，尺規、切割長度、游標上那張小卡全部跟著對。
+   （攤開的整張版：對開 DM ＝ 兩頁攤平，所以寬是單頁的兩倍。） */
+const DM_SIZE = {
+  '全省對開大DM': { w: 78.7, h: 54.5 },   // 對開（全開 78.7×109 的一半），攤開是橫的
+  '網路素材':     { w: 42.0, h: 29.7 },   // 沒有發印尺寸，先照 A3 攤開
+  '單店制作物':   { w: 42.0, h: 29.7 },
+  'A3':          { w: 42.0, h: 29.7 }    // A3 橫放 ＝ 兩張 A4 直的
+};
+const DM_SIZE_FALLBACK = { w: 42.0, h: 29.7 };
+/* 現在這一張版多大（cm）。認不得的類別就照 A3 —— 尺規上有數字總比沒有好。 */
+function boardCm(){
+  return (draft && DM_SIZE[draft.type]) || DM_SIZE_FALLBACK;
+}
+/* 一公分畫出來是幾個 px。量的是真的畫出來的寬，所以縮放、換視窗大小都跟著對。 */
+function pxPerCm(ws){
+  const cm = boardCm();
+  return (ws.clientWidth || 1) / cm.w;
+}
 const RULER = 26, BOARD_GAP = 22;
 function layoutBoards(){
   const slot = boardsWrap.querySelector('.board-slot');
@@ -2406,8 +2694,9 @@ function layoutBoards(){
   const availH = boardsWrap.clientHeight - titleH - RULER;
   const availW = (boardsWrap.clientWidth - BOARD_GAP) / 2 - RULER;
   if (availH <= 0 || availW <= 0) return;   // view still hidden
-  let w = availW, h = w / BOARD_RATIO;
-  if (h > availH) { h = availH; w = h * BOARD_RATIO; }
+  const ratio = boardCm().w / boardCm().h;  // 版面的長寬比就是實際尺寸的長寬比
+  let w = availW, h = w / ratio;
+  if (h > availH) { h = availH; w = h * ratio; }
   // even width => (w - fold) splits into two whole pixels, so the fold lands
   // exactly on centre instead of drifting a pixel on odd widths
   w = Math.floor(w / 2) * 2;
@@ -2419,15 +2708,25 @@ function layoutBoards(){
   fitLabels();
 }
 window.addEventListener('resize', () => {
-  if (!views.layout.classList.contains('hidden')) layoutBoards();
+  if (views.layout.classList.contains('hidden')) return;
+  layoutBoards();
+  paintCutPreview();               // 紅線是 fixed 定位的，版面一動它就過期
 });
 
 /* ---- rulers (per board), ported from 1排版切割 ---- */
+/* 尺規的刻度是**公分**，不是 px：一格一公分、五公分中刻度、十公分寫數字。
+   （本來是 10px 一格、100px 寫一個數字 —— 那串數字跟印出來的東西沒有關係，
+     而切版的人講的是「這一塊留 12 公分」。） */
 function drawRuler(ws, rail, horizontal){
   rail.querySelectorAll('.tick,.tick-label').forEach(el => el.remove());
-  const len = horizontal ? ws.clientWidth : ws.clientHeight;
-  for (let i = 0; i <= len; i += 10) {
-    const major = i % 100 === 0, medium = i % 50 === 0;
+  const k = pxPerCm(ws);
+  const cm = boardCm();
+  const total = horizontal ? cm.w : cm.h;
+  /* 一公分畫不到 3px 就兩公分一格 —— 刻度密到糊成一條線就不是尺了 */
+  const step = k >= 3 ? 1 : 2;
+  for (let c = 0; c <= Math.round(total); c += step) {
+    const i = c * k;
+    const major = c % 10 === 0, medium = c % 5 === 0;
     const size = major ? '10px' : medium ? '7px' : '4px';
     const tick = document.createElement('div');
     tick.className = 'tick';
@@ -2439,10 +2738,10 @@ function drawRuler(ws, rail, horizontal){
       tick.style.right = '0';     tick.style.width = size;
     }
     rail.appendChild(tick);
-    if (major && i > 0) {
+    if (major && c > 0) {
       const label = document.createElement('div');
       label.className = 'tick-label';
-      label.textContent = i;
+      label.textContent = c;
       if (horizontal) {
         label.style.left = (i + 2) + 'px'; label.style.top = '1px';
       } else {
@@ -2468,22 +2767,87 @@ function updateRulerMarkers(clientX, clientY, ws){
   const y = Math.max(0, Math.min(clientY - r.top, r.height));
   const mx = layout.querySelector('.ruler-marker-x');
   const my = layout.querySelector('.ruler-marker-y');
-  mx.style.left = x + 'px'; mx.setAttribute('data-val', Math.round(x) + 'px');
-  my.style.top  = y + 'px'; my.setAttribute('data-val', Math.round(y) + 'px');
+  const k = pxPerCm(ws);
+  const cmOf = v => (v / k).toFixed(1) + 'cm';
+  mx.style.left = x + 'px'; mx.setAttribute('data-val', cmOf(x));
+  my.style.top  = y + 'px'; my.setAttribute('data-val', cmOf(y));
 }
 
-/* ---- cut (event delegation so undo keeps working) ---- */
-boardsWrap.addEventListener('click', e => {
-  if (mode !== 'cut') return;
-  const target = e.target.closest('.window-node');
-  if (!target) return;
+/* ---- 切幾公分 ---------------------------------------------------------- */
+const cutLenWrap = document.getElementById('cutLenWrap');
+const cutLenInput = document.getElementById('cutLen');
+/* 空的、0、負的、看不懂的都當成「沒填」＝照點的位置切。 */
+function cutLenCm(){
+  const v = parseFloat(cutLenInput.value);
+  return (isFinite(v) && v > 0) ? v : null;
+}
+let cutBadTimer = 0;
+function flashCutLen(spanCm){
+  cutLenWrap.classList.add('bad');
+  cutLenInput.title = `這一塊只有 ${spanCm.toFixed(1)}cm，切不出 ${cutLenCm()}cm`;
+  clearTimeout(cutBadTimer);
+  cutBadTimer = setTimeout(() => cutLenWrap.classList.remove('bad'), 700);
+}
+function syncCutGo(){
+  const go = document.getElementById('cutGo');
+  const ok = mode === 'cut' && cutLenCm() != null && !!(cutAim && cutAim.isConnected);
+  go.disabled = !ok;
+  go.title = cutLenCm() == null ? '先填要切在幾公分'
+           : (cutAim ? '切紅框那一塊' : '先把滑鼠移到要切的那一塊上（它會框成紅色）');
+}
 
-  const rect = target.getBoundingClientRect();
+/* ---- 這一刀會切在哪：紅線 ----------------------------------------------
+   指著的那一塊記下來（cutAim），因為手要移到「切下去」那顆鈕上 —— 一離開版面就
+   忘記的話，那顆鈕永遠不知道要切誰。線和紅框一起留著，看得到才敢按。 */
+const cutPreview = document.getElementById('cutPreview');
+let cutAim = null;
+function aimAt(node){
+  if (cutAim === node) { paintCutPreview(); return; }
+  if (cutAim) cutAim.classList.remove('cut-aim');
+  cutAim = node;
+  if (cutAim) cutAim.classList.add('cut-aim');
+  paintCutPreview();
+  syncCutGo();
+}
+/* 沒填公分就跟著游標畫（那一刀就切在游標上），填了就畫在那個公分數上。 */
+let cutHoverXY = null;
+function paintCutPreview(){
+  if (mode !== 'cut' || !cutAim || !cutAim.isConnected){
+    cutPreview.style.display = 'none';
+    return;
+  }
   const isVertical = cutDir === 'vertical';
-  const percent = isVertical
-    ? (e.clientX - rect.left) / rect.width * 100
-    : (e.clientY - rect.top) / rect.height * 100;
+  const r = cutAim.getBoundingClientRect();
+  const k = pxPerCm(cutAim.closest('.board-ws'));
+  const want = cutLenCm();
+  const span = isVertical ? r.width : r.height;
+  let off = want != null ? want * k
+          : (cutHoverXY ? (isVertical ? cutHoverXY.x - r.left : cutHoverXY.y - r.top) : span / 2);
+  const over = off >= span;                 // 切不下去：線貼在邊上，讓人看得出滿出來了
+  off = Math.max(0, Math.min(span, off));
+  cutPreview.className = isVertical ? 'v' : 'h';
+  cutPreview.classList.toggle('over', over);
+  if (isVertical){
+    cutPreview.style.left = (r.left + off - 1) + 'px';
+    cutPreview.style.top = r.top + 'px';
+    cutPreview.style.width = '2px';
+    cutPreview.style.height = r.height + 'px';
+  } else {
+    cutPreview.style.left = r.left + 'px';
+    cutPreview.style.top = (r.top + off - 1) + 'px';
+    cutPreview.style.width = r.width + 'px';
+    cutPreview.style.height = '2px';
+  }
+  cutPreview.querySelector('.lbl').textContent =
+    (off / k).toFixed(1) + 'cm' + (over ? '（切不下去）' : '');
+  cutPreview.style.display = 'block';
+}
 
+/* ---- cut (event delegation so undo keeps working) ----
+   點區塊＝照點下去的位置切（切割工具本來就是這樣，沒有變）。
+   填公分那條是**另一條路**：填好按「切下去」，切的是紅框指著的那一塊。
+   兩條路最後都走這一支。 */
+function cutNode(target, percent, isVertical){
   const container = document.createElement('div');
   container.className = 'split-container';
   container.style.flexDirection = isVertical ? 'row' : 'column';
@@ -2518,7 +2882,41 @@ boardsWrap.addEventListener('click', e => {
 
   fitLabels(container);   // the inherited text now lives in a smaller box
   saveState();
+}
+
+boardsWrap.addEventListener('click', e => {
+  if (mode !== 'cut') return;
+  const target = e.target.closest('.window-node');
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  const isVertical = cutDir === 'vertical';
+  aimAt(null);                    // 紅框要在 saveState 之前拿掉：存進歷史的就是這份 HTML
+  cutNode(target, isVertical
+    ? (e.clientX - rect.left) / rect.width * 100
+    : (e.clientY - rect.top) / rect.height * 100, isVertical);
 });
+
+/* 「切下去」：照填的公分切紅框指著的那一塊。
+   量的起點是**那一塊**的左緣（直切）／上緣（橫切）—— 切小塊的時候心裡想的是
+   「這一塊左邊留 12 公分」，不必先去尺規上算它從第幾公分開始。 */
+function cutByLength(){
+  const want = cutLenCm();
+  if (want == null || !cutAim || !cutAim.isConnected) return;
+  const isVertical = cutDir === 'vertical';
+  const rect = cutAim.getBoundingClientRect();
+  const k = pxPerCm(cutAim.closest('.board-ws'));
+  const spanCm = (isVertical ? rect.width : rect.height) / k;
+  if (want >= spanCm){ flashCutLen(spanCm); return; }   // 切不下去就別切
+  const node = cutAim;
+  aimAt(null);
+  cutNode(node, want / spanCm * 100, isVertical);
+}
+document.getElementById('cutGo').addEventListener('click', cutByLength);
+/* 在欄位裡按 Enter 就是按那顆鈕 —— 填完數字手還在鍵盤上 */
+cutLenInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); cutByLength(); }
+});
+cutLenInput.addEventListener('input', () => { syncCutGo(); paintCutPreview(); });
 
 /* wheel switches the cut direction, exactly as in 1排版切割 */
 boardsWrap.addEventListener('wheel', e => {
@@ -2527,6 +2925,7 @@ boardsWrap.addEventListener('wheel', e => {
   cutDir = e.deltaY > 0 ? 'horizontal' : 'vertical';
   applyBodyClass();
   moveChip(e.clientX, e.clientY, e.target);
+  paintCutPreview();               // 直切換橫切，紅線要跟著轉
 }, { passive: false });
 
 /* ---- resizer drag (any mode) ---- */
@@ -2633,12 +3032,26 @@ function renderItemList(){
     const nm = document.createElement('span');
     nm.textContent = it.cat;
     row.appendChild(nm);
-    if (it.qty) {
-      const c = document.createElement('span');
-      c.className = 'cnt';
-      c.textContent = `(${it.qty})`;
-      row.appendChild(c);
-    }
+    /* 數量在清單上就能改。本來加進去之後就定了，要改只能整筆刪掉重打 ——
+       數量是最常回頭調的東西（談完價、改支數），不該是「重來一次」才做得到的事。 */
+    const c = document.createElement('input');
+    c.type = 'number'; c.min = '1'; c.className = 'cnt-edit';
+    c.value = it.qty || 1;
+    const commitQty = () => {
+      const n = parseInt(c.value, 10);
+      const items = getItems(assignTarget);
+      if (!items[idx]) return;
+      items[idx].qty = Number.isFinite(n) && n > 0 ? n : 1;
+      c.value = items[idx].qty;                 // 打了 0 或空白就退回 1
+      setItems(assignTarget, items);
+      assignDirty = true;
+    };
+    c.addEventListener('change', commitQty);
+    // Enter 就當作改完了，不要送出去變成別的動作
+    c.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); commitQty(); c.blur(); }
+    });
+    row.appendChild(c);
     const x = document.createElement('b');
     x.textContent = '×';
     x.addEventListener('click', () => {
@@ -2673,7 +3086,8 @@ function addPending(){
   if (!assignTarget || !cat) return false;
   const qty = parseInt(qtyInput.value, 10);
   const items = getItems(assignTarget);
-  items.push({ cat, qty: Number.isFinite(qty) && qty > 0 ? qty : null });
+  // 沒填就是 1：一個品類至少有一支，null（不顯示數量）不是真的會發生的情況
+  items.push({ cat, qty: Number.isFinite(qty) && qty > 0 ? qty : 1 });
   setItems(assignTarget, items);
   assignDirty = true;
   catInput.value = '';
@@ -2759,9 +3173,15 @@ document.addEventListener('pointerup', e => {
 /* ---- cursor-following status chip ---- */
 function chipText(node){
   let txt = mode === 'cut' ? (cutDir === 'vertical' ? '直切' : '橫切') : MODE_NAMES[mode];
+  if (mode === 'cut' && cutLenCm() != null) txt += ` <span class="sub">${cutLenCm()}cm 處</span>`;
   if (node) {
     const r = node.getBoundingClientRect();
-    txt += ` <span class="sub">${Math.round(r.width)}×${Math.round(r.height)}px</span>`;
+    /* 這一塊多大：講公分，不講 px —— 版面是照實際尺寸畫的，px 只是它現在剛好被
+       畫成多大，換一個視窗大小就變一個數字，對切版的人沒有意義。 */
+    const ws = node.closest('.board-ws');
+    const k = ws ? pxPerCm(ws) : 0;
+    txt += k ? ` <span class="sub">${(r.width/k).toFixed(1)}×${(r.height/k).toFixed(1)}cm</span>`
+             : ` <span class="sub">${Math.round(r.width)}×${Math.round(r.height)}px</span>`;
     const items = getItems(node);
     if (items.length) {
       const s = items.map(it => it.cat + (it.qty ? `(${it.qty})` : '')).join('、');
@@ -2785,6 +3205,14 @@ boardsWrap.addEventListener('mousemove', e => {
   moveChip(e.clientX, e.clientY, e.target);
   const ws = e.target.closest('.board-ws');
   if (ws) updateRulerMarkers(e.clientX, e.clientY, ws);
+  /* 切割模式：滑過哪一塊，紅線就畫在那一塊上。手移開版面之後這條線和紅框留著
+     （不清掉）—— 「切下去」那顆鈕站在版面外面，清掉就等於按不到。 */
+  if (mode === 'cut'){
+    cutHoverXY = { x: e.clientX, y: e.clientY };
+    const n = e.target.closest('.window-node');
+    if (n) aimAt(n);            // 滑過切割線那幾 px 不算「換了目標」
+    paintCutPreview();
+  }
 });
 boardsWrap.addEventListener('mouseleave', () => { cursorChip.style.display = 'none'; });
 
@@ -2945,20 +3373,37 @@ document.getElementById('trashClose').addEventListener('click', () => trashMask.
 trashMask.addEventListener('click', e => { if (e.target === trashMask) trashMask.classList.add('hidden'); });
 
 /* ================= navigation & submit ================= */
-/* 切到設計／PM 那一支。網址帶 ?plan= 的話（從編輯器那顆「← 行銷」跳回來的），
-   再跳回去時把同一個檔期帶著走，兩邊就會停在同一個檔期上。 */
+/* 去看落版／拼板。網址從 config 的 editorUrl 來，沒設定就不出現那些按鈕 ——
+   一顆按了 404 的鈕比沒有更糟。相對路徑（`/editor`）只有部署起來（http）才走得到，
+   絕對網址則到哪裡都走得到，所以兩種分開判斷。
+   `as=mkt`＝以行銷的身分進去（編輯器的身分列上沒有「行銷」這個選項，
+   只有從這裡進去才是），`plan=` 帶著那一檔，兩邊就停在同一個檔期上。 */
+function editorLinkFor(id){
+  const to = (window.SUPABASE || {}).editorUrl;
+  if (!to) return null;
+  const absolute = /^https?:\/\//.test(to);
+  if (!absolute && !/^https?:$/.test(location.protocol)) return null;
+  return to + '?as=mkt' + (id ? '&plan=' + encodeURIComponent(id) : '');
+}
+/** 走之前先把改的東西送上去 —— 那邊是從資料庫拉的，沒 flush 就會看到舊的。 */
+async function goEditor(href){
+  const s = sync();
+  if (s) { try { await s.flush(); } catch (e){} }
+  location.href = href;
+}
 (function(){
   const btn = document.getElementById('toEditor');
-  const to = (window.SUPABASE || {}).editorUrl;
-  if (!to || !/^https?:$/.test(location.protocol)) return;
-  btn.style.display = '';
-  btn.addEventListener('click', async () => {
-    const want = new URLSearchParams(location.search).get('plan');
-    const s = sync();
-    if (s) { try { await s.flush(); } catch (e){} }   // 先確保存上去，那邊才拉得到
-    location.href = to + (want ? '?plan=' + encodeURIComponent(want) : '');
+  btn.addEventListener('click', () => {
+    const href = editorLinkFor(new URLSearchParams(location.search).get('plan'));
+    if (href) goEditor(href);
   });
 })();
+/** 那顆總表上的「落版／拼板 →」要不要出現。renderHome 每次都問一次 ——
+    設定是開機之後才從 config 進來的，寫死在載入當下會永遠是關的。 */
+function updateEditorBtn(){
+  const btn = document.getElementById('toEditor');
+  if (btn) btn.style.display = editorLinkFor(null) ? '' : 'none';
+}
 
 document.getElementById('newPlanBtn').addEventListener('click', () => {
   resetPlanForm();
@@ -2970,6 +3415,22 @@ document.getElementById('backPlanBtn').addEventListener('click', () => { show('p
 
 document.getElementById('nextBtn').addEventListener('click', () => {
   const name = nameInput.value.trim() || `未命名檔期 ${fmtMD(new Date())}`;
+  /* 改的是已經開過的檔期：同一個表、同一條時間軸，只是存回去而不是往下開一張版。
+     行銷開完檔之後日期天天在變（印廠改期、檔期提前），而時間軸這個工具本來就在
+     這裡 —— 為了改兩個天數重開一個檔期是最貴的做法。 */
+  if (editingPlan){
+    editingPlan.name = name;
+    editingPlan.type = selectedType();
+    editingPlan.tags = tags.slice();
+    editingPlan.start = toYMD(START);
+    editingPlan.durs = dursFromFlags();
+    savePlans(editingPlan);
+    const done = editingPlan;
+    editingPlan = null;
+    show('home'); renderHome();
+    toast(`已更新「${done.name}」的時程`);
+    return;
+  }
   draft = {
     id: 'p' + Date.now(),
     name,
@@ -2984,7 +3445,7 @@ document.getElementById('nextBtn').addEventListener('click', () => {
   cutDir = 'vertical';
   setMode('assign'); // open in the safe 點選 mode; cut is a deliberate pick
   applyBodyClass();
-  initBoards();
+  initBoards(impLayout);   // 帶入過舊檔期就從它的版位／品類接著改
   layoutBoards();   // needs the view visible to measure
   syncSubmitBtn();  // 一進來就是整版空的，提交要先關起來
 });
