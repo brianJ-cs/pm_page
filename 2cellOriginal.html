@@ -1,0 +1,1198 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>格子商品帶入</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px}
+*{box-sizing:border-box}
+body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-box;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;display:flex}
+
+/* ---------- 左 sidebar：後台 ---------- */
+/* 後台改為覆蓋層，開合不推動中間格子 */
+#side{position:fixed;left:0;top:0;bottom:0;z-index:80;width:0;flex:0 0 0;
+  background:#fff;border-right:1px solid var(--line);overflow:hidden;
+  box-shadow:6px 0 24px rgba(0,0,0,.08);
+  transition:flex-basis .18s,width .18s;display:flex;flex-direction:column}
+#side.on{width:460px;flex-basis:460px}
+#side.on ~ #stage{pointer-events:auto}
+.side-hd{padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:800;
+  display:flex;align-items:center;justify-content:space-between}
+.side-bd{flex:1;overflow:auto;padding:12px}
+
+/* ---------- 中間工作區 ---------- */
+#topbar{position:fixed;left:0;right:0;top:0;height:52px;z-index:90;background:#fff;
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 14px}
+.tlabel{font-size:12.5px;font-weight:800;color:#666;margin-left:10px}
+.num{width:52px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+  font:inherit;font-size:13px;text-align:center}
+.num:focus{outline:none;border-color:var(--accent)}
+.tx{font-weight:800;color:#888}
+.tinfo{font-size:12px;color:#999;font-weight:700;min-width:34px}
+.tsep{width:1px;height:22px;background:var(--line);margin:0 6px}
+#pad{width:140px;accent-color:var(--accent)}
+/* 格子陣列 */
+#grid{display:grid;gap:0;justify-content:center;box-shadow:0 6px 26px rgba(0,0,0,.07);background:#fff}
+#grid .cell{width:var(--cw);height:var(--ch)}
+/* 內容永遠以 540x420 排版，再整體縮放，比例不變也不會被裁切 */
+.cstage{position:absolute;left:0;top:0;width:540px;height:420px;
+  transform-origin:0 0;transform:scale(var(--cs,1))}
+/* 上下左右 10px 安全邊界，元素不可進入 */
+.safe{position:absolute;left:var(--pad,20px);top:var(--pad,20px);
+  right:var(--pad,20px);bottom:var(--pad,20px);
+  outline:1px dashed rgba(211,31,43,.22);pointer-events:none;display:none}
+.cell.cur .safe{display:block}
+/* 目前作用中的格子：只用內陰影標示，不加框線以免破壞黏合外觀 */
+.cell.cur{box-shadow:inset 0 0 0 2px var(--accent)}
+/* 只有非第一列的格子去掉上虛線，避免橫向相鄰時誤消 */
+#grid .cell:not(.row1){border-top:none}
+#stage{flex:1;min-width:0;overflow:auto;padding:24px;display:flex;align-items:center;justify-content:center;position:relative}
+/* 版面錨點：格子永遠置中不動，左右面板各自佔預留欄位 */
+#rig{display:grid;grid-template-columns:auto 400px;align-items:center;column-gap:0}
+/* 右欄：選商品在上、圖層在下，之間留空隙 */
+#rcol{grid-column:2;margin-left:28px;display:flex;flex-direction:column;gap:16px;
+  max-height:calc(100vh - 100px)}
+/* 圖層面板與格子零間距貼合 */
+#wrap{position:relative;display:flex;align-items:stretch;gap:0;grid-column:1}
+
+
+/* ---------- 格子 ---------- */
+.cell{position:relative;width:var(--cw);height:var(--ch);background:#fff;
+  border:none;border-top:1px dashed #c9d0dc;border-bottom:1px dashed #c9d0dc;border-radius:0;
+  cursor:pointer;padding:0;display:block}
+
+.cell{overflow:hidden}
+
+.cell.empty{align-items:center;justify-content:center;color:#aab;font-size:20px;font-weight:700}
+/* 格子內每個元素都是可自由移動的 block */
+.blk{position:absolute;cursor:move;user-select:none;border:1.5px solid transparent;border-radius:6px;
+  padding:2px 4px;transition:border-color .1s}
+.blk:hover{border-color:#c3cbd8}
+.blk.sel{border-color:var(--accent);background:rgba(211,31,43,.06)}
+.blk.drop{border-color:#0a7;background:rgba(0,170,119,.12)}
+.blk.name{font-size:30px;font-weight:800;letter-spacing:.5px}
+.blk.model{font-size:13px;font-weight:700;color:#666;letter-spacing:.3px}
+/* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
+.blk.brand .bimg{height:26px;display:block;pointer-events:none}
+.bph{position:relative;display:inline-block;width:120px;height:28px}
+.bph svg{width:100%;height:100%;display:block}
+.bph i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
+.blk.img img,.blk.img .ph{width:100%;display:block;pointer-events:none}
+.blk.img .ph{height:170px}
+.blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:52px;line-height:1}
+.spec{display:inline-block;border:1.5px solid #111;border-radius:6px;padding:1px 8px;
+  font-size:14px;font-weight:800;margin-bottom:3px}
+.sku{font-size:12px;color:#333;line-height:1.35;white-space:nowrap}
+.guide{position:absolute;background:#e0329b;pointer-events:none;z-index:60}
+.guide.gv{top:0;bottom:0;width:1px}
+.guide.gh{left:0;right:0;height:1px}
+.marquee{position:absolute;display:none;border:1.5px dashed var(--accent);
+  background:rgba(211,31,43,.07);pointer-events:none;z-index:50}
+.price{font-family:Anton,sans-serif;color:var(--accent);font-size:44px;line-height:1;margin-top:4px}
+
+/* ---------- 選商品面板 ---------- */
+.panel{width:400px;height:380px;flex-shrink:0;background:#fff;border:1px solid var(--line);border-radius:14px;
+  display:none;flex-direction:column;overflow:hidden;box-shadow:0 6px 26px rgba(0,0,0,.07)}
+.panel.on{display:flex}
+.psearch{padding:10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+.psearch input{flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px}
+.psearch input:focus{outline:none;border-color:var(--accent)}
+.pbody{flex:1;overflow:auto;padding:12px}
+.pcats{display:flex;gap:6px;padding:9px 10px;border-top:1px solid var(--line);overflow-x:auto;flex-shrink:0}
+.pcats button{appearance:none;white-space:nowrap;border:1px solid var(--line);background:#fbfcfe;
+  border-radius:999px;padding:6px 14px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.pcats button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:14px}
+.item:hover{background:#f4f6fa}
+.item input{width:16px;height:16px;accent-color:var(--accent)}
+.grp{font-size:12px;font-weight:800;color:#888;margin:10px 0 4px}
+.grpline td{border-top:2px solid #b9c1cf}
+.imgrow{display:flex;align-items:center;gap:8px;padding:4px 0}
+.ithumb{width:34px;height:34px;flex-shrink:0;display:block;overflow:hidden;border-radius:5px;background:#f0f2f6}
+.ithumb img,.ithumb svg{width:100%;height:100%;object-fit:cover;display:block}
+.iname{flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bthumb{width:76px;flex-shrink:0;display:block}
+.bthumb .bph{width:76px;height:20px}
+.bthumb .bph i{font-size:9px}
+.bthumb .bimg{height:20px;width:auto;max-width:76px;object-fit:contain}
+.binput{flex:1;min-width:0;border:1px solid var(--line);border-radius:6px;padding:4px 7px;
+  font:inherit;font-size:12px}
+.binput:focus{outline:none;border-color:var(--accent)}
+.var{font-size:12.5px;color:#555;margin-left:auto}
+.empty-hint{color:#aab;font-size:13px;padding:14px;text-align:center}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:3px 4px}
+th{background:#f6f8fb;font-size:11px}
+td input,.grp input{border:none;font:inherit;padding:2px;background:transparent;width:100%}
+td input:focus,.grp input:focus{outline:1px solid var(--accent)}
+.mini{appearance:none;border:1px solid var(--line);background:#fbfcfe;border-radius:7px;
+  padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;margin:6px 4px 0 0}
+.mini:hover{border-color:var(--accent);color:var(--accent)}
+
+.blk.img{overflow:visible}
+.blk.img.actimg{border-color:#007acc;box-shadow:0 0 12px rgba(0,122,204,.45);opacity:1!important}
+.tobtn{position:absolute;right:8px;bottom:8px;display:none;appearance:none;
+  border:1px solid rgba(0,0,0,.15);border-bottom-width:2px;
+  background:linear-gradient(#fff,#eef1f6);color:#1b3a57;font:inherit;font-size:11px;font-weight:800;
+  padding:5px 10px;border-radius:7px;cursor:pointer;z-index:5;
+  box-shadow:0 2px 5px rgba(0,0,0,.18)}
+.tobtn:hover{background:linear-gradient(#fff,#dfe6f0);border-color:#007acc;color:#007acc}
+.tobtn:active{transform:translateY(1px);border-bottom-width:1px;box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.blk.img:hover .tobtn,.blk.img.actimg .tobtn{display:block}
+/* 圖層面板：位於選商品面板正下方，獨立窗口 */
+#lay{display:none;width:400px;flex:1;min-height:150px;background:#fff;
+  border:1px solid var(--line);border-radius:14px;flex-direction:column;overflow:hidden;
+  box-shadow:0 6px 26px rgba(0,0,0,.07)}
+#lay.on{display:flex}
+#lay .side-hd{padding:10px 12px;font-size:12px}
+#lay .side-bd{flex:1;overflow:auto;padding:8px}
+.lyr{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:8px;cursor:pointer;
+  border:1.5px solid transparent;font-size:13px}
+.lyr:hover{background:#f4f6fa}
+.lyr.on{border-color:#007acc;background:rgba(0,122,204,.08)}
+.lyr{cursor:grab}
+.lyr:active{cursor:grabbing}
+.lyr.dragging{opacity:.45}
+.lyr.over{border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
+.lgrip{color:#b9c1cf;font-size:11px;flex-shrink:0}
+.lyr .mini{font-size:10.5px;padding:3px 7px;opacity:0;flex-shrink:0}
+.lyr:hover .mini,.lyr.on .mini{opacity:1}
+.lthumb{width:30px;height:30px;flex-shrink:0;overflow:hidden;border-radius:5px;background:#f0f2f6}
+.lthumb img,.lthumb svg{width:100%;height:100%;object-fit:cover;display:block}
+.lname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lz{font-size:10px;color:#999;font-weight:800}
+.spec.dark{background:#111;color:#fff;border-color:#111}
+/* 劃線：兩條對角線橫跨整個價格，線條隨字級縮放 */
+.blk.price.crossed{overflow:visible}
+.blk.price.crossed::before,.blk.price.crossed::after{
+  content:'';position:absolute;left:-6%;top:50%;width:112%;height:0;
+  border-top:.07em solid #111;pointer-events:none}
+.blk.price.crossed::before{transform:rotate(15deg)}
+.blk.price.crossed::after{transform:rotate(-15deg)}
+/* 浮動小工具列：貼在被選元素正上方 */
+#props{position:absolute;display:none;gap:5px;z-index:70;
+  background:#fff;border:1px solid var(--line);border-radius:9px;padding:4px;
+  box-shadow:0 4px 14px rgba(0,0,0,.16)}
+#props.on{display:flex}
+#props::after{content:'';position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);
+  width:9px;height:9px;background:#fff;border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);rotate:45deg}
+.pbtn{appearance:none;border:1px solid var(--line);background:#fbfcfe;border-radius:6px;
+  padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+.pbtn:hover{border-color:#111}
+.pbtn.act{background:#111;color:#fff;border-color:#111}
+#tip{position:fixed;pointer-events:none;z-index:99;background:#111;color:#fff;font-size:12px;
+  font-weight:700;padding:5px 9px;border-radius:7px;transform:translate(14px,16px);display:none;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <div class="side-hd"><span>後台編輯</span><button class="mini" id="sideClose" style="margin:0">收起</button></div>
+  <div class="side-bd" id="paneEdit"></div>
+</aside>
+
+<div id="topbar">
+  <button class="mini" id="sideToggle" style="margin:0">後台</button>
+  <span class="tlabel">版面</span>
+  <input id="gcols" class="num" type="number" min="1" max="8" value="1">
+  <span class="tx">×</span>
+  <input id="grows" class="num" type="number" min="1" max="8" value="1">
+  <button class="mini" id="gapply" style="margin:0">產生格子</button>
+  <span class="tinfo" id="ginfo"></span>
+  <span class="tsep"></span>
+  <span class="tlabel" style="margin-left:0">邊界</span>
+  <input id="pad" type="range" min="0" max="60" value="20">
+  <span class="tinfo" id="padv">20 px</span>
+</div>
+
+<div id="stage">
+  <div id="rig">
+  <div id="wrap">
+    <div id="grid"></div>
+    <div id="props"></div>
+  </div>
+  <div id="rcol">
+    <div class="panel" id="panel">
+      <div class="psearch"><input id="q" placeholder="搜尋商品 / 規格 / SKU"></div>
+      <div class="pbody" id="panePick"></div>
+    </div>
+  <aside id="lay">
+    <div class="side-hd"><span>圖層</span><span style="font-weight:600;color:#999;font-size:11px">滾輪切換</span></div>
+    <div class="side-bd" id="layers"></div>
+  </aside>
+  </div>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+/* ====== 資料：商品 = name + cat + variants(spec,sku,price) ====== */
+/* ====== 後台資料 = 一列一筆，扁平：名稱 / 規格 / SKU / 價格 ======
+   不自動分類。相同名稱的列在渲染時「就地成群」（連續同名視為同一商品），
+   所以 SKU 相近但名稱不同的列不會被硬併在一起。 */
+let ROWS = [
+  ['iPhone 17 Pro Max','256G','黑','2156742',44900],
+  ['iPhone 17 Pro Max','256G','橘','2156744',44900],
+  ['iPhone 17 Pro Max','512G','黑','2156739',51900],
+  ['iPhone 17 Pro Max','512G','橘','2156740',51900],
+  ['iPhone 17 Pro Max','512G','白','2156745',51900],
+  ['iPhone 17 Pro Max','1TB','','2156738',58900],
+  ['iPhone 17 Pro Max','1TB','','2156741',58900],
+  ['iPhone 17 Pro Max','1TB','','2156724',58900],
+  ['iPhone 17 Pro','256G','','2156751',39900],
+  ['iPhone 17 Pro','256G','','2156748',39900],
+  ['iPhone 17 Pro','512G','','2156749',46900],
+  ['iPhone 17 Pro','512G','','2156746',46900],
+  ['iPhone 17 Pro','1TB','','2156735',53900],
+  ['iPhone 17 Pro','1TB','','2156734',53900],
+  ['Galaxy A5','256G 12GB','','2162613',12900],
+  ['Galaxy A5','512G 12GB','','2162614',14900],
+  ['iPad Air','128G','','2154566',19900],
+  ['iPad Air','128G','','2154569',19900],
+  ['iPad Air','256G','','2154562',23400],
+  ['iPad Air','256G','','2154565',23400],
+  ['iPad A16','128G','','2154573',10900],
+  ['iPad A16','128G','','2154575',10900],
+  ['iPad A16','256G','','2154572',19900],
+  ['iPad A16','256G','','2154570',19900],
+  ['MacBook Pro','512G','','2158956',52900],
+  ['MacBook Pro','512G','','2158957',52900],
+  ['MacBook Pro','512G','','2158954',52900],
+  ['MacBook Pro','512G','','2158955',52900],
+  ['MacBook Neo Air M5','256G','','2162848',22900],
+  ['MacBook Neo Air M5','256G','','2162849',22900],
+  ['MacBook Neo Air M5','256G','','2162850',22900],
+  ['MacBook Neo Air M5','512G','','2162864',35900],
+  ['MacBook Neo Air M5','512G','','2162865',35900],
+  ['MacBook Neo Air M5','1TB','','2162868',42900],
+  ['MacBook Neo Air M5','1TB','','2162869',42900],
+  ['AirPods 4','降噪款','','2150080',5490],
+  ['AirPods 4','一般款','','2150081',4290],
+  ['AirPods Pro 3','標準','','2157982',7490],
+  ['ANKER 30W 自帶線行動電源','','白','2157669',1290],
+  ['ANKER 30W 自帶線行動電源','','黑','2157670',1290]
+].map((r,i)=>({name:r[0],spec:r[1],color:r[2],sku:r[3],price:r[4],_i:i}));
+
+/* 型號：配件/充電器類才有，手機平板通常沒有。以商品名為 key，
+   所以同商品的不同顏色與容量共用同一型號。 */
+let MODEL = {
+  'ANKER 30W 自帶線行動電源':'A1654H21',
+  'AirPods Pro 3':'MTJV3',
+  'AirPods 4':'',
+  'iPhone 17 Pro Max':'',
+  'iPhone 17 Pro':'',
+  'Galaxy A5':'',
+  'iPad Air':'',
+  'iPad A16':'',
+  'MacBook Pro':'',
+  'MacBook Neo Air M5':''
+};
+function modelOf(n){ return MODEL[n]||''; }
+
+/* 品牌：同商品共用。BRAND 存品牌名，BIMG 存上傳的品牌 PNG(dataURL)。
+   沒上傳圖時顯示長方形 placeholder，高度與品牌字級相當。 */
+let BRAND = {
+  'iPhone 17 Pro Max':'Apple','iPhone 17 Pro':'Apple','iPad Air':'Apple','iPad A16':'Apple',
+  'MacBook Pro':'Apple','MacBook Neo Air M5':'Apple','AirPods 4':'Apple','AirPods Pro 3':'Apple',
+  'Galaxy A5':'Samsung','ANKER 30W 自帶線行動電源':'ANKER'
+};
+let BIMG = {};
+function brandOf(n){ return BRAND[n]||''; }
+
+/* 品牌圖：有上傳用圖，否則畫長形 placeholder（內嵌，斷網可用） */
+function brandHTML(n){
+  const b=brandOf(n);
+  if(BIMG[n]) return `<img class="bimg" src="${BIMG[n]}" alt="" draggable="false">`;
+  return `<span class="bph"><svg viewBox="0 0 120 28" preserveAspectRatio="none">
+      <rect x="0.6" y="0.6" width="118.8" height="26.8" rx="4" fill="#f0f2f6"
+        stroke="#c9d0dc" stroke-width="1.2" stroke-dasharray="4 3"/>
+    </svg><i>${b||'品牌'}</i></span>`;
+}
+
+/* 就地成群：連續且同名的列 → 一個商品。名稱不同即斷開。 */
+function groups(){
+  const out=[];
+  for(const r of ROWS){
+    const last=out[out.length-1];
+    if(last && last.name===r.name) last.rows.push(r);
+    else out.push({name:r.name,rows:[r]});
+  }
+  return out;
+}
+
+/* ====== 多格：每一格有自己的 picked / BLOCKS / layoutKey ====== */
+let PAD=20;            // 安全邊界(px，排版座標)，由上方 slider 控制
+let CELLS=[];          // [{id, picked:Set, blocks:[], layoutKey:''}]
+let curCell=0;         // 目前作用中的格子索引
+let GC=1, GR=1;        // 版面 欄×列
+
+function cell(i){ return CELLS[i===undefined?curCell:i]; }
+/* 所有既有邏輯都透過這兩個 getter/setter 存取當前格 */
+function cellEl(i){ return document.getElementById('cell'+(i===undefined?curCell:i)); }
+
+function makeCells(cols,rows){
+  GC=cols; GR=rows;
+  const n=cols*rows;
+  const old=CELLS;
+  CELLS=[]; 
+  for(let i=0;i<n;i++) CELLS.push(old[i]||{picked:new Set(),blocks:[],layoutKey:''});
+  if(curCell>=n) curCell=0;
+  const g=document.getElementById('grid');
+  g.style.gridTemplateColumns=`repeat(${cols},var(--cw))`;
+  g.innerHTML=CELLS.map((c,i)=>
+    `<div class="cell empty${i===curCell?' cur':''}${i<cols?' row1':''}" id="cell${i}" data-cell="${i}">點一下選商品</div>`).join('');
+  document.getElementById('ginfo').textContent=`${n} 格`;
+  CELLS.forEach((c,i)=>renderOne(i));
+  renderLayers();
+}
+
+let picked = new Set();   // 選中的 row._i
+let q = '';
+const $=s=>document.querySelector(s);
+
+/* ====== 核心合併：同 spec 同 price → SKU 合併；價不同 → 各自一欄 ====== */
+/* 價格是唯一的分欄依據。
+   同價 → 同一欄，不管規格是否相同；欄內再依規格分行列出各自的 SKU。
+   價格不同 → 各自一欄（左 / 左中右）。 */
+function buildCols(rows){
+  const byPrice=new Map();
+  for(const v of rows){
+    if(!byPrice.has(v.price)) byPrice.set(v.price,new Map());
+    const bySpec=byPrice.get(v.price);
+    if(!bySpec.has(v.spec)) bySpec.set(v.spec,[]);
+    bySpec.get(v.spec).push(v);
+  }
+  return [...byPrice.entries()].map(([price,bySpec])=>({
+    price, lines:[...bySpec.entries()].map(([spec,vs])=>({spec,vs}))
+  }));
+}
+/* SKU 串規則：
+   1. 只有一筆 → 不寫顏色，只寫完整 SKU。
+   2. 多筆 → 第一筆完整，其後只留尾碼，顏色貼在各自 SKU 之後。
+   3. 連號且該段皆無顏色 → 併成範圍：2000041/42/43 → 2000041-43
+      （有顏色的不併，否則顏色對應會遺失。） */
+function skuLine(vs){
+  if(vs.length===1) return 'SKU：'+vs[0].sku;
+
+  const skus=vs.map(v=>v.sku);
+  let pre=skus[0];
+  for(const t of skus.slice(1)){let i=0;while(i<pre.length&&pre[i]===t[i])i++;pre=pre.slice(0,i)}
+  const usePre = pre.length>=3;
+  const tail=(v,i)=>{
+    if(i===0||!usePre) return v.sku;
+    const t=v.sku.slice(pre.length);
+    return t.length<2 ? v.sku.slice(-2) : t;   // 尾碼至少 2 位
+  };
+
+  const parts=[];
+  let i=0;
+  while(i<vs.length){
+    // 找連號且無顏色的一段
+    let j=i;
+    while(j+1<vs.length && !vs[j].color && !vs[j+1].color &&
+          vs[j+1].sku.length===vs[j].sku.length &&
+          (+vs[j+1].sku)===(+vs[j].sku)+1) j++;
+    if(j-i>=2){                       // 至少三筆才值得用 -
+      const a=tail(vs[i],i);
+      // 結尾用去掉共同前綴的尾碼，但至少留 2 位，避免出現 2000041-3
+      let b = usePre ? vs[j].sku.slice(pre.length) : vs[j].sku;
+      if(b.length<2) b = vs[j].sku.slice(-2);
+      parts.push(a+'-'+b);
+    }else{
+      for(let k=i;k<=j;k++) parts.push(tail(vs[k],k)+(vs[k].color||''));
+      j=i>j?i:j;
+    }
+    i=j+1;
+  }
+  return 'SKU：'+parts.join('/');
+}
+
+/* ====== 版面：每個元素 = 一個可自由移動的 block ======
+   block.kind: name | img | sku | price
+   sku block 帶 vs（該塊包含哪些 row），拖曳合併就是把兩塊的 vs 併起來。
+   pos 以格子左上為原點，px。 */
+/* 每個選項各自一張圖：key = 名稱|規格|顏色 */
+let IMG = {};
+function imgKey(r){ return r.name+'|'+(r.spec||'')+'|'+(r.color||''); }
+function keyLabel(k){ const a=k.split('|'); return a[0]+(a[1]?'　'+a[1]:'')+(a[2]?'　'+a[2]:''); }
+let BLOCKS = [];
+/* picked 與 BLOCKS 是「目前格」的視圖，切格時同步 */
+function loadCell(i){
+  if(cell(i)===undefined) return;
+  curCell=i; picked=cell().picked; BLOCKS=cell().blocks; layoutKey=cell().layoutKey;
+}
+function saveCell(){ if(cell()){ cell().picked=picked; cell().blocks=BLOCKS; cell().layoutKey=layoutKey; } }
+let selected = new Set();     // 選中的 block id
+let layoutKey = '';           // 資料簽章，變了才重排
+
+function sig(){ return [...picked].sort((a,b)=>a-b).join(','); }
+
+function buildBlocks(){
+  const sel = ROWS.filter(r=>picked.has(r._i));
+  if(!sel.length){ BLOCKS=[]; return; }
+  const name = sel[0].name;
+  const rows = sel.filter(r=>r.name===name);
+  const cols = buildCols(rows);
+  const single = cols.length===1;
+  let id=0;
+  const B=[];
+  const hasBrand = !!(brandOf(name)||BIMG[name]);
+  if(hasBrand) B.push({id:'b'+id++,kind:'brand',name,x:PAD,y:PAD});
+  const nameY = hasBrand?PAD+34:PAD;
+  B.push({id:'b'+id++,kind:'name',text:name,x:PAD,y:nameY});
+  const mdl=modelOf(name);
+  if(mdl) B.push({id:'b'+id++,kind:'model',text:mdl,name,x:PAD,y:nameY+34});
+
+  if(single){
+    const top = (hasBrand?54:22)+40;
+    let y = modelOf(name)?top+20:top;
+    for(const l of cols[0].lines){
+      B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),x:26,y});
+      y+=22;
+    }
+    rows.forEach((r,i)=>B.push({id:'b'+id++,kind:'img',row:r,key:imgKey(r),
+      x:150+i*14,y:120+i*14,w:200,z:i+1}));
+    B.push({id:'b'+id++,kind:'price',price:cols[0].price,x:340,y:330});
+  }else{
+    rows.forEach((r,i)=>B.push({id:'b'+id++,kind:'img',row:r,key:imgKey(r),
+      x:150+i*14,y:70+i*14,w:190,z:i+1}));
+    /* 規格／SKU／價格整組靠右下角：最後一欄貼齊右邊界，往左依序排 */
+    const n=cols.length, gap=Math.min(170,(540-PAD*2)/n);
+    const groupW=gap*n;
+    const x0=540-PAD-groupW;          // 整組左緣，使右緣落在 540-PAD
+    // 每欄高度：規格(26)+SKU(24) 各行 + 價格(約56)
+    const rowsH = Math.max(...cols.map(c=>
+      c.lines.reduce((a,l)=>a+(l.spec?26:0)+24,0)));
+    const yTop = 420-PAD-58-rowsH;    // 由下往上推算起點（價格塊約 56 高 +2 間距）
+    cols.forEach((c,ci)=>{
+      const cx=x0+ci*gap;
+      let y=yTop;
+      for(const l of c.lines){
+        if(l.spec){ B.push({id:'b'+id++,kind:'spec',spec:l.spec,x:cx,y}); y+=26; }
+        B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),x:cx,y});
+        y+=24;
+      }
+      B.push({id:'b'+id++,kind:'price',price:c.price,x:cx,y:y+2});
+    });
+  }
+  BLOCKS=B;
+}
+
+/* 商品圖：有上傳用上傳的，沒有就畫 placeholder（內嵌 SVG，斷網也看得到） */
+function imgHTML(k){
+  if(IMG[k]) return `<img src="${IMG[k]}" alt="" draggable="false">`;
+  const a=k.split('|'), tag=[a[1],a[2]].filter(Boolean).join(' ')||'—';
+  return `<svg class="ph" viewBox="0 0 100 100" preserveAspectRatio="none">
+    <rect x="0" y="0" width="100" height="100" rx="3" fill="#f0f2f6" stroke="#d5dae3"
+      stroke-width="0.7" stroke-dasharray="3 2"/>
+    <g fill="none" stroke="#b9c1cf" stroke-width="1.6" stroke-linejoin="round">
+      <rect x="30" y="34" width="40" height="32" rx="2.5"/>
+      <path d="M30 58 L41 47 L50 56 L59 50 L70 60"/>
+    </g>
+    <circle cx="41" cy="43" r="3.2" fill="#b9c1cf"/>
+    <text x="50" y="80" text-anchor="middle" font-size="7" fill="#8a94a6"
+      font-family="sans-serif" font-weight="700">${tag}</text>
+  </svg>`;
+}
+
+let activeImg=null;          // 滾輪循環中的目前圖層 id
+let stackUnder=[];           // 游標下的圖層(由上到下)
+let cycleIndex=0;
+
+/* 擋在 active 前面(z 較大)的圖層降為 0.5，其餘 1 */
+function xrayDim(b){
+  if(!activeImg) return 1;
+  const a=BLOCKS.find(x=>x.id===activeImg);
+  if(!a||b.id===a.id) return 1;
+  return b.z>a.z ? .5 : 1;
+}
+
+function blockHTML(b,isCur=true){
+  const on = (isCur&&selected.has(b.id))?' sel':'';
+  if(b.kind==='name')  return `<div class="blk name${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${b.text}</div>`;
+  if(b.kind==='img'){
+    const dim = isCur?xrayDim(b):1;
+    return `<div class="blk img${on}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
+      style="left:${b.x}px;top:${b.y}px;width:${b.w}px;z-index:${b.z};opacity:${dim}">
+      ${imgHTML(b.key)}
+      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
+  }
+  if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${brandHTML(b.name)}</div>`;
+  if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">機型：${b.text}</div>`;
+  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
+  if(b.kind==='price') return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">${b.price.toLocaleString()}</div>`;
+  // sku
+  return `<div class="blk skub${on}" data-b="${b.id}" style="left:${b.x}px;top:${b.y}px">`+
+    `<div class="sku">${skuLine(b.vs)}</div></div>`;
+}
+
+function renderCell(){ renderOne(curCell); }
+
+/* 渲染單一格子（i 可為任一格） */
+function renderOne(i){
+  const el=document.getElementById('cell'+i);
+  if(!el) return;
+  const c=CELLS[i]; if(!c) return;
+  const isCur = i===curCell;
+  const row1 = i<GC ? ' row1':'';
+  const pk = isCur?picked:c.picked;
+  if(!pk.size){
+    el.className='cell empty'+(isCur?' cur':'')+row1;
+    el.innerHTML='點一下選商品';
+    // 必須清掉 layoutKey，否則之後重選同一組會與舊 key 相同而不重建
+    c.layoutKey='';
+    if(isCur){ BLOCKS=[]; layoutKey=''; } else c.blocks=[];
+    return;
+  }
+  const k=[...pk].sort((a,b)=>a-b).join(',');
+  if(k!==c.layoutKey){
+    c.layoutKey=k;
+    if(isCur){ layoutKey=k; selected.clear(); activeImg=null; }
+    const savedP=picked, savedB=BLOCKS;
+    picked=pk; buildBlocks(); c.blocks=BLOCKS;
+    if(isCur){ setTimeout(()=>{
+        const on=document.getElementById('panel').classList.contains('on');
+        document.getElementById('lay').classList.toggle('on',on);
+        renderLayers();
+      },0); }
+    else { picked=savedP; BLOCKS=savedB; }
+  }
+  const blocks = isCur?BLOCKS:c.blocks;
+  el.className='cell'+(isCur?' cur':'')+row1;
+  if(isCur) setTimeout(renderProps,0);
+  el.innerHTML = '<div class="cstage">'
+    + blocks.map(b=>blockHTML(b,isCur)).join('')
+    + (isCur?guides.map(g=>g.dir==='v'
+        ? `<div class="guide gv" style="left:${g.pos}px"></div>`
+        : `<div class="guide gh" style="top:${g.pos}px"></div>`).join(''):'')
+    + '<div class="marquee" id="marquee'+i+'"></div>'
+    + '<div class="safe"></div>'
+    + '</div>';
+}
+
+/* ====== 拖曳 / 框選 / 合併 ====== */
+let drag=null, marq=null, dragHappened=false;
+let guides=[];                       // 目前要畫的引導線
+const SNAP=6;                        // 弱磁吸半徑(px)，超過就掙脫
+
+/* 量測所有 block 的實際尺寸（拖曳開始時做一次） */
+function measure(){
+  const m={}, k=scaleOf();
+  for(const b of BLOCKS){
+    const el=bEl(b.id);
+    if(el){ const r=el.getBoundingClientRect(); m[b.id]={w:r.width/k,h:r.height/k}; }
+    else m[b.id]={w:0,h:0};
+  }
+  return m;
+}
+
+/* 依候選線做弱磁吸；回傳 {dx,dy,guides} */
+/* 10px 安全邊界：任何元素都不能超出 */
+function clampAll(ids,sizes){
+  if(!sizes) return;
+  // 以整組外框計算，維持相對位置
+  let L=Infinity,T=Infinity,R=-Infinity,B=-Infinity;
+  for(const id of ids){
+    const b=BLOCKS.find(x=>x.id===id); if(!b) continue;
+    const s=sizes[id]||{w:0,h:0};
+    L=Math.min(L,b.x); T=Math.min(T,b.y);
+    R=Math.max(R,b.x+s.w); B=Math.max(B,b.y+s.h);
+  }
+  if(L===Infinity) return;
+  let ox=0, oy=0;
+  if(L<PAD) ox=PAD-L;
+  if(R+ox>540-PAD) ox=Math.min(ox,(540-PAD)-R);
+  if(T<PAD) oy=PAD-T;
+  if(B+oy>420-PAD) oy=Math.min(oy,(420-PAD)-B);
+  if(ox||oy) for(const id of ids){
+    const b=BLOCKS.find(x=>x.id===id); if(b){ b.x+=ox; b.y+=oy; }
+  }
+}
+
+function snap(movingIds, sizes){
+  const CW=540, CH=420;   // 排版座標系固定尺寸
+  const moving=movingIds.map(id=>BLOCKS.find(b=>b.id===id));
+  // 移動群組的整體外框
+  let L=Infinity,T=Infinity,R=-Infinity,B=-Infinity;
+  for(const b of moving){
+    const s=sizes[b.id]||{w:0,h:0};
+    L=Math.min(L,b.x); T=Math.min(T,b.y);
+    R=Math.max(R,b.x+s.w); B=Math.max(B,b.y+s.h);
+  }
+  const gV=[{v:L,e:'l'},{v:(L+R)/2,e:'c'},{v:R,e:'r'}];   // 群組的垂直邊
+  const gH=[{v:T,e:'t'},{v:(T+B)/2,e:'m'},{v:B,e:'b'}];
+
+  // 目標線：其他 block 的邊/中線 + 格子邊界與中線
+  // 對齊線用安全邊界，不用格子實際邊緣
+  const tV=[{v:PAD},{v:CW/2},{v:CW-PAD}], tH=[{v:PAD},{v:CH/2},{v:CH-PAD}];
+  for(const b of BLOCKS){
+    if(movingIds.includes(b.id)) continue;
+    const s=sizes[b.id]||{w:0,h:0};
+    tV.push({v:b.x},{v:b.x+s.w/2},{v:b.x+s.w});
+    tH.push({v:b.y},{v:b.y+s.h/2},{v:b.y+s.h});
+  }
+
+  let bestX=null,bestY=null;
+  for(const g of gV) for(const t of tV){
+    const d=t.v-g.v;
+    if(Math.abs(d)<=SNAP && (!bestX||Math.abs(d)<Math.abs(bestX.d))) bestX={d,line:t.v};
+  }
+  for(const g of gH) for(const t of tH){
+    const d=t.v-g.v;
+    if(Math.abs(d)<=SNAP && (!bestY||Math.abs(d)<Math.abs(bestY.d))) bestY={d,line:t.v};
+  }
+  const gl=[];
+  if(bestX) gl.push({dir:'v',pos:bestX.line});
+  if(bestY) gl.push({dir:'h',pos:bestY.line});
+  return {dx:bestX?bestX.d:0, dy:bestY?bestY.d:0, guides:gl};
+}
+
+/* 只在目前格子內查找 block 元素（多格時 id 會重複出現在每一格） */
+function bEl(id){ const c=cellEl(); return c?c.querySelector(`[data-b="${id}"]`):null; }
+function scaleOf(){ return (cellEl()?cellEl().clientWidth:540)/540; }
+/* 滑鼠座標 -> 540x420 排版座標（除以縮放比） */
+function cellPt(e){
+  const el=cellEl(); if(!el) return {x:0,y:0};
+  const r=el.getBoundingClientRect(), k=scaleOf();
+  return {x:(e.clientX-r.left)/k, y:(e.clientY-r.top)/k};
+}
+function blockAt(x,y,exceptId){
+  // 由上往下找命中的 sku block
+  for(let i=BLOCKS.length-1;i>=0;i--){
+    const b=BLOCKS[i];
+    if(b.kind!=='sku'||b.id===exceptId) continue;
+    const el=bEl(b.id); if(!el) continue;
+    const r=el.getBoundingClientRect(), c=cellEl().getBoundingClientRect(), k=scaleOf();
+    const bx=(r.left-c.left)/k, by=(r.top-c.top)/k;
+    if(x>=bx&&x<=bx+r.width/k&&y>=by&&y<=by+r.height/k) return b;
+  }
+  return null;
+}
+
+document.getElementById('grid').addEventListener('mousedown',e=>{
+  const ce=e.target.closest('.cell'); if(!ce) return;
+  const idx=+ce.dataset.cell;
+  if(idx!==curCell){ saveCell(); loadCell(idx); selected.clear(); activeImg=null;
+    CELLS.forEach((c,i)=>renderOne(i));
+    renderPick();                   // 內容切換成這一格的
+  }
+  // 不論是否換格，按到任何格子都必定展開兩個窗口
+  openPanels(true); renderLayers();
+  if(!picked.size) return;
+  if(e.target.closest('.tobtn')) return;   // 按鈕不觸發拖曳
+  const el=e.target.closest('.blk');
+  const p=cellPt(e);
+  if(el){
+    const id=el.dataset.b;
+    const blk=BLOCKS.find(x=>x.id===id);
+    if(blk && blk.kind==='img'){
+      // 點 PNG：立刻選為當前圖層並展開左右面板
+      activeImg=id;
+      openPanels(true);
+      setTimeout(renderLayers,0);
+    }
+    if(!selected.has(id)){
+      if(!e.shiftKey) selected.clear();
+      selected.add(id);
+    }else if(e.shiftKey){ selected.delete(id); }
+    // 拖動所有已選 block
+    drag={start:p, ids:[...selected],
+      orig:Object.fromEntries([...selected].map(i=>{const b=BLOCKS.find(x=>x.id===i);return [i,{x:b.x,y:b.y}]})),
+      main:id, moved:false, sizes:null};
+    renderCell(); drag.sizes=measure();
+    renderCell();
+  }else{
+    // 點格子空白處：取消框選並取消目前選中的 PNG 圖層
+    if(!e.shiftKey) selected.clear();
+    if(activeImg){ activeImg=null; stackUnder=[]; cycleIndex=0; setTimeout(renderLayers,0); }
+    marq={x0:p.x,y0:p.y,x1:p.x,y1:p.y};
+    renderCell();
+  }
+  e.preventDefault();
+});
+
+addEventListener('mousemove',e=>{
+  if(drag){
+    const p=cellPt(e), dx=p.x-drag.start.x, dy=p.y-drag.start.y;
+    if(Math.abs(dx)>2||Math.abs(dy)>2) drag.moved=true;
+    for(const id of drag.ids){
+      const b=BLOCKS.find(x=>x.id===id);
+      b.x=drag.orig[id].x+dx; b.y=drag.orig[id].y+dy;
+    }
+    clampAll(drag.ids, drag.sizes);
+    // 弱磁吸：先算出對齊修正量，再整組平移；拉遠超過 SNAP 自然掙脫
+    guides=[];
+    if(drag.sizes){
+      const sn=snap(drag.ids, drag.sizes);
+      if(sn.dx||sn.dy) for(const id of drag.ids){
+        const b=BLOCKS.find(x=>x.id===id); b.x+=sn.dx; b.y+=sn.dy;
+      }
+      guides=sn.guides;
+      clampAll(drag.ids, drag.sizes);
+    }
+    // 合併預示
+    const src=BLOCKS.find(x=>x.id===drag.main);
+    let hit=null;
+    if(src&&src.kind==='sku'&&drag.ids.length===1) hit=blockAt(p.x,p.y,src.id);
+    drag.hit=hit;
+    renderCell();
+    if(hit){ const t=bEl(hit.id); if(t) t.classList.add('drop'); }
+  }else if(marq){
+    const p=cellPt(e); marq.x1=p.x; marq.y1=p.y;
+    const c=cellEl().getBoundingClientRect();
+    const L=Math.min(marq.x0,marq.x1),R=Math.max(marq.x0,marq.x1),
+          T=Math.min(marq.y0,marq.y1),B=Math.max(marq.y0,marq.y1);
+    selected.clear();
+    const k=scaleOf();
+    for(const b of BLOCKS){
+      const el=bEl(b.id); if(!el) continue;
+      const r=el.getBoundingClientRect();
+      const bx=(r.left-c.left)/k, by=(r.top-c.top)/k;
+      if(bx<R&&bx+r.width/k>L&&by<B&&by+r.height/k>T) selected.add(b.id);
+    }
+    renderCell();
+    const m=document.getElementById('marquee'+curCell);
+    if(m){ m.style.display='block'; m.style.left=L+'px'; m.style.top=T+'px';
+           m.style.width=(R-L)+'px'; m.style.height=(B-T)+'px'; }
+  }
+});
+
+/* ====== 滾輪：在游標下重疊的圖層之間循環 ====== */
+document.getElementById('grid').addEventListener('wheel',e=>{
+  const ce=e.target.closest('.cell'); if(!ce) return;
+  const idx=+ce.dataset.cell;
+  if(idx!==curCell){ saveCell(); loadCell(idx); CELLS.forEach((c,i)=>renderOne(i)); renderPick(); renderLayers(); }
+  if(!picked.size) return;
+  const imgs=BLOCKS.filter(b=>b.kind==='img');
+  if(!imgs.length) return;
+  const hit=e.target.closest('.blk');
+  // 游標下所有 img block（由 z 大到小）
+  const p=cellPt(e), c=cellEl().getBoundingClientRect();
+  const k=scaleOf();
+  const under=imgs.filter(b=>{
+    const el=bEl(b.id); if(!el) return false;
+    const r=el.getBoundingClientRect();
+    const bx=(r.left-c.left)/k, by=(r.top-c.top)/k;
+    return p.x>=bx&&p.x<=bx+r.width/k&&p.y>=by&&p.y<=by+r.height/k;
+  }).sort((a,b)=>b.z-a.z);
+  if(!under.length){ activeImg=null; renderCell(); return; }
+  e.preventDefault();
+  const ids=under.map(b=>b.id).join(',');
+  if(ids!==stackUnder.join(',')){ stackUnder=under.map(b=>b.id); cycleIndex=0; }
+  else cycleIndex=(cycleIndex+(e.deltaY>0?1:-1)+under.length)%under.length;
+  activeImg=stackUnder[cycleIndex];
+  renderCell(); renderLayers();
+},{passive:false});
+
+/* 「最上面」按鈕 */
+document.getElementById('grid').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-top]');
+  if(btn){ e.stopPropagation(); bringTop(btn.dataset.top); }
+});
+/* 兩個窗口一律同進同退，不因格子有沒有內容而分開 */
+function openPanels(on){
+  $('#panel').classList.toggle('on',on);
+  $('#lay').classList.toggle('on',on);
+}
+function bringTop(id){
+  const b=BLOCKS.find(x=>x.id===id); if(!b) return;
+  const maxZ=Math.max(...BLOCKS.filter(x=>x.kind==='img').map(x=>x.z));
+  if(b.z!==maxZ){ b.z=maxZ+1; normalizeZ(); }
+  activeImg=id; renderCell(); renderLayers();
+}
+function normalizeZ(){
+  BLOCKS.filter(b=>b.kind==='img').sort((a,b)=>a.z-b.z)
+    .forEach((b,i)=>b.z=i+1);
+}
+
+/* ====== 右側圖層面板：顯示這個格子的圖層 ====== */
+function renderLayers(){
+  const box=$('#layers');
+  const imgs=BLOCKS.filter(b=>b.kind==='img').sort((a,b)=>b.z-a.z); // 上層在前
+  if(!imgs.length){ box.innerHTML='<div class="empty-hint">尚未選商品</div>'; return; }
+  box.innerHTML=imgs.map(b=>
+    `<div class="lyr${activeImg===b.id?' on':''}" data-lyr="${b.id}" draggable="true">
+       <span class="lgrip">☰</span>
+       <span class="lthumb">${imgHTML(b.key)}</span>
+       <span class="lname">${keyLabel(b.key)}</span>
+       <span class="lz">z${b.z}</span>
+       <button class="mini" data-top="${b.id}" style="margin:0">最上面</button>
+     </div>`).join('');
+
+  box.querySelectorAll('.lyr').forEach(el=>{
+    el.onmouseenter=()=>{ if(!lyrDrag){ activeImg=el.dataset.lyr; renderCell(); markLayerActive(); } };
+    el.onclick=()=>{ activeImg=el.dataset.lyr; renderCell(); markLayerActive(); };
+  });
+  box.querySelectorAll('[data-top]').forEach(b=>b.onclick=ev=>{
+    ev.stopPropagation(); bringTop(b.dataset.top);
+  });
+}
+
+/* ====== 圖層面板拖曳排序（Photoshop 式）====== */
+let lyrDrag=null;
+function initLayerDnD(){
+  const box=$('#layers');
+  box.addEventListener('dragstart',e=>{
+    const it=e.target.closest('.lyr'); if(!it) return;
+    lyrDrag=it; it.classList.add('dragging');
+    e.dataTransfer.effectAllowed='move';
+    try{e.dataTransfer.setData('text/plain',it.dataset.lyr);}catch(_){}
+  });
+  box.addEventListener('dragend',()=>{
+    if(lyrDrag) lyrDrag.classList.remove('dragging');
+    box.querySelectorAll('.lyr').forEach(x=>x.classList.remove('over'));
+    lyrDrag=null;
+  });
+  box.addEventListener('dragover',e=>{
+    e.preventDefault();
+    const it=e.target.closest('.lyr');
+    box.querySelectorAll('.lyr').forEach(x=>x.classList.remove('over'));
+    if(it&&it!==lyrDrag) it.classList.add('over');
+  });
+  box.addEventListener('drop',e=>{
+    e.preventDefault();
+    const tgt=e.target.closest('.lyr');
+    if(!tgt||!lyrDrag||tgt===lyrDrag) return;
+    const items=[...box.querySelectorAll('.lyr')];
+    const from=items.indexOf(lyrDrag), to=items.indexOf(tgt);
+    if(from<to) tgt.after(lyrDrag); else tgt.before(lyrDrag);
+    applyLayerOrder();
+  });
+}
+/* 面板由上到下 = z 由大到小 */
+function applyLayerOrder(){
+  const ids=[...$('#layers').querySelectorAll('.lyr')].map(el=>el.dataset.lyr);
+  const n=ids.length;
+  ids.forEach((id,i)=>{ const b=BLOCKS.find(x=>x.id===id); if(b) b.z=n-i; });
+  renderCell(); renderLayers();
+}
+
+/* ====== 右側面板頂部：依選取的元素顯示可切換的屬性 ====== */
+function renderProps(){
+  const box=$('#props');
+  const sel=[...selected].map(id=>BLOCKS.find(b=>b.id===id)).filter(Boolean);
+  const specs=sel.filter(b=>b.kind==='spec');
+  const prices=sel.filter(b=>b.kind==='price');
+  if(!specs.length&&!prices.length){ box.classList.remove('on'); box.innerHTML=''; return; }
+
+  let h='';
+  if(specs.length){
+    const allDark=specs.every(b=>b.dark);
+    h+=`<button class="pbtn${allDark?' act':''}" data-prop="dark">黑色</button>`;
+  }
+  if(prices.length){
+    const allX=prices.every(b=>b.cross);
+    h+=`<button class="pbtn${allX?' act':''}" data-prop="cross">劃線</button>`;
+  }
+  box.innerHTML=h;
+  box.classList.add('on');
+
+  // 定位：所有選中元素的外框上緣中點（座標以 #wrap 為基準）
+  const wrapR=$('#wrap').getBoundingClientRect();
+  let L=Infinity,T=Infinity,R=-Infinity;
+  for(const b of [...specs,...prices]){
+    const el=bEl(b.id); if(!el) continue;
+    const r=el.getBoundingClientRect();
+    L=Math.min(L,r.left); R=Math.max(R,r.right); T=Math.min(T,r.top);
+  }
+  if(L===Infinity){ box.classList.remove('on'); return; }
+  const cx=(L+R)/2-wrapR.left, cy=T-wrapR.top;
+  const bh=box.offsetHeight||30;      // 讀取時強制 reflow，取得真實高度
+  box.style.left=cx+'px';
+  box.style.top=(cy-bh-9)+'px';
+  box.style.transform='translateX(-50%)';
+
+  box.querySelectorAll('[data-prop]').forEach(btn=>btn.onmousedown=ev=>{
+    ev.preventDefault(); ev.stopPropagation();   // 不觸發格子的拖曳/取消選取
+    const k=btn.dataset.prop;
+    const targets = k==='dark'?specs:prices;
+    const turnOn = !targets.every(b=>b[k]);
+    targets.forEach(b=>b[k]=turnOn);
+    renderCell();
+  });
+}
+
+function markLayerActive(){
+  $('#layers').querySelectorAll('.lyr').forEach(el=>
+    el.classList.toggle('on', el.dataset.lyr===activeImg));
+}
+
+addEventListener('mouseup',e=>{
+  if(drag){
+    const p=cellPt(e);
+    const src=BLOCKS.find(x=>x.id===drag.main);
+    if(drag.moved && src && src.kind==='sku' && drag.ids.length===1){
+      const tgt=blockAt(p.x,p.y,src.id);
+      if(tgt){
+        // 合併：把 src 的 rows 併入 tgt，依 SKU 排序後重算字串
+        tgt.vs = [...tgt.vs,...src.vs].sort((a,b)=>a.sku.localeCompare(b.sku));
+        BLOCKS = BLOCKS.filter(b=>b.id!==src.id);
+        selected.clear(); selected.add(tgt.id);
+      }
+    }
+    if(drag.moved) dragHappened=true;
+    drag=null; guides=[]; renderCell();
+  }
+  if(marq){
+    const big=Math.abs(marq.x1-marq.x0)>3||Math.abs(marq.y1-marq.y0)>3;
+    dragHappened=big;    // 只有真的拖出範圍才算拖曳；單純點一下要能開窗
+    marq=null; renderCell();
+  }
+});
+
+/* ====== 選商品清單：搜尋過濾，就地成群顯示 ====== */
+function renderPick(){
+  const kw=q.trim().toLowerCase();
+  const gs = groups().map(g=>({name:g.name,
+      rows:g.rows.filter(r=> !kw || g.name.toLowerCase().includes(kw)
+        || r.spec.toLowerCase().includes(kw) || r.sku.includes(kw))}))
+    .filter(g=>g.rows.length);
+  if(!gs.length){ $('#panePick').innerHTML='<div class="empty-hint">沒有符合的商品</div>'; return; }
+  $('#panePick').innerHTML = gs.map(g=>
+    `<div class="grp">${g.name}</div>`+g.rows.map(r=>
+      `<label class="item"><input type="checkbox" data-i="${r._i}" ${picked.has(r._i)?'checked':''}>
+        <b>${r.spec||'—'}</b>${r.color?`<span style="color:#666">${r.color}</span>`:''}<span class="var">${r.sku}　$${r.price.toLocaleString()}</span></label>`
+    ).join('')).join('');
+  $('#panePick').querySelectorAll('input').forEach(cb=>cb.onchange=e=>{
+    const i=+e.target.dataset.i, row=ROWS.find(r=>r._i===i);
+    if(e.target.checked){
+      const cur=ROWS.find(r=>picked.has(r._i));
+      if(cur && cur.name!==row.name){ picked.clear(); setTimeout(renderPick,0); }
+      picked.add(i);
+    } else picked.delete(i);
+    renderCell();
+  });
+}
+
+/* ====== 後台 sidebar：一列一筆，名稱在最前面 ====== */
+function renderEdit(){
+  $('#paneEdit').innerHTML =
+    `<table><tr><th style="width:30%">名稱</th><th>規格</th><th>顏色</th><th>SKU</th><th>價格</th><th></th></tr>`+
+    ROWS.map((r,i)=>{
+      const newGrp = i===0 || ROWS[i-1].name!==r.name;
+      return `<tr${newGrp?' class="grpline"':''}>
+        <td><input value="${r.name}" data-i="${i}" data-f="name"></td>
+        <td><input value="${r.spec}" data-i="${i}" data-f="spec"></td>
+        <td><input value="${r.color||''}" data-i="${i}" data-f="color"></td>
+        <td><input value="${r.sku}" data-i="${i}" data-f="sku"></td>
+        <td><input value="${r.price}" data-i="${i}" data-f="price"></td>
+        <td><button class="mini" data-del="${i}" style="margin:0">×</button></td></tr>`;
+    }).join('')+`</table>
+    <div class="grp" style="margin-top:16px">品牌（同商品共用；圖為長形 PNG）</div>
+    <div>`+[...new Set(ROWS.map(r=>r.name))].map(n=>
+      `<div class="imgrow">
+         <span class="bthumb">${brandHTML(n)}</span>
+         <input class="binput" value="${brandOf(n)}" data-brand="${n}" placeholder="品牌名">
+         <button class="mini" data-bimg="${n}" style="margin:0">上傳</button>
+         ${BIMG[n]?`<button class="mini" data-bdel="${n}" style="margin:0">清除</button>`:''}
+       </div>`).join('')+`</div>
+
+    <div class="grp" style="margin-top:16px">型號（同商品共用；沒有就留空）</div>
+    <table>`+[...new Set(ROWS.map(r=>r.name))].map(n=>
+      `<tr><td style="width:52%">${n}</td>
+       <td><input value="${modelOf(n)}" data-mdl="${n}" placeholder="無"></td></tr>`).join('')+`</table>
+
+    <div class="grp" style="margin-top:16px">商品圖</div>
+    <div id="imgList">`+[...new Set(ROWS.map(r=>imgKey(r)))].map(k=>
+      `<div class="imgrow">
+         <span class="ithumb">${imgHTML(k)}</span>
+         <span class="iname">${keyLabel(k)}</span>
+         <button class="mini" data-img="${k}" style="margin:0">上傳</button>
+         ${IMG[k]?`<button class="mini" data-imgdel="${k}" style="margin:0">清除</button>`:''}
+       </div>`).join('')+`</div>
+    <input type="file" id="imgFile" accept="image/*" style="display:none">
+    <div style="margin-top:12px">
+      <button class="mini" id="addR">+ 一列</button>
+      <button class="mini" id="paste">貼上批次</button>
+      <button class="mini" id="stress">壓力測試：+30 列</button>
+    </div>
+    <textarea id="pasteBox" style="display:none;width:100%;height:110px;margin-top:8px;font:inherit;font-size:12px;
+      border:1px solid var(--line);border-radius:8px;padding:8px"
+      placeholder="每行：名稱 規格 [顏色] SKU 價格&#10;iPhone 17 Pro Max 256G 黑 2156742 44900"></textarea>`;
+
+  $('#paneEdit').querySelectorAll('td input').forEach(inp=>inp.oninput=e=>{
+    const {i,f}=e.target.dataset;
+    ROWS[i][f] = f==='price' ? (+e.target.value||0) : e.target.value;
+    renderPick(); renderCell();
+  });
+  $('#paneEdit').querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    ROWS.splice(+b.dataset.del,1); reindex(); picked.clear(); refreshAll();
+  });
+  $('#paneEdit').querySelectorAll('[data-mdl]').forEach(inp=>inp.oninput=e=>{
+    const n=e.target.dataset.mdl, v=e.target.value.trim();
+    MODEL[n]=v;
+    // 就地更新，不重排版面（避免你手動擺好的位置被重置）
+    CELLS.forEach(c=>{
+      const bs = c===cell()?BLOCKS:c.blocks;
+      const has = bs.find(b=>b.kind==='model'&&b.name===n);
+      const nameBlk = bs.find(b=>b.kind==='name'&&b.text===n);
+      if(!nameBlk) return;
+      if(v && has) has.text=v;
+      else if(v && !has) bs.push({id:'m'+Date.now()+Math.random().toString(36).slice(2,6),
+        kind:'model',text:v,name:n,x:nameBlk.x,y:nameBlk.y+34});
+      else if(!v && has) bs.splice(bs.indexOf(has),1);
+    });
+    CELLS.forEach((c,i)=>renderOne(i));
+  });
+  // 品牌名
+  $('#paneEdit').querySelectorAll('[data-brand]').forEach(inp=>inp.oninput=e=>{
+    BRAND[e.target.dataset.brand]=e.target.value.trim();
+    CELLS.forEach((c,i)=>renderOne(i));
+  });
+  // 上傳品牌 PNG
+  $('#paneEdit').querySelectorAll('[data-bimg]').forEach(b=>b.onclick=()=>{
+    const f=$('#imgFile');
+    f.onchange=()=>{
+      const file=f.files[0]; if(!file) return;
+      const rd=new FileReader();
+      rd.onload=()=>{ BIMG[b.dataset.bimg]=rd.result; f.value=''; refreshAll(); };
+      rd.readAsDataURL(file);
+    };
+    f.click();
+  });
+  $('#paneEdit').querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>{
+    delete BIMG[b.dataset.bdel]; refreshAll();
+  });
+  // 上傳商品圖
+  $('#paneEdit').querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>{
+    const f=$('#imgFile');
+    f.onchange=()=>{
+      const file=f.files[0]; if(!file) return;
+      const rd=new FileReader();
+      rd.onload=()=>{ IMG[b.dataset.img]=rd.result; f.value=''; refreshAll(); };
+      rd.readAsDataURL(file);
+    };
+    f.click();
+  });
+  $('#paneEdit').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=()=>{
+    delete IMG[b.dataset.imgdel]; refreshAll();
+  });
+  $('#addR').onclick=()=>{ ROWS.push({name:'新商品',spec:'128G',color:'',sku:'0000000',price:0}); reindex(); refreshAll(); };
+  $('#stress').onclick=()=>{
+    for(let i=0;i<30;i++) ROWS.push({name:'iPhone 17 Pro Max',spec:'2TB',color:['黑','白','橘'][i%3],sku:'21567'+(60+i),price:i%3===0?68900:69900});
+    reindex(); refreshAll();
+  };
+  $('#paste').onclick=()=>{
+    const box=$('#pasteBox');
+    if(box.style.display==='none'){ box.style.display='block'; box.focus(); return; }
+    box.value.split('\n').map(l=>l.trim()).filter(Boolean).forEach(l=>{
+      const m=l.split(/[\t]+|\s{2,}|\s(?=\S+\s+\d{6,}\s+\d+$)/).map(x=>x.trim()).filter(Boolean);
+      const parts = m.length>=4 ? m : l.split(/\s+/);
+      if(parts.length<4) return;
+      const price=+parts[parts.length-1], sku=parts[parts.length-2];
+      let rest=parts.slice(0,parts.length-2);
+      // 尾端若是純中文短詞（1-3字）視為顏色
+      let color='';
+      if(rest.length>2 && /^[^\x00-\x7F]{1,3}$/.test(rest[rest.length-1])) color=rest.pop();
+      const spec=rest.pop()||'';
+      ROWS.push({name:rest.join(' '),spec,color,sku,price:price||0});
+    });
+    box.value=''; box.style.display='none'; reindex(); refreshAll();
+  };
+}
+function reindex(){ ROWS.forEach((r,i)=>r._i=i); }
+function refreshAll(){ reindex(); renderPick(); renderEdit(); renderCell(); renderLayers(); }
+
+/* ====== 互動 ====== */
+document.getElementById('grid').onclick=e=>{
+  if(!e.target.closest('.cell')) return;
+  // 點格子內部只會「開啟」面板，不會關閉；關閉只發生在點格子外面
+  if(!e.target.closest('.blk') && !dragHappened){
+    openPanels(true);
+    renderPick(); renderLayers();
+  }
+  dragHappened=false;
+};
+$('#sideToggle').onclick=()=>$('#side').classList.toggle('on');
+$('#sideClose').onclick=()=>$('#side').classList.remove('on');
+$('#q').oninput=e=>{q=e.target.value;renderPick();};
+
+const tip=$('#tip');
+addEventListener('mousemove',e=>{
+  const el=e.target.closest('.item,.blk,.cell,#q,input,textarea,[data-del],#sideToggle,.mini');
+  if(!el){tip.style.display='none';return}
+  let t='';
+  if(el.classList.contains('item')){const cb=el.querySelector('input');
+    const r=ROWS.find(x=>x._i===+cb.dataset.i);
+    t=`${r.name}　${r.spec||'無規格'}${r.color?'　'+r.color:''}　${r.sku}　$${r.price.toLocaleString()}`;}
+  else if(el.classList.contains('blk')){
+    const b=BLOCKS.find(x=>x.id===el.dataset.b);
+    if(!b){tip.style.display='none';return}
+    const n=selected.size;
+    if(drag) t = drag.hit ? '合併' : `移動:${drag.ids.length}`;
+    else t = `選取:${n||1}`;}
+  else if(el.id==='sideToggle'){t=$('#side').classList.contains('on')?'收起後台':'開啟後台　'+ROWS.length+' 列';}
+  else if(el.id==='q'){t='搜尋：'+(q||'（全部）')+'　'+$('#panePick').querySelectorAll('.item').length+' 筆';}
+  else if(el.dataset.del!==undefined){t='刪除第 '+(+el.dataset.del+1)+' 列';}
+  else if(el.tagName==='INPUT'&&el.dataset.f){t='第 '+(+el.dataset.i+1)+' 列　'+el.dataset.f+' = '+el.value;}
+  else if(el.classList.contains('mini')){t=el.textContent;}
+  else if(el.tagName==='TEXTAREA'){t='每行：名稱 規格 [顏色] SKU 價格';}
+  else if(el.classList.contains('cell')){t=marq?'框選中':(picked.size?'空白處拖曳＝框選　點一下開選單':'按一下選商品');}
+  tip.textContent=t;tip.style.display='block';
+  tip.style.left=e.clientX+'px';tip.style.top=e.clientY+'px';
+});
+
+/* 點格子與面板以外的地方：收起所有面板、取消選取 */
+addEventListener('mousedown',e=>{
+  if(e.target.closest('#wrap, #rcol, #props, #side, #topbar, #tip')) return;
+  let changed=false;
+  if($('#panel').classList.contains('on')){ openPanels(false); changed=true; }
+  if(selected.size){ selected.clear(); changed=true; }
+  if(activeImg){ activeImg=null; changed=true; }
+  if(changed){ renderCell(); renderLayers(); }
+  $('#props').classList.remove('on');
+  dragHappened=false;   // 旗標歸零，否則下次點格子會被誤判成拖曳而不開窗
+},true);
+
+const padEl=document.getElementById('pad');
+padEl.oninput=()=>{
+  PAD=+padEl.value;
+  document.getElementById('padv').textContent=PAD+' px';
+  document.documentElement.style.setProperty('--pad',PAD+'px');
+  // 邊界變大時，把已經超出的元素拉回來
+  CELLS.forEach((c,i)=>{
+    const bs = (c===cell())?BLOCKS:c.blocks;
+    const el=document.getElementById('cell'+i);
+    if(!el||!bs.length) return;
+    const k=(el.clientWidth||540)/540;
+    bs.forEach(b=>{
+      const n=el.querySelector(`[data-b="${b.id}"]`);
+      const w=n?n.getBoundingClientRect().width/k:0;
+      const h=n?n.getBoundingClientRect().height/k:0;
+      b.x=Math.max(PAD,Math.min(b.x,540-PAD-w));
+      b.y=Math.max(PAD,Math.min(b.y,420-PAD-h));
+    });
+  });
+  CELLS.forEach((c,i)=>renderOne(i));
+};
+
+document.getElementById('gapply').onclick=()=>{
+  const c=Math.max(1,Math.min(8,+document.getElementById('gcols').value||1));
+  const r=Math.max(1,Math.min(8,+document.getElementById('grows').value||1));
+  document.getElementById('gcols').value=c; document.getElementById('grows').value=r;
+  // 格子多時自動縮小尺寸，維持一頁看完
+  const cw = c<=1?540 : c===2?420 : c===3?330 : c===4?270 : 230;
+  document.documentElement.style.setProperty('--cw',cw+'px');
+  document.documentElement.style.setProperty('--ch',Math.round(cw*420/540)+'px');
+  document.documentElement.style.setProperty('--cs',(cw/540).toFixed(4));
+  saveCell();
+  makeCells(c,r);
+  loadCell(curCell);
+  CELLS.forEach((x,i)=>renderOne(i));
+};
+
+document.documentElement.style.setProperty('--pad','20px');
+initLayerDnD();
+makeCells(1,1); loadCell(0);
+refreshAll();
+</script>
+</body>
+</html>
