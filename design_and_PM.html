@@ -709,11 +709,18 @@
      這一行站在深色的操作區上（見 stylesheet 最後的 操作區調深色），所以
      顏色要用 --chrome-* 那一組 —— 用淺底那組（--ink）會是深字配深底，
      看起來就像沒有登入。 */
-  .topbar .who{
-    margin-left:auto;display:flex;align-items:center;gap:8px;
+  /* 「你是誰」那個名牌。**同一顆 DOM 搬來搬去**（hostWho()），不是每一條列各放
+     一份 —— 兩份就會有一份忘記跟著更新。三條列的底都是深色，所以顏色同一套。
+     用 id 不用 class：`.who` 已經是便利貼卡片上「誰貼的」那一個。 */
+  #whoBadge{
+    display:flex;align-items:center;gap:8px;
     font-size:13.5px;font-weight:800;color:var(--chrome-muted);
   }
-  .topbar .who b{color:var(--chrome-ink)}
+  #whoBadge b{color:var(--chrome-ink)}
+  /* 檔期列表那一條：靠自己推到最右邊。編輯器那一條的 .right 已經是 margin-left:auto
+     的一整組，再推一次就會把它跟旁邊那些擠開。 */
+  .topbar > #whoBadge{margin-left:auto}
+  #whoBadge .btn{padding:4px 11px;font-size:12.5px}
 
   .topbar{display:flex;align-items:center;gap:10px;flex:none}
   .topbar h1{font-size:22px;font-weight:800}
@@ -2378,7 +2385,7 @@
     <button class="btn" id="trashBtn" hidden>🗑 回收桶</button>
     <button class="btn primary" id="newPlanBtn" hidden>＋ 新增檔期</button>
     <!-- 身分列上那三顆拿掉之後，這裡是唯一寫著「你是誰」的地方 -->
-    <span class="who"><b id="whoName"></b><button class="btn" id="logoutBtn"
+    <span id="whoBadge"><b id="whoName"></b><button class="btn" id="logoutBtn"
             title="回到登入頁換一個人">登出</button></span>
   </div>
   <input type="file" id="importInput" accept=".json,.html,.htm" multiple hidden>
@@ -2419,6 +2426,8 @@
       <span id="hereNow"></span>
       <span class="prog" id="bannerProg"></span>
       <span id="saveState"></span>
+      <!-- 名牌和登出在這裡：開著檔期的時候，這是唯一看得到「你是誰」的地方 -->
+      <span id="whoSlot"></span>
       <label class="toggle" id="snapWrap">
         <input type="checkbox" id="snapToggle" checked>
         <span class="track"></span>
@@ -2462,6 +2471,7 @@
       <div class="spacer"></div>
       <!-- 帶入是「照上一次的抄一份」，那是開新檔期才有的動作（改時程時收起來） -->
       <button class="btn" id="impOpenBtn">帶入</button>
+      <span id="whoSlotPlan"></span>
     </div>
 
     <div class="form-grid">
@@ -10948,11 +10958,20 @@ function tellBoardRole(){
   });
 }
 
-/** 檔期列表右上角那個名牌：現在是誰在看。身分列上那三顆拿掉之後，
-    這是唯一寫著「你是誰」的地方，所以登入、加人都要跟著更新。 */
+/** 那個名牌：現在是誰在看。身分列上那三顆拿掉之後，這是唯一寫著「你是誰」的
+    地方，所以登入、加人都要跟著更新。 */
 function syncListTitle(){
   const t = document.getElementById('whoName');
   if (t) t.textContent = currentUser ? currentUser.name : '';
+}
+
+/* 名牌永遠是**同一顆** DOM，在三條列之間搬來搬去（跟小地圖的 hostSheet() 同一個做法）：
+   檔期列表、編輯器的工具列、開檔表的標題列。每一條各放一份的話，遲早有一份忘記
+   跟著更新 —— 而它寫的是「你是誰」，那是最不能寫錯的一件事。
+   搬 DOM 不會掉事件，所以登出那顆的 listener 只掛一次就好。 */
+const whoBadge = document.getElementById('whoBadge');
+function hostWho(host){
+  if (host && whoBadge.parentNode !== host) host.appendChild(whoBadge);
 }
 
 function applyMode(){
@@ -11112,6 +11131,7 @@ function showList(){
   setSaveState('off');               // the badge belongs to the editor
   if (VIEWS[activeTab]) VIEWS[activeTab].unmount();
   listChrome.style.display = 'flex';
+  hostWho(listChrome);
   backBtn.style.display = 'none';    // nothing to go back to from the list
   pinBar(true);                      // 身分列在這一頁一直看得到
   editorChrome.style.display = 'none';
@@ -11141,6 +11161,7 @@ function showPlanForm(){
   ['view-total','view-sheet','view-board','view-plans']
     .forEach(id => document.getElementById(id).classList.remove('active'));
   document.getElementById('view-plan').classList.add('active');
+  hostWho(document.getElementById('whoSlotPlan').parentNode);
 }
 
 /* Rebuild both 總體 boards (and the 落版 view, if it is the one showing) from
@@ -11226,6 +11247,7 @@ function openPlan(plan){
   backBtn.style.display = '';
   pinBar(false);                     // 版面要用滿，身分列改成靠近才下來
   editorChrome.style.display = 'flex';
+  hostWho(document.getElementById('whoSlot').parentNode);
   document.getElementById('view-plans').classList.remove('active');
   // 開檔表也要收：從那一張按「下一步」進來的話，兩頁會疊在一起
   document.getElementById('view-plan').classList.remove('active');
