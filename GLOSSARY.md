@@ -10,6 +10,15 @@
 | 詞 | 指的是 | 程式裡叫什麼 |
 |---|---|---|
 | **檔期** | 一次的 DM 專案，有名字、起迄日、十個階段 | `currentPlan` / `plans[]`，存在 `localStorage['catalogue_plans_v1']` |
+| **三方合併** | 送上去之前先跟遠端那一份合：我沒動的用他的、他沒動的用我的、兩邊都動的用我的並講出來 | `mergePlanInto()`、`afterMerge()`、`PlanSync.writeOne()`（CAS） |
+| **誰在看哪裡** | 心跳。小地圖上那一塊的角落有個字母＝那個人正在看它；卡片上「設計 B 在看」 | `beat()`、`pullBeats()`、`__presence:<userId>` |
+| **輪詢／撞到別人** | 每 5 秒問一次哪幾檔變了。開著的那一檔不換掉，改成掛一條提示；動過手就停止上傳 | `pollRemote()`、`#remoteBar`、`remoteBlocked`／`uploadHeld`、`PlanSync.pullIndex()`／`stampOf()` |
+| **卡片小地圖** | 檔期卡下緣那根「小地圖」把手拉開的兩張版。一塊版位一格，底色＝挑好貨的比例。不能點 | `appendCardMap()`、`cardMiniNode()`、`mapOpen` |
+| **檔期列表那一行** | 新增檔期／匯入／過往檔期／回收桶／清空資料 —— **整排只有行銷看得到**。設計和 PM 只剩標題和名牌 | `syncListButtons()` |
+| **開檔表** | 行銷開一個新檔期／改時程的那張表：名字、開始日、總長、DM 類別、標籤，加一條十個階段的時間軸（旗子拖得動） | `PlanForm.open(plan\|null)`、`#view-plan`；CSS 整包收在 `#view-plan` 底下 |
+| **目前階段管理列** | 檔期列表最上面那條（收得起來）：手動指定某一檔現在走到哪一階段。指定過的掛一枚「手動」 | `#statusBar`、`plan.stageOverride`、`autoStageIndex()`／`currentStageOf()` |
+| **帶入** | 開檔表上那顆：照過去某一檔開，連版位切割和品類一起帶。**只複製骨架** —— 貨、便利貼、走到第幾關都不跟過來 | `cloneSkeleton()`、`#impMask`（在 `PlanForm` 裡面） |
+| **草稿** | 行銷開了、還在切版、還沒提交的檔期。只有行銷看得到 | `plan.submitted === false`（**沒有這個欄位＝已提交**）；`isDraft()`、`visiblePlans()`、`renderSubmitBtn()` |
 | **正面 / 背面** | 一張 DM 的兩面 | `plan.layout.front` / `plan.layout.back` |
 | **版位** | 版面切出來的一塊區域，也就是「一個 section」。小地圖上一個粉紅方塊＝一個版位 | 樹葉節點 `block`；`collectBlocks()` 撈出來的東西 |
 | **品類** | 版位裡的商品分類，例如「小家電」。一個版位可以有好幾個品類 | `block.groups[] = {name, count}` |
@@ -60,10 +69,10 @@
 | **交棒 / 蓋章** | **一格一顆棒子**：蓋章＝「我這一關做完了，換你」＝走到下一關 | `stampCells(cells, forward)` |
 | **蓋章模式** | 拼板 右邊貼紙旁邊那顆開的模式。點一格＝進下一關、拖一個框＝一次一片、Alt＝退回上一關 | `stampMode`、`setStampMode()`、`stampCellElsIn()` |
 | **送給 PM** | 落版 角落那顆。把這個版位**還在設計手上**的格一次往前推一關。是動作不是門：按幾次都行，沒有「收回」（要拿回某一格就去 拼板 蓋章退回） | `#confirmBtn`、`renderConfirmBtn()` |
-| **版位狀態** | 每個版位左上角那行小字，講的是**球在哪**：未指派／待提明細／在設計／在 PM n/m 格／都在 PM。跟底色（灰／白／綠）講同一件事，只是顏色講不出「一半」 | `blockState()` |
-| **負責 PM** | **這一格**找哪一位 PM。**不是權限** —— 每位 PM 都看得到整本 DM，不是他的格照樣點得進去 | `cell.pm`；`blockPms()`（`cellOwnedBy()` 留著沒人叫，以後要分權限從它開始） |
-| **指派模式** | 拼板 貼紙旁邊那顆開的模式，設計專用。選一位 PM，點一格＝指給他、拖一個框＝指一片、Alt＝改回未指派 | `assignMode`、`setAssignMode()`、`assignCells()` |
-| **身分** | 設計／PM 在身分列上切；**行銷不在那條列上** —— 三顆都在身分列上；行銷另外可以從 `落版單系統` 帶 `?as=mkt` 直接進來。行銷看得到三個分頁、改得動 落版，拼板 只能看（工具列照樣在，擋的是動作：不開格子、不貼貼紙、不蓋章，畫布收到的身分是 `'pm'`） | `activeMode`；`isMkt()`、`canvasRole()`、`syncTools()` |
+| **版位狀態** | 每個版位左上角那行小字，講的是**球在哪**：待提明細／在設計／在 PM n/m 格／都在 PM。跟底色（灰／白／綠）講同一件事，只是顏色講不出「一半」 | `blockState()` |
+| ~~負責 PM／指派模式~~ | **沒有這回事了**（2026-08）。三位 PM 對整本 DM 一視同仁 —— 每個人都看得到、點得進去、改得動。`cell.pm`、指派模式、格子上那個「・甲」、小地圖藍點、PM 左欄的「我的品類」整套拿掉。舊檔期資料裡還留著 `cell.pm`，沒有人讀它 | — |
+| **身分** | 在**登入頁**選一個人決定，進去之後不能撥（身分列上那三顆和換 PM 的下拉都拿掉了），要換就右上角「登出」。行銷看得到三個分頁、改得動 落版，拼板 只能看（工具列照樣在，擋的是動作：不開格子、不貼貼紙、不蓋章，畫布收到的身分是 `'pm'`） | `activeMode` ＝ `currentUser.role`；`login()`、`isMkt()`、`canvasRole()`、`syncTools()` |
+| **使用者名單** | 設計／PM／行銷各三位（設計 A／B／C…），登入頁上可以加人。**id 絕不重用**：便利貼記的是 `whoId`，換了 id 舊留言就變成別人的 | `USERS`（`board_users_v1`）、`usersOf()`、`currentUser` |
 
 > ⚠️ **交接的單位是「格」（`cell.st`）。「送給 PM」只是一次把整個版位設計手上的格都推一關。**
 > **`sheet.confirmed`（列排列鎖定）已經整條拿掉了**：列永遠搬得動、刊頭永遠拉得動、
@@ -135,9 +144,9 @@
 |---|---|
 | `design_and_PM.html` | 主程式（編輯器）：檔期列表、總體、落版、拼板、意見欄 |
 | `2cell-product-pick.html` | 商品版面本人。被主程式用兩種方式嵌進去：`?ui=stage`（畫布）、`?ui=panel`（面板） |
-| `落版單系統.html` | 行銷那一支：排檔期、提交給設計。跟編輯器共用同一個資料庫 |
-| `supabase-sync.js` | 兩支共用的同步層。零相依，只用 `fetch` 打 PostgREST。掛在 `window.PlanSync` |
+| `supabase-sync.js` | 同步層。零相依，只用 `fetch` 打 PostgREST。掛在 `window.PlanSync` |
 | `config.js` | Supabase 網址和 anon key。**沒有 build，所以設定是靠這一支注入的** |
+| `public/index.html` | build 出來的就是 `design_and_PM.html`。`/editor` 靠 `_redirects` 指回 `/`（舊書籤） |
 | `build-single.mjs` | 把要公開的檔案複製進 `public/`（Netlify 的 build）。`--bundle` 才會合成單檔 |
 | `dev.mjs` | 本機預覽。`PM_NO_SYNC=1 node dev.mjs` ＝不連後端 |
 | `public/` | build 產出來的，不是正本。正本是根目錄那幾支 |
@@ -161,9 +170,11 @@
 | key | 內容 |
 |---|---|
 | `catalogue_plans_v1` | 所有檔期（版位、格子、便利貼、拼好的畫布，全都在裡面） |
-| `board_pms_v1` | PM 名單 |
-| `board_pm_owner_v1` | 舊的「品類→PM」對照（目前沒用，改成記在版位身上了） |
-| `board_pm_active_v1` | 現在選的是哪一位 PM |
+| `catalogue_trash_v1` | 回收桶（刪掉的檔期）。**只在這台機器上** —— 共用資料庫那一列刪的時候就拿掉了 |
+| `board_users_v1` | 使用者名單（設計／PM／行銷各三位）。`board_pms_v1` 是它的前身，開機時搬過來、id 原封不動 |
+| `board_user_at_v1` | 上次登入的是誰。清掉它＝登出 |
+| `board_pms_v1` | 舊的 PM 名單（只在第一次開機被讀一次，之後沒人寫它） |
+| `board_pm_owner_v1`、`board_pm_active_v1` | 舊的，沒有人讀了。名字留著只是為了「清空資料」清得掉它們 |
 
 ### 共用（Supabase）
 
@@ -173,5 +184,5 @@
 | `catalogue` 表 | 商品目錄，全公司一份，單一列（`id = 'default'`） |
 | Storage `product-images` | 商品圖、品牌圖、刊頭圖。**圖不進 plan，只存網址** —— base64 會把 `localStorage` 撐爆，而且每次存檔重傳一遍 |
 
-清空：檔期列表右上角的 **清空資料**（只清這台瀏覽器；共用資料庫上的重整就會拉回來）。
+清空：檔期列表右上角的 **清空資料**（行銷才看得到；只清這台瀏覽器，共用資料庫上的重整就會拉回來）。
 想要範例檔期就在網址加 `?seed=1`。

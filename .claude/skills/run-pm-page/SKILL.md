@@ -61,16 +61,17 @@ node $S blk \
 cd C:/Users/User/Documents/work/pm_page
 
 # 最短的一次：開起來有沒有炸
-node .claude/skills/run-pm-page/driver.mjs --file design_and_PM.html --wait 800
+node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?as=design" --wait 800
 
-# 走一輪四個畫面（?seed=1 才有範例檔期，不然列表是空的）
-node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1" \
+# 走一輪四個畫面（?seed=1 才有範例檔期，不然列表是空的；
+# as=design 是登入的旁路 —— 乾淨的瀏覽器不帶它會停在登入頁）
+node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=design" \
   --wait 700 --click ".plan-card .btn.open" --wait 900 --shot out/1-total.png \
   --click-text "落版" --wait 1000 --shot out/2-sheet.png \
   --click-text "拼板" --wait 1300 --shot out/3-board.png
 
 # 量顏色：改樣式前後各跑一次，diff 兩份輸出
-node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1" \
+node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=design" \
   --wait 700 --click ".plan-card .btn.open" --wait 800 --click-text "拼板" --wait 1200 \
   --eval "getComputedStyle(document.querySelector('#blockHead .title')).color"
 ```

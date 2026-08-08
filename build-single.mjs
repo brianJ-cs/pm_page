@@ -4,8 +4,7 @@
  * 平常就只是「複製」—— 沒有任何字串處理。Netlify 一次發好幾支檔案完全沒問題，
  * 編輯器用相對網址載得到商品版面那一頁，拼板就會動。
  *
- *   public/index.html               ← 落版單系統.html（行銷頁；改成 ASCII 名字才好寫 _redirects）
- *   public/editor.html              ← design_and_PM.html
+ *   public/index.html               ← design_and_PM.html（整支程式；三個身分都從這裡進）
  *   public/2cell-product-pick.html  ← 名字不能改：主程式是用這個相對網址載它的
  *   public/config.js, supabase-sync.js, _redirects
  *
@@ -17,7 +16,7 @@
  *   node build-single.mjs --bundle      → 另外產出 dm-editor-single.html
  */
 
-import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, copyFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -28,14 +27,19 @@ const PICK = join(here, '2cell-product-pick.html');
 const kb = n => (n / 1024).toFixed(0) + ' KB';
 
 /* ---- 平常這一段就是全部：複製 ------------------------------------------- */
+/* 每次都從空的開始。上一版產出的檔案留在 public/ 裡不會有人發現，
+   而 `netlify deploy --no-build` 是「原封不動上傳這個資料夾」—— 那份舊檔就
+   跟著發出去了（editor.html 就這樣差點被留下來）。 */
+await rm(PUB, { recursive: true, force: true });
 await mkdir(PUB, { recursive: true });
-await copyFile(join(here, '落版單系統.html'), join(PUB, 'index.html'));
-await copyFile(MAIN, join(PUB, 'editor.html'));
+/* 行銷那一支（落版單系統.html）併進主程式了，所以 / 就是主程式本身。
+   舊書籤（/editor）靠 _redirects 指回來，一個都不會斷。 */
+await copyFile(MAIN, join(PUB, 'index.html'));
 await copyFile(PICK, join(PUB, '2cell-product-pick.html'));
 for (const f of ['config.js', 'supabase-sync.js', '_redirects'])
   await copyFile(join(here, f), join(PUB, f));
 
-console.log('寫出 public/ —— index.html(行銷) / editor.html + 2cell-product-pick.html(編輯器)'
+console.log('寫出 public/ —— index.html + 2cell-product-pick.html'
           + ' / config.js / supabase-sync.js / _redirects');
 
 if (!process.argv.includes('--bundle')) {

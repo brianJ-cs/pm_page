@@ -1,6 +1,6 @@
 ---
 name: edit-fast
-description: pm_page 改東西的節奏：驗一次、不要在中途生附加產物、動手前先講清楚根本原因、前後兩句衝突就照新的那句。改 design_and_PM.html / 2cell-product-pick.html / 落版單系統.html 之前先看這一份 —— 這裡講的是「怎麼不浪費時間」，不是「怎麼寫」（那在 CLAUDE.md 和 pm-page-traps）。
+description: pm_page 改東西的節奏：驗一次、不要在中途生附加產物、動手前先講清楚根本原因、前後兩句衝突就照新的那句。改 design_and_PM.html / 2cell-product-pick.html 之前先看這一份 —— 這裡講的是「怎麼不浪費時間」，不是「怎麼寫」（那在 CLAUDE.md 和 pm-page-traps）。
 ---
 
 # 改這個專案的節奏

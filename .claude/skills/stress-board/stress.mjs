@@ -76,7 +76,8 @@ const MEASURE = `(()=>{
 })()`;
 
 const steps = [
-  '--file', 'design_and_PM.html?seed=1', '--wait', '900',
+  // as=design 是登入的旁路 —— 乾淨的瀏覽器不帶它會停在登入頁
+  '--file', 'design_and_PM.html?seed=1&as=design', '--wait', '900',
   '--click', '#stressPlanBtn', '--wait', '2200',
   '--click-text', '拼板', '--wait', '8000',
   '--eval', MEASURE
