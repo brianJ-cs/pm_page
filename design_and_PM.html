@@ -8248,8 +8248,10 @@ const seedId   = (role, i) => SEED_PREFIX[role] + (i + 1);
    便利貼記的是 whoId:'pm:pm1'，換了 id，全公司貼過的留言就都變成別人的了。 */
 function seedUsers(){
   const old = readLS(PM_KEY, null);
+  /* 舊名單只取前三位：以前 `ensurePmPerCell()` 會照版位數自動長出 PM 丁、戊、己…，
+     有些瀏覽器裡那份有十幾個人。全部搬過來只會讓登入頁愈來愈長。 */
   const pms = (Array.isArray(old) && old.length
-              ? old.map(p => ({ id:p.id, role:'pm', name:p.name }))
+              ? old.slice(0, 3).map(p => ({ id:p.id, role:'pm', name:p.name }))
               : SEED_LETTERS.map((_,i) => ({ id:seedId('pm',i), role:'pm', name:seedName('pm',i) })));
   const three = role => SEED_LETTERS.map((_,i) =>
     ({ id:seedId(role,i), role, name:seedName(role,i) }));
@@ -8276,8 +8278,30 @@ function renameSeedUsers(){
 
 let USERS = readLS(USER_KEY, null);
 if (!Array.isArray(USERS) || !USERS.length) USERS = seedUsers();
+
+/* PM 就是三位：A／B／C。
+   以前 `ensurePmPerCell()` 會照版位數自動補人（PM 丁、戊、己…），登入頁上那一欄
+   會愈來愈長，而那些人從來沒有真的存在過。先確保三位在，再把其他 role 是 pm 的拿掉。
+   **便利貼不受影響**：它記的是貼的當下的 `whoId` 和名字，不是每次去名單裡查 ——
+   所以舊留言照樣顯示「PM 丁」，只是沒有人能再用那個身分登入。
+   設計和行銷不修剪：那兩邊沒有自動長人這回事，加進去的都是有人刻意加的。 */
+function keepThreePms(){
+  let changed = false;
+  SEED_LETTERS.forEach((_, i) => {
+    const id = seedId('pm', i);
+    if (!USERS.some(u => u.id === id && u.role === 'pm')){
+      USERS.push({ id, role:'pm', name: seedName('pm', i) });
+      changed = true;
+    }
+  });
+  const keep = new Set(SEED_LETTERS.map((_, i) => seedId('pm', i)));
+  const before = USERS.length;
+  USERS = USERS.filter(u => u.role !== 'pm' || keep.has(u.id));
+  if (changed || USERS.length !== before) saveUsers();
+}
 const saveUsers = () => { try { localStorage.setItem(USER_KEY, JSON.stringify(USERS)); } catch (e){} };
 renameSeedUsers();                                 // 舊的天干名字換成 A／B／C
+keepThreePms();                                    // PM 就是三位，多出來的收掉
 const usersOf = role => USERS.filter(u => u.role === role);
 let currentUser = null;                            // 登入之前是 null
 
