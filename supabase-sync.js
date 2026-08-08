@@ -320,13 +320,68 @@
      為了它去拆成一列一個商品，收益不大、要接的地方卻多很多。 */
   const CAT_ID = 'default';
 
+  /* 目錄跟檔期是同一個問題，而且更嚴重：**全公司只有這一列**。兩個人各自貼一批
+     商品進來，後存的把先存的整批抹掉 —— 所以這裡也走條件寫入＋合併，跟 plans 同一套。 */
+  let catStamp = null, catBase = null, catMergeFn = null;
+  const setCatalogueMerge = fn => { catMergeFn = fn; };
+
   async function pullCatalogue() {
     if (!ok()) return null;
-    const r = await fetch(`${BASE}/catalogue?id=eq.${CAT_ID}&select=data`, { headers: headers() });
+    const r = await fetch(`${BASE}/catalogue?id=eq.${CAT_ID}&select=data,updated_at`,
+                          { headers: headers() });
     if (r.status === 404) return null;                 // 表還沒建，當作沒有
     if (!r.ok) throw new Error(`pull catalogue ${r.status} ${await r.text()}`);
     const rows = await r.json();
-    return rows.length ? rows[0].data : null;
+    if (!rows.length) return null;
+    catStamp = rows[0].updated_at;
+    try { catBase = JSON.stringify(rows[0].data); } catch (e){ catBase = null; }
+    return rows[0].data;
+  }
+
+  /** 讀那一列，什麼都不記 —— 合併要的是「對方現在長什麼樣」，不是「我看過了」。 */
+  async function readCatalogueRow() {
+    const r = await fetch(`${BASE}/catalogue?id=eq.${CAT_ID}&select=data,updated_at`,
+                          { headers: headers() });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return rows[0] || null;
+  }
+
+  async function writeCatalogue(data) {
+    if (catStamp == null){                             // 這台機器還沒讀過它：直接建
+      await upsert([{ id: CAT_ID, data }], 'catalogue');
+      catStamp = null; catBase = null;                 // 下一次 pull 才知道是哪一版
+      return {};
+    }
+    const report = {};
+    for (let tries = 0; tries < 3; tries++){
+      const stamp = new Date().toISOString();
+      const r = await fetch(
+        `${BASE}/catalogue?id=eq.${CAT_ID}&updated_at=eq.${encodeURIComponent(catStamp)}`, {
+          method: 'PATCH',
+          headers: Object.assign(headers(), { 'Prefer': 'return=representation' }),
+          body: JSON.stringify({ data, updated_at: stamp })
+        });
+      if (!r.ok) throw new Error(`cas catalogue ${r.status} ${await r.text()}`);
+      if ((await r.json()).length){
+        catStamp = stamp;
+        try { catBase = JSON.stringify(data); } catch (e){}
+        return report;
+      }
+      /* 有人插隊：讀回來合併（就地改 data），再試一次。
+         ⚠️ **不能用 pullCatalogue()** —— 它會順手把 catBase 也換成剛讀到的那一份，
+         而那正是「對方」。祖先一旦變成對方，三方合併就會把他新加的東西當成
+         「祖先本來就有、我刪掉了」而丟掉。讀要讀得乾淨。 */
+      const row = await readCatalogueRow();
+      const cur = row && row.data;
+      if (row) catStamp = row.updated_at;
+      if (catMergeFn && cur){
+        const rr = catMergeFn(data, catBase ? JSON.parse(catBase) : null, cur) || {};
+        report.took = (report.took || 0) + (rr.took || 0);
+        report.conflicts = (report.conflicts || 0) + (rr.conflicts || 0);
+      }
+    }
+    throw new Error('cas catalogue: 一直被插隊，這一輪先放棄');
   }
 
   let catTimer = 0, catPending = null;
@@ -336,13 +391,18 @@
     clearTimeout(catTimer);
     catTimer = setTimeout(async () => {
       const body = catPending; catPending = null;
-      try { await upsert([{ id: CAT_ID, data: body }], 'catalogue'); }
+      try {
+        const report = await writeCatalogue(body);
+        if (onCatalogueMerged && (report.took || report.conflicts)) onCatalogueMerged(body, report);
+      }
       catch (e) { console.warn('商品目錄上傳失敗，這次的變更只存在本機', e); }
     }, DEBOUNCE);
   }
+  let onCatalogueMerged = null;
+  const setCatalogueAfter = fn => { onCatalogueMerged = fn; };
 
   window.PlanSync = { ok, pullAll, pullIndex, pullSome, stampOf, setMerge,
                       pushPresence, pullPresence, dropPresence,
                       upsert, remove, queueUpsert, queueRemove, flush, uploadImage,
-                      pullCatalogue, queueCatalogue };
+                      pullCatalogue, queueCatalogue, setCatalogueMerge, setCatalogueAfter };
 })();

@@ -11567,6 +11567,62 @@ function grinCells(p, map){
   walk(p.layout.front); walk(p.layout.back);
 }
 
+/* ---- 商品目錄 ------------------------------------------------------------
+   目錄是 { rows:[{name,spec,color,sku,price}], model, brand, bimg, img }，
+   **全公司只有這一列**。兩個人各自貼一批商品進來，後存的把先存的整批抹掉 ——
+   所以它也要合，而且它比檔期好合：一列一個 SKU，SKU 就是那個商品的身分。
+
+   刪掉的規則跟便利貼一樣：**只有我刪的才算刪**。別人下架了、我這邊還留著就留著 ——
+   多一個商品在挑貨清單裡沒什麼，一整批不見要重貼一次。 */
+function mergeCatalogueInto(mine, base, theirs){
+  const out = { took: 0, conflicts: 0 };
+  if (!mine || !theirs) return out;
+  if (!base) base = { rows: [], model:{}, brand:{}, bimg:{}, img:{} };
+
+  const bySku = list => { const m = Object.create(null);
+                          (list || []).forEach(r => { if (r && r.sku != null) m[String(r.sku)] = r; });
+                          return m; };
+  const b = bySku(base.rows), m = bySku(mine.rows), t = bySku(theirs.rows);
+  const rows = [];
+  (mine.rows || []).forEach(r => {
+    const k = String(r.sku), tr = t[k];
+    if (!tr || j(tr) === j(r)){ rows.push(r); return; }
+    if (j(r) === j(b[k])){ rows.push(jclone(tr)); out.took++; return; }   // 我沒動 → 用他的
+    if (j(tr) === j(b[k])){ rows.push(r); return; }                       // 他沒動 → 用我的
+    rows.push(r); out.conflicts++;                                        // 兩邊都動了
+  });
+  (theirs.rows || []).forEach(r => {                 // 他新加的（祖先沒有、我也沒有）
+    const k = String(r.sku);
+    if (m[k] || b[k]) return;
+    rows.push(jclone(r)); out.took++;
+  });
+  mine.rows = rows;
+
+  // model／brand／bimg／img 是「商品名 → 值」的對照表，一把鑰匙一把鑰匙合
+  ['model','brand','bimg','img'].forEach(field => {
+    const bo = base[field] || {}, mo = mine[field] || {}, to = theirs[field] || {};
+    const merged = Object.assign({}, mo);
+    Object.keys(to).forEach(k => {
+      if (j(to[k]) === j(mo[k])) return;
+      if (!(k in mo) || j(mo[k]) === j(bo[k])){ merged[k] = jclone(to[k]); out.took++; return; }
+      if (j(to[k]) === j(bo[k])) return;            // 他沒動
+      out.conflicts++;                              // 兩邊都動了：用我的
+    });
+    mine[field] = merged;
+  });
+  return out;
+}
+
+/** 合併完要讓每一塊畫布都拿到新的那一份，不然只有動手的那一格是對的。 */
+function afterCatalogueMerge(data, report){
+  CATALOGUE = data;
+  pushCatalogue();
+  if (report.conflicts)
+    toast(`商品目錄跟別人的改動合併了，有 ${report.conflicts} 筆兩邊都改過 —— 用了你的`, 'warn', 6000);
+  else if (report.took)
+    toast(`商品目錄合併了別人的 ${report.took} 筆`, 'info', 3200);
+}
+
 /* ---- 一格裡面：只有便利貼往下合 ------------------------------------------
    一格的內容（挑了哪些貨、零件擺哪、走到第幾關）是一整組互相有關係的東西，
    各取一半只會做出一個誰都沒排過的版 —— 所以那些一律用我的。
@@ -11730,7 +11786,11 @@ let planTouched = false;         // 開著這一檔之後有沒有動過手
 
 const remoteBar = document.getElementById('remoteBar');
 /* 合併的規矩交給同步層：它負責「怎麼安全地寫進去」，這裡負責「怎麼合」。 */
-if (window.PlanSync && window.PlanSync.setMerge) window.PlanSync.setMerge(mergePlanInto, afterMerge);
+if (window.PlanSync && window.PlanSync.setMerge){
+  window.PlanSync.setMerge(mergePlanInto, afterMerge);
+  window.PlanSync.setCatalogueMerge(mergeCatalogueInto);
+  window.PlanSync.setCatalogueAfter(afterCatalogueMerge);
+}
 
 /** 存檔時把「最後是誰」寫進 plan 自己的 JSON —— 不必改 schema 就講得出是誰改的。 */
 function stampLastBy(plan){
