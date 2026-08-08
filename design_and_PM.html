@@ -522,13 +522,16 @@
   #remoteBar{
     position:fixed;left:50%;transform:translateX(-50%);bottom:76px;z-index:70;
     display:none;align-items:center;gap:10px;
-    background:var(--chrome);border:1px solid var(--warn);border-radius:999px;
+    background:var(--chrome);border:1px solid var(--chrome-line);border-radius:999px;
     padding:8px 10px 8px 16px;box-shadow:0 10px 30px rgba(0,0,0,.34);
     font-size:13px;font-weight:800;color:var(--chrome-ink);max-width:min(92vw,760px);
   }
   #remoteBar.on{display:flex}
   #remoteBar .msg{min-width:0}
-  #remoteBar .msg b{color:var(--warn)}
+  #remoteBar .msg b{color:var(--chrome-ink)}
+  /* 琥珀色只給「同一塊」那一種：真的會少掉東西的時候才值得長得像警告 */
+  #remoteBar.warn{border-color:var(--warn)}
+  #remoteBar.warn .msg b{color:var(--warn)}
   #remoteBar .sub{display:block;font-weight:800;font-size:11.5px;color:var(--chrome-muted)}
   #remoteBar button{
     font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;flex:none;
@@ -2679,8 +2682,10 @@
      （currentPlan／layout／activeBlock 都握著那個物件的參考），所以改成問一句。 -->
 <div id="remoteBar">
 <span class="msg" id="remoteMsg"></span>
-<button class="primary" id="remoteReload">重新載入</button>
-<button id="remoteDismiss">先不要</button>
+<!-- 「看他那一份」會丟掉我沒送出去的改動，所以**不是**主按鈕 —— 藍色會被讀成
+     「建議你按這個」。「知道了」才是多數情況下該做的事：什麼都不做。 -->
+<button id="remoteReload">看他那一份</button>
+<button class="primary" id="remoteDismiss">知道了</button>
 </div>
 
 <!-- 過往檔期：已經出稿的收在這裡，不佔首頁 -->
@@ -11845,14 +11850,28 @@ function stampLastBy(plan){
   plan.lastById = currentUser.id;
 }
 
+/* 這一條本來三種情況講同一句話，而且一律琥珀色 —— 看起來像警報，可是多數時候
+   什麼事都沒有。「你被打斷了，只為了告訴你沒事」是最沒有意義的一種提示。
+   現在分三種，而且**只有真的會少掉東西的那一種**才是琥珀色：
+
+     沒動過手           → 根本不出現（直接換成他那一份，見 pollRemote）
+     動過手、不同版位   → 平靜地講一句：會自動合併，你不必做什麼
+     動過手、同一個版位 → 琥珀色：同一塊上兩邊都動到的地方只會留下一份
+
+   第三種靠心跳判斷（presence 記得每個人在哪一塊）—— 那個資料本來就有，
+   拿來把一句含糊的話換成一句具體的話。 */
 function renderRemoteBar(){
-  if (!remoteHit || !currentPlan){ remoteBar.classList.remove('on'); return; }
+  if (!remoteHit || !currentPlan || !planTouched){ remoteBar.classList.remove('on'); return; }
   const who = remoteHit.by ? `<b>${escapeHtml(remoteHit.by)}</b>` : '別人';
-  document.getElementById('remoteMsg').innerHTML = planTouched
-    ? `${who} 也在改這一檔`
-      + '<span class="sub">你們改的不是同一塊的話，存檔時會自動合併 —— 想直接看他那一份就重新載入</span>'
-    : `${who} 剛剛改過這一檔`
-      + '<span class="sub">你還沒動過手，重新載入就是最新的</span>';
+  const sameBlock = !!(activeBlock && remoteHit.by
+                       && whoOnBlock(activeBlock.id).some(p => p.name === remoteHit.by));
+  const here = sameBlock && activeBlock.name ? `（${escapeHtml(activeBlock.name)}）` : '';
+  document.getElementById('remoteMsg').innerHTML = sameBlock
+    ? `${who} 正在改你這一塊${here}`
+      + '<span class="sub">同一塊上兩邊都動到的地方，最後只會留下一份 —— 先跟他講一聲比較快</span>'
+    : `${who} 也在改這一檔`
+      + '<span class="sub">你們動的不是同一塊，存檔時會各自留住，不必做什麼</span>';
+  remoteBar.classList.toggle('warn', sameBlock);
   remoteBar.classList.add('on');
 }
 
@@ -11885,12 +11904,19 @@ async function pollRemote(){
 
   if (openId && changed.includes(openId)){
     const row = index.find(r => r.id === openId);
-    /* 同一個時間戳只吵一次 —— 使用者按了「先不要」之後，下一次輪詢不該再跳出來。
+    /* 同一個時間戳只吵一次 —— 使用者按了「知道了」之後，下一次輪詢不該再跳出來。
        「是誰改的」直接從 index 上拿（pullIndex 順便帶了），所以這裡**不去抓那一檔的
        內容** —— 抓了就會把時間戳記成「看過了」，可是資料根本沒吃進來。 */
     if (!remoteHit || remoteHit.stamp !== row.updated_at){
       remoteHit = { stamp: row.updated_at, by: row.lastBy || '' };
-      renderRemoteBar();
+      /* 還沒動過手：沒有什麼要保護的，也沒有什麼要決定的 —— 直接換成他那一份就好。
+         跳一條提示只是「打斷你，然後告訴你沒事」。
+         正在拖東西的時候不換：那一下還沒 commit（所以 planTouched 還是 false），
+         但版面在手上重建會像壞掉。下一輪再說，反正每 5 秒問一次。 */
+      const dragging = !!document.querySelector('.dragging, .stamp-box.on');
+      if (!planTouched && !dragging) await adoptRemote(row.lastBy || '');
+      else if (!planTouched) remoteHit = null;      // 這一輪跳過，下一輪重新判斷
+      else renderRemoteBar();
     }
   }
 
@@ -11916,6 +11942,31 @@ async function pollRemote(){
     savePlans();
     if (!currentPlan) renderPlans();
   }
+}
+
+/* 把遠端那一份吃進來。**就地改 currentPlan**，不換物件 —— layout／activeBlock
+   都握著它的參考。rebuildAll(keepId) 會把畫面重建、而且停在同一個版位上，
+   比 openPlan() 溫柔（那個會把縮放、分頁、選到的版位全部重來）。 */
+async function adoptRemote(by){
+  const s = sync();
+  if (!s || !currentPlan) return;
+  let rows = [];
+  try { rows = await s.pullSome([currentPlan.id]); } catch (e){ return; }
+  const fresh = rows[0] && rows[0].data;
+  if (!fresh) return;
+  normalizeLayout(fresh);
+  const keep = activeBlock ? activeBlock.id : null;
+  Object.keys(currentPlan).forEach(k => { delete currentPlan[k]; });
+  Object.assign(currentPlan, fresh);
+  const at = plans.findIndex(p => p.id === currentPlan.id);
+  if (at >= 0) plans[at] = currentPlan;
+  savePlans();
+  rebuildAll(keep);
+  document.getElementById('bannerName').textContent = currentPlan.name;
+  document.getElementById('bannerRange').textContent = planRangeLabel(currentPlan);
+  remoteHit = null;
+  renderRemoteBar();
+  toast(`已更新成 ${by || '別人'} 的版本`, 'info', 2600);
 }
 
 function schedulePoll(){
