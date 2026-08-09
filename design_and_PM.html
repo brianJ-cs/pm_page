@@ -799,17 +799,16 @@
   /* 拼板：小地圖固定在左邊（不管在哪一層都看得到自己在哪），右邊換內容 */
   #view-board{padding-top:6px;gap:0;align-items:stretch}
   #boardSide{flex:none;display:flex}
-  /* 同一欄兩種左邊：設計就是小地圖本人，PM 是一疊三段（檔期／品類樹／小地圖）。
-     PM 那一疊是一根捲軸捲到底 —— 三段各自捲的話，你永遠不知道下面還有沒有東西。 */
+  /* 拼板 的左欄：一疊兩段（檔期／整本落版），**三個身分都一樣**。
+     一根捲軸捲到底 —— 兩段各自捲的話，你永遠不知道下面還有沒有東西。
+     （id 裡的 pm 是歷史：這一疊本來只有 PM 有，設計那時候只看得到光禿禿的小地圖。） */
   #pmStack{
-    /* 比設計那一欄寬一點：小地圖那張 .mini-page 是固定 252px，這裡還要多讓出
-       一根捲軸和段落的內距，不讓的話兩張版面會被切掉右邊那一條 */
-    display:none;flex-direction:column;flex:none;width:286px;
+    display:flex;flex-direction:column;flex:none;width:286px;
+    /* 小地圖那張 .mini-page 是固定 252px，這裡還要多讓出一根捲軸和段落的內距，
+       不讓的話兩張版面會被切掉右邊那一條 */
     overflow-y:auto;overflow-x:hidden;padding-right:8px;margin-right:10px;
     border-right:1px solid var(--line);transition:width .14s ease;
   }
-  #boardSide.pm #pmStack{display:flex}
-  #boardSide:not(.pm) #pmStack{display:none}
   #pmStack.mini{width:0;padding-right:0;margin-right:0;border-right:0}
   #pmStack.mini > *{display:none}
   /* 進了這一疊就不再是「一欄」：自己的寬度、捲軸、分隔線全交出去，只留內容 */
@@ -6694,21 +6693,24 @@ function showBoardOverview(){
   const ov = document.getElementById('boardOverview');
   const side = document.getElementById('boardSide');
   const pm = activeMode === 'pm';
-  // 工具接在 字級 那條底下，不另外站一條
-  // PM：小地圖是那一疊的第三段（掛進 #secMini），把手站在整疊外面
-  /* 收合狀態跟著「哪一欄」走：在 PM 這邊小地圖只是一段，收整欄的是 #pmStack。
-     不清掉的話，設計那邊收起來的小地圖搬進來會變成空的一段。 */
-  if (pm) sheetSide.classList.remove('mini');
-  hostSheet(ov, pm ? document.getElementById('secMini') : side,
-            document.getElementById('typeWrap'), pm ? side : null);
+  /* 拼板 的左欄**三個身分都一樣**：檔期 ＋ 整本落版那一疊（#pmStack），
+     小地圖是其中的第二段。以前只有 PM 有，設計只看得到光禿禿的小地圖 ——
+     於是設計要換一檔就得退回檔期列表，而 PM 不必。同一個畫面上同一個位置
+     給不同身分不同的東西，只會讓人以為自己那一份是壞的。
+     （這幾個名字裡的 pm 是歷史：那一疊本來是 PM 專用的。）
+     收合狀態跟著「哪一欄」走：小地圖現在永遠只是一段，收整欄的是 #pmStack ——
+     不清掉的話，之前把小地圖自己收起來過的人搬進來會看到空的一段。 */
+  sheetSide.classList.remove('mini');
+  hostSheet(ov, document.getElementById('secMini'),
+            document.getElementById('typeWrap'), side);
   ov.classList.add('on');
   ov.classList.toggle('pm', activeMode === 'pm');   // PM 不在版上搬東西
   const fresh = !activeBlock;          // 這一趟才挑到版位＝第一次看到它
   /* PM 也從第一個版位開始 —— 以前是照「指給他的品類」挑一塊，那件事沒有了，
      現在每個人面對的都是同一本 DM，那就都從同一個地方開始。 */
   if (!activeBlock) activeBlock = collectBlocks(layout.front, [])[0];
-  side.classList.toggle('pm', pm);
-  if (pm) renderPmPlans();
+  side.classList.add('pm');          // 那一疊永遠在（class 名字是歷史，見上面）
+  renderPmPlans();
   renderMinimap();
   renderHead();
   renderGrid(activeBlock);
@@ -6719,11 +6721,16 @@ function showBoardOverview(){
   /* 意見欄是切到這一頁才長出來的，它一站好，版面能用的寬度就少了一截 ——
      而上面那次 renderGrid 是在它出現**之前**量的，於是版位停在一個比實際寬的
      尺寸上，直到下一次重建才「啪」地縮回去（加一格的時候看到的那一下就是它）。
-     所以欄位站好之後，下一幀再量一次：這一趟走的是「只改大小」那條快路，
-     不重建卡片、也不重載畫布。 */
+     所以欄位站好之後，下一幀再量一次。
+     ⚠️ 這裡要叫 `reflowBoard()`，**不能直接叫 `renderGrid()`**：多數時候這一趟走的是
+     「只改大小」那條快路（卡片和畫布都活著），但寬度變得夠多的時候簽名會不一樣，
+     那就是整批重建 —— 卡片重生、裡面的畫布跟著沒了，而 renderGrid 自己不會補畫。
+     reflowBoard 就是為了這件事寫的：重建了就再 paintBoardThumbs 一次。
+     （左欄從光禿禿的小地圖換成 286px 那一疊之後，這條路第一次真的走到重建，
+       於是設計的拼板變成一片空格子 —— 而且完全不報錯。） */
   requestAnimationFrame(() => {
     if (activeTab !== 'board' || !activeBlock) return;
-    renderGrid(activeBlock);
+    reflowBoard();
     /* 第一次看到這個版位就縮到剛好、擺正中間；本來就在看的那一個維持原樣，
        只把左右的空地捲回中間（不然會以為版面跑掉了）。 */
     if (fresh) zoomToFit(true); else centreSheet();
