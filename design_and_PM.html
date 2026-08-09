@@ -11833,6 +11833,10 @@ const POLL_MS = 5000;
 const POLL_MAX = 60000;          // 後端掛掉就退到一分鐘一次，不要一直敲
 let pollTimer = 0, pollWait = POLL_MS;
 let remoteHit = null;            // 開著的那一檔被改到了：{ stamp, by }
+/* 按過「知道了」就閉嘴。對方還在工作的話，他每存一次檔就是一個新的時間戳 ——
+   不記這個的話這條會每 5 秒再跳一次，那比不講還煩。
+   規矩是：**一檔講一次；只有情況變嚴重（變成同一塊）才再講一次。** */
+let remoteMuted = false;
 let planTouched = false;         // 開著這一檔之後有沒有動過手
 
 const remoteBar = document.getElementById('remoteBar');
@@ -11865,6 +11869,9 @@ function renderRemoteBar(){
   const who = remoteHit.by ? `<b>${escapeHtml(remoteHit.by)}</b>` : '別人';
   const sameBlock = !!(activeBlock && remoteHit.by
                        && whoOnBlock(activeBlock.id).some(p => p.name === remoteHit.by));
+  /* 閉嘴中就不畫 —— 除非情況升級成「同一塊」，那是新的資訊，值得再開一次口。 */
+  if (remoteMuted && !sameBlock){ remoteBar.classList.remove('on'); return; }
+  if (remoteMuted && sameBlock) remoteMuted = false;
   const here = sameBlock && activeBlock.name ? `（${escapeHtml(activeBlock.name)}）` : '';
   document.getElementById('remoteMsg').innerHTML = sameBlock
     ? `${who} 正在改你這一塊${here}`
@@ -11877,7 +11884,7 @@ function renderRemoteBar(){
 
 /** 開一個檔期＝重新開始算：這一檔還沒被動過，也還沒撞到誰。 */
 function resetRemoteWatch(){
-  remoteHit = null; planTouched = false;
+  remoteHit = null; planTouched = false; remoteMuted = false;
   renderRemoteBar();
 }
 
@@ -11896,7 +11903,13 @@ async function pollRemote(){
   if (!Array.isArray(index)) return;
 
   const here = new Set(index.map(r => r.id));
-  const changed = index.filter(r => r.updated_at !== s.stampOf(r.id)).map(r => r.id);
+  /* 「變了」＝時間戳跟我記的不一樣，**而且最後那一筆不是我寫的**。
+     ⚠️ 只比時間戳會誤判自己：輪詢的請求和自己的存檔會交錯 —— pullIndex 在寫入前
+     送出、寫入後才回來，帶回來的是舊的時間戳，跟剛更新的 stampOf 一比就「不一樣」。
+     一個人用的時候那條提示就是這樣冒出來的。名字可能重複，所以比 id。 */
+  const me = currentUser ? currentUser.id : '';
+  const mine = r => me && r.lastById === me;
+  const changed = index.filter(r => r.updated_at !== s.stampOf(r.id) && !mine(r)).map(r => r.id);
 
   /* 開著的那一檔另外處理：不換，只提示。 */
   const openId = currentPlan ? currentPlan.id : null;
@@ -11956,12 +11969,25 @@ async function adoptRemote(by){
   if (!fresh) return;
   normalizeLayout(fresh);
   const keep = activeBlock ? activeBlock.id : null;
+  /* 骨架有沒有真的變？對方在拼板挑貨的話，版面的形狀根本沒動 —— 那就不必整棵重建。
+     他持續在做事的時候這一段每 5 秒會跑一次，每次都 rebuildAll 會閃、而且很重。 */
+  const structChanged = j(planStruct(currentPlan)) !== j(planStruct(fresh));
   Object.keys(currentPlan).forEach(k => { delete currentPlan[k]; });
   Object.assign(currentPlan, fresh);
   const at = plans.findIndex(p => p.id === currentPlan.id);
   if (at >= 0) plans[at] = currentPlan;
   savePlans();
-  rebuildAll(keep);
+  if (structChanged) rebuildAll(keep);
+  else {
+    layout = currentPlan.layout;          // 樹換了物件，握著舊的那個就對不上了
+    if (activeBlock) activeBlock = collectBlocks(layout.front, [])
+                                     .concat(collectBlocks(layout.back, []))
+                                     .find(b => b.id === keep) || activeBlock;
+    if (activeTab === 'board'){ paintBoardThumbs(); renderRail(); }
+    else if (activeTab === 'sheet') redrawSheet();
+    renderMinimap();
+    updateProgress();
+  }
   document.getElementById('bannerName').textContent = currentPlan.name;
   document.getElementById('bannerRange').textContent = planRangeLabel(currentPlan);
   remoteHit = null;
@@ -12021,8 +12047,11 @@ document.getElementById('remoteReload').addEventListener('click', async () => {
 });
 
 document.getElementById('remoteDismiss').addEventListener('click', () => {
-  /* 只收起這一條，不解除擋上傳 —— 「先不要」是「等一下再說」，不是「我要覆蓋」。
-     remoteHit 留著，所以同一個時間戳不會再吵你；下一次別人再改才會再跳。 */
+  /* 「知道了」＝這一檔不必再講了。對方還在工作的話他每存一次檔就是一個新時間戳，
+     不閉嘴的話這條會每 5 秒再跳一次 —— 那比不講還煩。
+     只有情況升級成「你們在同一塊」才會再開口（見 renderRemoteBar），
+     換一個檔期也會重新開始算（resetRemoteWatch）。 */
+  remoteMuted = true;
   remoteBar.classList.remove('on');
 });
 
@@ -12112,6 +12141,10 @@ function paintPresence(){
     line.textContent = on.length ? on.map(p => p.name).join('、') + ' 也在這一檔' : '';
     line.classList.toggle('on', !!on.length);
   }
+  /* 「他跟我在不在同一塊」是從心跳算的，所以心跳一變，那條提示就要重新判斷 ——
+     不然對方走進你這一塊的時候不會升級（pullBeats 不是 await 的，只在
+     remoteHit 變動時重畫的話，用的是上一輪的舊心跳）。 */
+  renderRemoteBar();
 }
 
 function startBeats(){

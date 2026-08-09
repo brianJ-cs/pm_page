@@ -49,10 +49,12 @@
      排錯順序 —— 所以外面只准比「一不一樣」，不准比「誰比較新」。 */
   async function pullIndex() {
     if (!ok()) return null;
-    /* 順便帶「最後是誰改的」（data->>lastBy）：一個短字串而已，卻讓輪詢完全不必去
-       抓開著那一檔的內容 —— 抓了就會把時間戳記成「看過了」，可是資料根本沒吃進來。 */
-    const r = await fetch(`${BASE}/plans?select=id,updated_at,lastBy:data->>lastBy`,
-                          { headers: headers() });
+    /* 順便帶「最後是誰改的」：一個短字串而已，卻讓輪詢完全不必去抓開著那一檔的內容
+       —— 抓了就會把時間戳記成「看過了」，可是資料根本沒吃進來。
+       `lastById` 是給程式比對的（名字可能重複），`lastBy` 是給人看的。 */
+    const r = await fetch(
+      `${BASE}/plans?select=id,updated_at,lastBy:data->>lastBy,lastById:data->>lastById`,
+      { headers: headers() });
     if (!r.ok) throw new Error(`index plans ${r.status} ${await r.text()}`);
     return (await r.json()).filter(isPlanRow);
   }
