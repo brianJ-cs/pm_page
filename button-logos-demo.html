@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>按鈕圖示能做成哪幾種 — pm_page demo</title>
+<!--
+  這一支是 demo，不接主程式。回答一個問題：工具列那種按鈕上的圖示，有哪幾種做法、
+  各長什麼樣、什麼時候該用哪一種。按鈕的樣式（大小、藍底、亮起來的白）原封照
+  design_and_PM.html 的 .tool 抄過來，所以這裡看到的就是它在工具列上的樣子。
+
+  四種做法，由輕到重：
+    1. Unicode 符號   —— 現在整支程式用的就是這個。零成本，跟著字級縮放，顏色隨字。
+    2. 一個漢字       —— 中文介面最不會誤讀的一種，字型一定有。
+    3. Emoji          —— 有顏色、好認，但顏色和造型由作業系統決定，你控制不了。
+    4. 內嵌 SVG       —— 完全可控（線粗、圓角、currentColor），代價是每顆多幾行標記。
+  最下面還有兩種「不是圖示但很有用」的：角落的快捷鍵、圖示底下加一行小字。
+-->
+<style>
+  :root{
+    --blue:#4a6fdc;
+    --ink:#333a45;
+    --muted:#7a8494;
+    --surface:#ffffff;
+    --surface-2:#fafbfd;
+    --line:#e2e6ee;
+    --danger:#d92d20;
+    --chrome:#232a37;
+    --chrome-2:#2e3747;
+    --chrome-ink:#eaeef7;
+    --chrome-muted:#9aa6bc;
+    --chrome-line:#3d4759;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--chrome);color:var(--chrome-ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    padding:26px 30px 60px;
+  }
+  h1{font-size:21px;font-weight:800;margin-bottom:4px}
+  .sub{font-size:13.5px;color:var(--chrome-muted);margin-bottom:22px;line-height:1.7}
+  h2{
+    font-size:15px;font-weight:800;margin:26px 0 4px;
+    display:flex;align-items:baseline;gap:10px;
+  }
+  h2 .tag{
+    font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--blue);
+    background:rgba(74,111,220,.18);border:1px solid rgba(74,111,220,.45);
+    border-radius:999px;padding:2px 9px;
+  }
+  .why{font-size:12.5px;color:var(--chrome-muted);line-height:1.75;margin-bottom:12px;max-width:70ch}
+  .why b{color:var(--chrome-ink)}
+  .why .no{color:#e6b465}
+
+  /* ---- 工具列本人：照 design_and_PM.html 的 #toolRail / .tool 抄 ---- */
+  .rail{
+    display:inline-flex;flex-wrap:wrap;gap:9px;align-items:center;
+    background:var(--blue);border-radius:10px;padding:12px 14px;max-width:100%;
+  }
+  .tool{
+    position:relative;
+    width:40px;height:40px;border-radius:8px;font-family:inherit;font-size:18px;
+    border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.14);color:var(--surface);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;
+  }
+  .tool:hover{background:rgba(255,255,255,.28)}
+  .tool.active{background:var(--surface);color:var(--blue);border-color:var(--surface);font-weight:800}
+  .tool[data-key]::after{
+    content:attr(data-key);position:absolute;right:3px;bottom:2px;
+    font-size:9px;font-weight:800;line-height:1;letter-spacing:0;opacity:.7;
+  }
+  /* SVG 用 currentColor：亮起來變藍底白字時，圖示自己會跟著換色 */
+  .tool svg{width:20px;height:20px;display:block;fill:none;
+            stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .tool svg.solid{fill:currentColor;stroke:none}
+
+  /* 每一顆底下寫它是什麼字元／怎麼來的 */
+  .grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+  .item{display:flex;flex-direction:column;align-items:center;gap:6px;width:76px}
+  .item .cap{font-size:11px;color:var(--chrome-muted);text-align:center;line-height:1.45;
+             word-break:break-all}
+  .item .cap b{display:block;color:var(--chrome-ink);font-size:11.5px}
+
+  /* 一顆一顆站在藍底上，所以這一排本身也是藍的 */
+  .railwrap{background:var(--blue);border-radius:10px;padding:13px 14px;display:inline-block}
+  /* 藍底上的說明字要自己寫顏色 —— 用外面那套灰的話，在藍底上幾乎看不見
+     （主程式裡「淺色的東西要自己寫 color」踩過三次的同一件事） */
+  .railwrap .cap{color:rgba(255,255,255,.78)}
+  .railwrap .cap b{color:var(--surface)}
+  .railwrap code{background:rgba(255,255,255,.18)}
+
+  /* ---- 尺寸試驗 ---- */
+  .sizes{display:flex;align-items:center;gap:14px;background:var(--blue);
+         border-radius:10px;padding:12px 16px}
+  .sizes .tool.s30{width:30px;height:30px;font-size:14px}
+  .sizes .tool.s30 svg{width:15px;height:15px}
+  .sizes .tool.s36{width:36px;height:36px;font-size:16px}
+  .sizes .tool.s36 svg{width:18px;height:18px}
+  .sizes .lbl{font-size:11.5px;font-weight:800;color:rgba(255,255,255,.85)}
+
+  /* ---- 白底上的同一顆：有些按鈕不站在藍條上（檔期卡、意見欄） ---- */
+  .onwhite{
+    display:inline-flex;gap:9px;background:var(--surface);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;
+  }
+  .onwhite .tool{
+    background:var(--surface-2);border-color:var(--line);color:var(--ink);
+  }
+  .onwhite .tool:hover{background:#eef2fc}
+  .onwhite .tool.active{background:var(--blue);color:var(--surface);border-color:var(--blue)}
+
+  /* ---- 圖示＋一行小字 ---- */
+  .tool.tall{width:52px;height:52px;flex-direction:column;gap:3px;font-size:17px}
+  .tool.tall .t{font-size:9.5px;font-weight:800;letter-spacing:.04em}
+
+  .note{
+    margin-top:34px;font-size:12.5px;color:var(--chrome-muted);line-height:1.85;
+    border-top:1px solid var(--chrome-line);padding-top:16px;max-width:76ch;
+  }
+  .note b{color:var(--chrome-ink)}
+  code{
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+    background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;
+  }
+</style>
+</head>
+<body>
+
+<h1>按鈕上的圖示，能做成哪幾種</h1>
+<div class="sub">
+  按鈕的樣式（40×40、藍底、亮起來翻成白底藍字）照 <code>design_and_PM.html</code> 的 <code>.tool</code> 原封抄過來 ——
+  所以這裡看到的就是它站在工具列上的樣子。<b>點任何一顆</b>可以看它亮起來是什麼樣（同一排裡互斥，跟真的工具一樣）。
+</div>
+
+<h2>一、Unicode 符號 <span class="tag">現在用的就是這個</span></h2>
+<div class="why">
+  就是一個字元。<b>零成本</b>：不必多一行標記、跟著 <code>font-size</code> 縮放、顏色跟著 <code>color</code> 走，
+  所以按鈕亮起來翻成白底藍字時它自己就變藍。<br>
+  <span class="no">要小心的：</span>造型由字型決定 —— 同一個字元在不同機器上粗細、留白不一樣，
+  冷門的字元（⧉ ⌗ ⎘）在某些字型裡直接變成豆腐方框。挑<b>常見</b>的那幾個。
+</div>
+<div class="railwrap"><div class="grid" data-set>
+  <div class="item"><button class="tool active">⬚</button><span class="cap"><b>⬚</b>選擇 U+2B1A</span></div>
+  <div class="item"><button class="tool">✥</button><span class="cap"><b>✥</b>搬東西 U+2725</span></div>
+  <div class="item"><button class="tool">✂</button><span class="cap"><b>✂</b>切 U+2702</span></div>
+  <div class="item"><button class="tool">⇄</button><span class="cap"><b>⇄</b>對調 U+21C4</span></div>
+  <div class="item"><button class="tool">⇔</button><span class="cap"><b>⇔</b>直切 U+21D4</span></div>
+  <div class="item"><button class="tool">⇕</button><span class="cap"><b>⇕</b>橫切 U+21D5</span></div>
+  <div class="item"><button class="tool">✋</button><span class="cap"><b>✋</b>拖畫面 U+270B</span></div>
+  <div class="item"><button class="tool">⊞</button><span class="cap"><b>⊞</b>格線 U+229E</span></div>
+  <div class="item"><button class="tool">✎</button><span class="cap"><b>✎</b>填內容 U+270E</span></div>
+  <div class="item"><button class="tool">＋</button><span class="cap"><b>＋</b>全形加號</span></div>
+  <div class="item"><button class="tool">−</button><span class="cap"><b>−</b>減號 U+2212</span></div>
+  <div class="item"><button class="tool">↶</button><span class="cap"><b>↶</b>復原 U+21B6</span></div>
+  <div class="item"><button class="tool">◧</button><span class="cap"><b>◧</b>版位 U+25E7</span></div>
+  <div class="item"><button class="tool">★</button><span class="cap"><b>★</b>貼紙 U+2605</span></div>
+  <div class="item"><button class="tool">⊕</button><span class="cap"><b>⊕</b>贈品 U+2295</span></div>
+</div></div>
+
+<h2>二、一個漢字</h2>
+<div class="why">
+  中文介面裡<b>最不會被讀錯</b>的一種，而且字型一定有它，永遠不會變豆腐。
+  一個字就是一句話：「直」「橫」比兩根箭頭清楚得多（切分那兩顆游標用的就是這招）。<br>
+  <span class="no">要小心的：</span>一排四五個漢字會糊成一團 —— 它適合<b>成對出現、需要分辨</b>的地方
+  （直／橫、正／背），不適合當整條工具列。
+</div>
+<div class="railwrap"><div class="grid" data-set>
+  <div class="item"><button class="tool active" style="font-size:16px">選</button><span class="cap">選擇</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">品</button><span class="cap">品類</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">切</button><span class="cap">切分</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">移</button><span class="cap">移動</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">直</button><span class="cap">直切</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">橫</button><span class="cap">橫切</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">章</button><span class="cap">蓋章</span></div>
+  <div class="item"><button class="tool" style="font-size:16px">派</button><span class="cap">指派</span></div>
+</div></div>
+
+<h2>三、Emoji</h2>
+<div class="why">
+  自帶顏色、遠遠就認得出來（行銷那一支的「點選」用的就是 ✏️）。<br>
+  <span class="no">要小心的：</span>造型和顏色<b>由作業系統決定</b>，你控制不了 —— Windows、Mac、Android 各長一個樣，
+  而且它<b>不吃 <code>color</code></b>：按鈕亮起來翻成白底時，其他圖示都變藍了，只有它還是原來那個顏色。
+  用在「一整排裡只有一顆特別」的地方最好，整排都用會很吵。
+</div>
+<div class="railwrap"><div class="grid" data-set>
+  <div class="item"><button class="tool active">✏️</button><span class="cap">填內容</span></div>
+  <div class="item"><button class="tool">✂️</button><span class="cap">切分</span></div>
+  <div class="item"><button class="tool">🖐️</button><span class="cap">拖畫面</span></div>
+  <div class="item"><button class="tool">🔍</button><span class="cap">縮放</span></div>
+  <div class="item"><button class="tool">🏷️</button><span class="cap">指派</span></div>
+  <div class="item"><button class="tool">📌</button><span class="cap">釘住</span></div>
+  <div class="item"><button class="tool">🗑️</button><span class="cap">刪掉</span></div>
+  <div class="item"><button class="tool">📐</button><span class="cap">尺規</span></div>
+</div></div>
+
+<h2>四、內嵌 SVG <span class="tag">要多細都可以</span></h2>
+<div class="why">
+  自己畫。線粗、圓角、要不要填滿都你決定，而且用 <code>stroke:currentColor</code> 的話
+  <b>顏色照樣跟著按鈕走</b>（亮起來自己變藍），這是它比 emoji 強的地方。
+  同一顆圖示放大成游標、印在說明裡也都是同一份（切分那兩顆游標就是 SVG 轉 data URI）。<br>
+  <span class="no">代價：</span>每一顆多幾行標記。值不值得看那顆按鈕重不重要 —— 一天按二十次的，值得。
+</div>
+<div class="railwrap"><div class="grid" data-set>
+  <div class="item"><button class="tool active"><svg viewBox="0 0 24 24"><path d="M5 3l14 8-6 1.6L10.5 19z"/></svg></button><span class="cap">選擇（游標）</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M12 4v16" stroke-dasharray="2.4 2.6"/></svg></button><span class="cap">直切</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 12h16" stroke-dasharray="2.4 2.6"/></svg></button><span class="cap">橫切</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M3 8h12l-3-3M21 16H9l3 3"/></svg></button><span class="cap">對調</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M4 10h16M4 15h16M10 4v16M15 4v16"/></svg></button><span class="cap">格線</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M4 5h7v6H4zM13 5h7v14h-7zM4 13h7v6H4z"/></svg></button><span class="cap">版位</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20H4v-5z"/><path d="M12.5 6.5l5 5"/></svg></button><span class="cap">填內容</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg></button><span class="cap">縮放</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M7 20V9M7 9l4-5 1.5 1.5L11 9h7l2 2-2 8H7"/></svg></button><span class="cap">蓋章／交出去</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/></svg></button><span class="cap">加一格</span></div>
+  <div class="item"><button class="tool"><svg viewBox="0 0 24 24"><path d="M12 3v13M7 11l5 5 5-5M4 20h16"/></svg></button><span class="cap">匯出</span></div>
+  <div class="item"><button class="tool"><svg class="solid" viewBox="0 0 24 24"><path d="M12 2l2.6 6.3 6.8.5-5.2 4.4 1.6 6.6L12 16.3 6.2 19.8l1.6-6.6L2.6 8.8l6.8-.5z"/></svg></button><span class="cap">實心（<code>.solid</code>）</span></div>
+</div></div>
+
+<h2>五、圖示以外還能加什麼</h2>
+<div class="why">
+  兩種都不是「另一種圖示」，是<b>圖示旁邊的東西</b>，主程式裡已經在用：
+  角落那個小小的快捷鍵（<code>.tool[data-key]::after</code>），和圖示底下一行字。
+  底下加字的那種按鈕要大一號（52×52）—— 硬塞進 40 的話字會小到讀不出來，那就白加了。
+</div>
+<div class="railwrap"><div class="grid" data-set>
+  <div class="item"><button class="tool active" data-key="V">⇄</button><span class="cap">角落放快捷鍵</span></div>
+  <div class="item"><button class="tool" data-key="S">✥</button><span class="cap">同上</span></div>
+  <div class="item"><button class="tool tall"><span>✂</span><span class="t">切分</span></button><span class="cap">圖示＋小字</span></div>
+  <div class="item"><button class="tool tall"><span>⇄</span><span class="t">移動</span></button><span class="cap">同上</span></div>
+  <div class="item"><button class="tool tall"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20H4v-5z"/><path d="M12.5 6.5l5 5"/></svg><span class="t">品類</span></button><span class="cap">SVG＋小字</span></div>
+</div></div>
+
+<h2>六、同一顆，不同大小</h2>
+<div class="why">
+  工具列現在是 40（總體那條小工具列是 36，方向那兩顆是 30）。
+  <b>線條類的 SVG 縮到 30 以下會糊</b>，Unicode 符號則是縮小之後留白看起來變多、像沒對齊。
+</div>
+<div class="sizes">
+  <span class="lbl">30</span>
+  <button class="tool s30">✂</button>
+  <button class="tool s30"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M12 4v16" stroke-dasharray="2.4 2.6"/></svg></button>
+  <span class="lbl" style="margin-left:10px">36</span>
+  <button class="tool s36">✂</button>
+  <button class="tool s36"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M12 4v16" stroke-dasharray="2.4 2.6"/></svg></button>
+  <span class="lbl" style="margin-left:10px">40</span>
+  <button class="tool">✂</button>
+  <button class="tool"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M12 4v16" stroke-dasharray="2.4 2.6"/></svg></button>
+</div>
+
+<h2>七、同一顆站在白底上</h2>
+<div class="why">
+  不是每顆按鈕都站在藍條上（意見欄、檔期卡、面板裡的按鈕都是白底）。
+  用 <code>currentColor</code> 的 SVG 和 Unicode 都會自己跟著翻色；<b>emoji 不會</b>。
+</div>
+<div class="onwhite" data-set>
+  <button class="tool active">⬚</button>
+  <button class="tool">✂</button>
+  <button class="tool">⇄</button>
+  <button class="tool"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5L9 20H4v-5z"/><path d="M12.5 6.5l5 5"/></svg></button>
+  <button class="tool">✏️</button>
+  <button class="tool">🔍</button>
+</div>
+
+<div class="note">
+  <b>挑的時候我會這樣想：</b>
+  這顆按鈕是不是每天都要按？是的話值得畫 SVG。<br>
+  兩顆是不是要能一眼分開（直／橫、正／背）？那就用漢字，別用兩根長得很像的箭頭。<br>
+  其他一律 Unicode —— 這支程式沒有 build、不引函式庫，一個字元就解決的事不必變成十行標記。<br>
+  最後一條：<b>整條工具列只能有一種調子。</b>三顆線條 SVG 配兩顆彩色 emoji，看起來會像少裝了什麼。
+</div>
+
+<script>
+/* 每一排自己互斥：點哪一顆哪一顆亮。跟真的工具列一樣 —— 這樣才看得到
+   「亮起來」的那個狀態（白底藍字）長什麼樣，那才是它平常在用的樣子。 */
+document.querySelectorAll('[data-set]').forEach(set => {
+  set.addEventListener('click', e => {
+    const b = e.target.closest('.tool');
+    if (!b || !set.contains(b)) return;
+    set.querySelectorAll('.tool').forEach(t => t.classList.toggle('active', t === b));
+  });
+});
+</script>
+</body>
+</html>
