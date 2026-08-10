@@ -3,419 +3,663 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>同時編輯</title>
+<title>同時編輯同一格</title>
 <!--
-  難點：兩個設計同時拼同一格，誰搬的東西會不見。
+  難點：兩個人同時拼同一格，誰搬的東西會不見。
 
-  這一支示範的是**選定的做法**，三件事一起：
-    1 一塊零件一列   只送動到的那幾塊，不是整格 → 搬不同零件不可能互相覆蓋
-    2 版本檢查       寫入時比對那一塊是第幾版，對不上就擋下來，絕不安靜覆蓋
-    3 即時同步       別人存檔就跟上，但只更新「自己沒有正在搬」的零件
-  外加在場提示（技術上什麼都沒解決，但人看到就會先喊一聲）。
+  第 1 段 BlockSync 就是要複製進主專案的那一份：無 DOM、無框架、無 Supabase 依賴。
+  第 2 段是假傳輸層（跑在這一頁，有真的延遲與原子性）。
+  第 3 段是 Supabase 傳輸層 + SQL，換掉 createFakeBackend().transport() 即可上線。
+  第 4 段是這個 demo 的畫面，主專案不會用到。
 
-  伺服器是假的、跑在這一頁裡（不會碰到正式 Supabase），行為全部是真的實作：
-  真的拖曳、真的改大小、600ms debounce、逐塊寫入、版本檢查、即時同步都真的跑。
-  資料結構 { id, kind, x, y, s } 和存檔流程跟主專案一致，可以直接搬。
-
-  要弄壞它：同時抓兩邊的同一塊零件拖。版本檢查會擋下後到的那一個 ——
-  東西還在他手上，重新整理再做一次就好，不會像現在這樣安靜消失。
+  策略只有一種：逐塊寫入＋版本檢查。
+  機器人 B 會一直去搬你手上那一塊；拖著不放，看你手上的東西還在不在。
 -->
 <style>
   :root{
-    --bg:#26303f; --bg2:#2f3a4b; --line:#3d4859; --ink:#e8edf5; --dim:#96a1b3;
-    --surface:#fff; --s2:#f4f6fa; --sline:#e2e6ee; --sink:#333a45; --smuted:#7a8494;
-    --blue:#4a6fdc; --blue-t:#eef2fc;
-    --red:#c0392b; --red-t:#fdecea; --green:#17663a; --green-t:#e6f6ea;
-    --amber:#8a6100; --amber-t:#fff4d9;
+    --bg:#1b2230; --bg2:#232c3c; --line:#37425a; --ink:#e9eef7; --dim:#93a0b8;
+    --paper:#fff; --paper2:#f3f5fa; --pline:#e0e5ef; --pink:#2f3745; --pmuted:#79849a;
+    --blue:#4a6fdc; --blue-t:#eaf0ff;
+    --red:#c0392b; --red-t:#fdeceb;
+    --green:#17663a; --green-t:#e5f6ea;
+    --amber:#8a6100; --amber-t:#fff3d6;
+    --violet:#7a3fb5;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
   body{
-    background:var(--bg);color:var(--ink);overflow:hidden;
+    background:var(--bg);color:var(--ink);overflow:hidden;cursor:default;
     font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
-    display:flex;flex-direction:column;gap:9px;padding:11px 14px 13px;
-    font-size:13px;line-height:1.5;cursor:default;
+    font-size:13px;line-height:1.5;
+    display:flex;flex-direction:column;gap:10px;padding:12px 14px 14px;
   }
-  .bar{display:flex;align-items:center;gap:7px;flex:none;flex-wrap:wrap}
-  .gap{flex:1}
+  .bar{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap}
   button{
     font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
-    border:1px solid var(--line);border-radius:8px;padding:6px 12px;
-    background:var(--bg2);color:var(--ink);
+    border:1px solid var(--line);border-radius:9px;padding:7px 13px;
+    background:var(--bg2);color:var(--dim);
   }
-  button:hover{background:#3a4457;border-color:var(--blue)}
-  button.go{background:var(--blue);border-color:var(--blue);color:#fff}
+  button:hover{background:#2c3648;color:var(--ink)}
+  button[aria-pressed="true"]{background:var(--blue);color:#fff}
+  button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .ctl{display:flex;align-items:center;gap:7px;background:var(--bg2);
+       border:1px solid var(--line);border-radius:9px;padding:5px 11px;
+       font-weight:800;font-size:12.5px;color:var(--dim)}
+  .ctl b{color:var(--ink);font-variant-numeric:tabular-nums;min-width:46px;text-align:right}
+  input[type=range]{width:90px;accent-color:var(--blue)}
+  .gap{flex:1}
 
-  .stage{flex:none;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start}
-  .card{background:var(--surface);color:var(--sink);border-radius:11px;overflow:hidden;
-        box-shadow:0 5px 18px rgba(0,0,0,.28)}
-  .card > h2{
-    font-size:13px;font-weight:800;padding:7px 12px;
-    background:var(--s2);border-bottom:1px solid var(--sline);
-    display:flex;align-items:center;gap:7px;
-  }
+  .stage{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .card{background:var(--paper);color:var(--pink);border-radius:12px;overflow:hidden;
+        display:flex;flex-direction:column;box-shadow:0 6px 22px rgba(0,0,0,.3)}
+  .card h2{font-size:13px;font-weight:800;padding:8px 12px;flex:none;
+           background:var(--paper2);border-bottom:1px solid var(--pline);
+           display:flex;align-items:center;gap:8px}
   .dot{width:9px;height:9px;border-radius:50%;flex:none}
-  .dot.a{background:var(--blue)} .dot.b{background:#c77dff} .dot.s{background:var(--smuted)}
-  .pill{margin-left:auto;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 8px}
+  .dot.a{background:var(--blue)} .dot.b{background:var(--violet)} .dot.s{background:var(--pmuted)}
+  .pill{margin-left:auto;font-size:10.5px;font-weight:800;border-radius:999px;padding:2px 9px;
+        font-variant-numeric:tabular-nums}
   .pill.ok{background:var(--green-t);color:var(--green)}
   .pill.warn{background:var(--amber-t);color:var(--amber)}
   .pill.bad{background:var(--red-t);color:var(--red)}
-  .pres{
-    font-size:11.5px;font-weight:800;color:var(--amber);background:var(--amber-t);
-    border-bottom:1px solid #f0dca8;padding:3px 12px;
-  }
+  .re{font-size:11px;padding:2px 7px;border-radius:7px;background:#fff;
+      color:var(--pmuted);border:1px solid var(--pline)}
+  .re:hover{color:var(--pink);background:var(--paper2)}
 
-  /* ---- 一格的版面：零件真的可以拖、可以改大小 ---- */
-  .cv{position:relative;height:190px;background:var(--surface);overflow:hidden;
-      border-top:1px solid var(--sline)}
-  .cv.ro{background:var(--s2)}
-  .blk{
-    position:absolute;user-select:none;white-space:nowrap;
-    border:1.5px solid transparent;border-radius:5px;padding:1px 4px;
-    transform-origin:0 0;cursor:grab;
-  }
-  .cv.ro .blk{cursor:default}
-  .blk.dragging{cursor:grabbing}
-  .blk.price{font-family:Anton,"Arial Black",sans-serif;color:var(--red);font-size:23px;line-height:1.05}
-  .blk.name {font-size:12.5px;font-weight:800;color:var(--sink)}
-  .blk.img  {width:44px;height:44px;border:1.5px dashed #c3cbd8;background:#f0f2f6;border-radius:4px}
-  .blk.wait  {border-color:var(--blue);background:var(--blue-t)}
-  .blk.held  {border-color:#e2b878;background:var(--amber-t)}
-  .blk.behind{border-color:#cdd4e0;background:#f7f9fc}
-  .hint{font-size:11px;color:var(--smuted);padding:4px 12px 6px;background:var(--s2)}
+  .cv{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--paper)}
+  .cv.ro{background:var(--paper2)}
+  .blk{position:absolute;user-select:none;white-space:nowrap;transform-origin:0 0;
+       border:1.5px solid transparent;border-radius:5px;padding:1px 4px;cursor:grab}
+  .cv.ro .blk,.cv.bot .blk{cursor:default}
+  .blk.dragging{cursor:grabbing;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+  .blk.price{font-family:Anton,"Arial Black",sans-serif;color:var(--red);font-size:22px;line-height:1.05}
+  .blk.name{font-size:12px;font-weight:800}
+  .blk.img{width:42px;height:42px;border:1.5px dashed #c5cdda;background:#eef1f6;border-radius:4px}
+  .blk.dirty{border-color:var(--blue);background:var(--blue-t)}
+  .blk.sending{border-color:var(--blue);background:var(--blue-t);opacity:.7}
+  .blk.held{border-color:#e0b46f;background:var(--amber-t)}
+  .blk.behind{border-color:#ccd3e0;background:#f8fafd}
+  .ghost{position:absolute;border:1.5px dashed #d19a2e;border-radius:5px;
+         background:rgba(209,154,46,.12);pointer-events:none;animation:fade 2.2s forwards}
+  @keyframes fade{0%,75%{opacity:1}100%{opacity:0}}
+  .foot{flex:none;font-size:11px;color:var(--pmuted);padding:4px 12px 6px;
+        background:var(--paper2);border-top:1px solid var(--pline)}
 
-  .log{
-    flex:1;min-height:110px;overflow:auto;background:#1c242f;border:1px solid var(--line);
-    border-radius:10px;padding:8px 12px;
-    font-size:12px;font-family:ui-monospace,"Cascadia Mono",Consolas,monospace;
-  }
-  .log div{padding:1px 0;display:flex;gap:9px}
-  .log .t{color:#63708a;flex:none;width:50px;text-align:right}
-  .log .m.a{color:#9db7ff} .log .m.b{color:#dcb0ff} .log .m.s{color:#9fb0c6}
-  .log .m.bad{color:#ff9c8f;font-weight:800} .log .m.ok{color:#8ce29b} .log .m.warn{color:#ffd68a}
-
-  #tip{
-    position:fixed;z-index:99;pointer-events:none;display:none;
-    background:#0f151d;border:1px solid var(--line);border-radius:8px;
-    padding:6px 10px;font-size:12px;font-weight:800;color:var(--ink);
-    box-shadow:0 6px 20px rgba(0,0,0,.5);max-width:340px;
-  }
+  #tip{position:fixed;z-index:99;pointer-events:none;display:none;
+       background:#0d131c;border:1px solid var(--line);border-radius:9px;
+       padding:6px 11px;font-size:12px;font-weight:800;color:var(--ink);
+       box-shadow:0 8px 24px rgba(0,0,0,.55);max-width:340px}
   #tip.on{display:block}
   #tip .sub{display:block;font-weight:400;color:var(--dim);font-size:11.5px;margin-top:2px}
+  @media (prefers-reduced-motion:reduce){.ghost{animation:none;opacity:.9}}
 </style>
 </head>
 <body>
 
 <div class="bar">
-  <button class="go" id="r1" data-tip="A 搬價格、B 搬商品圖，幾乎同時。">同時搬不同零件</button>
-  <button id="r2" data-tip="A 搬價格、B 同時把同一個價格改大。">同時動同一塊</button>
-  <button id="r3" data-tip="A 存完之後 B 才重新整理進來。">B 後進場</button>
-  <button id="rs" data-tip="回到兩邊剛開機的狀態。">重設</button>
+  <button id="bot" data-tip="機器人 B" data-sub="持續去搬你手上那一塊，模擬另一個人同時在拼。">B 一直在搬</button>
+  <div class="ctl" data-tip="debounceMs" data-sub="停手多久之後才送出。">送出
+    <input type="range" id="lag" min="80" max="1600" step="20" value="600"><b id="lagV">600ms</b>
+  </div>
+  <div class="ctl" data-tip="網路延遲" data-sub="每次寫入的來回時間，拉高就容易撞在一起。">網路
+    <input type="range" id="net" min="0" max="900" step="20" value="180"><b id="netV">180ms</b>
+  </div>
+  <div class="ctl" data-tip="零件數" data-sub="拉到 240 塊測壓力：重疊、密集、連續寫入。">零件
+    <input type="range" id="cnt" min="4" max="240" step="4" value="12"><b id="cntV">12</b>
+  </div>
   <span class="gap"></span>
+  <button id="rs" data-tip="重設" data-sub="清掉伺服器與兩邊暫存，回到剛開機。">重設</button>
 </div>
 
 <div class="stage">
   <div class="card" data-who="A">
-    <h2><span class="dot a"></span>設計 A<span class="pill ok" id="pillA">一致</span></h2>
-    <div class="pres">● 設計 B 也開著這一格</div>
+    <h2><span class="dot a"></span>設計 A（你）
+      <button class="re" id="reA" data-tip="pull()" data-sub="重拉最新版；被擋下的改動會放棄，要重做一次。">↻</button>
+      <span class="pill ok" id="pillA">一致</span></h2>
     <div class="cv" id="cvA"></div>
-    <div class="hint">拖曳搬移・滾輪改大小</div>
+    <div class="foot">拖曳搬移・滾輪改大小</div>
   </div>
   <div class="card" data-who="S">
     <h2><span class="dot s"></span>共用資料庫<span class="pill ok" id="pillS">v0</span></h2>
-    <div class="pres">&nbsp;</div>
     <div class="cv ro" id="cvS"></div>
-    <div class="hint">一塊零件一列，各自有版本</div>
+    <div class="foot">一塊零件一列，各自有版本</div>
   </div>
   <div class="card" data-who="B">
-    <h2><span class="dot b"></span>設計 B<span class="pill ok" id="pillB">一致</span></h2>
-    <div class="pres">● 設計 A 也開著這一格</div>
-    <div class="cv" id="cvB"></div>
-    <div class="hint">拖曳搬移・滾輪改大小</div>
+    <h2><span class="dot b"></span>設計 B（機器人）<span class="pill ok" id="pillB">一致</span></h2>
+    <div class="cv bot" id="cvB"></div>
+    <div class="foot">會去搶你手上那一塊</div>
   </div>
 </div>
 
-<div class="log" id="log"></div>
 <div id="tip"></div>
 
 <script>
-/* ==========================================================================
-   假的 Supabase，但寫入規則就是要搬進主專案的那一套：
-   一塊零件一列、寫入前比對版本、寫完廣播給其他人。
-   ========================================================================== */
-const DEBOUNCE = 600;                 // supabase-sync.js 也是 600
-let T0 = Date.now();
+/* ══════════════════════════════════════════════════════════════════════════
+   1 │ BlockSync —— 複製進主專案的就是這一段。無 DOM、無框架。
+   ══════════════════════════════════════════════════════════════════════════
+   一列 = 一塊零件：{ cell_id, block_id, kind, x, y, s, label, payload, ver, updated_by }
+   寫入時附 base_ver（我讀到時是第幾版）。伺服器只在 ver = base_ver 時才寫，
+   否則回 stale：不覆蓋、不猜，使用者手上的東西一定還在。
 
-/* 一格裡的零件。座標存在零件身上，跟主專案一樣。 */
-const SEED = [
-  { id:'name',  kind:'name',  label:'iPhone 17 Pro Max', x:10,  y:8,   s:1 },
-  { id:'img',   kind:'img',   label:'商品圖',            x:12,  y:32,  s:1 },
-  { id:'price1',kind:'price', label:'44900',             x:70,  y:120, s:1 },
-  { id:'price2',kind:'price', label:'51900',             x:168, y:120, s:1 },
-];
-const IDS = SEED.map(b => b.id);
-const clone = o => JSON.parse(JSON.stringify(o));
-const nameOf = id => id === 'img' ? '商品圖' : id === 'name' ? '品名'
-                   : '價格' + (id === 'price1' ? '1' : '2');
+   const sync = createBlockSync({
+     cellId, userId, transport,
+     debounceMs: 600,
+     onChange(){ repaint(); },
+     onConflict(ids){ toast('這幾塊已被他人修改，重載後再改一次'); },
+   });
+   await sync.hydrate();
+   sync.edit(id, { x, y });     // 拖曳中一直呼叫，停手 debounceMs 後才送
+   sync.add({ block_id, kind, x, y, s, payload });   // 換品／新增零件
+   sync.flushNow();  sync.pull();  sync.destroy();
+   ────────────────────────────────────────────────────────────────────────── */
+function createBlockSync(opt){
+  const {
+    cellId, userId, transport,
+    onChange = () => {}, onConflict = () => {},
+  } = opt;
 
-/* 伺服器：一塊零件一列，每一列自己有版本號。 */
-const server = { blocks:{}, ver:0, by:null };
-function serverInit(){
-  server.blocks = {};
-  SEED.forEach(b => server.blocks[b.id] = { ...clone(b), ver:0 });
-  server.ver = 0; server.by = null;
-}
+  const blocks   = Object.create(null);  // block_id → 本機值（畫面吃這個）
+  const baseVer  = Object.create(null);  // block_id → 我讀到時是第幾版
+  const dirty    = new Set();            // 改過、還沒送出
+  const sending  = new Set();            // 已送出、還在路上
+  const held     = new Set();            // 被版本檢查擋下，還在使用者手上
+  const touched  = new Set();            // 這個分頁自己動過（分辨「被蓋掉」與「還沒同步到」）
 
-function makeClient(who){
-  return {
-    /* touched＝這個分頁自己動過哪幾塊。沒有它就分不出「我搬的被蓋掉」和
-       「別人搬的我還沒看到」—— 兩者都是「跟伺服器不一樣」，但一個是事故、一個不是。 */
-    who, blocks:{}, seen:{}, dirty:new Set(), touched:new Set(), timer:0, blocked:false,
+  let debounceMs = opt.debounceMs ?? 600;
+  let timer = 0, unsub = null, dead = false, inflight = false, again = false;
 
-    boot(quiet){
-      IDS.forEach(id => { this.blocks[id] = clone(server.blocks[id]);
-                          this.seen[id]  = server.blocks[id].ver; });
-      this.dirty.clear(); this.touched.clear();
-      clearTimeout(this.timer); this.timer = 0; this.blocked = false;
-      if (!quiet) log(who, `pullAll() → v${server.ver}`);
-      render();
-    },
+  const clone = o => Object.assign({}, o);
+  const same  = (a, b) => !!a && !!b && a.x === b.x && a.y === b.y && a.s === b.s;
+  const take  = row => { baseVer[row.block_id] = row.ver; blocks[row.block_id] = clone(row); };
 
-    /** 搬一塊／改一塊的大小：先寫本機，排隊，600ms 後才送。 */
-    edit(id, patch, what){
-      Object.assign(this.blocks[id], patch);
-      this.dirty.add(id); this.touched.add(id);
-      this.blocked = false;
-      if (what) log(who, what);
-      clearTimeout(this.timer);
-      this.timer = setTimeout(() => { this.timer = 0; this.flush(); }, DEBOUNCE);
-      render();
-    },
+  /* ---- 讀 ---------------------------------------------------------------- */
+  async function hydrate(){
+    (await transport.readAll(cellId)).forEach(take);
+    dirty.clear(); sending.clear(); held.clear(); touched.clear();
+    if (!unsub) unsub = transport.subscribe(cellId, applyRemote);
+    onChange();
+  }
+  /** 衝突後重載：放棄本機、拿最新的。 */
+  async function pull(){
+    const rows = await transport.readAll(cellId);
+    rows.forEach(take);
+    dirty.clear(); held.clear(); touched.clear();
+    clearTimeout(timer); timer = 0;
+    onChange();
+  }
 
-    /** 只送動到的那幾塊，而且每一塊都要先過版本檢查。 */
-    flush(){
-      if (!this.dirty.size) return;
-      const wrote = [], stale = [];
-      [...this.dirty].forEach(id => {
-        /* 我讀到這一塊的時候是第幾版？跟伺服器現在對不上＝別人動過了。
-           不覆蓋、也不猜他想要什麼，就是擋下來 —— 東西還在使用者手上。 */
-        if (this.seen[id] !== server.blocks[id].ver){ stale.push(id); return; }
-        server.ver++;
-        server.blocks[id] = { ...clone(this.blocks[id]), ver:server.ver };
-        this.seen[id] = server.ver;
-        this.dirty.delete(id);
-        wrote.push(id);
-      });
-      if (wrote.length){
-        server.by = this.who;
-        log(this.who, `upsert ${wrote.map(nameOf).join('、')} → v${server.ver}`);
-      }
-      if (stale.length){
-        this.blocked = true;
-        log(this.who, `擋下 ${stale.map(nameOf).join('、')}：那一塊已經被別人改過，`
-              + '沒有覆蓋，重新整理就能重做', 'warn');
-      }
-      render(); checkLoss();
-      broadcast(this.who);
+  /* ---- 寫 ---------------------------------------------------------------- */
+  function edit(id, patch){
+    const b = blocks[id];
+    if (!b || dead) return;
+    Object.assign(b, patch);
+    dirty.add(id); touched.add(id); held.delete(id);
+    clearTimeout(timer);
+    timer = setTimeout(() => { timer = 0; flush(); }, debounceMs);
+    onChange();
+  }
+
+  /** 新增一塊（換品、加貼紙）。base_ver = null → 伺服器走 insert，已存在就回 stale。 */
+  function add(row){
+    if (dead || !row || !row.block_id) return;
+    blocks[row.block_id] = Object.assign({ x:0, y:0, s:1 }, row, { ver:0 });
+    baseVer[row.block_id] = null;
+    dirty.add(row.block_id); touched.add(row.block_id);
+    clearTimeout(timer);
+    timer = setTimeout(() => { timer = 0; flush(); }, debounceMs);
+    onChange();
+  }
+
+  /** 關分頁／切走前把排隊中的立刻送出，不然那幾筆就沒了。 */
+  function flushNow(){ if (dirty.size){ clearTimeout(timer); timer = 0; return flush(); } }
+
+  async function flush(){
+    if (dead || !dirty.size) return;
+    if (inflight){ again = true; return; }        // 送出中不併發，合併成下一批
+    inflight = true;
+
+    const ids = [...dirty];
+    ids.forEach(id => { dirty.delete(id); sending.add(id); });
+
+    const payload = ids.map(id => Object.assign(clone(blocks[id]), {
+      cell_id: cellId, block_id: id, updated_by: userId,
+      base_ver: baseVer[id],        // null = 這是新增的塊，走 insert
+    }));
+
+    let res;
+    try {
+      res = await transport.writeBlocks(cellId, payload, userId);
+    } catch (err){
+      ids.forEach(id => { sending.delete(id); dirty.add(id); });  // 沒寫成就退回重排隊
+      inflight = false; onChange();
+      throw err;
     }
+
+    res.written.forEach(r => {
+      sending.delete(r.block_id);
+      if (!dirty.has(r.block_id)) baseVer[r.block_id] = r.ver;   // 已經又改過就別動 base
+    });
+    res.stale.forEach(r => { sending.delete(r.block_id); held.add(r.block_id); });
+
+    inflight = false;
+    if (res.stale.length) onConflict(res.stale.map(r => r.block_id));
+    onChange();
+    if (again || dirty.size){ again = false; flush(); }
+  }
+
+  /* ---- 收 realtime -------------------------------------------------------- */
+  function applyRemote(rows){
+    if (dead) return;
+    let changed = false;
+    rows.forEach(row => {
+      const id = row.block_id;
+      if (!(id in blocks)){ take(row); changed = true; return; }   // 別人新增的塊
+      if (row.updated_by === userId && baseVer[id] >= row.ver) return;             // 自己的回音
+      // 手上的不動：排隊中、送出中、被擋下的都算「還在使用者手上」
+      if (dirty.has(id) || sending.has(id) || held.has(id)) return;
+      if (baseVer[id] === row.ver) return;
+      take(row);
+      dirty.delete(id); held.delete(id);
+      changed = true;
+    });
+    if (changed) onChange();
+  }
+
+  /* ---- 給畫面用 ----------------------------------------------------------- */
+  function stateOf(id){
+    if (held.has(id))    return 'held';
+    if (dirty.has(id))   return 'dirty';
+    if (sending.has(id)) return 'sending';
+    return '';
+  }
+
+  return {
+    hydrate, pull, edit, add, flush, flushNow, applyRemote, stateOf,
+    get: id => blocks[id],
+    all: () => blocks,
+    ids: () => Object.keys(blocks),
+    verOf: id => baseVer[id],
+    counts: () => ({ dirty: dirty.size, sending: sending.size, held: held.size }),
+    isBusy: id => dirty.has(id) || sending.has(id),
+    setDebounce(ms){ debounceMs = ms; },
+    destroy(){ dead = true; clearTimeout(timer); if (unsub) unsub(); unsub = null; },
   };
 }
 
-const A = makeClient('A'), B = makeClient('B');
-const other = w => (w === 'A' ? B : A);
+/* ══════════════════════════════════════════════════════════════════════════
+   2 │ 假傳輸層（只給 demo 用；版本檢查與原子性跟正式的一樣）
+   ══════════════════════════════════════════════════════════════════════════ */
+function createFakeBackend(){
+  const rows = Object.create(null);
+  const subs = [];
+  let ver = 0, latency = 180;
+  const clone = o => Object.assign({}, o);
+  const wait  = () => new Promise(r => setTimeout(r, latency / 2 + Math.random() * latency / 2));
 
-/* 即時同步：只更新「對方沒有正在搬」的零件。整包換掉會把人家拖到一半的零件拉回去 ——
-   那正是主程式 `if (currentPlan && r.id === currentPlan.id) return;` 在防的事。
-   真正要做的不是「不要更新」，而是「只更新沒被碰過的部分」。 */
-function broadcast(fromWho){
-  const c = other(fromWho);
-  let n = 0;
-  IDS.forEach(id => {
-    if (c.dirty.has(id)) return;
-    if (c.seen[id] === server.blocks[id].ver) return;
-    c.blocks[id] = clone(server.blocks[id]);
-    c.seen[id] = server.blocks[id].ver; n++;
+  return {
+    rows,
+    get ver(){ return ver; },
+    setLatency(ms){ latency = ms; },
+    seed(list, cellId){
+      Object.keys(rows).forEach(k => delete rows[k]);
+      subs.length = 0; ver = 0;
+      list.forEach(b => rows[b.block_id] =
+        Object.assign(clone(b), { cell_id: cellId, ver: 0, updated_by: null }));
+    },
+    transport(){
+      return {
+        async readAll(){ await wait(); return Object.values(rows).map(clone); },
+
+        /* 這段的語意 = 下面 SQL 的 write_blocks()：逐列比對 base_ver，對不上就 stale。 */
+        async writeBlocks(cellId, payload, userId){
+          await wait();
+          const written = [], stale = [];
+          payload.forEach(p => {
+            const cur = rows[p.block_id];
+            if (p.base_ver === null){                       // 新增
+              if (cur){ stale.push({ block_id: p.block_id, ver: cur.ver }); return; }
+              ver++;
+              rows[p.block_id] = Object.assign({}, p, { cell_id: cellId, ver, updated_by: userId });
+              written.push({ block_id: p.block_id, ver });
+              return;
+            }
+            if (!cur){ stale.push({ block_id: p.block_id, ver: -1 }); return; }
+            if (cur.ver !== p.base_ver){
+              stale.push({ block_id: p.block_id, ver: cur.ver });
+              return;
+            }
+            ver++;
+            rows[p.block_id] = Object.assign(clone(cur), {
+              kind: p.kind, label: p.label, x: p.x, y: p.y, s: p.s,
+              ver, updated_by: userId,
+            });
+            written.push({ block_id: p.block_id, ver });
+          });
+          if (written.length){
+            const changed = written.map(w => clone(rows[w.block_id]));
+            subs.forEach(cb => setTimeout(() => cb(changed), latency / 2));
+          }
+          return { written, stale };
+        },
+
+        subscribe(cellId, cb){ subs.push(cb); return () => subs.splice(subs.indexOf(cb), 1); },
+      };
+    },
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3 │ Supabase 傳輸層 —— 換掉第 2 段就上線，BlockSync 一行都不用改。
+   ══════════════════════════════════════════════════════════════════════════
+function createSupabaseTransport(supabase){
+  return {
+    async readAll(cellId){
+      const { data, error } = await supabase
+        .from('dm_blocks').select('*').eq('cell_id', cellId);
+      if (error) throw error;
+      return data;
+    },
+    async writeBlocks(cellId, payload, userId){
+      const { data, error } = await supabase.rpc('write_blocks', {
+        p_cell: cellId, p_user: userId,
+        p_rows: payload.map(p => ({
+          block_id: p.block_id, kind: p.kind, label: p.label,
+          x: p.x, y: p.y, s: p.s, base_ver: p.base_ver,
+        })),
+      });
+      if (error) throw error;
+      return {
+        written: data.filter(r =>  r.ok).map(r => ({ block_id: r.block_id, ver: r.ver })),
+        stale:   data.filter(r => !r.ok).map(r => ({ block_id: r.block_id, ver: r.ver })),
+      };
+    },
+    subscribe(cellId, cb){
+      const ch = supabase.channel('cell:' + cellId)
+        .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'dm_blocks',
+              filter: 'cell_id=eq.' + cellId },
+            p => cb([p.new]))
+        .subscribe();
+      return () => supabase.removeChannel(ch);
+    },
+  };
+}
+
+-- ── SQL ───────────────────────────────────────────────────────────────────
+create table dm_blocks (
+  cell_id    uuid    not null,
+  block_id   text    not null,
+  kind       text    not null,
+  label      text,
+  x          int     not null default 0,
+  y          int     not null default 0,
+  s          numeric not null default 1,
+  payload    jsonb   not null default '{}',    -- SKU、促銷價、贈品、貼紙…
+  ver        int     not null default 0,
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  primary key (cell_id, block_id)
+);
+alter publication supabase_realtime add table dm_blocks;
+
+-- 一批一交易：ver 對得上才寫，對不上回 ok=false，絕不覆蓋。
+create or replace function write_blocks(p_cell uuid, p_user text, p_rows jsonb)
+returns table(block_id text, ver int, ok boolean)
+language plpgsql security definer as $$
+declare r jsonb; v int;
+begin
+  for r in select * from jsonb_array_elements(p_rows) loop
+    if r->>'base_ver' is null then                       -- 新增：已存在就當衝突
+      insert into dm_blocks(cell_id, block_id, kind, label, x, y, s, payload, ver, updated_by)
+      values (p_cell, r->>'block_id', r->>'kind', r->>'label',
+              (r->>'x')::int, (r->>'y')::int, (r->>'s')::numeric,
+              coalesce(r->'payload', '{}'::jsonb), 0, p_user)
+      on conflict (cell_id, block_id) do nothing
+      returning dm_blocks.ver into v;
+
+      if found then block_id := r->>'block_id'; ver := v; ok := true;
+      else
+        select d.ver into v from dm_blocks d
+          where d.cell_id = p_cell and d.block_id = r->>'block_id';
+        block_id := r->>'block_id'; ver := v; ok := false;
+      end if;
+      return next;
+      continue;
+    end if;
+
+    update dm_blocks d set
+      kind  = coalesce(r->>'kind', d.kind),
+      label = coalesce(r->>'label', d.label),
+      x = (r->>'x')::int, y = (r->>'y')::int, s = (r->>'s')::numeric,
+      ver = d.ver + 1, updated_by = p_user, updated_at = now()
+    where d.cell_id = p_cell
+      and d.block_id = r->>'block_id'
+      and (r->>'base_ver' is null or d.ver = (r->>'base_ver')::int)
+    returning d.ver into v;
+
+    if found then
+      block_id := r->>'block_id'; ver := v; ok := true;
+    else
+      select d.ver into v from dm_blocks d
+        where d.cell_id = p_cell and d.block_id = r->>'block_id';
+      block_id := r->>'block_id'; ver := coalesce(v, -1); ok := false;
+    end if;
+    return next;
+  end loop;
+end $$;
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4 │ demo 畫面（主專案不會用到）
+   ══════════════════════════════════════════════════════════════════════════ */
+const CELL = 'demo-cell';
+const LABELS = ['iPhone 17 Pro Max','變頻冷暖空調','65型 4K 電視','三門變頻冰箱',
+                '滾筒洗衣機','洗碗機','抽油煙機','無線吸塵器'];
+const backend = createFakeBackend();
+const cv = { A:null, B:null, S:null };
+const els = { A:{}, B:{}, S:{} };
+let A = null, B = null, ids = [], debounceMs = 600, drag = null, botOn = true;
+
+function seedRows(n, W, H){
+  const cols = Math.max(2, Math.round(Math.sqrt(n * (W / Math.max(H, 1)))));
+  const cw = W / cols, ch = H / Math.ceil(n / cols);
+  return Array.from({ length:n }, (_, i) => ({
+    block_id: 'b' + i,
+    kind: i % 3 === 1 ? 'img' : i % 3 === 2 ? 'name' : 'price',
+    label: i % 3 === 0 ? String(19900 + i * 1310) : LABELS[i % LABELS.length],
+    x: Math.round((i % cols) * cw + 6),
+    y: Math.round(Math.floor(i / cols) * ch + 6),
+    s: 1,
+  }));
+}
+
+function makeSide(who){
+  return createBlockSync({
+    cellId: CELL, userId: who, transport: backend.transport(),
+    debounceMs,
+    onChange: paint,
+    onConflict: ids => { ids.forEach(id => ghost(who, id)); paint(); },
   });
-  if (n) log(c.who, `即時同步 ${n} 塊（正在搬的沒被動）`, 'ok');
-  render();
 }
 
-const same = (a, b) => a.x === b.x && a.y === b.y && a.s === b.s;
-function lostOf(c){
-  if (c.dirty.size || c.blocked) return [];
-  return IDS.filter(id => c.touched.has(id) && c.blocks[id]
-                       && !same(c.blocks[id], server.blocks[id]));
+async function reset(n){
+  if (drag) drag.stop();
+  if (A) A.destroy();
+  if (B) B.destroy();
+  const box = cv.A.getBoundingClientRect();
+  const rows = seedRows(n, Math.max(box.width - 52, 120), Math.max(box.height - 40, 120));
+  backend.seed(rows, CELL);
+  ids = rows.map(r => r.block_id);
+  A = makeSide('A'); B = makeSide('B');
+  await Promise.all([A.hydrate(), B.hydrate()]);
+  buildStage();
 }
-let told = false;
-function checkLoss(){
-  [A, B].forEach(c => {
-    const lost = lostOf(c);
-    if (lost.length && !told){
-      told = true;
-      log('!', `${c.who} 搬的 ${lost.map(nameOf).join('、')} 不在伺服器上了`, 'bad');
-    }
+
+function buildStage(){
+  ['A','B','S'].forEach(k => {
+    const host = cv[k]; host.innerHTML = ''; els[k] = {};
+    ids.forEach(id => {
+      const src = k === 'S' ? backend.rows[id] : (k === 'A' ? A : B).get(id);
+      if (!src) return;
+      const el = document.createElement('div');
+      el.className = 'blk ' + src.kind;
+      el.textContent = src.kind === 'img' ? '' : src.label;
+      if (k === 'A'){
+        el.addEventListener('pointerdown', e => startDrag(e, id));
+        el.addEventListener('wheel', e => {
+          e.preventDefault();
+          const b = A.get(id);
+          const s = Math.max(.5, Math.min(2.4, +(b.s + (e.deltaY < 0 ? .1 : -.1)).toFixed(2)));
+          if (s !== b.s) A.edit(id, { s });
+        }, { passive:false });
+      }
+      host.appendChild(el); els[k][id] = el;
+    });
   });
-}
-function outcome(){
-  if (lostOf(A).length || lostOf(B).length) return { k:'bad',  t:'有人搬的東西不見了' };
-  if (A.blocked || B.blocked)               return { k:'warn', t:'被擋下（東西沒掉，重做就好）' };
-  return { k:'ok', t:'兩個人的都在' };
+  paint();
 }
 
-/* ---- 畫面 ---------------------------------------------------------------- */
-function blkState(c, id){
-  if (!c || !c.blocks[id]) return '';
-  if (same(c.blocks[id], server.blocks[id])) return '';
-  if (c.dirty.has(id)) return 'wait';
-  if (!c.touched.has(id)) return 'behind';   // 別人改的，我還沒看到 —— 不是事故
-  if (c.blocked) return 'held';
-  return 'lost';
-}
-const whyState = s =>
-    s === 'wait'   ? '排隊中，還沒送出去'
-  : s === 'held'   ? '被版本檢查擋下，重新整理就能重做'
-  : s === 'behind' ? '別人改過這一塊，你還沒看到'
-  : s === 'lost'   ? '你搬到這裡，但伺服器上不是'
+const same = (a, b) => !!a && !!b && a.x === b.x && a.y === b.y && a.s === b.s;
+const why = s =>
+    s === 'dirty'   ? '排隊中，還沒送出去'
+  : s === 'sending' ? '送出中，還在路上'
+  : s === 'held'    ? '版本對不上，被擋下 —— 東西還在你手上，↻ 之後重做一次'
+  : s === 'behind'  ? '別人改過這一塊，你還沒同步到'
   : '跟伺服器一樣';
 
-function renderCv(host, c){
-  host.innerHTML = '';
-  IDS.forEach(id => {
-    const b = c ? c.blocks[id] : server.blocks[id];
-    if (!b) return;
-    const st = blkState(c, id);
-    const el = document.createElement('div');
-    el.className = 'blk ' + b.kind + (st ? ' ' + st : '');
-    el.style.left = b.x + 'px';
-    el.style.top  = b.y + 'px';
-    el.style.transform = 'scale(' + b.s + ')';
-    el.textContent = b.kind === 'img' ? '' : b.label;
-    el.dataset.tip = nameOf(id) + `　v${c ? c.seen[id] : b.ver}`;
-    el.dataset.sub = whyState(st);
-    if (c) attachDrag(el, c, id);
-    host.appendChild(el);
+let queued = false;
+function paint(){
+  if (queued) return;
+  queued = true;
+  requestAnimationFrame(() => { queued = false; draw(); });
+}
+
+function draw(){
+  if (!A) return;
+  [['A', A], ['B', B], ['S', null]].forEach(([k, sync]) => {
+    ids.forEach(id => {
+      const el = els[k][id]; if (!el) return;
+      const row = backend.rows[id];
+      const b = sync ? sync.get(id) : row;
+      if (!b) return;
+      let st = sync ? sync.stateOf(id) : '';
+      if (!st && sync && !same(b, row)) st = 'behind';
+      const cls = 'blk ' + b.kind + (st ? ' ' + st : '')
+                + (drag && drag.who === k && drag.id === id ? ' dragging' : '');
+      if (el.className !== cls) el.className = cls;
+      el.style.left = b.x + 'px';
+      el.style.top  = b.y + 'px';
+      el.style.transform = 'scale(' + b.s + ')';
+      el.dataset.tip = (b.kind === 'price' ? '價格' : b.kind === 'img' ? '商品圖' : '品名')
+                     + '　v' + (sync ? sync.verOf(id) : row.ver);
+      el.dataset.sub = why(st);
+    });
+  });
+  document.getElementById('pillS').textContent = 'v' + backend.ver;
+  [['A', A], ['B', B]].forEach(([k, sync]) => {
+    const c = sync.counts(), p = document.getElementById('pill' + k), q = c.dirty + c.sending;
+    p.className = 'pill ' + (c.held ? 'warn' : 'ok');
+    p.textContent = c.held ? '擋下 ' + c.held + '，↻ 重做'
+                  : q ? '排隊 ' + q : '一致';
   });
 }
 
-function render(){
-  renderCv(document.getElementById('cvA'), A);
-  renderCv(document.getElementById('cvB'), B);
-  renderCv(document.getElementById('cvS'), null);
-  document.getElementById('pillS').textContent = 'v' + server.ver + (server.by ? '　' + server.by : '');
-  [['A', A], ['B', B]].forEach(([k, c]) => {
-    const p = document.getElementById('pill' + k);
-    const lost = lostOf(c).length;
-    p.className = 'pill ' + (c.blocked ? 'warn' : (lost ? 'bad' : 'ok'));
-    p.textContent = c.blocked ? '被擋下，重新整理'
-                  : c.dirty.size ? c.dirty.size + ' 塊排隊中'
-                  : lost ? '有東西掉了' : '一致';
+/** 被擋下時在原位閃一下：東西沒掉，只是還沒進資料庫。 */
+function ghost(who, id){
+  const src = els[who][id]; if (!src) return;
+  const at = (who === 'A' ? A : B).get(id); if (!at) return;
+  const g = document.createElement('div');
+  g.className = 'ghost';
+  g.style.left = at.x + 'px'; g.style.top = at.y + 'px';
+  g.style.width  = (src.offsetWidth  * at.s) + 'px';
+  g.style.height = (src.offsetHeight * at.s) + 'px';
+  cv[who].appendChild(g);
+  setTimeout(() => g.remove(), 2700);
+}
+
+function startDrag(e, id){
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const b = A.get(id); if (!b) return;
+  const sx = e.clientX, sy = e.clientY, bx = b.x, by = b.y;
+  const mv = ev => A.edit(id, { x:Math.round(bx + ev.clientX - sx), y:Math.round(by + ev.clientY - sy) });
+  const stop = () => {
+    document.removeEventListener('pointermove', mv);
+    document.removeEventListener('pointerup', stop);
+    drag = null; paint();
+  };
+  drag = { who:'A', id, stop };
+  document.addEventListener('pointermove', mv);
+  document.addEventListener('pointerup', stop);
+  paint();
+}
+
+/* 機器人 B：優先搶你手上那一塊 */
+setInterval(() => {
+  if (!botOn || !B || !ids.length) return;
+  const id = (drag && drag.who === 'A') ? drag.id : ids[(Math.random() * ids.length) | 0];
+  if (B.counts().held) B.pull();
+  const b = B.get(id); if (!b) return;
+  const box = cv.B.getBoundingClientRect();
+  B.edit(id, {
+    x: Math.max(0, Math.min(box.width  - 30, b.x + ((Math.random() * 90 - 45) | 0))),
+    y: Math.max(0, Math.min(box.height - 24, b.y + ((Math.random() * 70 - 35) | 0))),
   });
-}
+}, 700);
 
-/* ---- 真的拖、真的改大小 ---------------------------------------------------- */
-function attachDrag(el, c, id){
-  el.addEventListener('pointerdown', e => {
-    e.preventDefault();
-    const b = c.blocks[id];
-    const x0 = e.clientX, y0 = e.clientY, bx = b.x, by = b.y;
-    el.setPointerCapture(e.pointerId);
-    el.classList.add('dragging');
-    let moved = false;
-    const mv = ev => {
-      /* 不夾邊界：這一支要示範的是「同時改」，不是排版規則。夾住反而讓人拖到一半
-         被卡住，以為是同步出了問題。畫布 overflow:hidden，超出去自然看不到。 */
-      const nx = bx + ev.clientX - x0;
-      const ny = by + ev.clientY - y0;
-      if (nx === b.x && ny === b.y) return;
-      moved = true;
-      c.edit(id, { x:nx, y:ny });          // 拖曳中就一直 markDirty，跟主專案一樣
-    };
-    const up = () => {
-      el.removeEventListener('pointermove', mv);
-      el.removeEventListener('pointerup', up);
-      el.classList.remove('dragging');
-      if (moved) log(c.who, `搬了 ${nameOf(id)}`);
-    };
-    el.addEventListener('pointermove', mv);
-    el.addEventListener('pointerup', up);
-  });
-  el.addEventListener('wheel', e => {
-    e.preventDefault();
-    const b = c.blocks[id];
-    const s = Math.max(.5, Math.min(2, +(b.s + (e.deltaY < 0 ? .1 : -.1)).toFixed(2)));
-    if (s === b.s) return;
-    c.edit(id, { s }, `${nameOf(id)} 改大小 → ${s}x`);
-  }, { passive:false });
-}
-
-function log(who, msg, kind){
-  const el = document.getElementById('log');
-  const d = document.createElement('div');
-  d.innerHTML = `<span class="t">+${Date.now() - T0}</span>`
-              + `<span class="m ${kind || (who === 'A' ? 'a' : who === 'B' ? 'b' : 's')}">`
-              + `${who === '!' ? '⚠ ' : who + '　'}${msg}</span>`;
-  el.appendChild(d); el.scrollTop = el.scrollHeight;
-}
-
-/* ---- 狀態貼在游標旁 -------------------------------------------------------- */
+/* 狀態貼在游標旁 */
 const tip = document.getElementById('tip');
-const MODE = '一塊零件一列・寫入前比對版本・別人存檔就跟上';
+const modeLine = () => '逐塊寫入＋版本檢查';
 document.addEventListener('mousemove', e => {
-  /* e.target 不保證是 Element（派到 document 上、或落在文字節點時就不是），
-     直接叫 closest 會整個 handler 爆掉 —— 掛在 mousemove 上，一爆就是每動一下爆一次。 */
   const t = e.target;
   const el = (t && typeof t.closest === 'function') ? t.closest('[data-tip],[data-who]') : null;
-  let head = MODE, sub = '';
-  if (el && el.dataset.tip){ head = el.dataset.tip; sub = el.dataset.sub || MODE; }
+  let head = modeLine(), sub = '';
+  if (el && el.dataset.tip){ head = el.dataset.tip; sub = el.dataset.sub || modeLine(); }
   else if (el && el.dataset.who){
-    const c = el.dataset.who === 'A' ? A : el.dataset.who === 'B' ? B : null;
-    head = c ? `設計 ${c.who}` : '共用資料庫　v' + server.ver;
-    sub = (c ? (c.blocked ? '被擋下來，重新整理就能重做'
-              : c.dirty.size ? c.dirty.size + ' 塊排隊中'
-              : lostOf(c).length ? '有東西被蓋掉了' : '跟伺服器一致') + '　' : '') + MODE;
+    const k = el.dataset.who, sync = k === 'A' ? A : k === 'B' ? B : null;
+    head = sync ? '設計 ' + k : '共用資料庫　v' + backend.ver;
+    if (sync){
+      const c = sync.counts(), q = c.dirty + c.sending;
+      sub = (c.held ? '擋下 ' + c.held + ' 塊，東西還在手上'
+            : q ? '排隊 ' + q + ' 塊' : '跟伺服器一致') + '　';
+    }
+    sub += modeLine();
   }
-  tip.innerHTML = head + (sub ? `<span class="sub">${sub}</span>` : '');
+  tip.innerHTML = head + (sub ? '<span class="sub">' + sub + '</span>' : '');
   tip.classList.add('on');
   tip.style.left = Math.min(e.clientX + 14, innerWidth  - tip.offsetWidth  - 8) + 'px';
   tip.style.top  = Math.min(e.clientY + 16, innerHeight - tip.offsetHeight - 8) + 'px';
 });
 document.addEventListener('mouseleave', () => tip.classList.remove('on'));
 
-/* ---- 劇本 ---------------------------------------------------------------- */
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-function resetAll(quiet){
-  document.getElementById('log').innerHTML = '';
-  told = false; T0 = Date.now();
-  serverInit(); A.boot(true); B.boot(true); render();
-  if (!quiet) log('!', MODE, 'ok');
-}
-function done(){ const o = outcome(); log('!', o.t, o.k === 'ok' ? 'ok' : o.k); }
+/* 控制列 */
+cv.A = document.getElementById('cvA');
+cv.B = document.getElementById('cvB');
+cv.S = document.getElementById('cvS');
+document.getElementById('bot').onclick = e => {
+  botOn = !botOn; e.currentTarget.setAttribute('aria-pressed', botOn);
+};
+document.getElementById('reA').onclick = e => { e.stopPropagation(); A.pull(); };
+document.getElementById('rs').onclick = () => reset(+document.getElementById('cnt').value);
+document.getElementById('lag').oninput = e => {
+  debounceMs = +e.target.value;
+  document.getElementById('lagV').textContent = debounceMs + 'ms';
+  if (A){ A.setDebounce(debounceMs); B.setDebounce(debounceMs); }
+};
+document.getElementById('net').oninput = e => {
+  backend.setLatency(+e.target.value);
+  document.getElementById('netV').textContent = e.target.value + 'ms';
+};
+document.getElementById('cnt').oninput = e => {
+  document.getElementById('cntV').textContent = e.target.value;
+  reset(+e.target.value);
+};
+addEventListener('resize', () => reset(+document.getElementById('cnt').value));
+addEventListener('visibilitychange', () => { if (document.hidden && A) A.flushNow(); });
 
-async function race(){
-  resetAll(true); log('!', MODE, 'ok');
-  await sleep(280); A.edit('price1', { x:40, y:96 }, '把價格1 往左上搬');
-  await sleep(120); B.edit('img',    { x:150, y:40 }, '把商品圖搬到右邊');
-  await sleep(1400); done();
-}
-async function sameBlock(){
-  resetAll(true); log('!', MODE, 'ok');
-  await sleep(280); A.edit('price1', { x:40, y:96 }, '把價格1 往左上搬');
-  await sleep(120); B.edit('price1', { s:1.6 },      '把價格1 放大到 1.6x');
-  await sleep(1400); done();
-}
-async function later(){
-  resetAll(true); log('!', MODE, 'ok');
-  await sleep(280); A.edit('price1', { x:40, y:96 }, '把價格1 往左上搬');
-  await sleep(1000); B.boot();
-  await sleep(280); B.edit('img', { x:150, y:40 }, '把商品圖搬到右邊');
-  await sleep(1300); done();
-}
-document.getElementById('r1').onclick = race;
-document.getElementById('r2').onclick = sameBlock;
-document.getElementById('r3').onclick = later;
-document.getElementById('rs').onclick = () => resetAll();
-
-serverInit(); resetAll(true); log('!', MODE, 'ok');
+document.getElementById('bot').setAttribute('aria-pressed', true);
+backend.setLatency(180);
+requestAnimationFrame(() => reset(12));
 </script>
 </body>
 </html>

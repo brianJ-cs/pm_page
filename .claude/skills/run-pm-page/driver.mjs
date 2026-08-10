@@ -293,7 +293,7 @@ await send('Emulation.setDeviceMetricsOverride',
 if (!argv.includes('--live')) {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
     Object.defineProperty(window, 'SUPABASE', {
-      value: { url:'', anonKey:'', bucket:'', editorUrl:'editor' },
+      value: { url:'', anonKey:'', bucket:'' },
       writable: false, configurable: false,
     });
   `});

@@ -22,8 +22,9 @@ const PORT = +(process.env.PORT || 8080);
 const NO_SYNC = !!process.env.PM_NO_SYNC;
 
 /* 這幾支是正本。任何一支存檔就重跑一次複製。 */
-const SOURCES = ['design_and_PM.html', '2cell-product-pick.html', '落版單系統.html',
-                 'config.js', 'supabase-sync.js', '_redirects'];
+const SOURCES = ['design_and_PM.html', '2cell-product-pick.html', 'product.html',
+                 'config.js', 'supabase-sync.js', '_redirects',
+                 'logo_page/index.html', 'logo_page/config.js'];
 
 function build(why){
   const r = spawnSync(process.execPath, [join(here, 'build-single.mjs')], { cwd: here });
@@ -83,7 +84,7 @@ createServer(async (req, res) => {
   if (NO_SYNC && path === '/config.js'){
     res.writeHead(200, { 'content-type': MIME['.js'], 'cache-control': 'no-store' });
     res.end('/* PM_NO_SYNC：本機測試用的空設定，不連任何後端 */\n'
-          + 'window.SUPABASE = { url:"", anonKey:"", bucket:"", editorUrl:"editor" };\n');
+          + 'window.SUPABASE = { url:"", anonKey:"", bucket:"" };\n');
     return;
   }
 

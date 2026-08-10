@@ -1,6 +1,6 @@
 ---
 name: pm-page-traps
-description: pm_page 這個專案踩過的坑，改東西之前先看。包含合成單檔的 $ 陷阱、config.js 連著正式 Supabase（測試會寫到公司資料）、畫布 iframe 裡的變數讀不到、driver 參數的引號地雷，以及該問而沒問的時候會發生什麼。Use when editing design_and_PM.html, 2cell-product-pick.html, 落版單系統.html, build-single.mjs or dev.mjs, when running browser tests against this project, or before saying a change works.
+description: pm_page 這個專案踩過的坑，改東西之前先看。包含合成單檔的 $ 陷阱、config.js 連著正式 Supabase（測試會寫到公司資料）、畫布 iframe 裡的變數讀不到、driver 參數的引號地雷，以及該問而沒問的時候會發生什麼。Use when editing design_and_PM.html, 2cell-product-pick.html, build-single.mjs or dev.mjs, when running browser tests against this project, or before saying a change works.
 ---
 
 # pm_page 踩過的坑
@@ -48,7 +48,7 @@ main.replace('<body>', () => '<body>\n' + banner)   // 函式：不做任何 $ �
 
 ## 三、頂層的 `let` 不在 `window` 上
 
-- `design_and_PM.html`、`落版單系統.html` 整包在 IIFE 裡 → 外面 `--eval` **完全**讀不到內部變數（`plans`、`setZoom`…）。
+- `design_and_PM.html` 整包在 IIFE 裡 → 外面 `--eval` **完全**讀不到內部變數（`plans`、`setZoom`…）。
 - `2cell-product-pick.html` 沒有 IIFE，但頂層是 `let`/`const` → **單獨開**這一頁時 `--eval` 讀得到（同一個 script scope），從**父頁**用 `iframe.contentWindow.BLOCKS` 讀就是 `undefined`。
 
 所以：驗畫布自己的邏輯 → 單獨開 `2cell-product-pick.html` 用 `--eval`；

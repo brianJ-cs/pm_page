@@ -14,7 +14,9 @@
  * 額外多認一個 --assert <js>：跟 --eval 一樣，但在畫布 iframe 裡面跑
  * （畫布的變數是 let/const，外面 evaluate 讀不到，只能透過 contentDocument 問 DOM）。
  *
- * 換檔案：--file "dm-editor-single.html?seed=1"（預設是 design_and_PM.html?seed=1）
+ * 換檔案：--file "dm-editor-single.html?seed=1&as=design"
+ *         （預設是 design_and_PM.html?seed=1&as=design —— as= 是登入的旁路，
+ *           不帶的話乾淨的瀏覽器一開就停在登入頁）
  */
 
 import { spawn } from 'node:child_process';
@@ -138,7 +140,9 @@ if (!name || !SCENES[name]) {
 }
 
 const rest = argv.slice(1);
-let file = 'design_and_PM.html?seed=1';
+/* as=design 是登入的旁路：每次都是乾淨的瀏覽器，沒有它就整批卡在登入頁。
+   要驗別的身分就 --file "design_and_PM.html?seed=1&as=pm"（或 as=mkt、user=<id>）。 */
+let file = 'design_and_PM.html?seed=1&as=design';
 const tail = [];
 for (let i = 0; i < rest.length; i++) {
   if (rest[i] === '--file') { file = rest[++i]; continue; }
