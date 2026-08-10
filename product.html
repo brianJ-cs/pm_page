@@ -1,0 +1,1125 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商品目錄</title>
+<!-- 商品目錄：全公司一份，不屬於任何一個檔期。
+     以前它住在拼板挑貨面板的「後台」側欄裡 —— 要改一筆商品，得先開一個檔期、
+     進拼板、點一格、展開側欄。那是「排某一本 DM」的路，不是「維護商品」的路。
+
+     零相依，跟這個專案其他兩支一樣：瀏覽器直接開就是完整的程式。
+     ⚠️ config.js 裡是公司正式環境的金鑰 —— 直接開這一支＝在正式資料上按按鈕。
+     測試一律 `PM_NO_SYNC=1 node dev.mjs` 或走 driver.mjs（它會把 window.SUPABASE
+     釘成空的）。 -->
+<style>
+:root{
+  --ink:#1b2333; --ink-dim:#5d6675; --muted:#8b94a5;
+  --surface:#fff; --surface-2:#f4f6fa; --bg:#eef1f6;
+  --line:#e3e7ef; --line-strong:#cfd6e3;
+  --blue:#4a6fdc; --accent-strong:#3b5cc4; --accent-tint:#eaf0ff; --accent-line:#c3d0f4;
+  --ok-ink:#1a7f47; --ok-tint:#e8f7ee;
+  --danger-ink:#b3261e; --danger-tint:#fdecea; --danger-line:#f0c2bd;
+  --warn:#c98a12; --amber-bg:#fdf3dc;
+}
+*{box-sizing:border-box}
+/* ⚠️ 這一條要在最前面：`display:flex` 那幾塊（#impMask、#drop）用 id 選，
+   權重比瀏覽器內建的 `[hidden]{display:none}` 高 —— 沒有這一條的話，
+   那兩塊蓋著整個畫面而且關不掉，而 HTML 上明明寫著 hidden。 */
+[hidden]{display:none !important}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;
+  font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
+}
+
+/* ---- 上面那條 ---- */
+#bar{
+  flex:none;display:flex;align-items:center;gap:12px;padding:14px 24px;
+  background:#1e2532;color:var(--surface);
+}
+#bar h1{margin:0;font-size:20px;font-weight:800;letter-spacing:1px}
+#count{font-size:13.5px;font-weight:700;color:#aeb8c9}
+#search{
+  margin-left:auto;width:230px;padding:8px 12px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);
+  color:var(--surface);font-family:inherit;font-size:14px;font-weight:600;
+}
+#search::placeholder{color:rgba(255,255,255,.55)}
+#search:focus{outline:none;border-color:var(--surface);background:rgba(255,255,255,.2)}
+.btn{
+  font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;
+  border:1px solid var(--line);border-radius:8px;padding:8px 16px;
+  background:var(--surface);color:var(--ink);
+}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:var(--surface)}
+.btn.primary:hover{background:var(--accent-strong)}
+.btn:disabled{cursor:default;background:var(--surface-2);border-color:var(--line);color:var(--muted)}
+/* 存檔狀態：它講的是「你的東西安不安全」，所以永遠看得到，不是 toast */
+#state{
+  font-size:13px;font-weight:800;padding:6px 12px;border-radius:999px;
+  background:rgba(255,255,255,.12);color:#cfd7e6;white-space:nowrap;
+}
+#state.saved{background:var(--ok-tint);color:var(--ok-ink)}
+#state.dirty{background:var(--amber-bg);color:var(--warn)}
+#state.local{background:rgba(255,255,255,.12);color:#cfd7e6}
+/* 還沒讀到共用目錄：這時候什麼都不會存，那是最該看得出來的一種狀態 */
+#state.wait{background:var(--danger-tint);color:var(--danger-ink)}
+
+#logoWarn{
+  flex:none;padding:9px 24px;background:var(--amber-bg);color:#7a5606;
+  font-size:13px;font-weight:700;line-height:1.7;border-bottom:1px solid #f0e0b8;
+}
+#logoWarn b{color:#5d4204}
+
+/* ---- 左欄：類別 ---- */
+#main{flex:1;min-height:0;display:flex}
+#rail{
+  flex:none;width:212px;background:var(--surface);border-right:1px solid var(--line);
+  overflow:auto;padding:14px 10px 40px;
+}
+.rail-t{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:2px;padding:0 8px 8px}
+.cat{
+  display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:8px;cursor:pointer;
+  font-size:13.5px;font-weight:800;color:var(--ink);
+}
+.cat:hover{background:var(--surface-2)}
+/* 藍＝你正在看的那一類（跟主程式同一條規矩：藍色是「你正在點的東西」） */
+.cat.on{background:var(--accent-tint);color:var(--blue)}
+.cat .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cat .n{flex:none;font-size:11.5px;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+.cat.on .n{color:var(--blue)}
+/* 改名和清空只在滑過去的時候出現：平常那一排是「這一類有幾筆」，不是工具列 */
+.cat .act{flex:none;display:none;border:none;background:transparent;cursor:pointer;
+          color:var(--muted);font-size:12px;padding:2px 4px;border-radius:5px}
+.cat:hover .act{display:block}
+.cat .act:hover{background:var(--surface);color:var(--ink)}
+.cat .act.arm{display:block;background:var(--danger-tint);color:var(--danger-ink);font-weight:800}
+.cat input{
+  flex:1;min-width:0;padding:3px 6px;border-radius:6px;border:1px solid var(--blue);
+  background:var(--surface);font-family:inherit;font-size:13.5px;font-weight:800;color:var(--ink);
+}
+.cat input:focus{outline:none}
+.rail-sep{height:1px;background:var(--line);margin:8px 6px}
+
+/* ---- 表 ---- */
+#wrap{flex:1;min-width:0;overflow:auto;padding:18px 24px 60px}
+/* 選了幾筆、要搬去哪 —— 貼在表的上面，跟著捲 */
+#selbar{
+  display:flex;align-items:center;gap:10px;max-width:1280px;margin:0 auto 12px;
+  padding:10px 14px;border-radius:10px;background:var(--accent-tint);
+  border:1px solid var(--accent-line);font-size:13.5px;font-weight:800;color:var(--blue);
+}
+#selbar .sb-lb{margin-left:12px;color:var(--ink-dim)}
+#selbar select,#selbar input{
+  padding:6px 9px;border-radius:7px;border:1px solid var(--line-strong);background:var(--surface);
+  font-family:inherit;font-size:13px;font-weight:700;color:var(--ink);
+}
+#selbar #selNone{margin-left:auto}
+td.pick,th.pick{width:34px;text-align:center;padding-left:12px}
+td.pick input,th.pick input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
+tr.on td{background:var(--accent-tint)}
+table{border-collapse:separate;border-spacing:0;width:100%;max-width:1280px;margin:0 auto;
+      background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th{
+  position:sticky;top:0;z-index:2;background:var(--surface-2);color:var(--ink-dim);
+  font-size:12.5px;font-weight:800;text-align:left;padding:10px 10px;
+  border-bottom:1px solid var(--line-strong);white-space:nowrap;
+}
+td{padding:3px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+/* 一個類別一條橫幅：類別現在是欄位（見 rowCat），不是「排在一起就算同一組」。
+   舊做法是「連續同名就地成群」，重排一次分組就散了。 */
+td.grp{
+  background:var(--accent-tint);color:var(--blue);font-size:13px;font-weight:800;
+  padding:8px 12px;border-bottom:1px solid var(--accent-line);
+}
+td.grp .n{color:var(--ink-dim);font-weight:700;margin-left:8px}
+table input{
+  width:100%;padding:6px 7px;border-radius:6px;border:1px solid transparent;background:transparent;
+  font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink);
+}
+table input:hover{border-color:var(--line-strong)}
+table input:focus{outline:none;border-color:var(--blue);background:var(--accent-tint)}
+/* SKU 是這個商品的身分（合併、換圖、挑貨全靠它），所以它長得跟別的欄位不一樣 */
+input.sku{font-variant-numeric:tabular-nums;font-weight:800}
+input.price{text-align:right;font-variant-numeric:tabular-nums}
+/* 缺 SKU 的列存不進共用目錄（合併是照 SKU 取聯集的），當場就要看得出來 */
+tr.bad input.sku{border-color:var(--danger-line);background:var(--danger-tint)}
+.del{
+  border:none;background:transparent;color:var(--muted);cursor:pointer;
+  font-size:15px;line-height:1;padding:4px 7px;border-radius:6px;
+}
+.del:hover{background:var(--danger-tint);color:var(--danger-ink)}
+/* 按了第一下：那顆鈕自己變成問句，再按一下才真的刪 */
+.del.arm{background:var(--danger-tint);color:var(--danger-ink);font-size:12px;font-weight:800}
+#empty{max-width:520px;margin:80px auto;text-align:center;color:var(--muted);
+       font-size:15px;font-weight:700;line-height:2}
+#empty b{color:var(--ink)}
+/* 一句話的回報。存檔狀態在上面那條，這裡只講一次性的事（匯出了幾筆、合併了幾筆） */
+#say{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:50;
+  background:#1e2532;color:#fff;font-size:13.5px;font-weight:800;
+  padding:9px 16px;border-radius:999px;opacity:0;transition:opacity .18s;pointer-events:none;
+}
+#say.on{opacity:.95}
+
+/* ---- 匯入 ---- */
+#impMask{
+  position:fixed;inset:0;z-index:60;background:rgba(20,26,38,.5);
+  display:flex;align-items:center;justify-content:center;padding:28px;
+}
+#imp{
+  background:var(--surface);border-radius:14px;width:min(980px,100%);max-height:100%;
+  display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(20,26,38,.35);overflow:hidden;
+}
+.imp-hd{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
+.imp-hd b{font-size:17px}
+.imp-hd #impFile{font-size:13px;font-weight:700;color:var(--muted);margin-right:auto}
+.imp-body{flex:1;min-height:0;overflow:auto;padding:6px 20px 16px}
+.imp-sec{padding:14px 0;border-bottom:1px solid var(--line)}
+.imp-sec:last-child{border-bottom:none}
+.imp-t{font-size:14px;font-weight:800;margin-bottom:6px}
+.imp-sum{display:flex;flex-wrap:wrap;gap:8px}
+.imp-sum span{
+  font-size:13px;font-weight:800;padding:6px 12px;border-radius:999px;
+  background:var(--surface-2);color:var(--ink-dim);
+}
+.imp-sum span.add{background:var(--ok-tint);color:var(--ok-ink)}
+.imp-sum span.upd{background:var(--accent-tint);color:var(--blue)}
+.imp-sum span.skip{background:var(--danger-tint);color:var(--danger-ink)}
+.imp-warn{margin-top:12px;padding:10px 12px;border-radius:9px;font-size:13px;font-weight:700;
+          line-height:1.7;background:var(--danger-tint);color:var(--danger-ink)}
+.imp-ft{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line);
+        background:var(--surface-2)}
+.imp-err{flex:1;font-size:13px;font-weight:800;color:var(--danger-ink)}
+/* 拖一份檔案進來：整頁變成一個落點，不必先找到那顆鈕 */
+#drop{
+  position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
+  background:rgba(74,111,220,.16);border:4px dashed var(--blue);
+  font-size:22px;font-weight:800;color:var(--accent-strong);pointer-events:none;
+}
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <h1>商品目錄</h1>
+  <span id="count"></span>
+  <input id="search" type="search" placeholder="找品名／型號／SKU／品牌">
+  <button class="btn" id="addBtn">＋ 新增一列</button>
+  <button class="btn primary" id="impBtn">匯入 CSV</button>
+  <button class="btn" id="csvBtn">匯出 CSV</button>
+  <button class="btn" id="undoBtn" hidden>復原匯入</button>
+  <span id="state"></span>
+</div>
+<input id="file" type="file" accept=".csv,.tsv,.txt,text/csv" hidden>
+
+<!-- 匯入：選檔 → 看它會改什麼 → 匯入。
+     ⚠️ 中間本來還有「這幾欄是什麼」（可以自己改的對照表）和「前幾筆長這樣」，
+     談定拿掉了：欄位名固定就是那幾個，猜得到就直接走，猜不到就整份擋下來
+     （見 impErr）—— 半對半錯地匯進去才是弄髒目錄的那條路。
+     「合併／取代」那個選擇也拿掉了，一律**合併**：照 SKU 更新或新增，
+     沒出現在 CSV 裡的商品留著。刪商品要一筆一筆刪，不由匯入順手做。 -->
+<div id="impMask" hidden>
+  <div id="imp">
+    <div class="imp-hd">
+      <b>匯入 CSV</b><span id="impFile"></span>
+      <button class="btn" id="impClose">關掉</button>
+    </div>
+    <div class="imp-body">
+      <div class="imp-sec">
+        <div class="imp-t">匯進去會發生什麼</div>
+        <div id="impSum" class="imp-sum"></div>
+        <div id="impBad" class="imp-warn" hidden></div>
+      </div>
+    </div>
+    <div class="imp-ft">
+      <span id="impErr" class="imp-err"></span>
+      <button class="btn" id="impCancel">取消</button>
+      <button class="btn primary" id="impGo">匯入</button>
+    </div>
+  </div>
+</div>
+<div id="drop" hidden>放開就讀這份 CSV</div>
+
+<!-- 品牌對不上 Logo 庫的時候才出現。這是「商品目錄」和「品牌 Logo」兩邊
+     唯一會對不起來的地方：這裡打的品牌名，那邊要有同名的公司才找得到圖。 -->
+<div id="logoWarn" hidden></div>
+
+<div id="main">
+  <!-- 左欄＝類別。類別是列上的欄位（cat），不是另一張對照表 —— 你們的來源系統
+       本來就一列帶一個類別，多存一份對照表只會有兩個答案。
+       所以「這一類有幾筆」永遠是數出來的，不會有「類別存在但裡面沒東西」這種狀態。 -->
+  <div id="rail">
+    <div class="rail-t">類別</div>
+    <div id="cats"></div>
+  </div>
+  <div id="wrap">
+    <!-- 選了東西才出現：沒選的時候它只是一條佔位子的空列 -->
+    <div id="selbar" hidden>
+      <b id="selN"></b>
+      <span class="sb-lb">移到類別</span>
+      <select id="moveTo"></select>
+      <input id="newCat" type="text" placeholder="新類別的名字" hidden>
+      <button class="btn" id="moveGo" hidden>移過去</button>
+      <button class="btn" id="selNone">取消選取</button>
+    </div>
+    <table id="tbl"><tbody id="tbody"></tbody></table>
+    <div id="empty" hidden></div>
+  </div>
+</div>
+<div id="say"></div>
+
+<script src="config.js"></script>
+<script src="supabase-sync.js"></script>
+<script>
+(function(){
+'use strict';
+
+const $ = s => document.querySelector(s);
+const sync = () => (window.PlanSync && window.PlanSync.ok()) ? window.PlanSync : null;
+
+/* ==========================================================================
+   資料
+   一列一個 SKU，SKU 就是那個商品的身分（共用目錄是照 SKU 取聯集合併的）。
+
+   ⚠️ 欄位比舊的多三個：cat（類別）／brand（品牌）／model（型號）。
+   舊的目錄把品牌和型號放在「商品名 → 值」的對照表裡（BRAND／MODEL），那是假設
+   「同一個商品名就是同一個品牌、同一個型號」。公司實際給的資料不是這樣：
+     空調,HITACHI,變頻冷暖空調,RAC-28NP1/RAS-28NJP1,...
+     空調,Panasonic,變頻冷暖空調,CU-UJ28BHA2/CS-UJ28BA2,...
+   同一個「變頻冷暖空調」跨三個品牌，而且同一個品牌底下每一筆的型號都不一樣 ——
+   對照表根本存不下這件事。所以品牌和型號回到列上。
+   **對照表沒有拿掉**：舊資料還躺在裡面，畫布現在讀的也還是它（見 syncNameMaps）。
+   ========================================================================== */
+const LS_KEY = 'catalogue_products_v1';
+const FIELDS = ['cat','brand','name','model','spec','color','sku','price'];
+
+/* 嵌在主程式裡（?embed=1）的時候，**存檔一律交給上層**：
+   金鑰、那條 debounce、還有「存完要發給每一塊畫布」都在主程式那一邊。
+   自己存的話，版面上還是舊的商品，而使用者剛剛明明改好了。
+   單獨開這一頁（?embed 沒帶）才自己走 PlanSync —— 那時候沒有上層。 */
+const EMBED = new URLSearchParams(location.search).get('embed') === '1';
+const tellParent = msg => {
+  if (!EMBED || window.parent === window) return;
+  try { window.parent.postMessage(Object.assign({ productPage: 1 }, msg), '*'); } catch (e){}
+};
+
+/* 整包目錄：rows 之外那四張表原封不動帶著走 —— 這一頁不管品牌圖和商品圖
+   （那是下一步的事），但它存回去的是「整包」，弄丟別人的東西是最貴的一種 bug。 */
+let CAT = { rows: [], model:{}, brand:{}, bimg:{}, img:{} };
+let touched = false;          // 使用者動過手了嗎（決定遠端拉回來時敢不敢直接蓋）
+let q = '';
+
+/* 品牌 Logo 庫：`正規化過的品牌名 → 圖的網址`。嵌著的時候上層給，
+   單獨開就自己拉（同一支 supabase-sync）。這一頁不改它，只用來回答一句話：
+   **這裡打的品牌，Logo 庫裡找得到嗎**。 */
+let LOGOS = null;
+const normBrand = v => String(v == null ? '' : v)
+  .trim().toLowerCase().replace(/[\s　._\-]+/g, '');
+
+/* ⚠️ 「我讀到共用的那一份了嗎」。**沒讀到就絕對不准存**。
+   這一頁存的是整包（rows 就是全部），所以從一片空白存下去 ＝ 把全公司的商品
+   一次刪光，而且是安靜地刪：畫面上本來就空的，看不出剛剛發生了什麼。
+   空白有兩種，差別只在這個旗標：
+     「目錄真的是空的」（第一次用）→ 收到回覆了，存下去是對的
+     「還沒讀到」（上層還在拉、拉失敗、或那一頁比上層先起來）→ 一個字都不能存
+   標準的一種災難：開啟商品目錄 → 這一頁比資料先到 → 隨手改一個字 → 全公司的目錄沒了。 */
+let answered = false;
+
+function normRow(r){
+  return {
+    cat:   String(r.cat   || '').trim(),
+    brand: String(r.brand || '').trim(),
+    name:  String(r.name  || '').trim(),
+    model: String(r.model || '').trim(),
+    spec:  String(r.spec  || '').trim(),
+    color: String(r.color || '').trim(),
+    sku:   String(r.sku   == null ? '' : r.sku).trim(),
+    price: +r.price || 0
+  };
+}
+/* 讀的時候：列上有就用列上的，沒有才回頭問那兩張舊對照表。
+   舊資料一筆都不必改寫就看得到品牌和型號。 */
+function rowBrand(r){ return r.brand || (CAT.brand || {})[r.name] || ''; }
+function rowModel(r){ return r.model || (CAT.model || {})[r.name] || ''; }
+
+function adopt(data){
+  if (!data || !Array.isArray(data.rows)) return false;
+  CAT = {
+    rows: data.rows.map(normRow),
+    model: data.model || {}, brand: data.brand || {},
+    bimg:  data.bimg  || {}, img:   data.img   || {}
+  };
+  /* 對照表裡的品牌／型號搬到列上一份 —— 這一頁之後都用列上那一份，
+     不然使用者改了一列的品牌，畫面上另外幾列（同名）會跟著變，像是壞了。 */
+  CAT.rows.forEach(r => { r.brand = rowBrand(r); r.model = rowModel(r); });
+  return true;
+}
+
+/* 存回去的那一份。列上的欄位是正本；那兩張對照表**同時**跟著更新，但只在
+   「同名的每一列都填一樣」的時候才寫 —— 畫布現在讀的還是對照表，寫錯了
+   會讓三個品牌的空調全部掛上同一個牌子。名字對不起來的就維持原樣，
+   等畫布改成讀列上那一份（下一步）再說。 */
+function syncNameMaps(out){
+  const seen = Object.create(null);
+  out.rows.forEach(r => {
+    if (!r.name) return;
+    const cur = seen[r.name];
+    if (!cur) seen[r.name] = { brand:r.brand, model:r.model, ok:true };
+    else if (cur.brand !== r.brand || cur.model !== r.model) cur.ok = false;
+  });
+  const brand = Object.assign({}, out.brand), model = Object.assign({}, out.model);
+  Object.keys(seen).forEach(n => {
+    if (!seen[n].ok) return;
+    if (seen[n].brand) brand[n] = seen[n].brand;
+    if (seen[n].model) model[n] = seen[n].model;
+  });
+  out.brand = brand; out.model = model;
+  return out;
+}
+function payload(){
+  /* 沒有 SKU 的列不送出去：共用目錄是照 SKU 取聯集合併的，沒有身分的列
+     在合併裡會被當成「別人刪掉的」而消失 —— 那比不存還糟（看起來存了，過幾分鐘沒了）。
+     它留在畫面上（紅框），使用者補上 SKU 就會跟著上去。 */
+  return syncNameMaps({
+    rows: CAT.rows.filter(r => r.sku).map(normRow),
+    model: CAT.model, brand: CAT.brand, bimg: CAT.bimg, img: CAT.img
+  });
+}
+
+/* ---- 存檔 ----------------------------------------------------------------
+   兩層，跟檔期同一套：localStorage 是本機快取（秒開、離線也還在），
+   Supabase 那一列是共用的那一份。 */
+let saveTimer = 0;
+function markDirty(){
+  touched = true;
+  setState('dirty');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 400);
+}
+function save(){
+  clearTimeout(saveTimer);
+  if (!answered){                 // 見 answered 那一段：空白狀態存下去＝刪光全公司的目錄
+    setState('wait');
+    return;
+  }
+  const data = payload();
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+  catch (e){ console.warn('本機快取寫不進去（可能滿了）', e); }
+  if (EMBED){ tellParent({ catalogueSave: data }); setState('saved'); return; }
+  const s = sync();
+  if (s) s.queueCatalogue(data);
+  setState(s ? 'saved' : 'local');
+}
+function setState(k){
+  const el = $('#state');
+  el.className = k;
+  el.textContent = k === 'dirty' ? '儲存中…'
+                 : k === 'local' ? '只存在這台機器（沒接後端）'
+                 : k === 'wait'  ? '⚠️ 還沒讀到共用目錄，先不存 —— 重新整理一次'
+                 : '✓ 已儲存';
+  el.title = k === 'wait'
+    ? '這一頁存的是整包目錄，從空白存下去會把全公司的商品刪光，所以讀到之前一律不存。'
+    : '';
+}
+
+/** 目錄裡有哪些品牌、哪幾個在 Logo 庫裡找不到。 */
+function renderLogoWarn(){
+  const box = $('#logoWarn');
+  if (!LOGOS){ box.hidden = true; return; }      // 還沒拉到就別亂講「找不到」
+  const brands = [];
+  CAT.rows.forEach(r => {
+    const b = String(r.brand || '').trim();
+    if (b && !brands.includes(b)) brands.push(b);
+  });
+  const miss = brands.filter(b => !LOGOS[normBrand(b)]);
+  box.hidden = !miss.length;
+  if (!miss.length) return;
+  const shown = miss.slice(0, 8).join('、');
+  box.innerHTML = `⚠️ <b>${miss.length} 個品牌在 Logo 庫裡找不到</b>：${esc(shown)}`
+    + (miss.length > 8 ? ` …等 ${miss.length} 個` : '')
+    + '　—— 版面上這幾個牌子會畫成空框。到「🏷 品牌 Logo」那一頁上傳，'
+    + '或把這裡的品牌名改成跟那邊一樣的寫法。';
+}
+
+let sayTimer = 0;
+function say(msg){
+  const el = $('#say');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(sayTimer);
+  sayTimer = setTimeout(() => el.classList.remove('on'), 2600);
+}
+
+/* ==========================================================================
+   畫面
+   ========================================================================== */
+const COLS = [
+  ['cat',   '類別',   '10%'],
+  ['brand', '品牌',   '10%'],
+  ['name',  '商品名字','20%'],
+  ['model', '型號',   '18%'],
+  ['spec',  '規格',   '10%'],
+  ['color', '顏色',   '7%'],
+  ['sku',   'SKU',    '11%'],
+  ['price', '市價',   '9%']
+];
+
+const UNCAT = '未分類';
+let catPick = null;          // 左欄點到哪一類（null＝全部）
+let sel = new Set();         // 選到的是第幾列。加／刪／匯入都會清掉它 ——
+                             // 那幾種動作會讓索引對不上，留著就會搬到別人身上
+
+function hit(r){
+  if (catPick != null && (r.cat || UNCAT) !== catPick) return false;
+  if (!q) return true;
+  const k = q.toLowerCase();
+  return [r.cat, r.brand, r.name, r.model, r.spec, r.color, r.sku, String(r.price)]
+    .some(v => String(v || '').toLowerCase().includes(k));
+}
+
+/** 有哪幾類、各幾筆。數出來的 —— 類別住在列上，沒有「空的類別」這種東西。 */
+function catList(){
+  const m = new Map();
+  CAT.rows.forEach(r => { const c = r.cat || UNCAT; m.set(c, (m.get(c) || 0) + 1); });
+  const named = [...m.keys()].filter(c => c !== UNCAT).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  if (m.has(UNCAT)) named.push(UNCAT);      // 未分類永遠排最後，但一定看得見
+  return named.map(c => ({ name: c, n: m.get(c) }));
+}
+
+let catArmed = null, catArmTimer = 0;
+function catDisarm(){
+  if (catArmed && catArmed.isConnected){ catArmed.classList.remove('arm'); catArmed.textContent = '✕'; }
+  catArmed = null; clearTimeout(catArmTimer);
+}
+
+function renderCats(){
+  const list = catList();
+  const row = (key, label, n, ops) =>
+    `<div class="cat${catPick === key ? ' on' : ''}" data-c="${esc(key == null ? '' : key)}"`
+    + `${key == null ? ' data-all="1"' : ''}>`
+    + `<span class="nm">${esc(label)}</span><span class="n">${n}</span>`
+    + (ops ? '<button class="act" data-act="ren" title="改這一類的名字">✎</button>'
+           + '<button class="act" data-act="clr" title="清空這一類（商品留著，變成未分類）">✕</button>' : '')
+    + '</div>';
+  $('#cats').innerHTML =
+    row(null, '全部', CAT.rows.length, false)
+    + '<div class="rail-sep"></div>'
+    + list.map(c => row(c.name, c.name, c.n, c.name !== UNCAT)).join('');
+}
+
+/* 左欄：點一類就篩；✎ 改名（那一類的每一列一起改）；✕ 清空（**商品留著**，
+   變成未分類 —— 刪一個類別就把裡面的商品一起刪掉，是最嚇人的一種誤會）。 */
+$('#cats').addEventListener('click', e => {
+  const act = e.target.closest('.act');
+  const box = e.target.closest('.cat');
+  if (!box) return;
+  const key = box.dataset.all ? null : box.dataset.c;
+
+  if (act && act.dataset.act === 'ren'){
+    catDisarm();
+    const old = key;
+    box.innerHTML = `<input value="${esc(old)}">`;
+    const inp = box.querySelector('input');
+    inp.focus(); inp.select();
+    /* Enter 自己收尾，不要繞去 blur()：那顆輸入框是剛長出來的，
+       焦點不在它身上的時候 blur() 什麼都不會發生 —— 打完 Enter 像沒反應。
+       closed 是因為收完會重畫，重畫時那顆輸入框被移掉還會再冒一次 blur。 */
+    let closed = false;
+    const done = ok => {
+      if (closed) return;
+      closed = true;
+      const v = inp.value.trim();
+      if (ok && v && v !== old){
+        CAT.rows.forEach(r => { if ((r.cat || UNCAT) === old) r.cat = v; });
+        if (catPick === old) catPick = v;
+        markDirty(); render();
+      } else { renderCats(); }
+    };
+    inp.addEventListener('blur', () => done(true));
+    inp.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter'){ ev.preventDefault(); done(true); }
+      if (ev.key === 'Escape'){ ev.preventDefault(); done(false); }
+    });
+    return;
+  }
+  if (act && act.dataset.act === 'clr'){
+    if (act !== catArmed){
+      catDisarm();
+      catArmed = act; act.classList.add('arm'); act.textContent = '確定？';
+      catArmTimer = setTimeout(catDisarm, 3000);
+      return;
+    }
+    catDisarm();
+    CAT.rows.forEach(r => { if ((r.cat || UNCAT) === key) r.cat = ''; });
+    if (catPick === key) catPick = null;
+    markDirty(); render();
+    say('那一類清空了，商品都在「未分類」裡');
+    return;
+  }
+  catDisarm();
+  catPick = (catPick === key) ? null : key;    // 再點一次＝看全部
+  sel.clear();
+  render();
+});
+
+/* ---- 多選：選了才搬得動一整批 ---- */
+function renderSelBar(){
+  const bar = $('#selbar');
+  bar.hidden = !sel.size;
+  if (!sel.size) return;
+  $('#selN').textContent = `已選 ${sel.size} 筆`;
+  const cur = $('#moveTo').value;
+  $('#moveTo').innerHTML = '<option value="">—— 選一個 ——</option>'
+    + catList().filter(c => c.name !== UNCAT).map(c =>
+        `<option value="${esc(c.name)}"${cur === c.name ? ' selected' : ''}>${esc(c.name)}</option>`).join('')
+    + `<option value="--none--">（拿掉類別）</option>`
+    + `<option value="--new--">＋ 新類別…</option>`;
+}
+function moveSelTo(cat){
+  [...sel].forEach(i => { if (CAT.rows[i]) CAT.rows[i].cat = cat; });
+  const n = sel.size;
+  sel.clear();
+  markDirty(); render();
+  say(`${n} 筆移到「${cat || UNCAT}」`);
+}
+$('#moveTo').addEventListener('change', e => {
+  const v = e.target.value;
+  const isNew = v === '--new--';
+  $('#newCat').hidden = !isNew;
+  $('#moveGo').hidden = !isNew;
+  if (isNew){ $('#newCat').value = ''; $('#newCat').focus(); return; }
+  if (!v) return;
+  moveSelTo(v === '--none--' ? '' : v);
+});
+function addNewCat(){
+  const v = $('#newCat').value.trim();
+  if (!v){ $('#newCat').focus(); return; }
+  moveSelTo(v);
+  $('#newCat').hidden = true; $('#moveGo').hidden = true;
+}
+$('#moveGo').addEventListener('click', addNewCat);
+$('#newCat').addEventListener('keydown', e => {
+  if (e.key === 'Enter'){ e.preventDefault(); addNewCat(); }
+});
+$('#selNone').addEventListener('click', () => { sel.clear(); render(); });
+
+function render(){
+  renderCats();
+  renderSelBar();
+  renderLogoWarn();
+  const rows = CAT.rows.map((r, i) => ({ r, i })).filter(x => hit(x.r));
+  const narrowed = q || catPick != null;
+  $('#count').textContent = CAT.rows.length
+    ? `${CAT.rows.length} 筆・${catList().length} 個類別`
+      + (narrowed ? `（看到 ${rows.length}）` : '')
+    : '';
+
+  const tbl = $('#tbl'), empty = $('#empty');
+  if (!CAT.rows.length){
+    tbl.hidden = true; empty.hidden = false;
+    empty.innerHTML = '<b>還沒有商品</b><br>把一份 CSV 拖進來，'
+                    + '<br>或按上面的「＋ 新增一列」自己打。';
+    return;
+  }
+  if (!rows.length){
+    tbl.hidden = true; empty.hidden = false;
+    empty.innerHTML = '<b>這裡沒有符合的商品</b><br>換一個關鍵字，或點左邊的「全部」。';
+    return;
+  }
+  tbl.hidden = false; empty.hidden = true;
+
+  /* 一個類別收成一段。類別是欄位，所以這裡只是「照它排一下」——
+     使用者改了某一列的類別，它就跳到另一段去，不必手動搬位置。 */
+  const order = [];
+  const byCat = new Map();
+  rows.forEach(x => {
+    const c = x.r.cat || '未分類';
+    if (!byCat.has(c)){ byCat.set(c, []); order.push(c); }
+    byCat.get(c).push(x);
+  });
+
+  const allOn = rows.length && rows.every(x => sel.has(x.i));
+  const head = `<tr><th class="pick"><input type="checkbox" id="pickAll"`
+             + `${allOn ? ' checked' : ''} title="看到的這幾筆全選"></th>`
+             + COLS.map(c => `<th style="width:${c[2]}">${c[1]}</th>`).join('')
+             + '<th style="width:34px"></th></tr>';
+  const body = order.map(c => {
+    const list = byCat.get(c);
+    return `<tr><td class="grp" colspan="${COLS.length + 2}">${esc(c)}`
+         + `<span class="n">${list.length} 筆</span></td></tr>`
+         + list.map(x => rowHTML(x.r, x.i)).join('');
+  }).join('');
+  $('#tbody').innerHTML = head + body;
+}
+
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function rowHTML(r, i){
+  const cls = [r.sku ? '' : 'bad', sel.has(i) ? 'on' : ''].filter(Boolean).join(' ');
+  return `<tr${cls ? ` class="${cls}"` : ''} data-i="${i}">`
+    + `<td class="pick"><input type="checkbox" data-pick="${i}"${sel.has(i) ? ' checked' : ''}></td>`
+    + COLS.map(c => {
+    const f = c[0];
+    const cls = f === 'sku' ? ' sku' : f === 'price' ? ' price' : '';
+    const v = f === 'price' ? (r.price || '') : r[f];
+    return `<td><input class="${cls.trim()}" data-f="${f}" value="${esc(v)}"`
+         + (f === 'sku' ? ' title="SKU 是這個商品的身分，缺了就存不進共用目錄"' : '')
+         + '></td>';
+  }).join('') + `<td><button class="del" title="刪掉這一列">✕</button></td></tr>`;
+}
+
+/* 打字就改資料，不重畫整張表 —— 重畫會把游標踢出輸入框（一個字打不完）。
+   類別改了才要重排（它決定分在哪一段），而那是離開輸入框之後的事。 */
+$('#tbody').addEventListener('input', e => {
+  const inp = e.target.closest('input[data-f]');
+  if (!inp) return;
+  const tr = inp.closest('tr'), i = +tr.dataset.i, r = CAT.rows[i];
+  if (!r) return;
+  const f = inp.dataset.f;
+  r[f] = f === 'price' ? (+String(inp.value).replace(/[^\d.-]/g, '') || 0) : inp.value.trim();
+  if (f === 'sku') tr.classList.toggle('bad', !r.sku);
+  markDirty();
+});
+$('#tbody').addEventListener('change', e => {
+  const pick = e.target.closest('input[data-pick]');
+  if (pick){
+    const i = +pick.dataset.pick;
+    pick.checked ? sel.add(i) : sel.delete(i);
+    pick.closest('tr').classList.toggle('on', pick.checked);
+    renderSelBar();
+    return;
+  }
+  if (e.target.id === 'pickAll'){
+    /* 「全選」只選**現在看得到的那幾筆** —— 篩了類別還全選整份目錄，
+       下一步「移到類別」就會把沒看到的東西一起搬走。 */
+    const on = e.target.checked;
+    CAT.rows.forEach((r, i) => { if (hit(r)) on ? sel.add(i) : sel.delete(i); });
+    render();
+    return;
+  }
+  if (e.target.dataset && e.target.dataset.f === 'cat') render();
+});
+/* 刪掉要按兩下：這是全公司共用的目錄，別人也會看到那一筆不見了。
+   不用 confirm()：它會把整頁擋住（headless 測試會就這樣停在那裡），而且
+   「跳一個框問你」跟「那顆鈕自己變成問句」比起來並沒有比較清楚。
+   3 秒沒有第二下就自己收回去 —— 手滑按到一下不該留下一顆待命的刪除鈕。 */
+let armed = null, armTimer = 0;
+function disarm(){
+  if (armed && armed.isConnected){ armed.classList.remove('arm'); armed.textContent = '✕'; }
+  armed = null; clearTimeout(armTimer);
+}
+$('#tbody').addEventListener('click', e => {
+  const del = e.target.closest('.del');
+  if (!del){ disarm(); return; }
+  const i = +del.closest('tr').dataset.i;
+  const r = CAT.rows[i];
+  if (!r) return;
+  if (del !== armed && (r.name || r.sku)){
+    disarm();
+    armed = del; del.classList.add('arm'); del.textContent = '確定刪？';
+    armTimer = setTimeout(disarm, 3000);
+    return;
+  }
+  disarm();
+  CAT.rows.splice(i, 1);
+  sel.clear();
+  markDirty(); render();
+});
+
+$('#search').addEventListener('input', e => { q = e.target.value; render(); });
+
+$('#addBtn').addEventListener('click', () => {
+  /* 新的一列接在最上面：加完就看得到，不必捲到底去找。
+     左邊正在看哪一類，就先幫它填哪一類 —— 多半是「在這一類再加一支」。 */
+  CAT.rows.unshift(normRow({ cat: (catPick && catPick !== UNCAT) ? catPick : '' }));
+  sel.clear();
+  markDirty(); render();
+  const first = $('#tbody input');
+  if (first) first.focus();
+});
+
+/* ---- 匯出 CSV ------------------------------------------------------------
+   欄位順序跟公司給的那一份一模一樣（類別,品牌,商品名字,型號,SKU,市價），
+   後面才接規格和顏色 —— 匯出去的檔案要能原封不動再匯進來，多的欄位放後面，
+   前六欄跟來源對得起來。
+   ⚠️ Excel 開 UTF-8 的 CSV 一定要有 BOM，不然中文全部變亂碼。 */
+const CSV_COLS = [['cat','類別'],['brand','品牌'],['name','商品名字'],['model','型號'],
+                  ['sku','SKU'],['price','市價'],['spec','規格'],['color','顏色']];
+function csvCell(v){
+  const s = String(v == null ? '' : v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+$('#csvBtn').addEventListener('click', () => {
+  const rows = CAT.rows.filter(hit);
+  if (!rows.length){ say('沒有可以匯出的商品'); return; }
+  const lines = [CSV_COLS.map(c => c[1]).join(',')]
+    .concat(rows.map(r => CSV_COLS.map(c => csvCell(r[c[0]])).join(',')));
+  const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'],
+                        { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'dm_products_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  say(`匯出 ${rows.length} 筆` + ((q || catPick != null) ? '（只有現在看得到的那些）' : ''));
+});
+
+/* ==========================================================================
+   匯入 CSV
+   自己解析，不引 library（這個專案沒有相依套件，而 CSV 難的地方就那三件：
+   引號裡的逗號和換行、\r\n、BOM）。
+   ========================================================================== */
+
+/** 逗號還是 Tab：從 Excel 直接複製貼上是 TSV，那是最常發生的事。
+    只看第一行、只數不在引號裡的分隔符。 */
+function pickDelim(line){
+  let inQ = false, c = 0, t = 0;
+  for (let i = 0; i < line.length; i++){
+    const ch = line[i];
+    if (ch === '"'){ inQ = !inQ; continue; }
+    if (inQ) continue;
+    if (ch === ',') c++;
+    else if (ch === '\t') t++;
+  }
+  return t > c ? '\t' : ',';
+}
+
+function parseDelimited(text){
+  text = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');   // BOM ＋ 換行統一
+  const delim = pickDelim(text.split('\n')[0] || '');
+  const rows = []; let row = [], cell = '', inQ = false;
+  for (let i = 0; i < text.length; i++){
+    const ch = text[i];
+    if (inQ){
+      if (ch !== '"'){ cell += ch; continue; }
+      if (text[i + 1] === '"'){ cell += '"'; i++; continue; }   // "" ＝ 一個引號
+      inQ = false; continue;
+    }
+    if (ch === '"'){ inQ = true; continue; }
+    if (ch === delim){ row.push(cell); cell = ''; continue; }
+    if (ch === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; continue; }
+    cell += ch;
+  }
+  if (cell !== '' || row.length){ row.push(cell); rows.push(row); }
+  // 整列都是空的就當作沒這一列（檔案結尾多一個換行是常態）
+  return rows.map(r => r.map(v => v.trim())).filter(r => r.some(v => v !== ''));
+}
+
+/* 欄位名怎麼認。第一個對得上的就用它 —— 猜完還是讓人看得到、改得動（見第 1 段）。 */
+const ALIAS = {
+  cat:   ['類別','分類','品類','群組','category','cat'],
+  brand: ['品牌','廠牌','brand'],
+  name:  ['商品名字','商品名稱','商品名','品名','名稱','name','product'],
+  model: ['型號','機型','型式','model'],
+  spec:  ['規格','容量','spec'],
+  color: ['顏色','色','color','colour'],
+  sku:   ['sku','貨號','料號','商品編號','品號'],
+  price: ['市價','價格','售價','定價','單價','price']
+};
+function guessMap(cols){
+  const map = {};
+  const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, '');
+  FIELDS.forEach(f => {
+    const idx = cols.findIndex((c, i) =>
+      !Object.values(map).includes(i) && ALIAS[f].some(a => norm(c) === norm(a)));
+    if (idx >= 0){ map[f] = idx; return; }
+    const loose = cols.findIndex((c, i) =>
+      !Object.values(map).includes(i) && ALIAS[f].some(a => norm(c).includes(norm(a))));
+    if (loose >= 0) map[f] = loose;
+  });
+  return map;
+}
+
+let imp = null;      // { file, cols, rows, map }
+const LABEL = { cat:'類別', brand:'品牌', name:'商品名字', model:'型號',
+                spec:'規格', color:'顏色', sku:'SKU', price:'市價' };
+
+/** 一列 CSV 照目前的對法變成一筆商品。 */
+function impRow(r){
+  const get = f => (imp.map[f] == null ? '' : (r[imp.map[f]] || ''));
+  return normRow({
+    cat:get('cat'), brand:get('brand'), name:get('name'), model:get('model'),
+    spec:get('spec'), color:get('color'), sku:get('sku'),
+    price: +String(get('price')).replace(/[^\d.-]/g, '') || 0
+  });
+}
+
+/** 匯進去會發生什麼。算一次，畫面和真的匯入都讀它 —— 兩份算法遲早會各說各話。
+    永遠是「合併」：照 SKU 更新或新增，沒出現在這份 CSV 裡的商品留著。 */
+function impPlan(){
+  const seen = new Map();       // sku → 這份檔案裡最後那一筆（同檔重複以最後為準）
+  let skipped = 0, dups = 0;
+  imp.rows.forEach(raw => {
+    const r = impRow(raw);
+    if (!r.sku){ skipped++; return; }
+    if (seen.has(r.sku)) dups++;
+    seen.set(r.sku, r);
+  });
+  const cur = new Map(CAT.rows.map((r, i) => [r.sku, i]));
+  const adds = [], upds = [], same = [];
+  seen.forEach((r, sku) => {
+    const i = cur.get(sku);
+    if (i == null){ adds.push(r); return; }
+    (j(normRow(CAT.rows[i])) === j(r) ? same : upds).push(r);
+  });
+  const noName = [...seen.values()].filter(r => !r.name).length;
+  return { seen, adds, upds, same, skipped, dups, noName };
+}
+
+function renderImport(){
+  /* 認不出 SKU 那一欄就整份擋下來，並且把讀到的標題原樣列出來 ——
+     使用者要修的是那份檔案（或那個匯出設定），不是在這裡湊一組對照。 */
+  const ok = imp.map.sku != null;
+  const bad = $('#impBad');
+  $('#impGo').disabled = !ok;
+  if (!ok){
+    $('#impSum').innerHTML = '';
+    $('#impErr').textContent = '認不出哪一欄是 SKU';
+    bad.hidden = false;
+    bad.textContent = '⚠️ SKU 是商品的身分，沒有它就不知道哪一筆是哪一筆。'
+      + `這份檔案的標題列是：${imp.cols.join('、')}　`
+      + '—— 把那一欄的標題改成「SKU」（或貨號／料號／商品編號）再匯一次。';
+    return;
+  }
+  $('#impErr').textContent = '';
+  bad.hidden = true;
+
+  const p = impPlan();
+  const bits = [`<span class="add">新增 ${p.adds.length} 筆</span>`,
+                `<span class="upd">更新 ${p.upds.length} 筆</span>`];
+  if (p.same.length) bits.push(`<span>沒變 ${p.same.length} 筆</span>`);
+  if (p.dups)        bits.push(`<span>檔案裡有 ${p.dups} 筆重複的 SKU（以最後一筆為準）</span>`);
+  if (p.skipped)     bits.push(`<span class="skip">跳過 ${p.skipped} 筆（沒有 SKU）</span>`);
+  if (p.noName)      bits.push(`<span class="skip">${p.noName} 筆沒有商品名字</span>`);
+  $('#impSum').innerHTML = bits.join('');
+}
+
+/* 匯入前先留一份。這是全公司共用的目錄，而匯入是一次動幾百列的動作 ——
+   「按錯了」跟「檔案是錯的」都要有一條回得去的路。留在記憶體裡就好：
+   重整之後那一份已經上去了，要救得靠別人手上的版本。 */
+let undoSnap = null;
+function doImport(){
+  const p = impPlan();
+  if (!p.adds.length && !p.upds.length){ say('沒有東西要改'); closeImport(); return; }
+  undoSnap = jclone(CAT.rows);
+  const by = new Map(CAT.rows.map((r, i) => [r.sku, i]));
+  p.seen.forEach((r, sku) => {
+    const i = by.get(sku);
+    if (i == null) CAT.rows.push(r);
+    else CAT.rows[i] = r;
+  });
+  sel.clear();
+  $('#undoBtn').hidden = false;
+  markDirty(); render(); closeImport();
+  say(`匯入完成：新增 ${p.adds.length}、更新 ${p.upds.length}`);
+}
+
+$('#undoBtn').addEventListener('click', () => {
+  if (!undoSnap) return;
+  CAT.rows = undoSnap; undoSnap = null;
+  $('#undoBtn').hidden = true;
+  markDirty(); render();
+  say('已經退回匯入之前那一份');
+});
+
+function closeImport(){ $('#impMask').hidden = true; imp = null; }
+$('#impClose').addEventListener('click', closeImport);
+$('#impCancel').addEventListener('click', closeImport);
+$('#impGo').addEventListener('click', doImport);
+$('#impMask').addEventListener('click', e => { if (e.target === $('#impMask')) closeImport(); });
+
+/** 檔案讀進來 → 解析 → 猜一次 → 開浮層。 */
+function readFile(file){
+  const fr = new FileReader();
+  fr.onload = () => {
+    /* 台灣的 Excel 存 CSV 預設是 Big5，不是 UTF-8。先照 UTF-8 解，
+       解出替代字元（U+FFFD）就代表猜錯了，改用 Big5 再解一次 ——
+       不然整份檔案是亂碼，而使用者只會說「你的匯入壞了」。 */
+    let text = new TextDecoder('utf-8').decode(fr.result);
+    if (text.includes('�')){
+      try {
+        const b5 = new TextDecoder('big5').decode(fr.result);
+        if (!b5.includes('�')) text = b5;
+      } catch (e){ /* 瀏覽器不認 big5 就算了，至少還有 UTF-8 那一版 */ }
+    }
+    const rows = parseDelimited(text);
+    if (rows.length < 2){ say('這份檔案裡沒有資料（至少要有標題列和一列商品）'); return; }
+    imp = { file: file.name, cols: rows[0], rows: rows.slice(1), map: guessMap(rows[0]) };
+    $('#impFile').textContent = `${file.name}　${imp.rows.length} 列`;
+    $('#impMask').hidden = false;
+    renderImport();
+  };
+  fr.onerror = () => say('讀不到這個檔案');
+  fr.readAsArrayBuffer(file);
+}
+
+$('#impBtn').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (f) readFile(f);
+  e.target.value = '';            // 同一個檔案再選一次也要收得到
+});
+
+/* 拖檔案進來走同一條路。整頁是落點：來源多半是剛從信裡下載的那一份，
+   要人先找到那顆鈕再選檔案是多一步。 */
+let dragDepth = 0;
+addEventListener('dragenter', e => {
+  if (![...(e.dataTransfer.types || [])].includes('Files')) return;
+  e.preventDefault(); dragDepth++; $('#drop').hidden = false;
+});
+addEventListener('dragover', e => {
+  if ([...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault();
+});
+addEventListener('dragleave', () => { if (--dragDepth <= 0){ dragDepth = 0; $('#drop').hidden = true; } });
+addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f) return;
+  e.preventDefault(); dragDepth = 0; $('#drop').hidden = true;
+  readFile(f);
+});
+
+/* ==========================================================================
+   合併：跟主程式那一支同一條規矩
+   全公司只有這一列 —— 兩個人各自貼一批商品進來，後存的不該把先存的整批抹掉。
+   照 SKU 取聯集；刪掉的只認「我刪的」（多一個商品沒什麼，一整批不見要重貼一次）。
+   ⚠️ 這裡是 design_and_PM.html 那份 mergeCatalogueInto 的同一套規則。
+   兩份要一起改 —— 這個專案沒有模組系統，共用只能靠 window，而這一頁在
+   PlanSync 之外沒有別的交會點。
+   ========================================================================== */
+const j = v => { try { return JSON.stringify(v); } catch (e){ return String(v); } };
+const jclone = v => JSON.parse(JSON.stringify(v));
+
+function mergeCatalogueInto(mine, base, theirs){
+  const out = { took: 0, conflicts: 0 };
+  if (!mine || !theirs) return out;
+  if (!base) base = { rows: [], model:{}, brand:{}, bimg:{}, img:{} };
+  const bySku = list => { const m = Object.create(null);
+                          (list || []).forEach(r => { if (r && r.sku != null) m[String(r.sku)] = r; });
+                          return m; };
+  const b = bySku(base.rows), m = bySku(mine.rows), t = bySku(theirs.rows);
+  const rows = [];
+  (mine.rows || []).forEach(r => {
+    const k = String(r.sku), tr = t[k];
+    if (!tr || j(tr) === j(r)){ rows.push(r); return; }
+    if (j(r) === j(b[k])){ rows.push(jclone(tr)); out.took++; return; }   // 我沒動 → 用他的
+    if (j(tr) === j(b[k])){ rows.push(r); return; }                       // 他沒動 → 用我的
+    rows.push(r); out.conflicts++;                                        // 兩邊都動了
+  });
+  (theirs.rows || []).forEach(r => {                 // 他新加的（祖先沒有、我也沒有）
+    const k = String(r.sku);
+    if (m[k] || b[k]) return;
+    rows.push(jclone(r)); out.took++;
+  });
+  mine.rows = rows;
+  ['model','brand','bimg','img'].forEach(field => {
+    const bo = base[field] || {}, mo = mine[field] || {}, to = theirs[field] || {};
+    const merged = Object.assign({}, mo);
+    Object.keys(to).forEach(k => {
+      if (j(to[k]) === j(mo[k])) return;
+      if (!(k in mo) || j(mo[k]) === j(bo[k])){ merged[k] = jclone(to[k]); out.took++; return; }
+      if (j(to[k]) === j(bo[k])) return;
+      out.conflicts++;
+    });
+    mine[field] = merged;
+  });
+  return out;
+}
+
+/* ==========================================================================
+   開機
+   ========================================================================== */
+const SEED = [
+  ['空調','HITACHI','變頻冷暖空調','RAC-28NP1/RAS-28NJP1','2152910',36700],
+  ['空調','HITACHI','變頻冷暖空調','RAC-36HP1/RAS-36HQP1','2161761',41700],
+  ['空調','HITACHI','變頻冷暖空調','RAC-40VP/RAS-40VP','2152783',35500],
+  ['空調','CHIMEI','變頻冷暖空調','RC-S29HT5/RB-S29HT5','2137892',25800],
+  ['空調','Panasonic','變頻冷暖空調','CU-UJ28BHA2/CS-UJ28BA2','2153334',30960],
+  ['空調','Panasonic','變頻冷暖空調','CU-UJ36BHA2/CS-UJ36BA2','2153333',37800],
+  ['空調','Panasonic','變頻冷暖空調','CU-UK36BHA2/CS-UK36BA2','2161512',34200],
+  ['空調','Panasonic','變頻冷暖空調','CU-UX40FHA2/CS-UX40FA2','2161470',45720]
+].map(a => ({ cat:a[0], brand:a[1], name:a[2], model:a[3], sku:a[4], price:a[5] }));
+
+/* 嵌著的時候，共用目錄跟上層要 —— 它手上那一份就是剛才發給每一塊畫布的那一份。
+   自己再拉一次不是不行，但兩個地方各拉一次，遲早出現「這一頁看到的跟版面上的不一樣」。 */
+addEventListener('message', e => {
+  const d = e.data || {};
+  if (!d.productPage) return;
+  if (!('catalogue' in d) && !d.logos) return;
+  /* ⚠️ 收到回覆**不等於**讀到了：上層自己可能也還在拉（它開機就是先秒開、
+     再去拉遠端那一份）。那時候它手上的 catalogue 是 null，而 null 的意思是
+     「我還不知道」，不是「本來就沒有」—— 兩者差一整份公司的商品。
+     所以認的是上層那個 ready，不是「有沒有收到訊息」。 */
+  if (d.ready) answered = true;
+  if (d.logos) LOGOS = d.logos;
+  if (d.catalogue && !touched && adopt(d.catalogue)) render();
+  else renderLogoWarn();
+  if ($('#state').className === 'wait'){ setState('saved'); if (touched) save(); }
+});
+
+(async function boot(){
+  const s = sync();
+  setState(EMBED || s ? 'wait' : 'local');        // 讀到之前一律先擋著（見 answered）
+  if (!EMBED && !s) answered = true;              // 純本機：沒有共用的那一份可以毀
+
+  /* 先本機、再遠端：跟主程式同一個節奏（秒開，再對一次共用的那一份）。 */
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) adopt(JSON.parse(raw));
+  } catch (e){ console.warn('本機快取讀不動，先當作沒有', e); }
+
+  if (new URLSearchParams(location.search).get('seed') === '1' && !CAT.rows.length)
+    CAT.rows = SEED.map(normRow);
+
+  render();
+
+  if (EMBED){
+    tellParent({ want: 1 });                      // 上層那一份才是準的，不自己拉
+    /* 上層可能比這一頁晚一步（它自己也在等 pullCatalogue）。再問一次就好，
+       問不到就停在「還沒讀到」，使用者看得到、也不會誤刪東西。 */
+    let tries = 0;
+    const again = () => {
+      if (answered || ++tries > 8) return;
+      tellParent({ want: 1 });
+      setTimeout(again, 700);
+    };
+    setTimeout(again, 700);
+    return;
+  }
+
+  /* 單獨開這一頁：Logo 庫自己拉一次（嵌著的時候是上層給，見上面那個 message）。
+     拉不到就當作「不知道」，那條提示不會亂講話。 */
+  if (s && s.pullLogos){
+    s.pullLogos().then(map => { if (map){ LOGOS = map; renderLogoWarn(); } })
+                 .catch(e => console.warn('品牌 Logo 庫拉不到', e));
+  }
+
+  if (!s){ answered = true; return; }             // 沒接後端＝沒有共用的那一份可以毀
+  s.setCatalogueMerge(mergeCatalogueInto);
+  s.setCatalogueAfter((data, report) => {
+    adopt(data); render();
+    say(report.conflicts ? `跟別人的改動合併了，有 ${report.conflicts} 筆兩邊都改過 —— 用了你的`
+                         : `合併了別人的 ${report.took} 筆`);
+  });
+  try {
+    const cat = await s.pullCatalogue();
+    /* 拉回來的時候使用者可能已經在打字了。這一步只在「還沒動過手」才直接採用 ——
+       動過就讓它留在畫面上，下一次存檔會走三方合併，那條路才知道怎麼保住兩邊。 */
+    if (cat && !touched && adopt(cat)) render();
+    answered = true;                              // 拉到了（連「那一列還不存在」也算）
+    if ($('#state').className === 'wait'){ setState('saved'); if (touched) save(); }
+  } catch (e){
+    /* 拉不到就**維持不准存**：本機快取看起來有東西，但它可能比伺服器上那一份舊，
+       整包蓋回去會把別人這段時間加的商品全部抹掉。 */
+    console.warn('商品目錄拉不到 —— 這一輪只能看，不能存', e);
+    setState('wait');
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

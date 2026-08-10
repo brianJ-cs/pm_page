@@ -6,6 +6,8 @@
  *
  *   public/index.html               ← design_and_PM.html（整支程式；三個身分都從這裡進）
  *   public/2cell-product-pick.html  ← 名字不能改：主程式是用這個相對網址載它的
+ *   public/product.html             ← 商品目錄（全公司一份，跟檔期無關）
+ *   public/logo_page/               ← 品牌 Logo 庫（本來是獨立的一站）
  *   public/config.js, supabase-sync.js, _redirects
  *
  * ---- 合成單檔（--bundle）-------------------------------------------------
@@ -36,11 +38,19 @@ await mkdir(PUB, { recursive: true });
    舊書籤（/editor）靠 _redirects 指回來，一個都不會斷。 */
 await copyFile(MAIN, join(PUB, 'index.html'));
 await copyFile(PICK, join(PUB, '2cell-product-pick.html'));
-for (const f of ['config.js', 'supabase-sync.js', '_redirects'])
+for (const f of ['product.html', 'config.js', 'supabase-sync.js', '_redirects'])
   await copyFile(join(here, f), join(PUB, f));
 
-console.log('寫出 public/ —— index.html + 2cell-product-pick.html'
-          + ' / config.js / supabase-sync.js / _redirects');
+/* 品牌 Logo 庫：只搬跑得起來的那兩支。
+   ⚠️ 刻意不用「整個資料夾複製」—— logo_page/ 裡面還有它自己的 .git、.netlify、
+   schema.sql（資料庫的 DDL）和一支不相干的示範頁（auto.html）。
+   那些跟著發出去，等於把另一個專案的內部檔案掛在這個站上。 */
+await mkdir(join(PUB, 'logo_page'), { recursive: true });
+for (const f of ['index.html', 'config.js'])
+  await copyFile(join(here, 'logo_page', f), join(PUB, 'logo_page', f));
+
+console.log('寫出 public/ —— index.html + 2cell-product-pick.html + product.html'
+          + ' + logo_page/ / config.js / supabase-sync.js / _redirects');
 
 if (!process.argv.includes('--bundle')) {
   console.log('  （要寄一個檔案給別人才需要合成單檔：node build-single.mjs --bundle）');
