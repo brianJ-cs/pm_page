@@ -75,10 +75,13 @@
 
   /* ---- tab bar + toolbar ---- */
   .bar{display:flex;align-items:center;gap:12px;min-height:38px}
+  /* 這一條上的東西一律不折行：切分那組座標欄一出現就把寬度吃掉一截，
+     擠到分頁的話「總體」會斷成兩行，看起來像壞掉。要讓的是檔期名（下面那條）。 */
+  .bar .tab,.bar .btn,#cutBar,.banner .rg,.bar .prog,#whoBadge{white-space:nowrap}
   .tab{
     font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;
     border:1px solid var(--accent-line);border-radius:999px;padding:7px 22px;
-    background:var(--accent-tint);color:var(--blue);
+    background:var(--accent-tint);color:var(--blue);flex:none;
   }
   .tab:hover{background:var(--accent-tint-2)}
   .tab.active{background:var(--blue);border-color:var(--blue);color:var(--surface)}
@@ -145,7 +148,7 @@
      位置、同樣的直排標題）—— 兩頁的「對這個版位做的事」就站在同一個地方。
      沒選版位的時候整條收起來：沒有東西可以調。 */
   #typeWrap{
-    display:none;flex:none;width:104px;margin:2px 18px 10px;border-radius:8px;
+    display:none;flex:none;width:124px;margin:2px 18px 10px;border-radius:8px;
     background:var(--blue);color:var(--surface);
     flex-direction:column;align-items:stretch;gap:7px;padding:12px 8px 10px;user-select:none;
   }
@@ -154,17 +157,27 @@
      標題再直排就跟下面對不上，也白佔一截高度。工具列那條窄、還是直的。 */
   #typeWrap .rail-title{writing-mode:horizontal-tb;text-orientation:mixed;
                         letter-spacing:2px;text-align:center;margin-bottom:8px}
-  /* 名字在左、格子在右 —— 一列讀完就是「一價 52」，比上下疊少一半的視線移動。
-     直排標題還是直的，那是這一條在講什麼；每一列自己是橫的。 */
+  /* 名字在左、兩顆鈕在右 —— 一列讀完就是「一價 ＋−」，比上下疊少一半的視線移動。
+     直排標題還是直的，那是這一條在講什麼；每一列自己是橫的。
+     以前這裡是數字輸入框（「一價 52」）。拿掉了：那個數字是排版座標裡的 px，
+     跟畫面上看到的大小對不起來，填幾才對只能一直試 —— 而真正要的只有
+     「再大一點／再小一點」。現在調過的那一級寫在名字旁邊（見 .tw-p）。 */
   #typeWrap .tw-n{display:flex;flex-direction:row;align-items:center;justify-content:space-between;
                   gap:6px;font-size:11.5px;font-weight:800;color:var(--surface);white-space:nowrap}
-  #typeWrap input{width:52px;flex:none;padding:4px 5px;border-radius:6px;text-align:center;
-                  border:1px solid rgba(255,255,255,.45);
-                  background:rgba(255,255,255,.14);color:var(--surface);
-                  font-family:inherit;font-size:12.5px;font-weight:800}
-  #typeWrap input:focus{outline:none;border-color:var(--surface);background:rgba(255,255,255,.28)}
-  /* 沒設過的那一格顯示 placeholder「自動」，要看得出來它是空的 */
-  #typeWrap input::placeholder{color:rgba(255,255,255,.62);font-weight:700}
+  /* 兩顆併成一組（中間不留縫）：它們是同一件事的兩個方向 */
+  #typeWrap .tw-b{display:flex;flex:none}
+  #typeWrap .tw-b button{
+    width:24px;padding:3px 0;font-family:inherit;font-size:13px;font-weight:800;line-height:1.15;
+    cursor:pointer;border:1px solid rgba(255,255,255,.45);
+    background:rgba(255,255,255,.14);color:var(--surface);
+  }
+  #typeWrap .tw-b button:first-child{border-radius:6px 0 0 6px}
+  #typeWrap .tw-b button:last-child{border-radius:0 6px 6px 0;border-left:none}
+  #typeWrap .tw-b button:hover{background:rgba(255,255,255,.3)}
+  #typeWrap .tw-b button:active{background:rgba(255,255,255,.42)}
+  /* 調過幾成：只有調過才寫出來（沒寫＝自動）。它是狀態，不是可以填的東西 */
+  #typeWrap .tw-p{font-size:10px;font-weight:800;color:rgba(255,255,255,.72);
+                  margin-left:auto;margin-right:5px;font-variant-numeric:tabular-nums}
   /* 「還原成自動」用那個轉一圈的箭頭 —— 跟 Ctrl+Z 是同一個手勢，不必讀字。
      只有圖示，字靠 title 說明。 */
   #typeWrap #typeReset{align-self:center;margin-top:3px;padding:5px;line-height:0;
@@ -196,50 +209,19 @@
   /* 檔期名和進度只要看得到就好，不必佔一整條 */
   /* 檔期名站在分頁左邊，靠一條分隔線跟分頁分開 —— 不用底色，那一列才不會
      被兩塊顏色切成兩半。 */
+  /* 擠不下的時候讓的是這裡：檔期名長度沒有上限，而它旁邊那幾顆鈕各自只有一個尺寸 */
   .banner{
-    display:flex;align-items:baseline;gap:9px;flex:none;
+    display:flex;align-items:baseline;gap:9px;flex:0 1 auto;min-width:0;
     padding:2px 16px 2px 2px;margin-right:2px;border-right:1px solid var(--chrome-line);
   }
-  .banner .nm{font-size:15.5px;font-weight:800;color:var(--ink)}
+  .banner .nm{font-size:15.5px;font-weight:800;color:var(--ink);
+    min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .banner .rg{font-size:13px;font-weight:800;color:var(--amber)}
 
   /* ---- 檔期列表 (from design_team.html) ---- */
-  /* ---- 身分列 (設計 / PM) — pinned to the top edge, pulls down on approach.
-     It is fixed, so it costs the page no vertical space while hidden. ---- */
-  .modebar{
-    position:fixed;left:0;right:0;top:0;z-index:120;
-    display:flex;align-items:center;gap:10px;
-    background:var(--blue);padding:6px 16px;
-    /* parked with a 7px sliver still showing, so the bar is never invisible */
-    transform:translateY(calc(-100% + 7px));transition:transform .18s ease;
-    box-shadow:0 3px 14px rgba(74,111,220,.28);
-  }
-  .modebar.show{transform:none}
-  /* 檔期列表上沒有版面要讓位，身分列就一直停在那；.app 讓出等高的位置，
-     標題和 匯入 才不會被壓在下面 */
-  .modebar.pinned{transform:none}
-  .app.bar-pinned{padding-top:52px}
-  /* the sliver: a deeper blue than the bar so it reads as a deliberate edge */
-  .modebar::after{
-    content:"";position:absolute;left:0;right:0;bottom:0;height:7px;
-    background:linear-gradient(#3355c9,#1f3ea6);transition:opacity .18s ease;
-  }
-  .modebar.show::after{opacity:0}
-  /* a pale grabber on the sliver, saying the edge is something you can pull */
-  .modebar .handle{
-    position:absolute;left:50%;bottom:2px;transform:translateX(-50%);z-index:1;
-    width:56px;height:3px;border-radius:2px;background:rgba(255,255,255,.75);
-    transition:opacity .18s ease;
-  }
-  .modebar.show .handle{opacity:0}
-  /* the back button lives on blue now, so it has to read as white-on-blue */
-  .modebar .back{
-    background:transparent;border-color:rgba(255,255,255,.5);color:var(--surface);
-    padding:4px 12px;font-size:13px;
-  }
-  .modebar .back:hover{background:rgba(255,255,255,.16)}
-  /* 身分列上只剩「← 檔期列表」。設計／PM／行銷那三顆和換 PM 的下拉都拿掉了 ——
-     你是誰在登入頁決定，要換人就登出重登，不再是隨手撥一下的開關。 */
+  /* 上緣那條藏起來的藍色橫列（.modebar）沒有了：設計／PM／行銷那三顆和換 PM 的
+     下拉早就拿掉，最後只剩一顆「← 檔期列表」—— 為了一顆鈕要人把滑鼠推到螢幕
+     頂端，而在檔期列表上它整條是空的。那顆鈕搬進左欄的檔期清單裡了。 */
 
   /* ---- 登入頁 ----------------------------------------------------------
      沒有密碼，就是一張「你是誰」的名單。它蓋在整支程式上面（fixed），
@@ -746,11 +728,21 @@
   .btn:disabled:hover{background:var(--surface-2)}
   .btn.back{padding:6px 14px;font-size:13.5px;color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint)}
   .btn.back:hover{background:var(--accent-tint-2)}
+  /* 卡片右邊那兩顆是「對這一檔做的事」，而且是這一頁最常按的兩下 ——
+     給它們比工具列上那些大一號的落點。🗑 不跟著放大：刪除不該好按。 */
+  .btn.edit{padding:13px 28px;font-size:17px}
   .btn.open{
-    margin-left:14px;padding:6px 16px;font-size:13.5px;
+    padding:13px 34px;font-size:18px;
     color:var(--surface);background:var(--blue);border-color:var(--blue);
   }
   .btn.open:hover{background:var(--accent-strong)}
+  /* 那幾顆收成一組站在最右邊，跟左邊那串「這一檔是什麼」用一條線隔開 ——
+     以前它們直接接在「出稿 8/20」後面，日期和按鈕黏成一條，看起來像同一件事。
+     組裡的順序是「越右邊越常按」：🗑 最遠、開啟 在手邊。 */
+  .plan-acts{display:flex;align-items:center;gap:10px;
+    margin-left:18px;padding-left:18px;border-left:1px solid var(--line)}
+  /* 刪除站在這一組的最左邊，離「開啟」最遠，而且不跟著放大 —— 刪除不該好按 */
+  .btn.del{padding:9px 15px;font-size:16px}
 
   #view-plans{flex-direction:column}
   #planList{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding:2px}
@@ -795,7 +787,12 @@
   /* ---- view panels ---- */
   .panel{flex:1;min-height:0;display:none}
   .panel.active{display:flex}
-  #view-total{align-items:flex-start;justify-content:center;gap:34px;overflow:auto;padding-top:4px}
+  /* 這一頁也有左欄，所以捲的是右邊那張紙（#totalScroll），不是整頁 */
+  #view-total{align-items:stretch}
+  #totalScroll{
+    flex:1;min-width:0;display:flex;align-items:flex-start;justify-content:center;
+    gap:34px;overflow:auto;padding-top:4px;
+  }
   /* 拼板：小地圖固定在左邊（不管在哪一層都看得到自己在哪），右邊換內容 */
   #view-board{padding-top:6px;gap:0;align-items:stretch}
   #boardSide{flex:none;display:flex}
@@ -1208,38 +1205,39 @@
   #boardOverview .cell.focus{outline:4px solid var(--blue);outline-offset:-4px}
   #boardOverview.focusing .cell:not(.focus){opacity:.35}
 
-  /* ---- PM 的左欄：不是小地圖，是「這個檔期有哪些品類」 ---- */
-    position:relative;width:230px;flex:none;overflow:auto;padding-right:8px;
-    border-right:1px solid var(--line);margin-right:10px;
-    display:flex;flex-direction:column;transition:width .14s ease;
-  }
-    font-size:14.5px;font-weight:800;color:var(--ink);
-    padding:2px 4px 8px;border-bottom:1px solid var(--line);margin-bottom:6px;
-  }
-    display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
-    padding:5px 6px;border-radius:7px;font-size:13.5px;font-weight:800;color:var(--ink);
-  }
-    display:flex;align-items:center;gap:6px;cursor:pointer;
-    padding:4px 8px;border-radius:6px;font-size:13px;color:var(--ink-dim);
-  }
-    font-size:11.5px;font-weight:800;color:var(--muted);
-    margin:10px 4px 4px;padding-top:8px;border-top:1px dashed var(--line);
-  }
-
-  /* ---- PM 左欄的段落：三段疊起來比一個螢幕高，所以每一段都收得起來。
-     標題整條可以點，右邊那個數字是「這一段裡有多少東西」—— 收起來之後它就是
-     這一段唯一還看得到的資訊，所以不能只放三角形。 */
+  /* ---- 左欄的兩段：一次只看得到一段 --------------------------------------
+     先挑檔期（at-list），才看得到那一本的整本落版（at-map）。兩段同時攤開的
+     那一版，286px 裡上下各半截，清單看不到幾檔、小地圖也擠不下兩張版 ——
+     而它們本來就是先後關係。段標題不再是開關，只是這一段叫什麼。 */
   .pm-sec .sec-head{
-    display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;
-    padding:9px 6px 8px;margin-top:6px;border-top:1px solid var(--line);
+    display:flex;align-items:center;gap:7px;user-select:none;
+    padding:9px 6px 8px;
     font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--muted);
   }
-  #pmStack > .pm-sec:first-child .sec-head{margin-top:0;border-top:0}
-  .pm-sec .sec-head .caret{font-size:10px;width:10px;flex:none}
   .pm-sec .sec-head .n{margin-left:auto;font-weight:800;font-size:11.5px;opacity:.85}
-  /* 選擇器要帶著 #pmStack：這一段裡收的是 #sheetSide，它自己那條
-     `display:flex` 是 id 選擇器 —— 只寫 .closed 的話權重贏不了，按了會沒反應。 */
-  #pmStack .pm-sec.closed > :not(.sec-head){display:none}
+  #pmStack.at-list #secMini{display:none}
+  #pmStack.at-map  #secPlans{display:none}
+  /* #secMini 要能撐開：小地圖自己是 flex column，段本身也得是，
+     不然兩張版會擠在一起 */
+  #secMini{display:flex;flex-direction:column;min-height:0}
+
+  /* 回檔期列表：整條的一顆鈕，站在清單最上面。它離開的是整本 DM，
+     所以不跟下面那些「換一本」的列長得一樣。 */
+  .side-back{
+    display:block;width:100%;text-align:center;
+    padding:8px 10px;font-size:13px;font-weight:800;
+  }
+  /* 回到清單：寫著現在這一本的名字 —— 同時回答「你在哪」和「回哪裡」 */
+  .side-up{
+    display:flex;align-items:center;gap:7px;width:100%;text-align:left;
+    font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;
+    border:1px solid var(--line);border-radius:9px;
+    background:var(--surface-2);color:var(--ink);
+    padding:8px 10px;
+  }
+  .side-up:hover{border-color:var(--blue)}
+  .side-up .ar{flex:none;opacity:.75}
+  .side-up .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   /* ---- 第一段：檔期列表。首頁那張 .plan-card 有 20px 內距、20px 的名字，
      整張搬進 286px 只剩名字看得到 —— 所以這裡是它的窄版：名字一行、出稿日和
@@ -1310,14 +1308,14 @@
   .window-node.handed{background:#dff0e5;border-color:var(--green-rule)}
   /* 切出來卻沒填品類／支數的那幾塊：草稿還沒提交時自己框起來。
      不用底色 —— 底色講的是「球在哪」，這一條講的是「這裡還沒填完」。 */
-  #view-total.drafting .window-node.empty-seg{
+  #totalScroll.drafting .window-node.empty-seg{
     outline:2.5px solid var(--danger);outline-offset:-2.5px;
   }
 
   /* 總體上點版位＝選它。藍色是「你正在點的東西」，所以選取畫成藍框而不是藍底 ——
      底色已經被狀態用掉了（灰／白／綠），再拿去表示選取，兩件事就混在一起。 */
-  #view-total .window-node{cursor:pointer}
-  #view-total .window-node.sel{
+  #totalScroll .window-node{cursor:pointer}
+  #totalScroll .window-node.sel{
     outline:3px solid var(--blue);outline-offset:-3px;
     box-shadow:inset 0 0 0 9999px rgba(74,111,220,.07);
   }
@@ -1399,7 +1397,7 @@
                    border-top:1px dashed var(--line)}
   #itemPop .ip-note{margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.5}
 
-  /* 切在幾公分：跟開檔那支一樣站在最上面那條，只有 切分 拿起來時才出現 ——
+  /* 切在哪個座標：跟開檔那支一樣站在最上面那條，只有 切分 拿起來時才出現 ——
      它是那一顆工具的參數，不是整頁的設定。 */
   #cutBar{
     display:none;align-items:center;gap:6px;flex:none;
@@ -1408,8 +1406,9 @@
     border-radius:8px;padding:5px 10px;
   }
   #cutBar.on{display:flex}
+  /* 兩個欄位擠在同一條上，所以比單欄那時候窄 —— 版上的公分數最多三位數帶一位小數 */
   #cutBar input{
-    width:66px;font:inherit;font-size:13.5px;text-align:right;
+    width:54px;font:inherit;font-size:13.5px;text-align:right;
     border:1px solid var(--chrome-line);border-radius:5px;padding:3px 6px;
     background:var(--surface);color:var(--ink);
   }
@@ -1418,13 +1417,13 @@
   #cutBar .btn{padding:4px 11px;font-size:13px}
   /* 一顆切分工具，方向由那兩顆鈕（或滾輪）決定 —— 所以游標自己說現在是哪一種，
      圖案跟開檔那支同一個（寫著「直」／「橫」的那兩顆，見 --cursor-v/h）。 */
-  #view-total.t-cut.dir-v .window-node{cursor:var(--cursor-v)}
-  #view-total.t-cut.dir-h .window-node{cursor:var(--cursor-h)}
-  #view-total.t-swap .window-node{cursor:grab}
-  #view-total.t-swap .window-node:active{cursor:grabbing}
+  #totalScroll.t-cut.dir-v .window-node{cursor:var(--cursor-v)}
+  #totalScroll.t-cut.dir-h .window-node{cursor:var(--cursor-h)}
+  #totalScroll.t-swap .window-node{cursor:grab}
+  #totalScroll.t-swap .window-node:active{cursor:grabbing}
   /* 拿起來的那一塊淡掉、要換過去的那一塊亮起來：一眼看得出「誰跟誰換」 */
-  #view-total .window-node.swap-from{opacity:.45}
-  #view-total .window-node.swap-to{outline:3px dashed var(--blue);outline-offset:-3px}
+  #totalScroll .window-node.swap-from{opacity:.45}
+  #totalScroll .window-node.swap-to{outline:3px dashed var(--blue);outline-offset:-3px}
 
   /* 狀態小字：固定大小 —— 它是標記，不是版面的一部分，版位縮到多小都要讀得到 */
   .blk-state{
@@ -2106,6 +2105,24 @@
      某一張大視窗裡按的（回收桶的永久刪除、過往檔期裡的刪除）。z-index 比
      #impMask／#pastMask／#trashMask（600）低的話，問題會開在它們**後面** ——
      看得到一半、按不到，而且完全不像壞掉，像是那顆鈕沒反應。 */
+  /* 商品目錄那一頁：整片蓋上來。z-index 600，跟其他大視窗（過往檔期、回收桶）同一層 ——
+     確認框是 700，它問的多半就是你剛剛在視窗裡按的那一下，要開在上面。
+     ⚠️ [hidden] 是瀏覽器內建規則，權重比 #catMask 低，所以這裡用 .on 開關，
+     不靠 hidden 屬性去蓋 display:flex（product.html 那邊踩過同一個坑）。 */
+  #catMask{
+    position:fixed;inset:0;z-index:600;display:none;align-items:center;justify-content:center;
+    background:rgba(30,40,60,.42);padding:26px;
+  }
+  #catMask.on{display:flex}
+  #catBox{
+    background:var(--card);border-radius:14px;width:min(1400px,100%);height:100%;
+    display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(20,26,38,.4);
+  }
+  #catHd{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line)}
+  #catHd b{font-size:17px;color:var(--ink)}
+  #catHd span{flex:1;font-size:13px;font-weight:700;color:var(--muted)}
+  #catFrame{flex:1;min-height:0;width:100%;border:0;background:var(--surface)}
+
   #modalHost{
     position:fixed;inset:0;z-index:700;display:none;
     align-items:center;justify-content:center;background:rgba(30,40,60,.34);
@@ -2240,11 +2257,11 @@
   #sheetMain{background:var(--bg);border-radius:12px}
   /* 紙上的字是黑的：深色是給桌面用的，版面裡的一切照原本的顏色走。
      （少了這一行，落版打的字會繼承深色底那一套淺灰，白卡片上就快看不見了。） */
-  #sheetMain,#view-total{color:var(--ink)}
+  #sheetMain,#totalScroll{color:var(--ink)}
   /* 檔期卡是白的，字也要回到黑的（少了這行，檔期名會淡到像沒開啟） */
   .plan-card{color:var(--ink)}
   /* 總體 那一頁沒有 #sheetMain，版面直接鋪在頁上 —— 那一整片也是紙 */
-  #view-total{background:var(--bg);border-radius:12px;padding:10px 0}
+  #totalScroll{background:var(--bg);border-radius:12px;padding:10px 0}
 
   /* ---- 上面那條 ---- */
   .tab{background:rgba(255,255,255,.09);border-color:var(--chrome-line);color:var(--accent-ink)}
@@ -2265,8 +2282,11 @@
   .mini-label{color:var(--chrome-ink)}
   /* PM 那一疊整個站在桌面上：段標題、檔期列都要自己寫顏色，不寫就是淺色底那一套 */
   #pmStack{border-right-color:var(--chrome-line)}
-  .pm-sec .sec-head{color:var(--chrome-muted);border-top-color:var(--chrome-line)}
-  .pm-sec .sec-head:hover{color:var(--chrome-ink)}
+  .pm-sec .sec-head{color:var(--chrome-muted)}
+  /* 這兩顆也站在桌面上，自己寫顏色 —— 不寫就是淺色底那一套，深底上看不見 */
+  .side-back{background:rgba(255,255,255,.09);border-color:var(--chrome-line);color:var(--accent-ink)}
+  .side-back:hover:not(:disabled){background:rgba(255,255,255,.16)}
+  .side-up{background:var(--chrome-2);border-color:var(--chrome-line);color:var(--chrome-ink)}
   .pl-row{background:var(--chrome-2);border-color:var(--chrome-line);color:var(--chrome-ink)}
   .pl-row:hover{border-color:var(--blue)}
   .pl-row.active{background:var(--blue);border-color:var(--blue);color:var(--surface)}
@@ -2299,7 +2319,7 @@
   .topbar,#view-plans{padding-left:24px;padding-right:24px}
   #boardSide{padding-left:16px}
   #sheetSide{padding-left:2px}
-  #sheetMain,#view-total{border-radius:0}
+  #sheetMain,#totalScroll{border-radius:0}
   #view-board{padding-right:var(--railw,340px)}
 
   /* 二、線改成底色：該分開的靠深淺分，不靠框 */
@@ -2378,6 +2398,14 @@
             style="padding:5px 11px;font:inherit;font-size:12px;font-weight:800;
                    border:1.5px dashed var(--muted);border-radius:8px;background:transparent;
                    color:var(--muted);cursor:pointer">壓力測試：塞滿假檔期</button>
+    <!-- 商品目錄：**三個身分都看得到**（談定的）。它講的是「公司賣什麼」，
+         跟「這本 DM 存不存在、什麼時候做」是兩件事，所以刻意不在下面那一排
+         行銷專屬的按鈕裡（syncListButtons 不碰它）。 -->
+    <button class="btn" id="catBtn">📦 商品目錄</button>
+    <!-- 品牌 Logo 庫（logo_page，本來是獨立的一站）。**只有設計看得到**：
+         那是版面上的素材，跟刊頭圖同一類 —— PM 手上那顆棒子管的是格子裡的貨。
+         跟商品目錄一樣不進 syncListButtons（那一排是行銷的）。 -->
+    <button class="btn" id="logoBtn" hidden>🏷 品牌 Logo</button>
     <!-- 這一整排都是行銷的（見 syncListButtons）：講的都是「這本 DM 存不存在、
          什麼時候做」。一開始全部 hidden，登入之後才知道要不要給。 -->
     <button class="btn danger" id="wipeBtn" hidden
@@ -2392,12 +2420,24 @@
   </div>
   <input type="file" id="importInput" accept=".json,.html,.htm" multiple hidden>
 
-  <!-- 開了檔期之後回列表用的。以前這條列上還有設計／PM／行銷三顆和換 PM 的下拉，
-       改成登入之後那些都沒了 —— 你是誰是登入頁決定的，這裡只剩一條回頭路。 -->
-  <div class="modebar" id="modeBar">
-    <button class="btn back" id="backBtn">← 檔期列表</button>
-    <span class="handle"></span>
+  <!-- 外掛的那幾頁（商品目錄 product.html、品牌 Logo logo_page/）原封不動嵌進來，
+       跟畫布、挑貨面板同一個做法。為什麼是 iframe 不是把程式搬進來：它們是獨立的
+       一頁，自己開得起來、自己也發布得出去，而這支主程式已經是一個 <script> 裝下
+       所有東西了 —— 再多兩頁的份量不會變好維護。
+       一張浮層兩個頁共用：標題、說明、網址由開的人給（openApp）。 -->
+  <div id="catMask">
+    <div id="catBox">
+      <div id="catHd"><b id="catTitle"></b>
+        <span id="catNote"></span>
+        <button class="btn" id="catClose">關掉</button></div>
+      <iframe id="catFrame" title=""></iframe>
+    </div>
   </div>
+
+  <!-- 「← 檔期列表」以前自己佔一條藏在上緣的藍色橫列。那條列上只剩這一顆鈕，
+       其他東西（身分、換 PM）早就搬走了 —— 一條空的列還要人把滑鼠推到螢幕頂端
+       才掉下來，代價比它裝的東西大。現在它站在左欄的檔期清單裡：那一段講的
+       就是「你在哪一本 DM」，回列表是同一件事的最後一步。 -->
 
   <div id="editorChrome">
   <div class="bar">
@@ -2415,9 +2455,14 @@
     </div>
     <!-- 切在幾公分：填了就照數字切，空著就照點下去的位置切。跟開檔那支同一條規矩，
          擺的位置也一樣（最上面那條），只有 總體 拿起 切分 時才出現。 -->
-    <div id="cutBar">切在<input id="cutLen" type="number" min="0" step="0.1" placeholder="—"
-           title="從指到的那一塊的左（直切）／上（橫切）緣量起">cm 處<button
-           class="btn" id="cutGo" type="button" disabled>切下去</button></div>
+    <!-- 座標＝那一張版上的第幾公分，跟上面和左邊那兩條尺規同一把尺。
+         點落在哪一塊就切哪一塊 —— 不必先用滑鼠瞄準那一塊。
+         填 X ＝直切、填 Y ＝橫切：那個數字自己就講得出方向。 -->
+    <div id="cutBar">切在 X<input id="cutX" type="number" min="0" step="0.1" placeholder="—"
+           title="從這張版的左緣量起（跟上面那條尺規同一個數字）—— 填了就是直切一刀"
+           >Y<input id="cutY" type="number" min="0" step="0.1" placeholder="—"
+           title="從這張版的上緣量起（跟左邊那條尺規同一個數字）—— 填了就是橫切一刀"
+           >cm<button class="btn" id="cutGo" type="button" disabled>切下去</button></div>
     <div class="right">
       <!-- 匯出乾淨版：走瀏覽器的列印，目的地選「另存為 PDF」就是一份 PDF。
            見 stylesheet 最後的 @media print。 -->
@@ -2516,7 +2561,11 @@
   <!-- 總體 的小工具。預設是 選擇（只看、只點得亮一塊），切分和移動都要自己拿起來 ——
        這一頁動的是整本 DM 的骨架，不該用「滑過去就改掉了」的方式做。
        長得跟 落版 那條工具列一樣：同一件事（我現在拿著什麼）就該長同一個樣子。 -->
+  <!-- 左欄（#boardSide）由 hostSide() 搬進來站在最前面；版面連同它的小工具列
+       收在 #totalScroll 裡自己捲 —— 捲的是那張紙，左欄不該跟著跑掉。
+       （所以「這一頁是紙」的底色也跟著搬到 #totalScroll 上：左欄站的是桌面。） -->
   <div class="panel" id="view-total">
+    <div id="totalScroll">
     <div id="totalRail">
       <div class="rail-title">工具</div>
       <button class="tool active" data-ttool="pick" title="選擇：點一塊把它點亮，版面不會被動到">⬚</button>
@@ -2530,34 +2579,55 @@
         <button class="tool sub" data-cutdir="h" title="橫切：切成上下兩塊">⇕</button>
       </div>
     </div>
+    </div>
   </div>
 
   <!-- 拼板：小地圖一直留在左邊當定位，右邊在「整張版」和「拼一格」之間換。
        拼一格是 2cell-product-pick.html 原封不動跑在 iframe 裡，樣式與腳本各自獨立。 -->
   <div class="panel" id="view-board">
-    <!-- PM 的左欄是一疊三段（檔期／品類樹／小地圖），設計的左欄就是小地圖本人。
-         小地圖（#sheetSide）是同一顆 DOM 搬來搬去 —— PM 這邊掛進 #secMini 裡。 -->
+    <!-- 左欄：**同一顆** DOM，三個分頁搬來搬去（hostSide()），三個身分也都一樣。
+         一次只看得到一段：先在「檔期」裡挑一本 DM，才看得到那一本的整本落版。
+         兩段疊起來的那一版，286px 的欄子裡永遠是上面半截清單、下面半截小地圖，
+         兩邊都不夠看 —— 而這兩段本來就是先後關係，不是並列。
+         小地圖（#sheetSide）也是同一顆 DOM，掛在 #secMini 裡。 -->
     <div id="boardSide">
-      <div id="pmStack">
+      <div id="pmStack" class="at-map">
         <div class="pm-sec" id="secPlans">
-          <div class="sec-head" data-sec="plans"><span class="caret">▾</span><span>檔期</span><span class="n"></span></div>
+          <!-- 回列表站在清單的最上面：這一段講的就是「你在哪一本 DM」，
+               離開這一本是同一件事的最後一步。 -->
+          <button class="btn side-back" id="backBtn">← 檔期列表</button>
+          <div class="sec-head" data-sec="plans"><span>換一本 DM</span><span class="n"></span></div>
           <div id="pmPlans"></div>
         </div>
         <div class="pm-sec" id="secMini">
-          <div class="sec-head" data-sec="mini"><span class="caret">▾</span><span>整本落版</span><span class="n"></span></div>
+          <!-- 回到清單。鈕上寫的是「按下去會到哪裡」，不是「你現在在哪」——
+               你在哪一本 DM，最上面那條的檔期名已經寫著了。 -->
+          <button class="side-up" id="sideUp" title="回到檔期清單，換一本 DM">
+            <span class="ar">←</span><span class="nm">檔期清單</span>
+          </button>
+          <div class="sec-head" data-sec="mini"><span>整本落版</span><span class="n"></span></div>
+          <aside id="sheetSide"></aside>
         </div>
       </div>
     </div>
     <!-- 字級：跟 落版 的工具列同一個位置、同一個樣子。它跟工具一樣是「對這個版位
          做的事」，站在畫布左邊比擠在最上面那條橫的好找。
-         一個版位一套；價格照「這一格有幾個價格」分三組，各自一個轉盤。 -->
+         一個版位一套；價格照「這一格有幾個價格」分三組，各自一組 ＋／−。 -->
     <div id="typeWrap">
       <div class="rail-title">字級</div>
-      <label class="tw-n">SKU<input type="number" id="skuSize" min="4" max="60" step="0.5"></label>
-      <label class="tw-n">一價<input type="number" id="price1" min="8" max="200" step="1" placeholder="自動"></label>
-      <label class="tw-n">二價<input type="number" id="price2" min="8" max="200" step="1" placeholder="自動"></label>
-      <label class="tw-n">三價<input type="number" id="price3" min="8" max="200" step="1" placeholder="自動"></label>
-      <button class="btn" id="typeReset" title="三個價格轉盤都交還給自動" aria-label="還原成自動">
+      <div class="tw-n" data-tw="sku">SKU<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="1">一價<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="2">二價<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="3">三價<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <button class="btn" id="typeReset" title="SKU 和三組價格都交還給自動" aria-label="還原成自動">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>
@@ -2598,7 +2668,7 @@
   </div>
 
   <div class="panel" id="view-sheet">
-    <aside id="sheetSide"></aside>
+    <!-- 左欄（#boardSide）由 hostSide() 搬進來站在這裡的最前面 -->
     <div id="toolRail">
       <div class="rail-title">工具</div>
       <!-- 滾輪縮放、拖空白處移動畫面：這兩件事每個工具都能做，不必特地換工具。
@@ -2932,7 +3002,10 @@ function modalConfirm(opts){
    that fires a hundred commits still costs one localStorage round-trip.
    ========================================================================== */
 
-const SAVE_DEBOUNCE = 1000;
+/* 存檔的第一段延遲。**它直接算進「對方多久看得到」**（見 POLL_FAST 那一段）。
+   300 是「打字打到一半不要每個字存一次」還留得住的下限 —— 一次存檔就是把整包
+   序列化進 localStorage，幾十毫秒的事，300ms 一次綽綽有餘。 */
+const SAVE_DEBOUNCE = 300;
 const saveStateEl = document.getElementById('saveState');
 let saveTimer = 0, savePending = false;
 
@@ -3565,10 +3638,18 @@ function hideMarkers(entry){
 }
 
 function fitBoards(){
-  const host = document.getElementById('view-total');
-  if (!host.classList.contains('active')) return;
+  // 這一頁分成兩塊：分頁本人（是不是正在看）和右邊那張紙（量得到多寬）。
+  // 左欄站在紙的外面，所以尺要拿紙那一塊的，不然版面會照整頁算、寬出一個左欄。
+  if (!document.getElementById('view-total').classList.contains('active')) return;
+  const host = document.getElementById('totalScroll');
   const RW = 30;                                   // must match --ruler-w
-  const availW = (host.clientWidth - 34 - 8) / 2 - RW;
+  /* 小工具列也站在這條 flex 上，它吃掉的寬要先扣（52px ＋ 左右 14px 的 margin）。
+     以前沒扣也看不出來 —— 那時候這一頁整片都是紙，剩下的空間吸收得掉；
+     左欄站進來之後就吸收不掉了，背面那張版直接被切掉右邊一截。 */
+  const rail = document.getElementById('totalRail');
+  const railW = rail ? rail.offsetWidth + 14 : 0;
+  // 34px 的 gap 有兩道，不是一道：工具列也站在這條 flex 上（工具｜正面｜背面）
+  const availW = (host.clientWidth - railW - 34 * 2 - 8) / 2 - RW;
   const availH = host.clientHeight - 42 - RW;
   const ref = boardPx();
   const k = Math.max(0.25, Math.min(1, availW / ref.w, availH / ref.h));
@@ -4354,14 +4435,11 @@ function makeFoldBar(side, resolve, title, opts){
   return bar;
 }
 
-/* 左邊那一欄：落版 是小地圖，拼板 的 PM 看到的是「檔期／品類樹／小地圖」那一疊
-   —— 同一根把手管當下那一個。收的一律是整欄，不是其中一段（段自己有標題可以收）。 */
-/* 左邊那欄只有「收起／展開」兩種狀態：小地圖和品類樹的寬度是照內容量好的，
-   推寬推窄只會讓它們兩邊都不好看。要推的是右邊那條意見欄。 */
-const sideFold = makeFoldBar('left', () => {
-  const st = document.getElementById('pmStack');
-  return (st && st.offsetParent) ? st : sheetSide;
-}, '收起／展開左邊這一欄', { push:false });
+/* 左邊那一欄三個分頁共用同一疊（#pmStack），所以把手管的永遠是它。
+   只有「收起／展開」兩種狀態：那一欄的寬度是照內容量好的，推寬推窄只會兩邊
+   都不好看。要推的是右邊那條意見欄。 */
+const sideFold = makeFoldBar('left', () => document.getElementById('pmStack'),
+                             '收起／展開左邊這一欄', { push:false });
 
 function renderMinimap(){
   const wasMini = sheetSide.classList.contains('mini');
@@ -4520,6 +4598,10 @@ function switchBlock(block){
   activeBlock = block;
   if (moved) beatNow();
   renderMinimap();
+  /* 總體 這一頁沒有那張畫布 —— #sheetPane 停在別的分頁上，量不到寬，硬畫會拿 0
+     去算出一份尺寸全錯的版，而且它會被 sheetSig 記下來。這裡點小地圖只是「挑一塊」，
+     所以就在大版上把那一塊點亮，真的要畫是切到 落版／拼板 時 mount() 的事。 */
+  if (activeTab === 'total'){ selectTotalBlock(block); return; }
   renderHead();
   renderGrid(block);
   renderConfirmBtn();
@@ -5234,6 +5316,13 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
                + (atBottom ? ' at-bottom' : '');
   mh.dataset.masthead = '1';
 
+  /* 刊頭圖**只有設計放得了**。那是這本 DM 的主視覺，一張放錯的會跟著整本印出去，
+     而它是排版的一部分 —— PM 手上那顆棒子管的是格子裡的貨，行銷管的是這本 DM
+     什麼時候做、切成幾塊。兩個人都看得到那塊刊頭（版長什麼樣他們要看得到），
+     只是點不開檔案、拖不進圖、也沒有 ✕。
+     那句「拖曳圖片到這裡」對他們也換掉 —— 寫著卻按不動比沒有更難懂。 */
+  const canImg = activeMode === 'design';
+
   if (sh.masthead.image){
     const img = document.createElement('img');
     img.src = sh.masthead.image;
@@ -5247,7 +5336,8 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
       const bad = document.createElement('span');
       bad.className = 'mh-label';
       bad.innerHTML = '<span class="mh-size">刊頭圖讀不到</span>' +
-                      '<span class="mh-sub"> — 網址失效了，點一下重放一張</span>';
+                      (canImg ? '<span class="mh-sub"> — 網址失效了，點一下重放一張</span>'
+                              : '<span class="mh-sub"> — 網址失效了，請設計重放一張</span>');
       img.replaceWith(bad);
     });
     mh.appendChild(img);
@@ -5255,49 +5345,52 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
     const lab = document.createElement('span');
     lab.className = 'mh-label';
     lab.innerHTML = '<span class="mh-size"></span>' +
-                    '<span class="mh-sub"> — 拖曳圖片到這裡，或點擊選擇檔案</span>';
+                    (canImg ? '<span class="mh-sub"> — 拖曳圖片到這裡，或點擊選擇檔案</span>'
+                            : '<span class="mh-sub"> — 刊頭圖由設計放</span>');
     mh.appendChild(lab);
   }
 
-  const x = document.createElement('button');
-  x.className = 'mh-x';
-  x.textContent = '✕';
-  x.title = '刪除刊頭';
-  x.addEventListener('click', ev => {
-    ev.stopPropagation();
-    sh.masthead = null;
-    sh.mhSide = null;                  // 站哪裡的記錄跟著刊頭一起走
-    renderHead(); renderGrid(activeBlock);
-    commitAction();                    // deleting a 刊頭 must be undoable
-    toast('已刪除刊頭　⌘/Ctrl+Z 可復原', 'info', 2600);
-  });
-  mh.appendChild(x);
+  if (canImg){
+    const x = document.createElement('button');
+    x.className = 'mh-x';
+    x.textContent = '✕';
+    x.title = '刪除刊頭';
+    x.addEventListener('click', ev => {
+      ev.stopPropagation();
+      sh.masthead = null;
+      sh.mhSide = null;                  // 站哪裡的記錄跟著刊頭一起走
+      renderHead(); renderGrid(activeBlock);
+      commitAction();                    // deleting a 刊頭 must be undoable
+      toast('已刪除刊頭　⌘/Ctrl+Z 可復原', 'info', 2600);
+    });
+    mh.appendChild(x);
 
-  /* 主視覺往往是最後才進來的那一張，那時候人已經在 拼板 排東西了 —— 所以換圖
-     什麼時候都能換。（這裡以前擋在「版位鎖定」後面，那個鎖已經整條拿掉了。） */
-  // click -> file picker
-  mh.addEventListener('click', () => {
-    mhFile.onchange = () => {
-      const f = mhFile.files && mhFile.files[0];
-      if (f) readImage(f, sh);
-      mhFile.value = '';
-    };
-    mhFile.click();
-  });
+    /* 主視覺往往是最後才進來的那一張，那時候人已經在 拼板 排東西了 —— 所以換圖
+       什麼時候都能換。（這裡以前擋在「版位鎖定」後面，那個鎖已經整條拿掉了。） */
+    // click -> file picker
+    mh.addEventListener('click', () => {
+      mhFile.onchange = () => {
+        const f = mhFile.files && mhFile.files[0];
+        if (f) readImage(f, sh);
+        mhFile.value = '';
+      };
+      mhFile.click();
+    });
 
-  // drag & drop
-  ['dragenter','dragover'].forEach(t => mh.addEventListener(t, ev => {
-    ev.preventDefault(); mh.classList.add('dropping');
-  }));
-  ['dragleave','drop'].forEach(t => mh.addEventListener(t, ev => {
-    ev.preventDefault(); mh.classList.remove('dropping');
-  }));
-  mh.addEventListener('drop', ev => {
-    const f = ev.dataTransfer && ev.dataTransfer.files[0];
-    if (f && /^image\//.test(f.type)){ readImage(f, sh); return; }
-    // a PDF or an .ai landing here is a mistake worth naming out loud
-    if (f) flashReject(mh, '僅支援圖片');
-  });
+    // drag & drop
+    ['dragenter','dragover'].forEach(t => mh.addEventListener(t, ev => {
+      ev.preventDefault(); mh.classList.add('dropping');
+    }));
+    ['dragleave','drop'].forEach(t => mh.addEventListener(t, ev => {
+      ev.preventDefault(); mh.classList.remove('dropping');
+    }));
+    mh.addEventListener('drop', ev => {
+      const f = ev.dataTransfer && ev.dataTransfer.files[0];
+      if (f && /^image\//.test(f.type)){ readImage(f, sh); return; }
+      // a PDF or an .ai landing here is a mistake worth naming out loud
+      if (f) flashReject(mh, '僅支援圖片');
+    });
+  }
 
   // ---- pull the bottom edge to change 刊頭長度 ----
   const grab = document.createElement('div');
@@ -6605,6 +6698,11 @@ const VIEWS = {
       markWrap.style.display = 'none';
       confirmBtn.style.display = 'none';
       document.getElementById('toolHint').style.display = 'none';
+      /* 左欄先站好再量版面：它吃掉的寬度算不進去的話，兩張版會照整頁的寬度
+         排出來，站好之後才「啪」地縮回去。 */
+      hostSide(document.getElementById('view-total'));
+      renderPmPlans();
+      renderMinimap();        // 左欄第二段在這一頁一樣看得到，那就得有人畫它
       fitBoards();
       renderSubmitBtn();          // 還沒提交的草稿：那顆鈕和框紅只活在這一頁
     },
@@ -6614,8 +6712,15 @@ const VIEWS = {
     mount(){
       snapWrap.style.display = 'none';
       markWrap.style.display = 'none';
-      hostSheet(document.getElementById('view-sheet'));
-      clearBoardThumbs();                   // 拼板的畫布、貼紙、數字都不進這一頁
+      const vs = document.getElementById('view-sheet');
+      hostSide(vs);
+      /* 小地圖掛在左欄的第二段裡，跟 拼板 同一個位置 —— 兩頁之間切換時，
+         左邊那一欄不該整個換一種長相。 */
+      sheetSide.classList.remove('mini');       // 收的是整欄（#pmStack），不是這一段
+      hostSheet(vs, document.getElementById('secMini'), vs,
+                document.getElementById('boardSide'));
+      renderPmPlans();
+      clearBoardThumbs();                 // 拼板的畫布、貼紙、數字都不進這一頁
       /* 第一次看到某個版位（剛開檔期、還沒挑過）＝要先看到它整張，
          所以縮到剛好、擺正中間。本來就有選著的版位不動 —— 在同一個版位裡
          切分頁不該把你調好的縮放洗掉。 */
@@ -6693,14 +6798,15 @@ function showBoardOverview(){
   const ov = document.getElementById('boardOverview');
   const side = document.getElementById('boardSide');
   const pm = activeMode === 'pm';
-  /* 拼板 的左欄**三個身分都一樣**：檔期 ＋ 整本落版那一疊（#pmStack），
-     小地圖是其中的第二段。以前只有 PM 有，設計只看得到光禿禿的小地圖 ——
-     於是設計要換一檔就得退回檔期列表，而 PM 不必。同一個畫面上同一個位置
+  /* 左欄**三個身分、三個分頁都一樣**（#pmStack）：先挑檔期，再看那一本的
+     整本落版，小地圖是後面那一段。以前只有 PM 有，設計只看得到光禿禿的小地圖
+     —— 於是設計要換一檔就得退回檔期列表，而 PM 不必。同一個畫面上同一個位置
      給不同身分不同的東西，只會讓人以為自己那一份是壞的。
      （這幾個名字裡的 pm 是歷史：那一疊本來是 PM 專用的。）
-     收合狀態跟著「哪一欄」走：小地圖現在永遠只是一段，收整欄的是 #pmStack ——
-     不清掉的話，之前把小地圖自己收起來過的人搬進來會看到空的一段。 */
+     收的一律是整欄（#pmStack），所以小地圖自己那個 mini 要清掉 ——
+     不清的話，之前把小地圖單獨收起來過的人搬進來會看到空的一段。 */
   sheetSide.classList.remove('mini');
+  hostSide(document.getElementById('view-board'));
   hostSheet(ov, document.getElementById('secMini'),
             document.getElementById('typeWrap'), side);
   ov.classList.add('on');
@@ -6933,6 +7039,7 @@ addEventListener('message', e => {
   if (d.ready){                       // iframe 起來了：身分、共用目錄和上次的內容送回去
     e.source.postMessage({ boardRole: canvasRole(),
                            catalogue: CATALOGUE || undefined,
+                           logos: LOGOS || undefined,
                            /* 版面重畫時畫布是整批重掛的，開著的那一格也在裡面 ——
                               它一起來就要知道自己是不是那一格。 */
                            stageEditing: boardCell ? String(boardCell.cell.id) : '',
@@ -7022,6 +7129,65 @@ addEventListener('message', e => {
   noteBoardChange(target, wasBoard);  // 圖搬到哪裡是一步；只是開起來看不是
 });
 
+/* ==========================================================================
+   商品目錄（product.html）
+   它不是某一格的畫布，所以自己一條訊息路 —— 上面那條要求 d.boardCell，
+   而目錄跟任何一格都無關。
+   **存檔一律經過這裡**：金鑰和那條 debounce 都在主程式這一邊，而且存完要立刻
+   發給每一塊畫布（不然只有商品目錄那一頁自己知道，版面上還是舊的品名和價格）。
+   ========================================================================== */
+const catMask = document.getElementById('catMask');
+const catFrame = document.getElementById('catFrame');
+
+addEventListener('message', e => {
+  const d = e.data || {};
+  if (!d.productPage) return;
+  if (d.want){                       // 那一頁起來了：把手上這份共用目錄給它
+    try { e.source.postMessage({ productPage: 1, catalogue: CATALOGUE || null,
+                                 logos: LOGOS || null, ready: catReady }, '*'); } catch (_){}
+    return;
+  }
+  if (d.catalogueSave){
+    CATALOGUE = d.catalogueSave;
+    const s = sync();
+    if (s) s.queueCatalogue(CATALOGUE);
+    pushCatalogue();                 // 每一塊畫布當場換成新的目錄
+    return;
+  }
+});
+
+/** 開一個外掛頁。每次都重新載 —— 商品目錄那一頁自己會跟主程式要一份目錄
+    （productPage/want），留著上一次的 iframe 就會停在上次的內容。 */
+function openApp(src, title, note){
+  document.getElementById('catTitle').textContent = title;
+  document.getElementById('catNote').textContent = note;
+  catFrame.title = title;
+  catFrame.src = src;
+  catMask.classList.add('on');
+}
+function closeApp(){
+  catMask.classList.remove('on');
+  catFrame.src = 'about:blank';      // 不留著跑，也不留著吃記憶體
+}
+document.getElementById('catBtn').addEventListener('click', () =>
+  openApp('product.html?embed=1', '商品目錄',
+          '全公司一份 —— 改了，每一本 DM 的挑貨清單當場就跟著變'));
+/* 品牌 Logo 庫是另一站搬進來的（logo_page/），連的是**它自己那個** Supabase 專案，
+   跟檔期和商品目錄不同一個庫 —— 它只是把圖存在那裡，這邊誰都不必知道。
+   ⚠️ 它從 CDN 載 supabase-js（跟這個專案「零相依」那條規矩不一樣）。那是它自己
+   那一頁的事，斷網的時候它會開不起來，主程式不受影響。 */
+document.getElementById('logoBtn').addEventListener('click', () =>
+  openApp('logo_page/index.html', '品牌 Logo',
+          '各家品牌的 logo 都放在這裡 —— 排版要用哪一張就從這裡找'));
+document.getElementById('catClose').addEventListener('click', closeApp);
+catMask.addEventListener('click', e => { if (e.target === catMask) closeApp(); });
+/* 合成單檔（--bundle）裡沒有這兩頁的檔案 —— 那一版是「寄一支檔案給別人看」，
+   點下去只會得到一頁 404。與其給會壞的鈕，不如不給。 */
+if (window.__PICK_HTML){
+  document.getElementById('catBtn').hidden = true;
+  document.getElementById('logoBtn').hidden = true;
+}
+
 /* pushType 會讓每一塊畫布重排，所以不要一報就跑一次。 */
 let typeTimer = 0;
 function queueType(block){
@@ -7030,58 +7196,98 @@ function queueType(block){
   typeTimer = setTimeout(() => { pushType(b); syncTypeBar(); }, 80);
 }
 
-/* ---- 字級那一排 ---- */
-const typeWrap  = document.getElementById('typeWrap');
-const skuSizeEl = document.getElementById('skuSize');
-const priceEls  = [1, 2, 3].map(n => document.getElementById('price' + n));
+/* ---- 字級那一排：只有 ＋／−，沒有數字可以填 ----
+   每一列（SKU、一價、二價、三價）就是「這一組再大一點／再小一點」。
+   一下 8%（TYPE_STEP）—— 跟畫布上單塊那顆 ＋／− 同一級，兩邊按起來一樣重。 */
+const typeWrap = document.getElementById('typeWrap');
+const twRows   = [...typeWrap.querySelectorAll('.tw-n[data-tw]')];
+const twPct    = v => Math.round(v * 100) + '%';
 
-/** 把現在的設定寫回輸入框；沒設過的留空，placeholder 會顯示「自動」。 */
+/** 每一列右邊那個「幾成」：調過才寫，沒寫就是自動。 */
 function syncTypeBar(){
   // 字級（SKU／價格大小）是設計排版的事，PM 只挑貨，不給他這一條。
   const on = activeTab === 'board' && !!activeBlock && activeMode !== 'pm';
   typeWrap.classList.toggle('on', on);
   if (!on) return;
   const t = typeOf(sheetOf(activeBlock));
-  if (document.activeElement !== skuSizeEl) skuSizeEl.value = t.skuSize;
-  priceEls.forEach((el, i) => {
-    if (document.activeElement === el) return;     // 正在打字就別去動它
-    const v = t.priceByCount[i + 1];
-    el.value = v == null ? '' : v;
+  twRows.forEach(row => {
+    const key = row.dataset.tw;
+    const v = key === 'sku' ? t.skuSize / TYPE_DEFAULT.skuSize : t.priceByCount[+key];
+    let tag = row.querySelector('.tw-p');
+    const off = Math.abs(v - 1) > .005;
+    if (!off){ if (tag) tag.remove(); return; }
+    if (!tag){
+      tag = document.createElement('span');
+      tag.className = 'tw-p';
+      row.insertBefore(tag, row.querySelector('.tw-b'));
+    }
+    tag.textContent = twPct(v);
   });
 }
 
-skuSizeEl.addEventListener('input', () => {
-  if (!activeBlock) return;
-  const v = +skuSizeEl.value;
-  if (!v || v < 4 || v > 60) return;               // 打到一半的數字先不要套
-  typeOf(sheetOf(activeBlock)).skuSize = v;
-  pushType(activeBlock);
-  markDirty();                                     // 進歷史等放開手（change）
-});
-skuSizeEl.addEventListener('change', () => { if (activeBlock) commitAction(); });
+/** 乘一級。SKU 存的還是 px（它的基準是常數 12），價格存的是倍率。
+    只改資料和畫面，不進歷史 —— 按住不放是一連串，進歷史的是放手那一下（見下面）。 */
+function bumpType(key, dir){
+  if (!activeBlock) return false;
+  const t = typeOf(sheetOf(activeBlock));
+  const mul = dir > 0 ? TYPE_STEP : 1 / TYPE_STEP;
+  const clamp = v => Math.min(TYPE_MAX, Math.max(TYPE_MIN, v));
+  const was = key === 'sku' ? t.skuSize : t.priceByCount[+key];
+  if (key === 'sku'){
+    const k = clamp((t.skuSize / TYPE_DEFAULT.skuSize) * mul);
+    t.skuSize = +(TYPE_DEFAULT.skuSize * k).toFixed(2);
+  } else {
+    t.priceByCount[+key] = +clamp((+t.priceByCount[+key] || 1) * mul).toFixed(3);
+  }
+  const now = key === 'sku' ? t.skuSize : t.priceByCount[+key];
+  if (now === was) return false;          // 已經頂到上／下限，別再排隊重排
+  syncTypeBar();
+  queueType(activeBlock);                 // 一次按好幾下收成一次重排（80ms）
+  markDirty();
+  return true;
+}
 
-priceEls.forEach((el, i) => {
-  el.addEventListener('input', () => {
-    if (!activeBlock) return;
-    const raw = el.value.trim();
-    const v = raw === '' ? null : +raw;
-    if (v !== null && (!v || v < 8 || v > 200)) return;
-    typeOf(sheetOf(activeBlock)).priceByCount[i + 1] = v;
-    pushType(activeBlock);
-    markDirty();
+/* 按住不放就一直放大／縮小 —— 要調到兩倍大不該按二十下。
+   先等 400ms 再開始跑：不然「點一下」會變成「點一下再自己多跑幾下」。
+   跑起來之後越跑越快（140ms → 80ms），因為越往後越是在找大的差距。
+   整串只算**一步歷史**：放手才 commitAction()，不然 Ctrl+Z 要按二十次才退得回去。 */
+let twHoldWait = 0, twHoldRun = 0, twHeld = false;
+function twHoldEnd(){
+  clearTimeout(twHoldWait); clearTimeout(twHoldRun);
+  twHoldWait = twHoldRun = 0;
+  if (twHeld && activeBlock){ pushType(activeBlock); commitAction(); }
+  twHeld = false;
+}
+function twHoldStart(key, dir){
+  twHoldEnd();
+  twHeld = bumpType(key, dir);            // 第一下就是點一下
+  let n = 0;
+  const tick = () => {
+    if (!bumpType(key, dir)) return;      // 頂到限了就停，不必空轉
+    twHoldRun = setTimeout(tick, ++n < 8 ? 140 : 80);
+  };
+  twHoldWait = setTimeout(tick, 400);
+}
+twRows.forEach(row => row.querySelectorAll('button[data-step]').forEach(b => {
+  b.addEventListener('pointerdown', e => {
+    e.preventDefault();                   // 不然按住會變成選字
+    twHoldStart(row.dataset.tw, +b.dataset.step);
   });
-  el.addEventListener('change', () => { if (activeBlock) commitAction(); });
-});
+}));
+/* 放手在哪裡都算放手：滑出按鈕外、切走視窗都要停，不然它會在背景一直跑 */
+['pointerup', 'pointercancel', 'blur'].forEach(ev =>
+  addEventListener(ev, twHoldEnd, true));
 
-/* 交還給自動：三個轉盤一起清掉，價格回到「同組取最小」那一套。 */
+/* 交還給自動：四列一起回到原點（SKU 回 12、三個價格回 1 倍）。 */
 document.getElementById('typeReset').addEventListener('click', () => {
   if (!activeBlock) return;
   const t = typeOf(sheetOf(activeBlock));
-  t.priceByCount = { 1:null, 2:null, 3:null };
+  t.priceByCount = { 1:1, 2:1, 3:1 };
+  t.skuSize = TYPE_DEFAULT.skuSize;
   syncTypeBar();
   pushType(activeBlock);
   commitAction();
-  toast('價格字級交回自動', 'info', 1400);
+  toast('字級交回自動', 'info', 1400);
 });
 
 /* 商品版面那一頁要怎麼載進來。
@@ -7839,14 +8045,23 @@ document.addEventListener('keydown', e => {
    住在 sheet 身上（跟 rows／masthead 放一起），也就住在 plan.layout
    底下 —— snapshot() 一序列化就有了，存檔和 Ctrl+Z 是免費的。
 
-   priceByCount 存的是絕對 px：轉盤蓋過自動縮放，「一樣大」就該是一樣的 px。
-   null ＝ 還沒動過那一組，用畫布自己算出來、同組取最小的那個值。 */
-const TYPE_DEFAULT = { skuSize: 12, priceByCount: { 1:null, 2:null, 3:null } };
+   priceByCount 存的是**倍率**（1＝自動，沒調過）：那一排只有 ＋／−，講的是
+   「這一組再大一點／再小一點」，不是「這一組要幾 px」。
+   ⚠️ 舊資料存的是絕對 px（轉盤還是數字輸入框的時候，像 52、80）。倍率永遠落在
+   0.4–3，所以 > 4 一律當成舊的 px 丟掉、交還自動 —— 換不回倍率（要知道當時的
+   基準才算得出來），而自動那一套本來就是同組取最小，不會亂掉。 */
+const TYPE_DEFAULT = { skuSize: 12, priceByCount: { 1:1, 2:1, 3:1 } };
+const TYPE_MIN = .4, TYPE_MAX = 3, TYPE_STEP = 1.08;
 function typeOf(sh){
   if (!sh.type) sh.type = JSON.parse(JSON.stringify(TYPE_DEFAULT));
-  if (!sh.type.priceByCount) sh.type.priceByCount = { 1:null, 2:null, 3:null };
-  if (!+sh.type.skuSize) sh.type.skuSize = TYPE_DEFAULT.skuSize;
-  return sh.type;
+  const t = sh.type;
+  if (!t.priceByCount) t.priceByCount = { 1:1, 2:1, 3:1 };
+  [1, 2, 3].forEach(n => {
+    const v = +t.priceByCount[n];
+    t.priceByCount[n] = (!v || v > 4) ? 1 : v;      // 空的、舊的絕對 px → 自動
+  });
+  if (!+t.skuSize) t.skuSize = TYPE_DEFAULT.skuSize;
+  return t;
 }
 
 /* 同一個版位裡，所有價格一樣大：取全部格子裡最擠的那一個當共同上限 —— 一組（不管
@@ -7893,11 +8108,11 @@ function pushType(block){
     if (!f || !f.contentWindow) return;
     const st = (c.board && c.board.state) || null;
     const n = st && st.nPrice;
-    const dial = (n && n <= 3) ? t.priceByCount[n] : null;
+    const dial = (n && n <= 3) ? t.priceByCount[n] : 1;
     try {
       f.contentWindow.postMessage({ type: {
         skuSize: t.skuSize,
-        pricePx: +dial || 0,                       // 0 ＝ 沒設，用全版位共同上限
+        priceMul: +dial || 1,                      // 1 ＝ 沒調過，就是自動算的那一級
         groupFs: (n && n <= 3 && g[n]) ? g[n] : 0,
         refCmh: refH || 0          // 字級的基準格高（cm）—— 一個版位一個
       } }, '*');
@@ -7913,9 +8128,27 @@ function cellCm(c, el){
   if (!activeBlock || !el) return null;
   const k = sheetMetrics(activeBlock).pxPerCm;
   if (!k || !isFinite(k) || k <= 0) return null;
-  const r = el.getBoundingClientRect();
-  if (!r.width || !r.height) return null;
-  return { w: +(r.width / k).toFixed(3), h: +(r.height / k).toFixed(3) };
+  /* 量的是**框線裡面**（clientWidth／clientHeight），不是 getBoundingClientRect ——
+     畫布那支 iframe 是 inset:0 貼在框線裡的，它拿到的長寬比要跟這裡算的一致。
+     差的只有兩條 1px 的框線，但畫布會照這個比例開座標框，然後把整份置中縮進去：
+     比例差一點，兩側就各留一條白邊，而拼板一放大那條白邊就跟著放大。 */
+  const w = el.clientWidth, h = el.clientHeight;
+  if (!w || !h) return null;
+  return { w: +(w / k).toFixed(3), h: +(h / k).toFixed(3) };
+}
+
+/* 只改大小那條路（沒有重建）：iframe 換了寬高，但它的座標框還停在上一次重建時
+   算的比例 —— 縮放時格子的長寬比會慢慢跑掉（列高不是照著寬度等比例變的），
+   框跟格子對不上，畫布就在格子裡置中，兩側各留一條白邊，越放大越寬。
+   所以尺寸一變就把新的 cm 補送一次。畫布自己會比對，框沒真的變就不重排。 */
+function pushCellCm(){
+  if (!activeBlock) return;
+  (sheetOf(activeBlock).cells || []).forEach(c => {
+    const el = cardEl(c.id), f = el && el.querySelector('.ccanvas');
+    if (!f || !f.contentWindow) return;
+    const cm = cellCm(c, el);
+    if (cm) try { f.contentWindow.postMessage({ stageCm: cm }, '*'); } catch (_){}
+  });
 }
 
 function paintOneCanvas(c){
@@ -8095,8 +8328,8 @@ function reflowBoard(){
   const before = boardSig;
   renderGrid(activeBlock);
   if (boardSig !== before) paintBoardThumbs();
-  // 只改大小那條路不會重畫標籤，但格子已經換寬度了 —— 位置得自己跟上
-  else placeCellTags();
+  // 只改大小那條路不會重畫標籤，但格子已經換寬度了 —— 位置和畫布的座標框得自己跟上
+  else { placeCellTags(); pushCellCm(); }
 }
 
 /* 游標在格子裡的畫布上時，滾輪被那個 iframe 吃掉，這一層收不到 —— 而格子幾乎
@@ -8387,27 +8620,41 @@ function setSecCount(key, text){
   if (n) n.textContent = text;
 }
 
-/* 哪一段是收起來的記在 localStorage：收起來多半是「這一段我這幾天用不到」，
-   不該每次進來又全部打開。 */
-const PM_SEC_KEY = 'pm_side_secs_v1';
-let pmSecs = {};
-try { pmSecs = JSON.parse(localStorage.getItem(PM_SEC_KEY)) || {}; } catch(_){}
-function applyPmSecs(){
-  document.querySelectorAll('#pmStack .pm-sec').forEach(sec => {
-    const head = sec.querySelector('.sec-head');
-    const shut = !!pmSecs[head.dataset.sec];
-    sec.classList.toggle('closed', shut);
-    sec.querySelector('.caret').textContent = shut ? '▸' : '▾';
-  });
+/* ---- 左欄一次只看得到一段 ---------------------------------------------------
+   先在清單裡挑一本 DM（list），才看得到那一本的整本落版（map）。以前兩段是
+   上下疊著的，各自收得起來（pm_side_secs_v1）—— 286px 裡上下各半截，清單看不到
+   幾檔、小地圖也擠不下兩張版；而它們本來就是先後關係，不是並列。
+   **三個分頁共用同一個 sideMode**：挑了一檔就是挑了一檔，切個分頁不該回到清單 ——
+   那會讓人以為自己剛剛挑的沒算數。 */
+let sideMode = 'map';
+
+function paintSideMode(){
+  const st = document.getElementById('pmStack');
+  if (!st) return;
+  const m = sideMode;
+  st.classList.toggle('at-list', m === 'list');
+  st.classList.toggle('at-map',  m === 'map');
 }
-document.querySelectorAll('#pmStack .sec-head').forEach(head => {
-  head.addEventListener('click', () => {
-    pmSecs[head.dataset.sec] = !pmSecs[head.dataset.sec];
-    try { localStorage.setItem(PM_SEC_KEY, JSON.stringify(pmSecs)); } catch(_){}
-    applyPmSecs();
-  });
-});
-applyPmSecs();
+
+function setSideMode(m){
+  sideMode = m;
+  if (m === 'list') renderPmPlans();   // 換一檔之後清單上那一列的高亮要跟著走
+  paintSideMode();
+}
+
+document.getElementById('sideUp').addEventListener('click', () => setSideMode('list'));
+
+/* 左欄是**同一顆** DOM，在三個分頁之間搬來搬去（跟小地圖的 hostSheet()、
+   名牌的 hostWho() 同一個做法）。三頁各養一份的話，遲早有一份忘記跟著更新，
+   而它寫的是「你在哪一本 DM」。永遠站在那一頁的最前面。 */
+function hostSide(parent){
+  const side = document.getElementById('boardSide');
+  if (parent.firstElementChild !== side) parent.insertBefore(side, parent.firstChild);
+  // 把手跟著整欄走，收的是整欄
+  if (side.lastElementChild !== sideFold) side.appendChild(sideFold);
+  sideFold.paint();
+  paintSideMode();
+}
 
 /** 這一檔有多大。以前這裡還分「我的 n 格／沒有你的格」，那是一格一位 PM 的事，
     拿掉之後每個人面對的都是整本，剩下的問題只有「這一檔落版了沒、多少格」。 */
@@ -8459,7 +8706,12 @@ function renderPmPlans(){
     sub.appendChild(o); sub.appendChild(m);
     row.appendChild(nm); row.appendChild(sub);
     row.title = `${pl.name}・${planRangeLabel(pl)}`;
-    row.addEventListener('click', () => switchPlan(pl));
+    /* 點一檔＝挑好了，接著就要看它的版 —— 所以換完檔期直接翻到小地圖那一段。
+       點的是本來就開著的那一檔也一樣：那代表「就這一本，給我看版」。 */
+    row.addEventListener('click', async () => {
+      if (pl !== currentPlan) await switchPlan(pl);
+      if (pl === currentPlan) setSideMode('map');
+    });
     host.appendChild(row);
   });
 
@@ -8471,7 +8723,7 @@ function renderPmPlans(){
   } else {
     const note = document.createElement('div');
     note.className = 'pl-note';
-    note.textContent = '點一檔＝換一本 DM，右邊整個換掉。';
+    note.textContent = '點一檔＝看它的整本落版。換一本 DM，右邊整個換掉。';
     host.appendChild(note);
   }
 }
@@ -8788,7 +9040,7 @@ function paintTotalStates(){
 
 /* 這一段站在 const editorHost 上面，所以自己拿一次同一顆 DOM ——
    直接寫 editorHost 會在載入時就 TDZ 炸掉（整支程式是同一個 <script>）。 */
-const totalHost = document.getElementById('view-total');
+const totalHost = document.getElementById('totalScroll');
 
 /* 切分的游標：直接抄開檔那支（落版單系統，出處是 1排版切割.html）—— 游標上寫著
    「直」還是「橫」，就不必先去看工具列上哪一顆亮著。熱點在箭頭中心（40 16）。 */
@@ -8827,12 +9079,19 @@ function setCutDir(d){
   totalHost.classList.toggle('dir-h', d === 'h');
   paintCutPreview();                 // 直切換橫切，紅線要跟著轉
 }
-/* 換分頁就把 切分 的東西收乾淨：那條紅線是 position:fixed，不收的話會留在
-   落版／拼板 的畫面上，看起來像版面上多了一條線。 */
+/* 總體 這一頁**現在真的看得到嗎**。問的是那個 panel 有沒有 active，不是 activeTab ——
+   退回檔期列表（showList）不算換分頁，activeTab 還停在 'total'，可是整個編輯器都收起來了。
+   只問 activeTab 的話，那條 position:fixed 的紅線會留在檔期列表上：一條沒有來由的紅線
+   橫在畫面上，而它指的那一塊已經不在畫面上了。 */
+const totalShowing = () => activeTab === 'total' &&
+  document.getElementById('view-total').classList.contains('active');
+
+/* 換分頁、退回列表都要把 切分 的東西收乾淨：那條紅線是 position:fixed，
+   不收的話會留在別的畫面上，看起來像版面上多了一條線。 */
 function syncTotalTools(){
-  if (activeTab !== 'total'){ aimAt(null); closeItemPop(); }
+  if (!totalShowing()){ aimAt(null); closeItemPop(); }
   document.getElementById('cutBar').classList.toggle(
-    'on', activeTab === 'total' && totalTool === 'cut');
+    'on', totalShowing() && totalTool === 'cut');
 }
 document.querySelectorAll('#totalRail .tool[data-ttool]').forEach(b =>
   b.addEventListener('click', () => setTotalTool(b.dataset.ttool)));
@@ -9090,32 +9349,87 @@ function swapBlocks(a, b){
    切分的手感：照開檔那支（落版單系統 的 切割）搬過來
    指著哪一塊就把它框紅（cutAim）—— 因為手要移到「切下去」那顆鈕上，一離開版面
    就忘記的話，那顆鈕永遠不知道要切誰。線和紅框一起留著，看得到才敢按。
-   沒填公分＝那一刀就切在游標上；填了＝線跳到那個公分數上，點下去也切在那裡
-   （線就是承諾，不能畫一條線卻切在別的地方）。滾輪切換直／橫。
+   沒填座標＝那一刀就切在游標上；填了 X／Y＝**紅框和紅線一起跳到那個座標上**，
+   點下去也切在那裡（線就是承諾，不能畫一條線卻切在別的地方）。
+   座標讀的是那一張版的尺規，所以「要切哪一塊」是座標自己算出來的，不必先瞄。
+   滾輪切換直／橫。
    ========================================================================== */
 const cutBar = document.getElementById('cutBar');
-const cutLenInput = document.getElementById('cutLen');
+const cutXInput = document.getElementById('cutX');
+const cutYInput = document.getElementById('cutY');
 const cutPreview = document.getElementById('cutPreview');
 let cutAim = null;                  // 紅框指著的那一塊（DOM）
 let cutHoverXY = null;              // 游標最後停在哪
 
-/* 空的、0、負的、看不懂的都當成「沒填」＝照點的位置切。 */
-function cutLenCm(){
-  const v = parseFloat(cutLenInput.value);
-  return (isFinite(v) && v > 0) ? v : null;
+/* 空的、負的、看不懂的都當成「沒填」。 */
+function cutCm(inp){
+  const v = parseFloat(inp.value);
+  return (isFinite(v) && v >= 0) ? v : null;
 }
+
+/** 座標指到的那個點在螢幕上的位置。
+    X／Y ＝**那一張版**上的第幾公分（尺規讀到的同一個數字），不是「離那一塊的邊
+    幾公分」—— 後者要先知道那一塊從哪裡開始，而版上唯一寫著數字的就是尺規。
+    ⚠️ 哪一張版：兩張並排，座標自己講不出是正面還是背面 —— 用紅框那一塊在的那張，
+    沒有紅框就用正面。
+    **填了數字就跟游標無關**：填 X 就是一刀直的、填 Y 就是一刀橫的（見下面那兩個
+    input 的 handler），沒填的那一軸只拿來挑「切哪一塊」，不是那一刀的位置。
+    挑法：先用紅框那一塊，沒有就沿著填了的那一軸找第一塊碰得到的（nodeOnAxis）——
+    以前這裡是拿游標補的，於是同一個數字，滑鼠停在不同地方會切到不同的版位。 */
+function cutCoordPoint(){
+  const x = cutCm(cutXInput), y = cutCm(cutYInput);
+  if (x == null && y == null) return null;      // 都沒填＝照游標切
+  const ws = (cutAim && cutAim.closest('.board-ws'))
+          || (boards.front && boards.front.ws);
+  if (!ws || !ws.isConnected) return null;
+  const r = ws.getBoundingClientRect();
+  const cm = boardCm();
+  const px = x == null ? null : r.left + x * (r.width / cm.w);
+  const py = y == null ? null : r.top  + y * (r.height / cm.h);
+  if (px != null && py != null) return { x: px, y: py, ws };
+  const el = (cutAim && cutAim.isConnected ? cutAim : null) || nodeOnAxis(ws, px, py);
+  const ar = (el || ws).getBoundingClientRect();
+  return { x: px == null ? ar.left + ar.width / 2 : px,
+           y: py == null ? ar.top + ar.height / 2 : py, ws };
+}
+
+/** 只填了一軸的時候，那一刀會經過哪幾塊 —— 取最上面（直切）／最左邊（橫切）那一塊。
+    要一個講得出來的答案，不能是「滑鼠剛好停在哪」。 */
+function nodeOnAxis(ws, px, py){
+  let best = null, bestAt = Infinity;
+  ws.querySelectorAll('.window-node').forEach(el => {
+    const r = el.getBoundingClientRect();
+    const hit = px != null ? (px >= r.left && px <= r.right)
+                           : (py >= r.top  && py <= r.bottom);
+    const at = px != null ? r.top : r.left;
+    if (hit && at < bestAt){ best = el; bestAt = at; }
+  });
+  return best;
+}
+
+/** 這個點落在哪一塊上。版位不重疊，所以碰到誰就是誰。 */
+function nodeElAt(ws, x, y){
+  let hit = null;
+  ws.querySelectorAll('.window-node').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) hit = el;
+  });
+  return hit;
+}
+
 let cutBadTimer = 0;
-function flashCutLen(spanCm){
+function flashCutLen(msg){
   cutBar.classList.add('bad');
-  cutLenInput.title = `這一塊只有 ${spanCm.toFixed(1)}cm，切不出 ${cutLenCm()}cm`;
+  cutXInput.title = cutYInput.title = msg;
   clearTimeout(cutBadTimer);
   cutBadTimer = setTimeout(() => cutBar.classList.remove('bad'), 700);
 }
 function syncCutGo(){
   const go = document.getElementById('cutGo');
-  go.disabled = !(totalTool === 'cut' && cutLenCm() != null && cutAim && cutAim.isConnected);
-  go.title = cutLenCm() == null ? '先填要切在幾公分'
-           : (cutAim ? '切紅框那一塊' : '先把滑鼠移到要切的那一塊上（它會框成紅色）');
+  const has = cutCoordPoint() != null;
+  go.disabled = !(totalTool === 'cut' && has && cutAim && cutAim.isConnected);
+  go.title = !has ? '先填座標：X＝直切一刀、Y＝橫切一刀（兩個都填就切在那個點上）'
+           : (cutAim ? '切紅框那一塊' : '這個座標沒有落在任何版位上');
 }
 
 function aimAt(el){
@@ -9126,21 +9440,31 @@ function aimAt(el){
   syncCutGo();
 }
 
+/** 填了座標就讓紅框自己走過去 —— 線和框是同一個承諾，不能框著 A 卻切在 B。 */
+function applyCutCoords(){
+  const p = cutCoordPoint();
+  const el = p && nodeElAt(p.ws, p.x, p.y);
+  if (el && el !== cutAim){ aimAt(el); return; }
+  paintCutPreview();
+  syncCutGo();
+}
+
 /** 這一刀落在那一塊的第幾個 px（從左緣／上緣量起），以及那一塊有多長。 */
 function cutOffset(){
   const r = cutAim.getBoundingClientRect();
   const vertical = cutDir === 'v';
   const span = vertical ? r.width : r.height;
   const k = pxPerCm(cutAim, vertical);        // 橫的一公分和直的一公分不一樣長
-  const want = cutLenCm();
-  const raw = want != null ? want * k
-            : (cutHoverXY ? (vertical ? cutHoverXY.x - r.left : cutHoverXY.y - r.top)
-                          : span / 2);
-  return { r, vertical, span, k, raw, off: Math.max(0, Math.min(span, raw)), over: raw >= span };
+  const p = cutCoordPoint();
+  const at = p ? (vertical ? p.x : p.y)
+            : (cutHoverXY ? (vertical ? cutHoverXY.x : cutHoverXY.y) : null);
+  const raw = at == null ? span / 2 : at - (vertical ? r.left : r.top);
+  return { r, vertical, span, k, raw, off: Math.max(0, Math.min(span, raw)),
+           over: raw >= span || raw < 0 };
 }
 
 function paintCutPreview(){
-  if (totalTool !== 'cut' || activeTab !== 'total' || !cutAim || !cutAim.isConnected){
+  if (totalTool !== 'cut' || !totalShowing() || !cutAim || !cutAim.isConnected){
     cutPreview.style.display = 'none';
     return;
   }
@@ -9158,8 +9482,15 @@ function paintCutPreview(){
     cutPreview.style.width = r.width + 'px';
     cutPreview.style.height = '2px';
   }
+  /* 讀數寫的是**那一張版上的座標**，跟上面那兩個欄位、跟尺規是同一個數字 ——
+     以前寫的是「離那一塊的邊幾公分」，那時候輸入的也是那個。線、欄位、尺規
+     三個講的必須是同一件事，不然填 18 卻看到 8，沒有人知道該信哪一個。 */
+  const ws = cutAim.closest('.board-ws');
+  const wr = ws ? ws.getBoundingClientRect() : null;
+  const at = wr ? (vertical ? (r.left + off - wr.left) : (r.top + off - wr.top)) / k
+                : off / k;
   cutPreview.querySelector('.lbl').textContent =
-    (off / k).toFixed(1) + 'cm' + (over ? '（切不下去）' : '');
+    at.toFixed(1) + 'cm' + (over ? '（切不下去）' : '');
   cutPreview.style.display = 'block';
 }
 
@@ -9169,16 +9500,25 @@ function doCut(){
   const node = totalNodeOf(cutAim);
   if (!node) return;
   const { span, k, off, over } = cutOffset();
-  if (over){ flashCutLen(span / k); return; }        // 切不下去就別切
+  // 座標落在這一塊外面：那一刀根本不在它身上，別切
+  if (over){ flashCutLen(`這個座標不在那一塊裡（它只有 ${(span / k).toFixed(1)}cm）`); return; }
   const vertical = cutDir === 'v';
   aimAt(null);                                       // 紅框和紅線要在重建之前收掉
   cutBlock(node, off / span * 100, vertical);
 }
 document.getElementById('cutGo').addEventListener('click', doCut);
-cutLenInput.addEventListener('input', () => { syncCutGo(); paintCutPreview(); });
-/* 填完數字手還在鍵盤上：Enter 就是按那顆鈕 */
-cutLenInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter'){ e.preventDefault(); doCut(); }
+/* 填 X ＝一刀直的、填 Y ＝一刀橫的。X 是「從左緣量起第幾公分」，那個數字唯一
+   講得出來的線就是一條直線 —— 讓人填完 X 還要再去滾一下滾輪才切得對，等於
+   那個欄位只講了一半。滾輪和那兩顆方向鈕照舊：那是刻意換方向，這是順手。 */
+[[cutXInput, 'v'], [cutYInput, 'h']].forEach(([inp, dir]) => {
+  inp.addEventListener('input', () => { if (cutCm(inp) != null) setCutDir(dir); });
+});
+[cutXInput, cutYInput].forEach(inp => {
+  inp.addEventListener('input', applyCutCoords);
+  /* 填完數字手還在鍵盤上：Enter 就是按那顆鈕 */
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter'){ e.preventDefault(); doCut(); }
+  });
 });
 
 /* ---- 滑鼠：切分的紅框紅線、移動的拖曳，都用委派掛在 總體 那一層 ---- */
@@ -9195,6 +9535,8 @@ totalHost.addEventListener('mousemove', e => {
   const el = e.target.closest && e.target.closest('.window-node');
   if (el) aimAt(el);
   else paintCutPreview();          // 移到版位外面：紅框留著（手要去按那顆鈕）
+  /* 填了座標就以座標為準：滑鼠這時候挑的是「哪一張版」，不是哪一塊 */
+  applyCutCoords();
 });
 /* 紅線是 position:fixed 的，這一頁一捲它就對不到那一塊了 */
 totalHost.addEventListener('scroll', paintCutPreview);
@@ -9278,6 +9620,16 @@ const sync = () => (window.PlanSync && window.PlanSync.ok()) ? window.PlanSync :
    由主程式保管，開機拉一次，再發給每一塊畫布。畫布自己不連網（金鑰不進 iframe）。
    拉不到就是 null，畫布會繼續用它自己寫死的那份，跟以前一樣。 */
 let CATALOGUE = null;
+/* 品牌 Logo：`正規化過的品牌名 → 那張圖的公開網址`（見 supabase-sync 的 pullLogos）。
+   商品目錄裡每一列都有品牌（HITACHI、Panasonic…），Logo 庫裡每一家公司都有一張圖，
+   這一份就是把那兩件事接起來的東西 —— 接上之後，「這個商品的牌子長什麼樣」
+   不必再一個一個上傳，寫對品牌名就有了。
+   null ＝ 還沒拉到（或沒設定）；畫布照舊只認手動上傳的那幾張。 */
+let LOGOS = null;
+/* 共用目錄**拉完了沒**。商品目錄那一頁靠它分辨「目錄真的是空的」和「我還沒讀到」——
+   兩者在畫面上長得一樣（都是空白），但從後者存下去會把全公司的商品刪光。
+   沒接後端的時候就是 true：沒有共用的那一份可以毀。 */
+let catReady = false;
 
 /** 發給所有畫布／面板 —— 目錄變了大家要一起變，不然這一格和那一格對不起來。 */
 function pushCatalogue(){
@@ -9285,6 +9637,30 @@ function pushCatalogue(){
   document.querySelectorAll('iframe').forEach(f => {
     try { f.contentWindow.postMessage({ catalogue: CATALOGUE }, '*'); } catch (_){}
   });
+}
+
+/** 品牌 Logo 那一份也要發給每一塊畫布 —— 它跟目錄是一起看的：
+    目錄說這一列的牌子是 HITACHI，這一份說 HITACHI 的圖在哪。 */
+function pushLogos(){
+  if (!LOGOS) return;
+  /* 帶著 productPage：商品目錄那一頁也要（它拿來標「哪些品牌找不到 logo」）。
+     Logo 庫是開機之後才拉到的，可能比那一頁開得晚 —— 只在它問的時候給，
+     就會有一種「開太早所以那條提示永遠不出現」的情況。 */
+  document.querySelectorAll('iframe').forEach(f => {
+    try { f.contentWindow.postMessage({ logos: LOGOS, productPage: 1 }, '*'); } catch (_){}
+  });
+}
+
+/* Logo 庫拉一次就好（它變動的頻率是「偶爾有人上傳一張」，不是每分鐘）。
+   拉不到就整個功能安靜地關著：品牌圖回到手動上傳的那幾張，其他畫預設的框。
+   ⚠️ 不擋開機：這一份沒有也照樣排得了版。 */
+async function bootLogos(){
+  const s = sync();
+  if (!s || !s.pullLogos) return;
+  try {
+    const map = await s.pullLogos();
+    if (map && Object.keys(map).length){ LOGOS = map; pushLogos(); }
+  } catch (e){ console.warn('品牌 Logo 庫拉不到，品牌圖只會有手動上傳的那幾張', e); }
 }
 
 const SEED_PLANS = [
@@ -9422,31 +9798,37 @@ function buildPlanCard(plan, now, past){
   outEl.innerHTML = `出稿 <b>${fmtMD(out)} 09:00</b>`;
   head.appendChild(outEl);
 
+  /* 「對這一檔做的事」收成一組，站在最右邊：日期是資訊，按鈕是動作，
+     黏在一起的話「出稿 8/20」看起來像那顆鈕的一部分。 */
+  const acts = document.createElement('div');
+  acts.className = 'plan-acts';
+  /* 刪除：行銷才有（檔期是他開的）。刪掉是進回收桶，不是抹掉 ——
+     所以這顆不必長得很兇，真正要小心的是回收桶裡那顆「永久刪除」。
+     擺在這一組的最左邊：離最常按的「開啟」最遠。 */
+  if (isMkt()){
+    const del = document.createElement('button');
+    del.className = 'btn del';
+    del.textContent = '🗑';
+    del.title = '刪除這個檔期（會先問一次，之後還原得回來）';
+    del.addEventListener('click', e => { e.stopPropagation(); askDeletePlan(plan); });
+    acts.appendChild(del);
+  }
   /* 改時程：開回開檔那張表、同一條時間軸。日期改的次數比想像多（印廠改期、
      檔期提前），而那個工具本來就在這裡 —— 沒有這顆的話只能重開一個檔期。 */
   if (isMkt() && !past){
     const ed = document.createElement('button');
-    ed.className = 'btn';
+    ed.className = 'btn edit';
     ed.textContent = '改時程';
     ed.title = '用開檔那條時間軸改這個檔期的日期和各段天數';
     ed.addEventListener('click', e => { e.stopPropagation(); PlanForm.open(plan); });
-    head.appendChild(ed);
-  }
-  /* 刪除：行銷才有（檔期是他開的）。刪掉是進回收桶，不是抹掉 ——
-     所以這顆不必長得很兇，真正要小心的是回收桶裡那顆「永久刪除」。 */
-  if (isMkt()){
-    const del = document.createElement('button');
-    del.className = 'btn';
-    del.textContent = '🗑';
-    del.title = '刪除這個檔期（會先問一次，之後還原得回來）';
-    del.addEventListener('click', e => { e.stopPropagation(); askDeletePlan(plan); });
-    head.appendChild(del);
+    acts.appendChild(ed);
   }
   const open = document.createElement('button');
   open.className = 'btn open';
   open.textContent = '開啟';
   open.addEventListener('click', () => openPlan(plan));
-  head.appendChild(open);
+  acts.appendChild(open);
+  head.appendChild(acts);
   card.appendChild(head);
 
   const row = document.createElement('div');
@@ -9905,6 +10287,10 @@ const finishedPlans = () => visiblePlans().reverse().filter(isFinished);
    （「壓力測試」那顆不在這裡：它是 devtool，長得就不像正常流程裡的按鈕。） */
 function syncListButtons(){
   const mkt = isMkt();
+  /* 品牌 Logo 只有設計看得到：那是版面上的素材（跟刊頭圖同一類）。
+     它不在下面那一排行銷專屬的按鈕裡，所以自己判一次。 */
+  const lb = document.getElementById('logoBtn');
+  if (lb && !window.__PICK_HTML) lb.hidden = activeMode !== 'design';
   ['wipeBtn','importBtn','newPlanBtn'].forEach(id => {
     const b = document.getElementById(id);
     if (b) b.hidden = !mkt;
@@ -10969,8 +11355,7 @@ document.getElementById('importInput').addEventListener('change', e => {
 
 const listChrome = document.getElementById('listChrome');
 const editorChrome = document.getElementById('editorChrome');
-const editorHost = document.getElementById('view-total');
-const modeBar = document.getElementById('modeBar');
+const editorHost = document.getElementById('totalScroll');
 const backBtn = document.getElementById('backBtn');
 let currentPlan = null;
 
@@ -11129,38 +11514,6 @@ function bootLogin(){
   else loginGate.hidden = false;
 }
 
-/* ---- the bar hides against the top edge and drops when the mouse comes up ---- */
-let barTimer = 0;
-const barPinned = () => modeBar.classList.contains('pinned');
-function showBar(on){
-  if (barPinned()) return;              // 檔期列表上不收
-  clearTimeout(barTimer);
-  modeBar.classList.toggle('show', on);
-}
-/** 檔期列表：一直在。開了檔期：躲上去，滑鼠靠近才下來。 */
-function pinBar(on){
-  clearTimeout(barTimer);
-  modeBar.classList.toggle('pinned', on);
-  modeBar.classList.toggle('show', on);
-  document.querySelector('.app').classList.toggle('bar-pinned', on);
-}
-document.addEventListener('mousemove', e => {
-  if (e.clientY <= 8) showBar(true);      // the sliver itself is 7px tall
-  // clear of the bar and not on it: retract. No dead band — on the 檔期列表 the
-  // bar covers the title and 匯入, so anything that leaves it hanging is in
-  // the way of the page underneath.
-  else if (e.clientY > modeBar.offsetHeight && !e.target.closest('#modeBar')) showBar(false);
-});
-modeBar.addEventListener('mouseenter', () => showBar(true));
-// leaving the bar sideways or upwards never crosses the threshold above
-modeBar.addEventListener('mouseleave', () => {
-  if (barPinned()) return;
-  clearTimeout(barTimer);
-  barTimer = setTimeout(() => modeBar.classList.remove('show'), 140);
-});
-// pointer out of the window entirely (or into the iframe) — nothing left to hover
-document.addEventListener('mouseleave', () => showBar(false));
-
 function showList(){
   flushSave();                       // never leave a queued write behind
   closeDividerField();
@@ -11168,8 +11521,6 @@ function showList(){
   if (VIEWS[activeTab]) VIEWS[activeTab].unmount();
   listChrome.style.display = 'flex';
   hostWho(listChrome);
-  backBtn.style.display = 'none';    // nothing to go back to from the list
-  pinBar(true);                      // 身分列在這一頁一直看得到
   editorChrome.style.display = 'none';
   document.getElementById('toolHint').style.display = 'none';
   document.getElementById('view-total').classList.remove('active');
@@ -11183,6 +11534,7 @@ function showList(){
   closeBoardCell();                  // 下次進 拼板 從總覽開始
   boardLoaded = null;                // 換檔期就別留著上一張的 iframe
   syncHistoryBtns();               // no plan open == nothing to undo
+  syncTotalTools();                // 那條紅線是 position:fixed，不收會留在列表上
   renderPlans();
 }
 
@@ -11190,14 +11542,13 @@ function showList(){
     上緣那條列 —— 只是把列表換成表單。 */
 function showPlanForm(){
   listChrome.style.display = 'none';   // 那一行是「檔期列表」的標題，這裡不是
-  backBtn.style.display = 'none';
-  pinBar(true);
   editorChrome.style.display = 'none';
   document.getElementById('toolHint').style.display = 'none';
   ['view-total','view-sheet','view-board','view-plans']
     .forEach(id => document.getElementById(id).classList.remove('active'));
   document.getElementById('view-plan').classList.add('active');
   hostWho(document.getElementById('whoSlotPlan').parentNode);
+  syncTotalTools();                // 同 showList：紅線不屬於這一頁
 }
 
 /* Rebuild both 總體 boards (and the 落版 view, if it is the one showing) from
@@ -11280,8 +11631,6 @@ function openPlan(plan){
   document.getElementById('bannerRange').textContent = planRangeLabel(plan);
 
   listChrome.style.display = 'none';
-  backBtn.style.display = '';
-  pinBar(false);                     // 版面要用滿，身分列改成靠近才下來
   editorChrome.style.display = 'flex';
   hostWho(document.getElementById('whoSlot').parentNode);
   document.getElementById('view-plans').classList.remove('active');
@@ -11289,6 +11638,8 @@ function openPlan(plan){
   document.getElementById('view-plan').classList.remove('active');
   activeTab = 'total';
   designTab = 'total';
+  // 檔期剛挑完，左欄就該是那一本的版 —— 不必再挑一次
+  sideMode = 'map';
   applyMode();                       // open as whoever you already are
   drawGuides('front'); drawGuides('back');
   updateProgress();
@@ -11733,6 +12084,9 @@ function mergePlanInto(mine, base, theirs){
   const report = { took: 0, notes: 0, conflicts: [], rebuilt: false,
                    by: (theirs && theirs.lastBy) || '' };
   if (!mine || !theirs) return report;
+  /* 合併是**就地改 mine**，改完就認不出哪幾格動過了 —— 先記一份。
+     上層要靠它把新內容送進已經掛著的畫布（見 pushCellStates）。 */
+  report.wasCells = cellStateMap(mine);
   /* 沒有祖先就沒得三方比（這台機器沒同步過它）。這時候不要猜 —— 保留我的，
      讓上層照「有衝突」處理，使用者自己看一眼。 */
   if (!base){ report.conflicts.push('整份'); return report; }
@@ -11792,7 +12146,10 @@ function afterMerge(planId, report){
   const open = currentPlan && currentPlan.id === planId;
   if (open){
     if (report.rebuilt) rebuildAll(activeBlock ? activeBlock.id : null);
-    else if (activeTab === 'board'){ paintBoardThumbs(); renderRail(); }
+    else if (activeTab === 'board'){
+      paintBoardThumbs(); renderRail();
+      if (report.wasCells) pushCellStates(report.wasCells);
+    }
     else if (activeTab === 'sheet') redrawSheet();
     renderMinimap();
     updateProgress();
@@ -11836,20 +12193,34 @@ function afterMerge(planId, report){
    這一步**不會解決互相覆蓋**，它把「安靜地弄丟一天的工作」變成「有人問你一句」。
    真正的解法是把格子拆成一列一列、逐格版本檢查（見計畫的第二步）。
    ========================================================================== */
-const POLL_MS = 5000;
-const POLL_MAX = 60000;          // 後端掛掉就退到一分鐘一次，不要一直敲
-let pollTimer = 0, pollWait = POLL_MS;
+/* 一次同步走三段：本機存檔的 debounce（SAVE_DEBOUNCE）→ 上傳的 debounce
+   （supabase-sync 的 DEBOUNCE）→ 對方輪詢問到。三段加起來才是「他多久看得到」，
+   所以三段都要縮，只縮一段沒有意義（本來 1000＋600＋最多 5000 ＝ 六秒多）。
+
+   輪詢分兩檔：**有人跟我在同一檔的時候才問得密**。一個人在做事的時候問誰都沒有用，
+   而那是絕大多數的時間 —— 密集輪詢的代價要花在真的有人在對面的時候。
+   誰在同一檔是心跳本來就在算的（whoOnPlan），不必另外問一次。 */
+const POLL_FAST = 1200;          // 對面有人：這是「他看到」的主要延遲來源
+const POLL_IDLE = 5000;          // 一個人：問了也不會有東西
+const POLL_MAX  = 60000;         // 後端掛掉就退到一分鐘一次，不要一直敲
+let pollTimer = 0, pollWait = POLL_FAST;
 let remoteHit = null;            // 開著的那一檔被改到了：{ stamp, by }
 /* 按過「知道了」就閉嘴。對方還在工作的話，他每存一次檔就是一個新的時間戳 ——
    不記這個的話這條會每 5 秒再跳一次，那比不講還煩。
    規矩是：**一檔講一次；只有情況變嚴重（變成同一塊）才再講一次。** */
 let remoteMuted = false;
-let planTouched = false;         // 開著這一檔之後有沒有動過手
+/* 「我手上有還沒送出去的東西」—— 不是「我曾經動過手」。
+   這兩件事差很多：送出去之後就沒有什麼會被覆蓋，別人的版本可以直接吃進來。
+   以前它是個單向的閂，一改就永遠是 true —— 於是**改過一次之後就再也收不到
+   別人的東西了**（pollRemote 的 adoptRemote 被擋掉），按過「知道了」連提示都沒有，
+   螢幕就這樣停在舊版本上，而且完全不報錯。兩個人都會編輯，所以兩邊很快都變成瞎的。 */
+let planTouched = false;
 
 const remoteBar = document.getElementById('remoteBar');
 /* 合併的規矩交給同步層：它負責「怎麼安全地寫進去」，這裡負責「怎麼合」。 */
 if (window.PlanSync && window.PlanSync.setMerge){
   window.PlanSync.setMerge(mergePlanInto, afterMerge);
+  window.PlanSync.setSaved(planSaved);
   window.PlanSync.setCatalogueMerge(mergeCatalogueInto);
   window.PlanSync.setCatalogueAfter(afterCatalogueMerge);
 }
@@ -11859,6 +12230,22 @@ function stampLastBy(plan){
   if (!plan || !currentUser) return;
   plan.lastBy = currentUser.name;
   plan.lastById = currentUser.id;
+}
+
+/* 這一筆真的躺在共用資料庫上了（PlanSync 寫成功時叫）。
+   ⚠️ 這是「別人的改動能不能自己流進來」的**唯一**開關 —— 不放掉這個旗子的話，
+   改過一次的人從此就收不到任何東西了。
+   寫的時候又動了手就先不放：那一筆還在排隊，它才是會被覆蓋的那一個。 */
+function planSaved(id){
+  if (!currentPlan || id !== currentPlan.id) return;
+  if (savePending || saveTimer) return;
+  planTouched = false;
+  /* remoteHit 也要放掉：輪詢靠「這個時間戳我講過了」跳過重複的一輪，
+     留著的話下一輪會整段跳過，於是永遠不會走到 adoptRemote()。
+     清掉之後下一輪重新認一次，這時候 planTouched 已經是 false 了，就會自己吃進來。
+     （remoteMuted 不動 —— 「這一檔不必再講了」是對使用者的承諾，換檔期才重新算。） */
+  remoteHit = null;
+  renderRemoteBar();
 }
 
 /* 這一條本來三種情況講同一句話，而且一律琥珀色 —— 看起來像警報，可是多數時候
@@ -11902,10 +12289,10 @@ async function pollRemote(){
   try {
     index = await s.pullIndex();
   } catch (e){
-    pollWait = Math.min(POLL_MAX, pollWait * 2);   // 連不上就退避，別一直敲
+    pollWait = Math.min(POLL_MAX, Math.max(POLL_IDLE, pollWait) * 2);   // 連不上就退避
     return;
   }
-  pollWait = POLL_MS;
+  pollWait = 0;                    // 通了：快慢交給 pollDelay() 看對面有沒有人
   pullBeats();                     // 順便問一次誰在看哪裡（很小，不必等它）
   if (!Array.isArray(index)) return;
 
@@ -11964,6 +12351,33 @@ async function pollRemote(){
   }
 }
 
+/** 每一格的畫布內容，攤成 id → JSON。拿來認「哪幾格真的變了」。 */
+function cellStateMap(p){
+  const out = Object.create(null);
+  const cells = planCells(p);
+  Object.keys(cells).forEach(id => { out[id] = j((cells[id].board || {}).state || null); });
+  return out;
+}
+
+/* 吃進別人那一份之後，**已經掛在格子裡的畫布不會自己知道內容換了**。
+   它只在 ready 那一刻拿過一次 boardRestore（見 message 那一段），之後
+   paintOneCanvas 對活著的畫布只補一句 stageCm —— 那是尺寸，不是內容。
+   所以資料明明換好了、標籤和貼紙也跟著動了，版上的貨還是載入當時那一版：
+   **非得重整才看得到別人挑的貨**，而且完全不報錯。
+   只送真的變了的那幾格 —— 整批送會讓沒動到的畫布也重排一次，那是一整片閃。 */
+function pushCellStates(before){
+  if (activeTab !== 'board' || !activeBlock) return;
+  (sheetOf(activeBlock).cells || []).forEach(c => {
+    const st = (c.board || {}).state || null;
+    if (j(st) === before[c.id]) return;
+    const f = canvasFrame(c.id);
+    // 沒有畫布的（本來是空的、現在才長出貨）paintOneCanvas 已經新掛一個了，
+    // 它會照 ready 那條路自己拿到內容，不必也不能在這裡插隊
+    if (f && f.contentWindow)
+      try { f.contentWindow.postMessage({ boardRestore: st }, '*'); } catch (_){}
+  });
+}
+
 /* 把遠端那一份吃進來。**就地改 currentPlan**，不換物件 —— layout／activeBlock
    都握著它的參考。rebuildAll(keepId) 會把畫面重建、而且停在同一個版位上，
    比 openPlan() 溫柔（那個會把縮放、分頁、選到的版位全部重來）。 */
@@ -11979,6 +12393,8 @@ async function adoptRemote(by){
   /* 骨架有沒有真的變？對方在拼板挑貨的話，版面的形狀根本沒動 —— 那就不必整棵重建。
      他持續在做事的時候這一段每 5 秒會跑一次，每次都 rebuildAll 會閃、而且很重。 */
   const structChanged = j(planStruct(currentPlan)) !== j(planStruct(fresh));
+  /* 換掉之前先記一份「每一格現在長什麼樣」—— 換完才認得出哪幾格要重送內容。 */
+  const wasCells = cellStateMap(currentPlan);
   Object.keys(currentPlan).forEach(k => { delete currentPlan[k]; });
   Object.assign(currentPlan, fresh);
   const at = plans.findIndex(p => p.id === currentPlan.id);
@@ -11990,7 +12406,7 @@ async function adoptRemote(by){
     if (activeBlock) activeBlock = collectBlocks(layout.front, [])
                                      .concat(collectBlocks(layout.back, []))
                                      .find(b => b.id === keep) || activeBlock;
-    if (activeTab === 'board'){ paintBoardThumbs(); renderRail(); }
+    if (activeTab === 'board'){ paintBoardThumbs(); renderRail(); pushCellStates(wasCells); }
     else if (activeTab === 'sheet') redrawSheet();
     renderMinimap();
     updateProgress();
@@ -12002,6 +12418,13 @@ async function adoptRemote(by){
   toast(`已更新成 ${by || '別人'} 的版本`, 'info', 2600);
 }
 
+/* 下一次隔多久問。退避中（連不上）一律照退避的那個數字，其他時候看對面有沒有人。
+   ⚠️ 這要在每一次排程時**重算**，不能只在開檔期時算一次 —— 對方是中途走進來的。 */
+function pollDelay(){
+  if (pollWait) return pollWait;                      // 退避中
+  return (currentPlan && whoOnPlan(currentPlan.id).length) ? POLL_FAST : POLL_IDLE;
+}
+
 function schedulePoll(){
   clearTimeout(pollTimer);
   pollTimer = setTimeout(async () => {
@@ -12010,7 +12433,7 @@ function schedulePoll(){
       try { await pollRemote(); } catch (e){}
     }
     schedulePoll();
-  }, pollWait);
+  }, pollDelay());
 }
 schedulePoll();
 
@@ -12018,7 +12441,7 @@ schedulePoll();
    反過來切走的時候把排隊中的推出去：不推的話那幾筆要等你切回來才會走。 */
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible'){
-    pollWait = POLL_MS;
+    pollWait = 0;                  // 回到這一頁＝退避重來，別讓上次斷線的懲罰留著
     schedulePoll();
     if (sync()) pollRemote().catch(() => {});
   } else {
@@ -12071,8 +12494,11 @@ document.getElementById('remoteDismiss').addEventListener('click', () => {
    一人一列（`__presence:<userId>`，借 plans 那張表，見 supabase-sync），
    所以心跳之間永遠不會互相覆蓋。過期就當作走了：三拍沒訊號就不畫。
    ========================================================================== */
-const BEAT_MS = 15000;        // 心跳
-const BEAT_DEAD = 45000;      // 三拍沒訊號就當作人走了
+/* 心跳。它現在還多管一件事：**輪詢要快還是要慢看它**（見 pollDelay）——
+   所以拍子太慢的話，對方走進這一檔之後要等好一會兒才會切進快的那一檔。
+   死亡線一律是三拍，兩個要一起改。 */
+const BEAT_MS = 8000;
+const BEAT_DEAD = 24000;
 let beatTimer = 0;
 let presence = [];            // 別人在哪裡（已經濾掉自己和過期的）
 
@@ -12137,7 +12563,10 @@ function paintPresence(){
     if (!tag){
       tag = document.createElement('span');
       tag.className = 'pill here';
-      card.querySelector('.plan-head').appendChild(tag);
+      /* 插在按鈕那一組前面：那一組是動作，這一枚是資訊，跟在後面會把
+         「開啟」擠到中間去 */
+      const hd = card.querySelector('.plan-head');
+      hd.insertBefore(tag, hd.querySelector('.plan-acts'));
     }
     tag.textContent = on.map(p => p.name).join('、') + ' 在看';
   });
@@ -12186,13 +12615,20 @@ bootLogin();
   const s = sync();
   const want = new URLSearchParams(location.search).get('plan');
 
+  bootLogos();                  // 不 await：品牌 Logo 拉不拉得到都不影響這一頁開起來
+  if (!s) catReady = true;      // 沒接後端＝沒有共用的那一份可以毀（見 catReady）
   if (s){
     /* 目錄先拉：畫布掛上來的時候就要有得用。拉不到（表還沒建、網路不通）
        就維持 null，畫布照舊用它自己寫死的那份。 */
     try {
       const cat = await s.pullCatalogue();
       if (cat && Array.isArray(cat.rows) && cat.rows.length){ CATALOGUE = cat; pushCatalogue(); }
-    } catch (e){ console.warn('商品目錄同步失敗，先用內建的', e); }
+      catReady = true;                 // 讀到了（連「那一列還不存在」也算）
+    } catch (e){
+      /* 拉不到就維持 false：商品目錄那一頁會停在「還沒讀到」而不准存 ——
+         這時候本機看起來是空的，存下去就是把伺服器上那一份抹掉。 */
+      console.warn('商品目錄同步失敗，先用內建的', e);
+    }
 
     try {
       const rows = await s.pullAll();

@@ -47,13 +47,12 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    因為比例排版不會超出框（見 buildBlocks）。 */
 .cstage{position:absolute;left:0;top:0;width:var(--lw,540px);height:var(--lh,420px);
   transform-origin:0 0;transform:scale(var(--cs,1))}
-/* 安全邊界的那個虛線框：四邊都是 --pad（＝MARGIN），元素不可進入。
-   這裡本來寫 top:0/bottom:0（那時候上下真的不留邊），但邊界後來收斂成 MARGIN
-   一個常數、四邊同寬了，這個框沒跟著改 —— 於是畫面上的框跟實際夾的位置對不起來，
-   上下各差一整個 MARGIN。框是拿來瞄準的，它說謊比沒有還糟。 */
-.safe{position:absolute;left:var(--pad,8px);top:var(--pad,8px);
-  right:var(--pad,8px);bottom:var(--pad,8px);
-  outline:1px dashed rgba(211,31,43,.22);pointer-events:none;display:none}
+/* 安全邊界的那個虛線框：**只剩上下兩條**，因為擋著的只剩上下（見 clampAll）。
+   框是拿來瞄準的，它說謊比沒有還糟 —— 上下差一個 MARGIN 那一次就是這樣，
+   左右畫著一條拖得過去的線也是同一種謊。 */
+.safe{position:absolute;left:0;right:0;top:var(--pad,8px);bottom:var(--pad,8px);
+  border-top:1px dashed rgba(211,31,43,.22);border-bottom:1px dashed rgba(211,31,43,.22);
+  pointer-events:none;display:none}
 .cell.cur .safe{display:block}
 /* 目前作用中的格子：只用內陰影標示，不加框線以免破壞黏合外觀 */
 .cell.cur{box-shadow:inset 0 0 0 2px var(--accent)}
@@ -88,12 +87,15 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    圖片自己有 z-index（疊放順序），所以這裡把「不是圖」的一律抬到它們之上。 */
 .blk:not(.img){z-index:60}
 .blk:hover{border-color:#c3cbd8}
-.blk.sel{border-color:var(--accent);background:rgba(211,31,43,.06)}
+/* 選中的零件**不上色也不加框**：那一圈紅底加藍線畫在版面正中間，看起來像
+   這個商品自己就長那樣 —— 而它只是「你正在動哪一個」。八顆把手已經把這件事
+   說完了（跟 Word 一樣），再加一圈只是把版面弄髒。 */
 .blk.drop{border-color:#0a7;background:rgba(0,170,119,.12)}
 /* --bs＝這一塊自己被放大縮小過幾倍（工具列上的 ＋／−，見 SC_STEP）。基準的數字
    留在這裡不搬進 JS：改版面規範的人是在改 CSS，不該還要去程式裡找 30 在哪。
-   沒調過就沒有 --bs，calc 吃預設的 1，跟以前一模一樣。價格不走這條路 ——
-   它有自己那套（fsFix → 轉盤 → 同組 → shrink），兩套疊起來會互相追。 */
+   沒調過就沒有 --bs，calc 吃預設的 1，跟以前一模一樣。價格不走 CSS 這條路 ——
+   它的字級是 JS 算好寫成 inline style 的，但**規矩是同一條**：
+   基準（轉盤／同組）乘上這一塊自己的倍率（見 priceFsRaw）。 */
 .blk.name{font-size:calc(var(--fs-name,30px) * var(--bs,1));font-weight:800;letter-spacing:.5px}
 .blk.model{font-size:calc(var(--fs-model,13px) * var(--bs,1));font-weight:700;color:#666;letter-spacing:.3px}
 /* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
@@ -153,6 +155,15 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .panel{width:400px;height:380px;flex-shrink:0;background:#fff;border:1px solid var(--line);border-radius:14px;
   display:none;flex-direction:column;overflow:hidden;box-shadow:0 6px 26px rgba(0,0,0,.07)}
 .panel.on{display:flex}
+.pcats{display:flex;flex-wrap:wrap;gap:6px;padding:0 10px 10px;border-bottom:1px solid var(--line)}
+.pcats:empty{display:none}
+.pcats button{
+  appearance:none;border:1px solid var(--line);background:#fbfcfe;border-radius:999px;
+  padding:4px 11px;font:inherit;font-size:12px;font-weight:800;color:#666;cursor:pointer;
+}
+.pcats button:hover{border-color:var(--drop);color:var(--drop)}
+/* 藍＝你正在看的那一類（跟這個專案其他地方同一條規矩） */
+.pcats button.on{background:var(--drop);border-color:var(--drop);color:#fff}
 .psearch{padding:10px;border-bottom:1px solid var(--line);display:flex;gap:8px}
 .psearch input{flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font:inherit;font-size:14px}
 .psearch input:focus{outline:none;border-color:var(--accent)}
@@ -163,6 +174,10 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .pcats button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 
 .item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:14px}
+/* 主標之外的那幾段（型號通常最長）：小一級、灰的，長了就切掉尾巴 ——
+   一列擠不下的時候，該讓步的是它們，不是右邊的 SKU 和價格 */
+.item b{flex:none;white-space:nowrap}
+.item .sub{font-size:12.5px;color:#666;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item:hover{background:#f4f6fa}
 .item input{width:16px;height:16px;accent-color:var(--accent)}
 .grp{font-size:12px;font-weight:800;color:#888;margin:10px 0 4px}
@@ -192,7 +207,9 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 
 /* 把手長得跟 Word 的圖片一樣：八個白色小圓點（四角＋四邊中點），
    選取框是一圈實線。四角等比、四邊單向 —— 手感跟 Word／PPT 對得起來。
-   固定大小、不跟著版面縮放：它是操作用的，不是版面的一部分。 */
+   固定大小、不跟著版面縮放：它是操作用的，不是版面的一部分。
+   （試過改成 Canva 那一套：細藍框＋圓點角＋長條邊中點、把手固定螢幕大小。
+     談定不要 —— 版面上多一圈線就是多一圈線，不好看。） */
 /* 邊中點那四顆（只有圖片有）：擺在邊的正中間，游標也照 PPT 那樣分開兩種 */
 .rz-n,.rz-s{left:50%;transform:translateX(-50%);cursor:ns-resize}
 .rz-w,.rz-e{top:50%;transform:translateY(-50%);cursor:ew-resize}
@@ -208,8 +225,8 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .rz-ne{right:0;top:0;cursor:nesw-resize}
 .rz-se{right:0;bottom:0;cursor:nwse-resize}
 .rz-sw{left:0;bottom:0;cursor:nesw-resize}
-/* 選取框：跟 Word 一樣是一圈細實線，把手騎在上面 */
-.blk.sel{outline:1.5px solid #2b7fd4;outline-offset:0}
+/* 選取框拿掉了（見上面 .blk.sel 那一段）—— 八顆把手自己就站得出來，
+   它們本來是「騎在框上」的，現在就是選取本身。 */
 /* 一把看得到的尺，開著就一直在。壓在最底下（z-index:0）—— 它是背景不是內容，
    蓋在商品圖上會被當成版面的一部分。 */
 .gridlines{
@@ -290,9 +307,13 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 /* 目前是幾成大。調過才顯示，沒調過不佔位置 */
 .pnum{font-size:11px;font-weight:800;color:#999;padding:0 3px;align-self:center;min-width:30px;
   text-align:center}
-/* 藏起來的零件：格子右上角一顆 ＋，數字是藏了幾個。點開是一張清單，
-   打勾就回來 —— 跟 devtools 刪掉節點還找得回來是同一件事。 */
-#restore{position:absolute;display:none;z-index:71}
+/* 藏起來的零件：格子左下角一顆 ＋，數字是藏了幾個。點開是一張清單，
+   打勾就回來 —— 跟 devtools 刪掉節點還找得回來是同一件事。
+   跟著 --cs 縮放：它疊在版面上，固定 px 的話同一顆鈕在縮小的格子裡佔掉三分之一、
+   放大之後又變成一粒芝麻 —— 看起來就是「這顆東西自己會忽大忽小」。
+   只縮不放：--cs 大於 1 的時候不跟著長大，一顆比商品還大的按鈕就不是記號了。 */
+#restore{position:absolute;display:none;z-index:71;transform-origin:left bottom;
+  transform:translateY(-100%) scale(min(1, var(--cs,1)))}
 #restore.on{display:block}
 .rbtn{appearance:none;border:1px solid var(--line);background:#fff;border-radius:8px;
   padding:4px 9px;font:inherit;font-size:12px;font-weight:800;color:#666;cursor:pointer;
@@ -312,8 +333,6 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .ritem input{width:15px;height:15px;accent-color:var(--accent);flex-shrink:0}
 .ritem span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rhead{font-size:11px;font-weight:800;color:#aab;padding:3px 6px 5px}
-/* ＋ 一直都在，所以清單有「空的」這一種狀態 —— 空著不寫字的話，展開像是壞了 */
-.rempty{font-size:11.5px;color:#aab;padding:3px 6px 6px;white-space:nowrap}
 #tip{position:fixed;pointer-events:none;z-index:99;background:#111;color:#fff;font-size:12px;
   font-weight:700;padding:5px 9px;border-radius:7px;transform:translate(14px,16px);display:none;white-space:nowrap}
 
@@ -413,6 +432,9 @@ body.ui-stage .safe{display:none !important}
   <div id="rcol">
     <div class="panel" id="panel">
       <div class="psearch"><input id="q" placeholder="搜尋商品 / 規格 / SKU"></div>
+      <!-- 類別籤：一個版位就是一個品類，挑貨前先篩到那一類比在幾百列裡搜尋快。
+           類別是商品目錄那一頁維護的（product.html），這裡只是照它分。 -->
+      <div class="pcats" id="pcats"></div>
       <div class="pbody" id="panePick"></div>
     </div>
   <aside id="lay">
@@ -489,6 +511,36 @@ let MODEL = {
   'MacBook Neo Air M5':''
 };
 function modelOf(n){ return MODEL[n]||''; }
+/* 品牌和型號**先問那一列自己**，再回頭問「商品名 → 值」那兩張對照表。
+   對照表假設的是「同一個商品名就是同一個品牌、同一個型號」。公司實際的資料不是：
+     空調,HITACHI,變頻冷暖空調,RAC-28NP1/RAS-28NJP1
+     空調,Panasonic,變頻冷暖空調,CU-UJ28BHA2/CS-UJ28BA2
+   同一個「變頻冷暖空調」跨三個品牌，同一個品牌底下每一筆的型號也都不一樣 ——
+   對照表存不下這件事，所以商品目錄那一頁（product.html）把它們放回列上。
+   對照表沒有拿掉：舊資料還躺在裡面，沒有列上那一份的就照舊讀它。 */
+function rowBrand(r){ return (r && (r.brand || BRAND[r.name])) || ''; }
+function rowModel(r){ return (r && (r.model || MODEL[r.name])) || ''; }
+/* 上層送下來的品牌 Logo 庫：`正規化過的品牌名 → 公開網址`。
+   商品目錄說這一列的牌子是 HITACHI，這一份說 HITACHI 的圖在哪 ——
+   接上之後，「這個牌子長什麼樣」不必一個商品一個商品上傳。 */
+let LOGOS = null;
+const normBrand = v => String(v == null ? '' : v)
+  .trim().toLowerCase().replace(/[\s　._\-]+/g, '');
+function logoOf(brand){
+  const k = normBrand(brand);
+  return (LOGOS && k && LOGOS[k]) || '';
+}
+
+/* 品牌圖，三層，前面的贏：
+     1. 手動上傳、照品牌名存的（後台那顆「上傳」）
+     2. 手動上傳、照商品名存的（更早以前的做法，舊資料還在裡面）
+     3. **品牌 Logo 庫**（logo_page）—— 正常情況下就是這一層在供圖
+   手動的排前面是刻意的：有人特地為某個牌子換過一張，那就是他要的那一張，
+   不該被庫裡那張蓋掉。庫是「沒有人特別指定時的正確答案」。 */
+function bimgOf(r){
+  const b = rowBrand(r);
+  return (b && BIMG[b]) || (r && BIMG[r.name]) || logoOf(b);
+}
 
 /* 品牌：同商品共用。BRAND 存品牌名，BIMG 存上傳的品牌 PNG(dataURL)。
    沒上傳圖時顯示長方形 placeholder，高度與品牌字級相當。 */
@@ -500,10 +552,11 @@ let BRAND = {
 let BIMG = {};
 function brandOf(n){ return BRAND[n]||''; }
 
-/* 品牌圖：有上傳用圖，否則畫長形 placeholder（內嵌，斷網可用） */
-function brandHTML(n){
-  const b=brandOf(n);
-  if(BIMG[n]) return `<img class="bimg" src="${BIMG[n]}" alt="" draggable="false">`;
+/* 品牌圖：有上傳用圖，否則畫長形 placeholder（內嵌，斷網可用）。
+   收的是「品牌名 ＋ 圖」兩個字串，不是商品名 —— 呼叫的人手上有那一列，
+   它比這裡更知道這一列的品牌是誰（見 rowBrand）。 */
+function brandHTML(b, img){
+  if(img) return `<img class="bimg" src="${img}" alt="" draggable="false">`;
   return `<span class="bph"><svg viewBox="0 0 120 28" preserveAspectRatio="none">
       <rect x="0.6" y="0.6" width="118.8" height="26.8" rx="4" fill="#f0f2f6"
         stroke="#c9d0dc" stroke-width="1.2" stroke-dasharray="4 3"/>
@@ -583,12 +636,15 @@ const ty = v => v * (REF_CM_H && CM_H ? REF_CM_H / CM_H : 1);
 /* ---- 字級：照原版的比例算，一個版位一個基準 ----------------------------
    PRICE_BASE 不再是寫死的 px，而是「原版那個 52」換算到這一格（priceBase()）。
    SKU_FS 是版位那支轉盤，值仍然用原版的單位（預設 12），畫的時候一起換算。
-   PRICE_PX：轉盤指定的絕對大小，蓋過自動的那一段（談定的，允許溢出）。
+   PRICE_MUL：轉盤那兩顆 ＋／− 調出來的**倍率**（1＝沒調過）。
+   本來是一個絕對 px（在轉盤還是數字輸入框的年代），蓋過自動那一段 ——
+   換成 ＋／− 之後「多大」不再由人指定，只有「比現在大一點／小一點」，
+   所以它乘在自動算出來的基準上，不再蓋掉它。
    GROUP_FS：上層廣播回來的同組比例 —— 照比例排之後同組本來就一樣大，
    這一條只剩「轉盤調過」時還有意義，留著不擋路。 */
 const priceBase = () => ty(52);
 let SKU_FS = 12;
-let PRICE_PX = 0;
+let PRICE_MUL = 1;
 let GROUP_FS = 0;
 let priceWanted = 1;            // 保留給上層那條協商用；照比例排之後永遠是 1
 /** 這一格有幾個價格。分組（同組要一樣大）和舊資料的相容都看它。
@@ -601,24 +657,20 @@ function priceCount(bs, off){
 const PRICE_COUNT_FS = { 1: 1.55, 2: 1.25 };
 const countFs = () => PRICE_COUNT_FS[priceCount()] || 1;
 
-/** 要求的比例，還沒過「絕不溢出」那道夾子。單格微調 > 轉盤 > 同組最小 > 自己算的。 */
-function priceFsRaw(b){
-  if(b.fsFix) return b.fsFix;
-  if(PRICE_PX) return PRICE_PX / (priceBase()||1);
-  if(GROUP_FS) return GROUP_FS;
-  return b.fs || 1;
-}
-/* autoSpace 要「這一塊本來想要多大」時用這個，不用 priceFsRaw —— 差別在最後那一段：
-   priceFsRaw 沒有轉盤／同組時會回 b.fs，而 b.fs 正是 autoSpace 自己上一輪算完寫回去的。
-   拿它當這一輪的輸入 → 排版吃自己的上一個結果 → 每次縮放（轉盤忽大忽小、放大又還原）
-   都要多排一次才收斂，中間那一幀位置是舊的。這裡把自動那段固定回基準 1，autoSpace
-   一次就算得準；b.fs 只當輸出，不再回頭當輸入。 */
-function priceReq(b){
-  if(b.fsFix) return b.fsFix;
-  if(PRICE_PX) return PRICE_PX / (priceBase()||1);
-  if(GROUP_FS) return GROUP_FS;
-  return 1;                  // 自動那一段＝原版的 52，換算過的 priceBase()
-}
+/** 這一組價格的基準比例：自動（同組最小，＝原版的 52 換算過的 priceBase()）× 轉盤倍率。 */
+function priceBaseFs(){ return (GROUP_FS || 1) * (PRICE_MUL || 1); }
+/** 要求的比例，還沒過「絕不溢出」那道夾子。
+    ⚠️ 單格微調（b.fsFix）是**乘上去**的，不是蓋過去的：轉盤是「這一組價格多大」，
+    單格微調是「這一塊比它的同伴大幾成」，兩件不同的事。
+    以前是 `if(b.fsFix) return b.fsFix`（微調一設，轉盤對它就完全失效）——
+    於是自己拉過的那幾塊會卡在原地不動，轉盤看起來像壞了。
+    SKU、品名、規格那幾種本來就是這樣（CSS 的 `--sku-fs * --bs`），價格只是漏了。 */
+function priceFsRaw(b){ return priceBaseFs() * (b.fsFix || 1); }
+/* autoSpace 要「這一塊本來想要多大」時用這個。跟 priceFsRaw 同一條式子 ——
+   兩支分開是因為以前最後那一段不一樣（priceFsRaw 會回 b.fs，而 b.fs 是 autoSpace
+   自己上一輪算完寫回去的：排版吃自己的上一個結果，每次縮放都要多排一次才收斂）。
+   b.fs 這個欄位早就沒有人寫了，留著只會讓人以為那條路還在。 */
+const priceReq = priceFsRaw;
 /* b.shrink 是最後那道夾子：要求的字級整列排不下時，autoSpace 算出剛好排得下的
    比例存在每一塊上（整組同一個值，數字之間的相對關係不變）。1 ＝ 沒夾。
    存在 block 上而不是放一個全域的，是因為 blockHTML 也會畫「不是現在這一格」的
@@ -631,8 +683,8 @@ function applyType(t){
   if(!t) return;
   let hit = false;
   if(+t.skuSize && +t.skuSize !== SKU_FS){ SKU_FS = +t.skuSize; hit = true; }
-  const px = +t.pricePx || 0;
-  if(px !== PRICE_PX){ PRICE_PX = px; hit = true; }
+  const mul = +t.priceMul || 1;
+  if(mul !== PRICE_MUL){ PRICE_MUL = mul; hit = true; }
   const g = +t.groupFs || 0;
   if(g !== GROUP_FS){ GROUP_FS = g; hit = true; }
   /* 字級的基準格：整個版位一個（上層取最矮的那一格）。收到就重算一次 ——
@@ -909,6 +961,7 @@ addEventListener('message',e=>{
   /* 共用的商品目錄要在 restoreBoard 之前收：picked 存的是 SKU，目錄還是內建的
      那份時對不上，畫布會整格空掉。 */
   if(d.catalogue) applyCatalogue(d.catalogue);
+  if(d.logos) applyLogos(d.logos);
   // 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）
   if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
@@ -1050,9 +1103,27 @@ addEventListener('drop', async e=>{
    目錄是全公司一份，存在上層那邊（上層才有連線的金鑰）。這一頁只負責：
    收到就換掉、改到就往上報。上層沒給（單獨開這一頁、或還沒接後端）就繼續用
    檔案裡寫死的那份，跟以前一模一樣。 */
+/* 品牌 Logo 庫換了一份就整批重排：品牌圖的有無會改變左上那一疊的落點
+   （有品牌圖的話品名要往下讓一行，見 buildBlocks 的 hasBrand），
+   所以不能只換圖，得走跟換目錄同一條路。 */
+function applyLogos(map){
+  if(!map || typeof map !== 'object') return;
+  const before = JSON.stringify(LOGOS||null), now = JSON.stringify(map);
+  if(before === now) return;                 // 沒變就別重排（每次掛上來都會送一次）
+  LOGOS = map;
+  layoutKey = '';
+  CELLS.forEach(c=>{ c.layoutKey = ''; });
+  saveCell();
+  refreshAll();
+}
+
 function applyCatalogue(cat){
   if(!cat || !Array.isArray(cat.rows) || !cat.rows.length) return;
-  ROWS  = cat.rows.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:String(r.sku),price:+r.price||0}));
+  /* cat／brand／model 一定要帶著走。少抄一個欄位，這一頁就會把商品目錄那一頁
+     存好的類別和品牌整批洗掉 —— 因為 catalogueNow() 是照 ROWS 重新序列化的，
+     讀進來時掉的欄位，寫回去就真的不見了（而那是全公司共用的一列）。 */
+  ROWS  = cat.rows.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:String(r.sku),
+                            price:+r.price||0, cat:r.cat||'', brand:r.brand||'', model:r.model||''}));
   if(cat.model) MODEL = cat.model;
   if(cat.brand) BRAND = cat.brand;
   if(cat.bimg)  BIMG  = cat.bimg;
@@ -1070,7 +1141,8 @@ function applyCatalogue(cat){
     不屬於任何一格。以前漏掉它，於是後台上傳完看得到、重整就沒了。
     存的都是 Storage 網址，不是圖本身。 */
 function catalogueNow(){
-  return { rows: ROWS.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:r.sku,price:r.price})),
+  return { rows: ROWS.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:r.sku,price:r.price,
+                              cat:r.cat||'', brand:r.brand||'', model:r.model||''})),
            model: MODEL, brand: BRAND, bimg: BIMG, img: IMG };
 }
 
@@ -1193,13 +1265,17 @@ function buildBlocks(){
      每一段都自己夾在邊界裡，所以不管格子多扁多瘦都不會有東西壓到邊界。
      字級和行距的數字（30、34、26、24、58、170）還是原版那一套，用 ty() 換算 ——
      那些是「多大」，不是「在哪」；在哪由這三個落點決定。 */
-  const hasBrand = !!(brandOf(name)||BIMG[name]);
+  /* 品牌和型號問的是**這一群裡的第一列**，不是商品名 —— 同名跨品牌的時候
+     （空調就是），照商品名查會查到別人的牌子。挑貨一次只挑得到同一個商品的
+     那幾個規格（見 renderPick 的 picked.clear），所以第一列就代表這一群。 */
+  const brand = rowBrand(rows[0]), bimg = bimgOf(rows[0]);
+  const hasBrand = !!(brand || bimg);
 
   // 左上
-  if(hasBrand) B.push({id:'b'+id++,kind:'brand',name,x:MARGIN,y:MARGIN});
+  if(hasBrand) B.push({id:'b'+id++,kind:'brand',name,brand,bimg,x:MARGIN,y:MARGIN});
   const nameY = hasBrand?MARGIN+ty(34):MARGIN;
   B.push({id:'b'+id++,kind:'name',text:name,x:MARGIN,y:nameY});
-  const mdl=modelOf(name);
+  const mdl=rowModel(rows[0]);
   if(mdl) B.push({id:'b'+id++,kind:'model',text:mdl,name,x:MARGIN,y:nameY+ty(34)});
 
   /* 右下。一價和多價走同一套 —— 原版把一價的價格單獨擺在別的地方，
@@ -1347,10 +1423,14 @@ function blockHTML(b,isCur=true){
       ${imgHTML(b.key)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
-  if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${brandHTML(b.name)}</div>`;
+  /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的），所以查不到
+     b.brand 就退回那張對照表 —— 不然舊檔期一開起來，品牌全部變成空白。 */
+  if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${
+    brandHTML(b.brand != null ? b.brand : (BRAND[b.name]||''),
+              b.bimg != null ? b.bimg : (BIMG[b.name]||''))}</div>`;
   if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">機型：${b.text}</div>`;
   if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
-  /* 價格用哪一級字由 priceFs() 決定：單格微調 > 轉盤 > 同組最小 > 自己算的。
+  /* 價格用哪一級字由 priceFs() 決定：基準（轉盤 > 同組最小 > 自動）× 這一塊自己的倍率。
      轉盤是允許溢出的（談定的），所以這裡不夾上限。 */
   if(b.kind==='price'){
     const fs=priceFs(b);
@@ -1613,18 +1693,23 @@ function measure(){
 }
 
 /* 這一塊現在有沒有乖乖待在邊界裡。用畫出來的位置問（offsetLeft/Top），
-   所以右緣錨點（b.rx）那幾塊也問得到。 */
+   所以右緣錨點（b.rx）那幾塊也問得到。
+   左右問的是格子的邊（0／CW），跟 clampAll 同一套 —— 不然一塊刻意貼到左緣的價格，
+   會在下一次改大小的時候被當成「凸出去了」整份還原回去。 */
 function withinMargin(id){
   const n=bEl(id); if(!n) return true;
   const k=inkBox(id);
   const l=n.offsetLeft+k.ox, t=n.offsetTop+k.oy;
-  return l >= MARGIN-.5 && t >= MARGIN-.5
-      && l + k.w <= CW - MARGIN + .5
+  return l >= -.5 && t >= MARGIN-.5
+      && l + k.w <= CW + .5
       && t + k.h <= CH - MARGIN + .5;
 }
 
 /* 依候選線做弱磁吸；回傳 {dx,dy,guides} */
-/* 10px 安全邊界：任何元素都不能超出 */
+/* 安全邊界：**只剩上下**。左右擋的是格子本身的邊（0 和 CW），不是 MARGIN ——
+   價格、SKU 這些要能真的貼到格子的左右邊緣，那是排版的人自己要決定的事；
+   MARGIN 只是預設版面擺零件的落點，不該同時當成一道拖不過去的牆。
+   （格子的邊還是擋著：拖出去就被 overflow:hidden 吃掉，那不是「貼邊」是「不見了」。） */
 function clampAll(ids,sizes){
   if(!sizes) return;
   // 以整組外框計算，維持相對位置
@@ -1638,8 +1723,8 @@ function clampAll(ids,sizes){
   }
   if(L===Infinity) return;
   let ox=0, oy=0;
-  if(L<MARGIN) ox=MARGIN-L;
-  if(R+ox>CW-MARGIN) ox=Math.min(ox,(CW-MARGIN)-R);
+  if(L<0) ox=-L;
+  if(R+ox>CW) ox=Math.min(ox,CW-R);
   if(T<MARGIN) oy=MARGIN-T;
   if(B+oy>CH-MARGIN) oy=Math.min(oy,(CH-MARGIN)-B);
   if(ox||oy) for(const id of ids){
@@ -1675,10 +1760,14 @@ function snap(movingIds, sizes){
   const gV=[{v:L,e:'l'},{v:(L+R)/2,e:'c'},{v:R,e:'r'}];   // 群組的垂直邊
   const gH=[{v:T,e:'t'},{v:(T+B)/2,e:'m'},{v:B,e:'b'}];
 
-  /* 目標線：其他 block 的邊/中線 + 格子邊界與中線。對齊線用安全邊界，不用格子實際邊緣。
+  /* 目標線：其他 block 的邊/中線 + 格子邊界與中線。
      格子的中線標成 strong：置中是「講得出名字」的位置，跟「剛好貼到隔壁那塊的邊」
-     不一樣 —— 後者只是碰巧。所以中線吸力大、而且贏過其他線（見下面的 better）。 */
-  const tV=[{v:MARGIN},{v:CW/2,strong:1},{v:CW-MARGIN}],
+     不一樣 —— 後者只是碰巧。所以中線吸力大、而且贏過其他線（見下面的 better）。
+     ⚠️ 直的那一組**只有格子的邊**（0／CW），沒有 MARGIN。左右的牆拿掉之後，MARGIN
+     那兩條線就只是版面裡的兩個數字，不是邊界了 —— 留著的話它照樣把零件吸在離邊
+     8 個單位的地方，牆是拆了，可是拖起來還是「推不過去那一條線」，看起來根本沒改。
+     （要對齊預設那一欄還是對得到：品名、商品圖自己的邊本來就在下面那個迴圈裡。） */
+  const tV=[{v:0},{v:CW/2,strong:1},{v:CW}],
         tH=[{v:MARGIN},{v:CH/2,strong:1},{v:CH-MARGIN}];
   for(const b of BLOCKS){
     if(movingIds.includes(b.id) || isOff(b)) continue;   // 藏起來的不當對齊線
@@ -2103,8 +2192,7 @@ function applyLayerOrder(){
 /* ====== 單塊的大小：放大、縮小、回自動 ======================================
    每一種零件的「大小」不是同一件事，所以存的地方也不同：
      圖  → b.w（px 寬，高是等比跟著跑的）
-     價格→ b.fsFix（比例。價格本來就有一套 fsFix > 轉盤 > 同組 > 自動，
-            這裡就是把最前面那一級寫進去）
+     價格→ b.fsFix（**倍率，乘在轉盤／同組那個基準上**，見 priceFsRaw）
      其他→ b.sc（比例，CSS 那邊 --bs 乘上去）
    共通的一條規矩：這些欄位只給人寫，autoSpace 一律不准回頭寫它們 ——
    排版讀自己上一輪的輸出當輸入，就會每次都要多排一次才收斂（見 priceReq）。 */
@@ -2114,7 +2202,7 @@ const clampSc=v=>Math.min(SC_MAX,Math.max(SC_MIN,v));
 /* 這一塊現在是幾倍大（1＝沒調過）。給工具列顯示，也給 ＋／− 當起點。 */
 function scaleOfBlock(b){
   if(b.kind==='img')   return b.w0 ? b.w/b.w0 : 1;
-  if(b.kind==='price') return b.fsFix || 0;      // 0＝還是自動，沒有固定倍率
+  if(b.kind==='price') return b.fsFix || 1;      // 1＝沒調過（fsFix 現在是倍率）
   return b.sc || 1;
 }
 /** 直接設定倍率（拖角落用）。scaleBlock 是乘的，一路拖會愈乘愈歪 ——
@@ -2125,12 +2213,8 @@ function setBlockScale(b, s){
   if(b.kind==='price'){ b.fsFix=+v.toFixed(3); return; }
   b.sc=+v.toFixed(3);
 }
-/** 按下角落那一刻它是幾倍大。價格的 0 代表「還在自動」，要換算成它現在真正的倍率。 */
-function scaleBase(b){
-  const s=scaleOfBlock(b);
-  if(b.kind==='price') return s || priceFsRaw(b) || 1;
-  return s || 1;
-}
+/** 按下角落那一刻它是幾倍大。 */
+function scaleBase(b){ return scaleOfBlock(b) || 1; }
 
 function scaleBlock(b, mul){
   if(b.kind==='img'){
@@ -2139,9 +2223,9 @@ function scaleBlock(b, mul){
     return;
   }
   if(b.kind==='price'){
-    /* 起點是它「現在看起來多大」（含轉盤、同組），不是基準 1 ——
-       不然轉盤調過之後按一下 ＋，字會先跳回 52 再放大。 */
-    b.fsFix = +clampSc((b.fsFix || priceFsRaw(b) || 1) * mul).toFixed(3);
+    /* 乘在自己那一倍上就好 —— 轉盤和同組是基準，不歸這一顆按鈕管
+       （以前起點是「現在看起來多大」，那時候 fsFix 會蓋掉轉盤，非這樣不可）。 */
+    b.fsFix = +clampSc((b.fsFix||1) * mul).toFixed(3);
     return;
   }
   b.sc = +clampSc((b.sc||1) * mul).toFixed(3);
@@ -2231,24 +2315,23 @@ function restoreUid(uid){
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
 
-/* 左下角那顆 ＋：一直都在，這一格有沒有藏東西都一樣。
-   本來是「藏了才出現」，結果它自己變成一個要人記得的狀態 —— 沒看到 ＋ 的時候，
-   分不出是「這一格沒藏東西」還是「＋ 又跑到哪去了」，只能點進去試。
-   一直在就沒有這個問題：數字說有幾個，沒有數字就是沒藏。
+/* 左下角那顆 ＋：**這一格真的刪掉過東西才出現**。
+   中間有一版是「一直都在」（怕沒看到 ＋ 的時候分不出是沒藏東西還是鈕跑掉了），
+   但那等於在每一格上永遠擺一顆多數時候沒有用的按鈕，蓋在版面上 ——
+   而它要救的那件事很罕見：刪掉東西的人就是剛按下 Delete 的那個人，他在找它。
+   沒東西可還原就不佔位置，所以清單也不再有「空的」那一種狀態。
    沒在編輯的時候畫布是 pointer-events:none，那一下會先幫你打開這一格，再點才展開清單。 */
 function renderRestore(){
   const box=$('#restore'); if(!box) return;
   const off=offMap(), keys=Object.keys(off);
   const el=cellEl();
-  if(!el || ROLE==='pm'){
+  if(!el || ROLE==='pm' || !keys.length){
     box.classList.remove('on','open'); box.innerHTML=''; return;
   }
   box.innerHTML=
-    `<button class="rbtn" data-rtoggle>＋${keys.length?`<span class="rn">${keys.length}</span>`:''}</button>`+
+    `<button class="rbtn" data-rtoggle>＋<span class="rn">${keys.length}</span></button>`+
     `<div class="rlist"><div class="rhead">刪掉的，打勾放回來</div>`+
-    (keys.length
-      ? keys.map(k=>`<label class="ritem"><input type="checkbox" data-ruid="${k}"><span>${off[k]}</span></label>`).join('')
-      : `<div class="rempty">這一格沒有刪掉的東西</div>`)+
+    keys.map(k=>`<label class="ritem"><input type="checkbox" data-ruid="${k}"><span>${off[k]}</span></label>`).join('')+
     `</div>`;
   /* 位置：格子左下角，座標以 #wrap 為基準（跟 #props 同一套）。
      四個角現在各有各的東西 —— 左上是紅色未處理數字、右上是「這一格在誰手上」，
@@ -2256,8 +2339,7 @@ function renderRestore(){
   const wrapR=$('#wrap').getBoundingClientRect(), r=el.getBoundingClientRect();
   box.style.left=(r.left-wrapR.left+8)+'px';
   box.style.top =(r.bottom-wrapR.top-8)+'px';
-  box.style.transform='translateY(-100%)';
-  box.classList.add('on');
+  box.classList.add('on');   // translateY(-100%) ＋ 縮放都寫在 CSS 裡（見 #restore）
 
   box.querySelector('[data-rtoggle]').onmousedown=ev=>{
     ev.preventDefault(); ev.stopPropagation();
@@ -2409,18 +2491,57 @@ addEventListener('mouseup',e=>{
 });
 
 /* ====== 選商品清單：搜尋過濾，就地成群顯示 ====== */
+/* 目錄裡有哪幾類。沒有任何一列填類別就不畫那一排 —— 一整排只有「全部」是雜訊。 */
+function pickCats(){
+  const seen = [];
+  ROWS.forEach(r => { const c=(r.cat||'').trim(); if(c && !seen.includes(c)) seen.push(c); });
+  return seen.sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+}
+let pickCat = '';
+function renderPickCats(){
+  const box=$('#pcats'); if(!box) return;
+  const cs=pickCats();
+  box.innerHTML = cs.length
+    ? [`<button data-pc="" class="${pickCat?'':'on'}">全部</button>`]
+        .concat(cs.map(c=>`<button data-pc="${c}" class="${pickCat===c?'on':''}">${c}</button>`)).join('')
+    : '';
+  box.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    pickCat = b.dataset.pc===pickCat ? '' : b.dataset.pc;   // 再點一次＝看全部
+    renderPickCats(); renderPick();
+  });
+}
+
 function renderPick(){
   const kw=q.trim().toLowerCase();
+  const inCat = r => !pickCat || (r.cat||'')===pickCat;
   const gs = groups().map(g=>({name:g.name,
-      rows:g.rows.filter(r=> !kw || g.name.toLowerCase().includes(kw)
-        || r.spec.toLowerCase().includes(kw) || r.sku.includes(kw))}))
+      rows:g.rows.filter(r=> inCat(r) && (!kw || g.name.toLowerCase().includes(kw)
+        || r.spec.toLowerCase().includes(kw) || r.sku.includes(kw)))}))
     .filter(g=>g.rows.length);
-  if(!gs.length){ $('#panePick').innerHTML='<div class="empty-hint">沒有符合的商品</div>'; return; }
-  $('#panePick').innerHTML = gs.map(g=>
-    `<div class="grp">${g.name}</div>`+g.rows.map(r=>
-      `<label class="item"><input type="checkbox" data-sku="${r.sku}" ${picked.has(r.sku)?'checked':''}>
-        <b>${r.spec||'—'}</b>${r.color?`<span style="color:#666">${r.color}</span>`:''}<span class="var">${r.sku}　$${r.price.toLocaleString()}</span></label>`
-    ).join('')).join('');
+  if(!gs.length){ $('#panePick').innerHTML='<div class="empty-hint">'
+    + (pickCat?`「${pickCat}」裡沒有符合的商品`:'沒有符合的商品') + '</div>'; return; }
+  /* 一列要寫得出「這一支跟隔壁那一支差在哪」。
+     以前只寫規格和顏色 —— 手機平板靠那兩個就分得出來（256G 黑／512G 橘），
+     但公司給的資料很多品類根本沒有規格欄，分辨它們的是**品牌和型號**：
+       空調,HITACHI,變頻冷暖空調,RAC-28NP1/RAS-28NJP1
+       空調,Panasonic,變頻冷暖空調,CU-UJ28BHA2/CS-UJ28BA2
+     那時候整排長得一模一樣，八列都只有一個「—」，只能靠 SKU 認人。
+
+     規矩：**整群都一樣的東西寫在群組標題上，一列只寫它跟同伴不一樣的地方**。
+     所以 iPhone 那種（全部都是 Apple）不會每一列都掛一個 Apple 把 256G 擠成灰字，
+     而空調那種（三個品牌混在一起）才把品牌寫在每一列上。 */
+  const same = (rows, f) => new Set(rows.map(f)).size <= 1;
+  $('#panePick').innerHTML = gs.map(g=>{
+    const oneBrand = same(g.rows, rowBrand) ? rowBrand(g.rows[0]) : '';
+    const oneModel = same(g.rows, rowModel) ? rowModel(g.rows[0]) : '';
+    const head = [g.name, oneBrand, oneModel].filter(Boolean).join('　·　');
+    return `<div class="grp">${head}</div>`+g.rows.map(r=>{
+      const b = [oneBrand?'':rowBrand(r), r.spec, r.color, oneModel?'':rowModel(r)]
+                  .map(v=>String(v||'').trim()).filter(Boolean);
+      return `<label class="item"><input type="checkbox" data-sku="${r.sku}" ${picked.has(r.sku)?'checked':''}>
+        <b>${b[0]||'—'}</b>${b.slice(1).map(v=>`<span class="sub">${v}</span>`).join('')}<span class="var">${r.sku}　$${r.price.toLocaleString()}</span></label>`;
+    }).join('');
+  }).join('');
   $('#panePick').querySelectorAll('input').forEach(cb=>cb.onchange=e=>{
     const row=ROWS.find(r=>r.sku===e.target.dataset.sku);
     if(!row) return;
@@ -2447,16 +2568,16 @@ function renderEdit(){
         <td><input value="${r.price}" data-i="${i}" data-f="price"></td>
         <td><button class="mini" data-del="${i}" style="margin:0">×</button></td></tr>`;
     }).join('')+`</table>
-    <div class="grp" style="margin-top:16px">品牌（同商品共用；圖為長形 PNG）</div>
+    <div class="grp" style="margin-top:16px">品牌（同商品名一起改；一列一個牌子請去「商品目錄」那一頁）</div>
     <div>`+[...new Set(ROWS.map(r=>r.name))].map(n=>
       `<div class="imgrow">
-         <span class="bthumb">${brandHTML(n)}</span>
+         <span class="bthumb">${brandHTML(BRAND[n]||'', BIMG[n]||'')}</span>
          <input class="binput" value="${brandOf(n)}" data-brand="${n}" placeholder="品牌名">
          <button class="mini" data-bimg="${n}" style="margin:0">上傳</button>
          ${BIMG[n]?`<button class="mini" data-bdel="${n}" style="margin:0">清除</button>`:''}
        </div>`).join('')+`</div>
 
-    <div class="grp" style="margin-top:16px">型號（同商品共用；沒有就留空）</div>
+    <div class="grp" style="margin-top:16px">型號（同商品名一起改；一列一個型號請去「商品目錄」那一頁）</div>
     <table>`+[...new Set(ROWS.map(r=>r.name))].map(n=>
       `<tr><td style="width:52%">${n}</td>
        <td><input value="${modelOf(n)}" data-mdl="${n}" placeholder="無"></td></tr>`).join('')+`</table>
@@ -2489,6 +2610,11 @@ function renderEdit(){
   });
   $('#paneEdit').querySelectorAll('[data-mdl]').forEach(inp=>inp.oninput=e=>{
     const n=e.target.dataset.mdl, v=e.target.value.trim();
+    /* 型號現在住在列上（見 rowModel）。這裡連對照表一起寫：只寫在對照表的話，
+       有自己型號的那幾列不會理它，打了字看起來像沒反應。
+       ⚠️ 這一格編的是「這個商品名」的型號，所以同名的每一列一起改 ——
+       要一列一個型號（空調那種）請去商品目錄那一頁。 */
+    ROWS.forEach(r=>{ if(r.name===n) r.model=v; });
     MODEL[n]=v;
     // 就地更新，不重排版面（避免你手動擺好的位置被重置）
     CELLS.forEach(c=>{
@@ -2506,7 +2632,9 @@ function renderEdit(){
   });
   // 品牌名
   $('#paneEdit').querySelectorAll('[data-brand]').forEach(inp=>inp.oninput=e=>{
-    BRAND[e.target.dataset.brand]=e.target.value.trim();
+    const n=e.target.dataset.brand, v=e.target.value.trim();
+    ROWS.forEach(r=>{ if(r.name===n) r.brand=v; });      // 同上：正本在列上
+    BRAND[n]=v;
     CELLS.forEach((c,i)=>renderOne(i));
     reportCatalogue();
   });
@@ -2552,7 +2680,7 @@ function renderEdit(){
   };
 }
 function reindex(){ ROWS.forEach((r,i)=>r._i=i); }
-function refreshAll(){ reindex(); renderPick(); renderEdit(); renderCell(); renderLayers(); }
+function refreshAll(){ reindex(); renderPickCats(); renderPick(); renderEdit(); renderCell(); renderLayers(); }
 
 /* ====== 跟上層（落版）的往來 ==================================================
    這一格是哪一版的哪一格，由上層決定；內容也存在上層那份檔期裡。
@@ -2681,7 +2809,11 @@ addEventListener('mousemove',e=>{
   if(el.classList.contains('item')){const cb=el.querySelector('input');
     const r=ROWS.find(x=>x.sku===cb.dataset.sku);
     if(!r){tip.style.display='none';return}
-    t=`${r.name}　${r.spec||'無規格'}${r.color?'　'+r.color:''}　${r.sku}　$${r.price.toLocaleString()}`;}
+    /* 跟清單上那一列寫一樣的東西（見 renderPick 的 bits）—— 兩邊講不同的話，
+       滑過去就變成在對帳，而它本來是用來確認「我點的是這一支」的。 */
+    t=[r.name, rowBrand(r), r.spec, r.color, rowModel(r)]
+        .map(v=>String(v||'').trim()).filter(Boolean)
+        .concat([r.sku, '$'+r.price.toLocaleString()]).join('　');}
   else if(el.classList.contains('blk')){
     const b=BLOCKS.find(x=>x.id===el.dataset.b);
     if(!b){tip.style.display='none';return}
@@ -2794,8 +2926,8 @@ function stressStep(){
     p.y=Math.round(MARGIN-20+Math.random()*(CH-2*MARGIN+40));
     stressFlash=p.id; msg=`釘住 ${p.id} → 丟到隨機位置`;
   }else if(r<.8){                             // 轉盤忽大忽小
-    const px=[0,64,88,120][Math.floor(Math.random()*4)];
-    applyType({pricePx:px}); msg=`轉盤字級 → ${px||'自動'}`;
+    const mul=[1,.6,1.4,2][Math.floor(Math.random()*4)];
+    applyType({priceMul:mul}); msg=`轉盤字級 → ${mul===1?'自動':mul+'x'}`;
   }else{                                      // 放開一個回自動
     const placed=ps.filter(p=>p.placed);
     if(placed.length){ const p=placed[Math.floor(Math.random()*placed.length)];
@@ -2816,7 +2948,7 @@ function runPriceStress(){
   // 這一格沒有多價格商品就先鋪一個：iPhone 17 Pro Max 有三個價格，看得出分流
   if(BLOCKS.filter(b=>b.kind==='price').length<2){
     picked=new Set(ROWS.filter(r=>r.name==='iPhone 17 Pro Max').slice(0,6).map(r=>r.sku));
-    layoutKey=''; PRICE_PX=0; GROUP_FS=0; buildBlocks(); saveCell(); renderOne(curCell,true);
+    layoutKey=''; PRICE_MUL=1; GROUP_FS=0; buildBlocks(); saveCell(); renderOne(curCell,true);
   }
   btn.textContent='停止壓力測試';
   const hud=stressHud(); hud.style.opacity='1';
