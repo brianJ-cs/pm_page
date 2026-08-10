@@ -1,3 +1,11 @@
 /          /index.html    200
 # 舊書籤：行銷那一支併進主程式之前，編輯器住在 /editor
 /editor    /index.html    200
+# 打錯／舊書籤的 .htm。這個專案從來沒有這支檔案，但站在這裡回 404 也沒有用 ——
+# 想去的地方只有一個。
+/index.htm /index.html    200
+
+# 兩個庫也給一個記得住的網址。它們在主程式裡是浮層（📦 商品目錄／🏷 品牌 Logo），
+# 但「我只是要改一筆商品」不必先開檔期列表 —— 而且這樣才貼得進 Slack。
+/products  /product.html         200
+/logos     /logo_page/index.html 200

@@ -17,7 +17,10 @@
   const configured = /^https?:\/\/.+/.test(url) && key.length > 20 && !/YOUR-/i.test(url + key);
   const BASE = configured ? url + '/rest/v1' : null;
 
-  const DEBOUNCE = 600;
+  /* 上傳的 debounce。拼板拖一次會存很多次檔，直接送就是打爆 Supabase ——
+     但這一段也直接算進「對方多久看得到」，所以壓到還擋得住連發的最小值。
+     一次拖曳大概每 16ms 一次事件，250ms 仍然把一整串收成一發。 */
+  const DEBOUNCE = 250;
 
   const headers = () => ({
     'apikey': key,
@@ -154,6 +157,11 @@
   let mergeFn = null;          // (mine, base, theirs) => report；**就地改 mine**
   let onMerge = null;          // 合併過就叫一次，讓上層去重畫、去講一句
   const setMerge = (fn, after) => { mergeFn = fn; onMerge = after || null; };
+  /* 「這一筆真的躺在伺服器上了」。上層拿它來放掉「我有還沒送出去的東西」那個旗子 ——
+     送出去之後就沒有什麼要保護的了，別人的版本可以直接吃進來。
+     跟 onMerge 分開：那個只在合併過才叫，這個是每一次寫成功都叫。 */
+  let onSaved = null;
+  const setSaved = fn => { onSaved = fn; };
   const baseOf = id => { const t = bases.get(id); return t ? JSON.parse(t) : null; };
   const noteBase = (id, data) => { try { bases.set(id, JSON.stringify(data)); } catch (e){} };
 
@@ -210,6 +218,9 @@
           report.conflicts = (report.conflicts || []).concat(r.conflicts || []);
           report.rebuilt   = report.rebuilt || !!r.rebuilt;
           report.by        = r.by || report.by;
+          /* 「合併前每一格長什麼樣」：重試三次就合三次，要留**最早**那一份 ——
+             它才是使用者螢幕上現在那一版，也就是要拿來比對的基準。 */
+          report.wasCells  = report.wasCells || r.wasCells;
         }
       }
     }
@@ -261,6 +272,9 @@
           const report = {};
           await writeOne(r.data, report);
           if (onMerge && (report.merged || (report.conflicts || []).length)) onMerge(r.id, report);
+          /* 合併報告之後才講「存好了」：上層收到這一句就會放掉旗子，
+             而合併有可能剛把對方的東西併進來 —— 那一份也是這一次寫進去的。 */
+          if (onSaved) onSaved(r.id);
         }
         if (gone.length) await remove(gone);
         warned = false;
@@ -403,7 +417,50 @@
   let onCatalogueMerged = null;
   const setCatalogueAfter = fn => { onCatalogueMerged = fn; };
 
-  window.PlanSync = { ok, pullAll, pullIndex, pullSome, stampOf, setMerge,
+  /* ------------------------------------------------------- 品牌 Logo 庫 --- */
+
+  /* Logo 庫住在另一個 Supabase 專案（見 config.js 的 LOGO_SUPABASE）。
+     這裡**只讀不寫**：拿「品牌名 → 那張 logo 的公開網址」而已。
+     為什麼不叫那一頁自己報上來：那樣要等有人打開它才有得用，
+     而版面一載進來就該畫得出品牌 logo。
+
+     名字要正規化再比對：商品目錄裡打的是 `HITACHI`，Logo 庫裡可能是 `Hitachi`；
+     大小寫、空白、全形空白、`.`／`-`／`_` 都不該算差別。
+     `alt_name` 是同一家公司的另一種寫法（Panasonic ↔ 國際牌），
+     兩個名字都指到同一張圖 —— 商品那邊寫哪一種都找得到。 */
+  const normBrand = v => String(v == null ? '' : v)
+    .trim().toLowerCase().replace(/[\s　._\-]+/g, '');
+
+  async function pullLogos() {
+    const c = window.LOGO_SUPABASE || {};
+    const u = String(c.url || '').trim().replace(/\/+$/, '');
+    const k = String(c.anonKey || '').trim();
+    if (!/^https?:\/\/.+/.test(u) || k.length < 20) return null;   // 沒設定＝這個功能關著
+
+    const r = await fetch(
+      `${u}/rest/v1/companies?select=name,alt_name,deleted_at,logos(path,deleted_at)`,
+      { headers: { apikey: k, Authorization: 'Bearer ' + k } });
+    if (!r.ok) throw new Error(`pull logos ${r.status} ${await r.text()}`);
+
+    const bucket = c.bucket || 'logos';
+    const out = Object.create(null);
+    (await r.json()).forEach(co => {
+      if (!co || co.deleted_at) return;
+      /* 一家公司只會有一張活著的 logo（那邊用 partial unique index 保證的），
+         真的有第二張就取第一張 —— 這裡不是決定哪一張才算數的地方。 */
+      const live = (co.logos || []).find(l => l && !l.deleted_at && l.path);
+      if (!live) return;
+      const url = `${u}/storage/v1/object/public/${bucket}/${live.path}`;
+      [co.name, co.alt_name].forEach(n => {
+        const key = normBrand(n);
+        if (key) out[key] = url;
+      });
+    });
+    return out;
+  }
+
+  window.PlanSync = { ok, pullAll, pullIndex, pullSome, stampOf, setMerge, setSaved,
+                      pullLogos, normBrand,
                       pushPresence, pullPresence, dropPresence,
                       upsert, remove, queueUpsert, queueRemove, flush, uploadImage,
                       pullCatalogue, queueCatalogue, setCatalogueMerge, setCatalogueAfter };

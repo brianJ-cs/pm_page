@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logo Catalogue</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif;
+    background: #f4f4f6;
+    color: #0d0d0f;
+    font-weight: 500;
+    padding: 36px 31px 78px;
+  }
+
+  .wrap { max-width: 1430px; margin: 0 auto; }
+
+  /* --- bar --------------------------------------------------------------- */
+
+  .bar { display: flex; align-items: center; gap: 5px; margin-bottom: 31px; }
+
+  .tab {
+    border: none; background: transparent;
+    font-family: inherit; font-size: 18px; font-weight: 700;
+    color: #4a4a55; padding: 9px 18px;
+    border-radius: 9px; cursor: pointer;
+  }
+
+  .tab:hover { color: #0d0d0f; }
+  .tab.on { background: #0d0d0f; color: #fff; }
+
+  .tab .pip {
+    display: inline-block;
+    margin-left: 8px; padding: 0 7px;
+    border-radius: 10px;
+    background: #c9c9d1; color: #2c2c34;
+    font-size: 13px; font-weight: 700; line-height: 20px;
+  }
+
+  .tab.on .pip { background: rgba(255,255,255,.3); color: #fff; }
+
+  .count { margin-left: auto; font-size: 17px; font-weight: 600; color: #4a4a55; }
+
+  /* --- search ------------------------------------------------------------ */
+
+  .search-row { margin-bottom: 29px; }
+
+  .search {
+    width: 100%; max-width: 416px;
+    padding: 10px 16px;
+    border: 2px solid #b8b8c2; border-radius: 10px;
+    background: #fff; color: inherit;
+    font-family: inherit; font-size: 17px; font-weight: 600;
+  }
+
+  .search:focus { outline: none; border-color: #4a7cff; }
+
+  /* "Did you mean…" — only ever shown when the search found nothing at all. */
+  .suggest {
+    margin-top: 10px;
+    font-size: 16px; font-weight: 600; color: #4a4a55;
+    display: none;
+  }
+
+  .suggest.show { display: block; }
+
+  .suggest button {
+    border: none; background: transparent; padding: 0;
+    font-family: inherit; font-size: 16px; font-weight: 800;
+    color: #2a5cf0; text-decoration: underline; cursor: pointer;
+  }
+
+  /* --- grid -------------------------------------------------------------- */
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+    gap: 36px 26px;
+  }
+
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 13px; }
+
+  .drop {
+    position: relative; width: 100%; aspect-ratio: 1;
+    border: 3px dashed #8e8e9c; border-radius: 13px;
+    background: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color .15s, background .15s;
+    overflow: hidden;
+  }
+
+  .drop:hover, .drop.dragover { border-color: #2a5cf0; background: #eef3ff; }
+
+  .drop .plus {
+    font-size: 52px; font-weight: 400; color: #6e6e7c;
+    line-height: 1; user-select: none;
+  }
+
+  .drop:hover .plus { color: #2a5cf0; }
+
+  .drop .peek {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; padding: 14%; opacity: .3; pointer-events: none;
+  }
+
+  /* Filled = one logo in, slot closed. Reads as a frame rather than an empty
+     dashed box, and drops no longer highlight it as a target. */
+  .drop.filled { border-style: solid; border-color: #c8c8d2; }
+  .drop.filled:hover, .drop.filled.dragover { border-color: #8e8e9c; background: #fff; }
+  .drop.filled .plus { display: none; }
+  .drop.filled .peek { opacity: 1; }
+
+  .badge {
+    position: absolute; top: 8px; left: 8px; z-index: 3;
+    min-width: 26px; height: 26px; padding: 0 8px;
+    border-radius: 13px; background: #0d0d0f; color: #fff;
+    font-size: 14px; font-weight: 700; line-height: 26px; text-align: center;
+    display: none;
+  }
+
+  .badge.show { display: block; }
+
+  .kill {
+    position: absolute; top: 7px; right: 7px; z-index: 4;
+    width: 29px; height: 29px;
+    border: none; border-radius: 50%;
+    background: rgba(0,0,0,.6); color: #fff;
+    font-size: 18px; font-weight: 700; line-height: 1; cursor: pointer;
+    display: none;
+  }
+
+  .cell:hover .kill, .shot:hover .kill { display: block; }
+  .kill:hover { background: #e05252; }
+
+  .drop.busy { pointer-events: none; }
+  .drop.busy::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.72); }
+
+  .spinner {
+    position: absolute; z-index: 2;
+    width: 29px; height: 29px;
+    border: 3px solid #c0c0cc; border-top-color: #2a5cf0;
+    border-radius: 50%; animation: spin .7s linear infinite;
+    display: none;
+  }
+
+  .drop.busy .spinner { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .drop.error { border-color: #cc2f2f; border-style: solid; }
+
+  .err-msg {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+    background: #cc2f2f; color: #fff;
+    font-size: 14px; font-weight: 700; line-height: 1.3;
+    padding: 6px 8px; text-align: center;
+    display: none;
+  }
+
+  .drop.error .err-msg { display: block; }
+
+  /* Company names are immutable — always plain text, never an input. */
+  .name {
+    font-size: 23px; font-weight: 700; text-align: center;
+    color: #0d0d0f;
+    width: 100%; padding: 4px 5px;
+    cursor: default; user-select: none;
+    overflow-wrap: anywhere;
+  }
+
+  .name.unnamed { color: #6e6e7c; font-weight: 600; }
+
+  .add {
+    width: 100%; aspect-ratio: 1;
+    border: 3px dashed #a8a8b4; border-radius: 13px;
+    background: transparent; color: #6e6e7c;
+    font-size: 44px; font-weight: 400; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+
+  .add:hover { border-color: #2a5cf0; color: #2a5cf0; }
+  .add:disabled { opacity: .5; cursor: default; }
+  .add-cell .name { color: #4a4a55; font-size: 17px; }
+
+  input[type="file"] { display: none; }
+
+  /* --- gallery / bin ----------------------------------------------------- */
+
+  .section { margin-bottom: 44px; }
+
+  .section h2 {
+    font-size: 18px; font-weight: 800; color: #0d0d0f;
+    padding-bottom: 10px; margin-bottom: 18px;
+    border-bottom: 2px solid #d0d0d8;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+
+  .section h2 .n { font-weight: 600; color: #4a4a55; font-size: 16px; }
+
+  .shelf {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(221px, 1fr));
+    gap: 21px;
+  }
+
+  .shot {
+    position: relative; aspect-ratio: 1;
+    background: #fff; border: 2px solid #d0d0d8;
+    border-radius: 10px; overflow: hidden;
+  }
+
+  .shot img { width: 100%; height: 100%; object-fit: contain; padding: 12%; }
+  .shot.busy { opacity: .4; pointer-events: none; }
+
+  .shot .cap {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,.82));
+    color: #fff; font-size: 13px; font-weight: 700; line-height: 1.3;
+    padding: 14px 7px 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .empty { font-size: 17px; font-weight: 600; color: #56565e; padding: 8px 0 3px; }
+  .empty.span { grid-column: 1 / -1; }
+
+  /* --- bin cards --------------------------------------------------------- */
+
+  .binrow {
+    display: flex; align-items: center; gap: 16px;
+    padding: 13px 16px; margin-bottom: 10px;
+    background: #fff; border: 2px solid #d0d0d8; border-radius: 10px;
+  }
+
+  .binrow .thumb {
+    width: 47px; height: 47px; flex: none;
+    object-fit: contain;
+    background: #f4f4f6; border-radius: 7px;
+  }
+
+  .binrow .who { font-size: 17px; font-weight: 700; color: #0d0d0f; }
+  .binrow .meta { font-size: 14px; font-weight: 600; color: #4a4a55; }
+  .binrow .grow { flex: 1; min-width: 0; }
+  .binrow .who, .binrow .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .binrow.busy { opacity: .45; pointer-events: none; }
+
+  .btn {
+    border: 2px solid #b8b8c2; background: #fff;
+    font-family: inherit; font-size: 16px; font-weight: 700;
+    padding: 7px 14px; border-radius: 8px; cursor: pointer; color: #0d0d0f;
+  }
+
+  .btn:hover { border-color: #6e6e7c; }
+  .btn.danger { color: #a52020; border-color: #e0a8a8; }
+  .btn.danger:hover { background: #fdecec; border-color: #cc2f2f; }
+
+  /* --- modal ------------------------------------------------------------- */
+
+  .veil {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(15,15,20,.6);
+    display: none; align-items: center; justify-content: center;
+    padding: 31px;
+  }
+
+  .veil.show { display: flex; }
+
+  .modal {
+    background: #fff; border-radius: 16px;
+    width: 100%; max-width: 494px;
+    padding: 29px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.3);
+  }
+
+  .modal h3 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
+
+  .modal p {
+    font-size: 17px; font-weight: 600; line-height: 1.55; color: #2c2c34;
+    margin-bottom: 21px; overflow-wrap: anywhere;
+  }
+
+  .modal p strong { color: #0d0d0f; font-weight: 800; }
+
+  .modal input {
+    width: 100%; padding: 12px 14px; margin-bottom: 21px;
+    border: 2px solid #b8b8c2; border-radius: 9px;
+    font-family: inherit; font-size: 18px; font-weight: 600; color: inherit;
+  }
+
+  .modal input:focus { outline: none; border-color: #2a5cf0; }
+
+  .modal .row { display: flex; justify-content: flex-end; gap: 10px; }
+
+  .modal .go {
+    border: none; background: #0d0d0f; color: #fff;
+    font-family: inherit; font-size: 17px; font-weight: 700;
+    padding: 10px 21px; border-radius: 9px; cursor: pointer;
+  }
+
+  .modal .go.danger { background: #c02f2f; }
+  .modal .go:disabled { opacity: .4; cursor: default; }
+
+  /* --- expanded company panel -------------------------------------------- */
+
+  /* The uploaded logos sit in their own card alongside the upload panel,
+     so the two are visually separate surfaces rather than one split box. */
+  .stage {
+    display: flex; align-items: stretch; gap: 21px;
+    width: 100%; max-width: 1378px;
+    height: min(86vh, 832px);
+  }
+
+  .strip-card {
+    width: 348px; flex: none;
+    background: #fff; border-radius: 18px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.35);
+    overflow-y: auto; overflow-x: hidden;
+    padding: 18px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .panel {
+    background: #fff; border-radius: 18px;
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.35);
+  }
+
+  .panel header {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 21px 23px; border-bottom: 2px solid #d8d8de;
+    flex: none;
+  }
+
+  .panel header h3 { font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
+  .panel header .n { font-size: 16px; font-weight: 600; color: #4a4a55; }
+
+  .panel header .x {
+    margin-left: auto; flex: none;
+    border: none; background: transparent;
+    font-size: 29px; font-weight: 700; line-height: 1; color: #4a4a55;
+    cursor: pointer; padding: 0 3px;
+  }
+
+  .panel header .x:hover { color: #0d0d0f; }
+
+  .panel-body { display: flex; flex: 1; min-height: 0; }
+
+  /* Bigger than the gallery thumbnails: this is where you actually look at
+     what has been uploaded, so the logo should be legible at a glance. */
+  .strip-card .shot { width: 100%; flex: none; }
+
+  .strip-card .shot .cap { font-size: 14px; padding: 18px 9px 8px; }
+
+  .strip-card .shot .kill {
+    width: 34px; height: 34px; font-size: 21px;
+    top: 9px; right: 9px;
+  }
+
+  .strip-card .empty { font-size: 16px; text-align: center; padding-top: 21px; }
+
+  .panel .bigdrop {
+    flex: 1; margin: 23px;
+    position: relative;
+    border: 3px dashed #8e8e9c; border-radius: 16px;
+    background: #fff; cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 13px;
+    transition: border-color .15s, background .15s;
+  }
+
+  /* Needs to out-specify `.panel .bigdrop` above, which sets display: flex. */
+  .panel .bigdrop.hide { display: none; }
+
+  .panel .bigdrop:hover, .panel .bigdrop.dragover {
+    border-color: #2a5cf0; background: #eef3ff;
+  }
+
+  .panel .bigdrop .plus { font-size: 73px; font-weight: 400; color: #6e6e7c; line-height: 1; }
+  .panel .bigdrop:hover .plus { color: #2a5cf0; }
+
+  .panel .bigdrop .hint { font-size: 16px; font-weight: 700; color: #4a4a55; }
+  .panel .bigdrop:hover .hint { color: #2a5cf0; }
+
+  .panel .bigdrop.busy { pointer-events: none; }
+  .panel .bigdrop.busy::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.72); }
+  .panel .bigdrop .spinner { top: 50%; margin-top: -15px; }
+
+  .panel .bigdrop.error { border-color: #cc2f2f; border-style: solid; }
+  .panel .bigdrop .err-msg { border-radius: 0 0 13px 13px; }
+
+  /* Narrow screens: the two cards stack, strip becomes a horizontal shelf. */
+  @media (max-width: 900px) {
+    .stage { flex-direction: column-reverse; height: min(88vh, 910px); gap: 16px; }
+    .strip-card {
+      width: auto; height: 195px; flex: none;
+      flex-direction: row;
+    }
+    .strip-card .shot { width: 159px; }
+  }
+
+  /* --- banner ------------------------------------------------------------ */
+
+  .banner {
+    padding: 16px 21px; margin-bottom: 26px; border-radius: 10px;
+    background: #fdecec; border: 2px solid #e59a9a;
+    color: #6e1414; font-size: 17px; font-weight: 700; line-height: 1.5;
+    display: none;
+  }
+
+  .banner.show { display: block; }
+
+  .banner code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    background: rgba(0,0,0,.1); padding: 1px 5px; border-radius: 4px;
+  }
+
+  .hide { display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="banner" id="banner"></div>
+
+  <div class="bar">
+    <button class="tab on" id="tabUpload">上傳</button>
+    <button class="tab" id="tabGallery">圖庫</button>
+    <button class="tab" id="tabBin">回收桶<span class="pip hide" id="binPip">0</span></button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="search-row hide" id="searchRow">
+    <input class="search" id="search" type="search" placeholder="搜尋公司或檔名…" autocomplete="off">
+    <div class="suggest" id="suggest"></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div id="gallery" class="hide"></div>
+  <div id="bin" class="hide"></div>
+</div>
+
+<div class="veil" id="veil">
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="veil" id="detailVeil">
+  <div class="stage">
+    <aside class="strip-card" id="detailStrip"></aside>
+    <div class="panel" id="detail"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const BUCKET = 'logos';
+  const MAX_BYTES = 5 * 1024 * 1024;
+
+
+  const $ = (id) => document.getElementById(id);
+  const grid = $('grid'), gallery = $('gallery'), bin = $('bin');
+  const banner = $('banner'), countEl = $('count');
+  const searchRow = $('searchRow'), search = $('search'), suggest = $('suggest');
+  const binPip = $('binPip');
+  const veil = $('veil'), modal = $('modal');
+  const detailVeil = $('detailVeil'), detail = $('detail'), detailStrip = $('detailStrip');
+  const tabs = { upload: $('tabUpload'), gallery: $('tabGallery'), bin: $('tabBin') };
+
+  function fatal(html) { banner.innerHTML = html; banner.classList.add('show'); }
+
+  const cfg = window.SUPABASE_CONFIG || {};
+  if (!cfg.url || cfg.url.startsWith('PASTE_') || !cfg.anonKey || cfg.anonKey.startsWith('PASTE_')) {
+    fatal('Supabase is not configured yet — fill in <code>config.js</code>.');
+    return;
+  }
+
+  const db = window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  let companies = [];   // every company, binned included
+  let view = 'upload';
+  let query = '';
+
+  // --- modal -------------------------------------------------------------
+
+  // Resolves true/false for confirm, or the entered string / null for prompt.
+  function ask(opts) {
+    return new Promise((resolve) => {
+      modal.replaceChildren();
+
+      const h = document.createElement('h3');
+      h.textContent = opts.title;
+      modal.appendChild(h);
+
+      if (opts.body) {
+        const p = document.createElement('p');
+        p.append(...opts.body);
+        modal.appendChild(p);
+      }
+
+      let field = null, field2 = null;
+      if (opts.prompt) {
+        field = document.createElement('input');
+        field.placeholder = opts.placeholder || '';
+        field.maxLength = 60;
+        modal.appendChild(field);
+      }
+
+      // Optional second line. Only the first field is required, so an empty
+      // one here just means the company has a single spelling.
+      if (opts.prompt2) {
+        field2 = document.createElement('input');
+        field2.placeholder = opts.placeholder2 || '';
+        field2.maxLength = 60;
+        modal.appendChild(field2);
+      }
+
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const cancel = document.createElement('button');
+      cancel.className = 'btn';
+      cancel.textContent = '取消';
+
+      const go = document.createElement('button');
+      go.className = 'go' + (opts.danger ? ' danger' : '');
+      go.textContent = opts.confirmText || '確定';
+
+      row.append(cancel, go);
+      modal.appendChild(row);
+
+      function close(result) {
+        veil.classList.remove('show');
+        document.removeEventListener('keydown', onKey);
+        veil.removeEventListener('mousedown', onVeil);
+        resolve(result);
+      }
+
+      function onKey(e) {
+        if (e.key === 'Escape') close(opts.prompt ? null : false);
+        if (e.key === 'Enter' && !go.disabled) submit();
+      }
+
+      function onVeil(e) { if (e.target === veil) close(opts.prompt ? null : false); }
+
+      function submit() {
+        if (field) {
+          const v = field.value.trim();
+          if (!v) return;
+          close(field2 ? { name: v, alt: field2.value.trim() } : v);
+        } else {
+          close(true);
+        }
+      }
+
+      if (field) {
+        go.disabled = true;
+        field.addEventListener('input', () => { go.disabled = !field.value.trim(); });
+      }
+
+      cancel.addEventListener('click', () => close(opts.prompt ? null : false));
+      go.addEventListener('click', submit);
+      document.addEventListener('keydown', onKey);
+      veil.addEventListener('mousedown', onVeil);
+
+      veil.classList.add('show');
+      (field || go).focus();
+    });
+  }
+
+  function strong(text) {
+    const s = document.createElement('strong');
+    s.textContent = text;
+    return s;
+  }
+
+  // --- helpers -----------------------------------------------------------
+
+  function extensionFor(file) {
+    const fromName = (file.name.split('.').pop() || '').toLowerCase();
+    if (/^[a-z0-9]{1,5}$/.test(fromName)) return fromName;
+    const fromType = (file.type.split('/').pop() || 'png').toLowerCase();
+    return fromType === 'svg+xml' ? 'svg' : fromType;
+  }
+
+  function publicUrl(path) {
+    return db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  }
+
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return Date.now() + '-' + Math.random().toString(16).slice(2);
+  }
+
+  const label = (c) => c.name && c.name.trim() ? c.name : '（未命名）';
+  const altName = (c) => (c.alt_name || '').trim();
+
+  // Both spellings, e.g. "Panasonic (國際牌)". Used on the upload tiles; the
+  // gallery, panel and bin stay on the single canonical name so their headings
+  // and captions do not wrap.
+  const bothNames = (c) => altName(c) ? label(c) + '（' + altName(c) + '）' : label(c);
+
+  // A-to-Z by display name. localeCompare so case and accents sort sanely and
+  // numeric so "Model 2" lands before "Model 10". Latin names come out ahead of
+  // CJK ones, which is what an A-to-Z list is expected to look like.
+  const byName = (a, b) =>
+    label(a).localeCompare(label(b), undefined, { sensitivity: 'base', numeric: true });
+
+  // filter() already copies, so the sort does not disturb `companies` itself --
+  // which still holds insertion order and is what sort_order is written from.
+  const activeCompanies = () => companies.filter(c => !c.deleted_at).sort(byName);
+  const binnedCompanies = () => companies.filter(c => c.deleted_at);
+  const liveLogos = (c) => c.logos.filter(l => !l.deleted_at);
+
+  // One logo per company: a company with a live logo has no free slot.
+  const hasLogo = (c) => liveLogos(c).length > 0;
+
+  function binnedLogos() {
+    const out = [];
+    activeCompanies().forEach(c => {
+      c.logos.filter(l => l.deleted_at).forEach(l => out.push({ company: c, logo: l }));
+    });
+    return out;
+  }
+
+  function binCount() {
+    return binnedCompanies().length + binnedLogos().length;
+  }
+
+  function refreshChrome() {
+    const n = activeCompanies().reduce((a, c) => a + liveLogos(c).length, 0);
+    countEl.textContent = n ? n + ' 個 logo · ' + activeCompanies().length + ' 間公司' : '';
+    const b = binCount();
+    binPip.textContent = b;
+    binPip.classList.toggle('hide', b === 0);
+  }
+
+  // Deleting the storage object is what actually frees space; the row is
+  // bookkeeping. Remove the object first so a failure leaves the row intact
+  // and the logo still visible, rather than a row pointing at nothing.
+  async function destroyLogoRow(logo) {
+    const rm = await db.storage.from(BUCKET).remove([logo.path]);
+    if (rm.error) throw rm.error;
+    const del = await db.from('logos').delete().eq('id', logo.id);
+    if (del.error) throw del.error;
+  }
+
+  // --- upload ------------------------------------------------------------
+
+  async function uploadOne(company, file) {
+    // The real one-per-company gate. ingest() checks too, for a better message,
+    // but this is what a second tab or a stale view runs into.
+    if (hasLogo(company)) throw new Error('每間公司只能放一個 logo');
+    if (!file.type.startsWith('image/')) throw new Error('不是圖片檔');
+    if (file.size > MAX_BYTES) throw new Error('檔案超過 5MB');
+
+    const path = company.id + '/' + uid() + '.' + extensionFor(file);
+
+    const up = await db.storage.from(BUCKET).upload(path, file, {
+      contentType: file.type, cacheControl: '3600',
+    });
+    if (up.error) throw up.error;
+
+    const ins = await db.from('logos')
+      .insert({ company_id: company.id, path: path, file_name: file.name })
+      .select().single();
+
+    if (ins.error) {
+      await db.storage.from(BUCKET).remove([path]);  // don't orphan the object
+      throw ins.error;
+    }
+
+    company.logos.push(ins.data);
+    return ins.data;
+  }
+
+  // --- shared upload wiring ----------------------------------------------
+  // Used by both the small grid square and the expanded panel's drop area.
+
+  function setDropError(dropEl, errEl, msg) {
+    errEl.textContent = msg || '';
+    dropEl.classList.toggle('error', !!msg);
+  }
+
+  // One logo per company, so this takes a single file: the slot is either free
+  // or it is not. Dropping several at once uses the first and says so, which
+  // beats uploading one and reporting the rest as failures.
+  async function ingest(dropEl, errEl, company, fileList, onEach) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+
+    setDropError(dropEl, errEl, null);
+
+    if (hasLogo(company)) {
+      setDropError(dropEl, errEl, '已經有 logo 了，請先刪除');
+      return;
+    }
+
+    dropEl.classList.add('busy');
+    let failure = null;
+    try {
+      await uploadOne(company, files[0]);
+      if (onEach) onEach();
+      refreshChrome();
+    } catch (err) {
+      console.error('upload failed', files[0].name, err);
+      failure = err.message || '上傳失敗';
+    }
+    dropEl.classList.remove('busy');
+
+    if (failure) setDropError(dropEl, errEl, failure);
+    else if (files.length > 1) setDropError(dropEl, errEl, '只取了第一個檔案');
+  }
+
+  function wireDragDrop(dropEl, errEl, company, onEach) {
+    dropEl.addEventListener('dragover', (e) => { e.preventDefault(); dropEl.classList.add('dragover'); });
+    dropEl.addEventListener('dragleave', () => dropEl.classList.remove('dragover'));
+    dropEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropEl.classList.remove('dragover');
+      ingest(dropEl, errEl, company, e.dataTransfer.files, onEach);
+    });
+  }
+
+  // Confirm + move a logo to the bin. Returns true if it was binned.
+  async function binLogo(logo) {
+    const yes = await ask({
+      title: '刪除 logo',
+      body: [
+        document.createTextNode('確定要刪除 '),
+        strong(logo.file_name || '這個 logo'),
+        document.createTextNode(' 嗎？可以從回收桶還原。'),
+      ],
+      confirmText: '移到回收桶',
+      danger: true,
+    });
+    if (!yes) return false;
+
+    const stamp = new Date().toISOString();
+    const { error } = await db.from('logos').update({ deleted_at: stamp }).eq('id', logo.id);
+    if (error) {
+      console.error('bin logo failed', error);
+      fatal('刪除失敗：' + error.message);
+      return false;
+    }
+
+    logo.deleted_at = stamp;
+    return true;
+  }
+
+  function logoThumb(logo, onBinned) {
+    const shot = document.createElement('div');
+    shot.className = 'shot';
+
+    const img = document.createElement('img');
+    img.src = publicUrl(logo.path);
+    img.alt = logo.file_name || '';
+    img.loading = 'lazy';
+
+    const cap = document.createElement('div');
+    cap.className = 'cap';
+    cap.textContent = logo.file_name || '';
+    cap.title = logo.file_name || '';
+
+    const kill = document.createElement('button');
+    kill.className = 'kill';
+    kill.textContent = '×';
+    kill.title = '刪除';
+
+    kill.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      shot.classList.add('busy');
+      const done = await binLogo(logo);
+      shot.classList.remove('busy');
+      if (done) onBinned();
+    });
+
+    shot.append(img, cap, kill);
+    return shot;
+  }
+
+  // --- expanded company panel --------------------------------------------
+
+  function openCompany(company) {
+    detail.replaceChildren();
+    detailStrip.replaceChildren();
+
+    const head = document.createElement('header');
+    const h = document.createElement('h3');
+    h.textContent = label(company);
+    const n = document.createElement('span');
+    n.className = 'n';
+    const x = document.createElement('button');
+    x.className = 'x';
+    x.textContent = '×';
+    x.title = '關閉';
+    head.append(h, n, x);
+
+    const body = document.createElement('div');
+    body.className = 'panel-body';
+
+    const bigdrop = document.createElement('div');
+    bigdrop.className = 'bigdrop';
+
+    const plus = document.createElement('span');
+    plus.className = 'plus';
+    plus.textContent = '+';
+
+    const hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.textContent = '點擊或拖曳圖片上傳';
+
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+
+    const errMsg = document.createElement('div');
+    errMsg.className = 'err-msg';
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/svg+xml,image/webp,image/gif';
+
+    bigdrop.append(plus, hint, spinner, errMsg, input);
+    body.append(bigdrop);
+    detail.append(head, body);
+
+    function paintStrip() {
+      detailStrip.replaceChildren();
+      const logos = liveLogos(company);
+      n.textContent = '';
+
+      // The slot is taken: no upload area until the logo is deleted.
+      bigdrop.classList.toggle('hide', logos.length > 0);
+
+      if (!logos.length) {
+        const e = document.createElement('div');
+        e.className = 'empty';
+        e.textContent = '尚無 logo';
+        detailStrip.appendChild(e);
+        return;
+      }
+
+      // Newest first, so the most recent upload is visible without scrolling.
+      logos.slice().reverse().forEach(logo => {
+        detailStrip.appendChild(logoThumb(logo, () => { paintStrip(); render(); }));
+      });
+    }
+
+    function close() {
+      detailVeil.classList.remove('show');
+      document.removeEventListener('keydown', onKey);
+      render();  // grid badge/preview may be stale after uploads
+    }
+
+    function onKey(e) { if (e.key === 'Escape') close(); }
+
+    bigdrop.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      ingest(bigdrop, errMsg, company, input.files, paintStrip).then(() => { input.value = ''; });
+    });
+
+    wireDragDrop(bigdrop, errMsg, company, paintStrip);
+
+    x.addEventListener('click', close);
+    detailVeil.addEventListener('mousedown', (e) => { if (e.target === detailVeil) close(); });
+    document.addEventListener('keydown', onKey);
+
+    paintStrip();
+    detailVeil.classList.add('show');
+  }
+
+  // --- upload view -------------------------------------------------------
+
+  function createCell(company) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+
+    const drop = document.createElement('div');
+    drop.className = 'drop';
+
+    const plus = document.createElement('span');
+    plus.className = 'plus';
+    plus.textContent = '+';
+
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+
+    const errMsg = document.createElement('div');
+    errMsg.className = 'err-msg';
+
+    const kill = document.createElement('button');
+    kill.className = 'kill';
+    kill.textContent = '×';
+    kill.title = '刪除這個上傳區';
+
+    drop.append(plus, spinner, errMsg, kill);
+
+    const name = document.createElement('div');
+    name.className = 'name' + (company.name && company.name.trim() ? '' : ' unnamed');
+    name.textContent = bothNames(company);
+    name.title = '公司名稱不可修改';
+
+    cell.append(drop, name);
+
+    // A filled tile stops being a drop zone and becomes a frame: solid border,
+    // logo at full strength, no "+" inviting a second file. Clicking still
+    // opens the panel, which is where the logo gets deleted to free the slot.
+    function paint() {
+      const logo = liveLogos(company)[0] || null;
+      drop.classList.toggle('filled', !!logo);
+      drop.title = logo ? '' : '點擊或拖曳圖片上傳';
+
+      let peek = drop.querySelector('.peek');
+      if (logo) {
+        if (!peek) {
+          peek = document.createElement('img');
+          peek.className = 'peek';
+          drop.insertBefore(peek, plus);
+        }
+        peek.src = publicUrl(logo.path);
+      } else if (peek) {
+        peek.remove();
+      }
+    }
+
+    const setError = (msg) => setDropError(drop, errMsg, msg);
+
+    // Click expands the company; dragging straight onto the square still
+    // uploads without opening the panel.
+    drop.addEventListener('click', () => openCompany(company));
+    wireDragDrop(drop, errMsg, company, paint);
+
+    kill.addEventListener('click', async (e) => {
+      e.stopPropagation();
+
+      const n = liveLogos(company).length;
+      const body = [document.createTextNode('確定要刪除 '), strong(label(company)), document.createTextNode(' 嗎？')];
+      if (n) body.push(document.createTextNode('裡面的 ' + n + ' 個 logo 會一起進回收桶。'));
+      body.push(document.createTextNode('可以從回收桶還原。'));
+
+      const yes = await ask({ title: '刪除上傳區', body, confirmText: '移到回收桶', danger: true });
+      if (!yes) return;
+
+      drop.classList.add('busy');
+      const { error } = await db.from('companies')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', company.id);
+      drop.classList.remove('busy');
+
+      if (error) {
+        console.error('bin company failed', error);
+        setError(error.message || '刪除失敗');
+        return;
+      }
+
+      company.deleted_at = new Date().toISOString();
+      render();
+    });
+
+    paint();
+    return cell;
+  }
+
+  function createAddCell() {
+    const cell = document.createElement('div');
+    cell.className = 'cell add-cell';
+
+    const btn = document.createElement('button');
+    btn.className = 'add';
+    btn.textContent = '+';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'name';
+    lbl.textContent = '新增公司';
+
+    cell.append(btn, lbl);
+
+    btn.addEventListener('click', async () => {
+      // The name is asked for up front because it can never be changed later.
+      const answer = await ask({
+        title: '新增公司',
+        body: [document.createTextNode('名稱建立後不可修改。第二個名稱可留空。')],
+        prompt: true,
+        placeholder: '公司名稱',
+        prompt2: true,
+        placeholder2: '另一種寫法（選填，例如 國際牌）',
+        confirmText: '建立',
+      });
+      if (!answer) return;
+
+      btn.disabled = true;
+      const { data, error } = await db.from('companies')
+        .insert({
+          name: answer.name,
+          alt_name: answer.alt || null,
+          sort_order: companies.length + 1,
+          locked: false,
+        })
+        .select().single();
+      btn.disabled = false;
+
+      if (error) {
+        console.error('add company failed', error);
+        fatal('新增公司失敗：' + error.message);
+        return;
+      }
+
+      data.logos = [];
+      companies.push(data);
+      render();
+    });
+
+    return cell;
+  }
+
+  function renderUpload() {
+    grid.replaceChildren();
+
+    const hits = rankedCompanies();
+    hits.forEach(c => grid.appendChild(createCell(c)));
+
+    paintSuggestion(hits.length);
+
+    // While filtering, "新增公司" is not a result — showing it among the
+    // matches makes the hit count read wrong.
+    if (!query) {
+      grid.appendChild(createAddCell());
+      return;
+    }
+
+    if (!hits.length) {
+      const e = document.createElement('div');
+      e.className = 'empty span';
+      e.textContent = '找不到符合「' + query + '」的上傳區';
+      grid.appendChild(e);
+    }
+  }
+
+  // --- gallery view ------------------------------------------------------
+
+  // Every string a company can be found by: either spelling on its own.
+  function searchTerms(company) {
+    const alt = altName(company);
+    return alt ? [label(company), alt] : [label(company)];
+  }
+
+  // 0 = the query is a prefix of some term, 1 = it appears mid-term,
+  // -1 = no match. Prefix hits sort above the rest, matching how people
+  // expect a brand box to behave: typing "so" should put SONY on top.
+  const STARTS = 0, CONTAINS = 1, MISS = -1;
+
+  function rankCompany(company) {
+    if (!query) return STARTS;
+    const q = query.toLowerCase();
+    let best = MISS;
+    for (const term of searchTerms(company)) {
+      const t = term.toLowerCase();
+      if (t.startsWith(q)) return STARTS;
+      if (t.includes(q)) best = CONTAINS;
+    }
+    return best;
+  }
+
+  function matchesCompany(company) { return rankCompany(company) !== MISS; }
+
+  function matches(company, logo) {
+    if (!query) return true;
+    if (matchesCompany(company)) return true;
+    return (logo.file_name || '').toLowerCase().includes(query.toLowerCase());
+  }
+
+  // Prefix matches first; ties keep their original sort_order.
+  function rankedCompanies() {
+    return activeCompanies()
+      .map((c, i) => ({ c: c, rank: rankCompany(c), i: i }))
+      .filter(x => x.rank !== MISS)
+      .sort((a, b) => a.rank - b.rank || a.i - b.i)
+      .map(x => x.c);
+  }
+
+  // --- autocorrect -------------------------------------------------------
+
+  function editDistance(a, b) {
+    let prev = [];
+    for (let j = 0; j <= b.length; j++) prev[j] = j;
+
+    for (let i = 1; i <= a.length; i++) {
+      const row = [i];
+      for (let j = 1; j <= b.length; j++) {
+        row[j] = a[i - 1] === b[j - 1]
+          ? prev[j - 1]
+          : Math.min(prev[j - 1], prev[j], row[j - 1]) + 1;
+      }
+      prev = row;
+    }
+    return prev[b.length];
+  }
+
+  // Nearest company name within a couple of typos, or null. Short queries are
+  // skipped: at 1-2 characters almost everything is "close" and the guess is
+  // more noise than help.
+  function closestCompany() {
+    const q = query.toLowerCase();
+
+    // Two Han characters carry about as much signal as five Latin ones, so the
+    // floor and the typo budget both scale down for them — otherwise 宏基
+    // would never suggest 宏碁.
+    const han = /[㐀-鿿豈-﫿]/.test(q);
+    if (q.length < (han ? 2 : 3)) return null;
+
+    // Allow a second typo only once the query is long enough for the extra
+    // slack not to match something unrelated.
+    const limit = q.length >= (han ? 4 : 5) ? 2 : 1;
+
+    let best = null, bestDist = Infinity;
+    activeCompanies().forEach(company => {
+      searchTerms(company).forEach(term => {
+        const d = editDistance(q, term.toLowerCase());
+        if (d <= limit && d < bestDist) { bestDist = d; best = company; }
+      });
+    });
+    return best;
+  }
+
+  function paintSuggestion(hitCount) {
+    suggest.replaceChildren();
+    suggest.classList.remove('show');
+    if (!query || hitCount) return;
+
+    const company = closestCompany();
+    if (!company) return;
+
+    const name = label(company);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = bothNames(company);
+    btn.addEventListener('click', () => {
+      search.value = name;
+      query = name;
+      renderResults();
+    });
+
+    suggest.append(document.createTextNode('您是不是要找： '), btn, document.createTextNode(' ？'));
+    suggest.classList.add('show');
+  }
+
+  function renderGallery() {
+    gallery.replaceChildren();
+
+    let shown = 0;
+
+    // Companies whose own name missed can still surface on a file-name hit,
+    // so they are appended after the name matches rather than dropped.
+    const ranked = rankedCompanies();
+    const rest = activeCompanies().filter(c => ranked.indexOf(c) === -1);
+
+    ranked.concat(rest).forEach(company => {
+      const logos = liveLogos(company).filter(l => matches(company, l));
+
+      // With a search active, a company with no hits is just noise.
+      if (query && !logos.length) return;
+      shown++;
+
+      const section = document.createElement('div');
+      section.className = 'section';
+
+      const h = document.createElement('h2');
+      h.append(document.createTextNode(label(company)));
+      const n = document.createElement('span');
+      n.className = 'n';
+      h.appendChild(n);
+      section.appendChild(h);
+
+      if (!logos.length) {
+        const e = document.createElement('div');
+        e.className = 'empty';
+        e.textContent = '尚無 logo';
+        section.appendChild(e);
+      } else {
+        const shelf = document.createElement('div');
+        shelf.className = 'shelf';
+
+        logos.forEach(logo => {
+          shelf.appendChild(logoThumb(logo, render));
+        });
+
+        section.appendChild(shelf);
+      }
+
+      gallery.appendChild(section);
+    });
+
+    if (!shown) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = query ? '找不到符合「' + query + '」的結果' : '尚無 logo';
+      gallery.appendChild(e);
+    }
+
+    paintSuggestion(shown);
+  }
+
+  // --- recycle bin -------------------------------------------------------
+
+  function binRow(opts) {
+    const row = document.createElement('div');
+    row.className = 'binrow';
+
+    if (opts.thumb) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = opts.thumb;
+      img.loading = 'lazy';
+      row.appendChild(img);
+    }
+
+    const grow = document.createElement('div');
+    grow.className = 'grow';
+
+    const who = document.createElement('div');
+    who.className = 'who';
+    who.textContent = opts.title;
+    who.title = opts.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = opts.meta;
+
+    grow.append(who, meta);
+
+    const restore = document.createElement('button');
+    restore.className = 'btn';
+    restore.textContent = '還原';
+
+    const purge = document.createElement('button');
+    purge.className = 'btn danger';
+    purge.textContent = '永久刪除';
+
+    row.append(grow, restore, purge);
+
+    restore.addEventListener('click', async () => {
+      row.classList.add('busy');
+      try { await opts.onRestore(); render(); }
+      catch (err) {
+        console.error('restore failed', err);
+        row.classList.remove('busy');
+        fatal('還原失敗：' + (err.message || ''));
+      }
+    });
+
+    purge.addEventListener('click', async () => {
+      const yes = await ask({
+        title: '永久刪除',
+        body: [
+          document.createTextNode('永久刪除 '),
+          strong(opts.title),
+          document.createTextNode('？檔案會從儲存空間移除，無法還原。'),
+        ],
+        confirmText: '永久刪除',
+        danger: true,
+      });
+      if (!yes) return;
+
+      row.classList.add('busy');
+      try { await opts.onPurge(); render(); }
+      catch (err) {
+        console.error('purge failed', err);
+        row.classList.remove('busy');
+        fatal('刪除失敗：' + (err.message || ''));
+      }
+    });
+
+    return row;
+  }
+
+  function renderBin() {
+    bin.replaceChildren();
+
+    const deadCompanies = binnedCompanies();
+    const deadLogos = binnedLogos();
+
+    if (!deadCompanies.length && !deadLogos.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = '回收桶是空的';
+      bin.appendChild(e);
+      return;
+    }
+
+    if (deadCompanies.length) {
+      const s = document.createElement('div');
+      s.className = 'section';
+      const h = document.createElement('h2');
+      h.textContent = '上傳區';
+      s.appendChild(h);
+
+      deadCompanies.forEach(company => {
+        const logos = liveLogos(company);
+        s.appendChild(binRow({
+          thumb: logos.length ? publicUrl(logos[logos.length - 1].path) : null,
+          title: label(company),
+          meta: logos.length ? logos.length + ' 個 logo' : '無 logo',
+
+          onRestore: async () => {
+            const { error } = await db.from('companies')
+              .update({ deleted_at: null }).eq('id', company.id);
+            if (error) throw error;
+            company.deleted_at = null;
+          },
+
+          onPurge: async () => {
+            // Storage objects are not touched by the row cascade, so they have
+            // to go explicitly or they linger in the bucket forever.
+            const paths = company.logos.map(l => l.path);
+            if (paths.length) {
+              const rm = await db.storage.from(BUCKET).remove(paths);
+              if (rm.error) throw rm.error;
+            }
+            const del = await db.from('companies').delete().eq('id', company.id);
+            if (del.error) throw del.error;
+            companies = companies.filter(c => c.id !== company.id);
+          },
+        }));
+      });
+
+      bin.appendChild(s);
+    }
+
+    if (deadLogos.length) {
+      const s = document.createElement('div');
+      s.className = 'section';
+      const h = document.createElement('h2');
+      h.textContent = 'Logo';
+      s.appendChild(h);
+
+      deadLogos.forEach(({ company, logo }) => {
+        s.appendChild(binRow({
+          thumb: publicUrl(logo.path),
+          title: logo.file_name || '(未命名檔案)',
+          meta: label(company),
+
+          onRestore: async () => {
+            // The company may have taken a new logo while this sat in the bin.
+            // Caught here so the user gets a sentence rather than the unique
+            // index's message.
+            if (hasLogo(company)) {
+              throw new Error('「' + label(company) + '」已經有 logo 了，請先刪除');
+            }
+            const { error } = await db.from('logos')
+              .update({ deleted_at: null }).eq('id', logo.id);
+            if (error) throw error;
+            logo.deleted_at = null;
+          },
+
+          onPurge: async () => {
+            await destroyLogoRow(logo);
+            company.logos = company.logos.filter(l => l.id !== logo.id);
+          },
+        }));
+      });
+
+      bin.appendChild(s);
+    }
+  }
+
+  // --- view switch -------------------------------------------------------
+
+  // Repaint just the filtered list — used on every keystroke, so it skips the
+  // view switching and chrome that a full render() redoes.
+  function renderResults() {
+    if (view === 'upload') renderUpload();
+    else renderGallery();
+  }
+
+  function render() {
+    refreshChrome();
+    suggest.classList.remove('show');
+    grid.classList.toggle('hide', view !== 'upload');
+    gallery.classList.toggle('hide', view !== 'gallery');
+    bin.classList.toggle('hide', view !== 'bin');
+    searchRow.classList.toggle('hide', view === 'bin');
+    search.placeholder = view === 'upload' ? '搜尋公司…' : '搜尋公司或檔名…';
+
+    Object.keys(tabs).forEach(k => tabs[k].classList.toggle('on', k === view));
+
+    if (view === 'upload') renderUpload();
+    else if (view === 'gallery') renderGallery();
+    else renderBin();
+  }
+
+  Object.keys(tabs).forEach(k => {
+    tabs[k].addEventListener('click', () => { view = k; render(); });
+  });
+
+  search.addEventListener('input', () => {
+    query = search.value.trim();
+    renderResults();
+  });
+
+  // Escape clears the filter rather than leaving a stale one behind.
+  search.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && search.value) {
+      e.stopPropagation();
+      search.value = '';
+      query = '';
+      renderResults();
+    }
+  });
+
+  // --- boot --------------------------------------------------------------
+
+  async function load() {
+    const { data, error } = await db.from('companies')
+      .select('id, name, alt_name, sort_order, locked, deleted_at, logos(id, path, file_name, created_at, deleted_at)')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { referencedTable: 'logos', ascending: true });
+
+    if (error) {
+      console.error('load failed', error);
+      fatal('無法讀取資料：' + error.message +
+            '<br>Re-run <code>schema.sql</code> in the Supabase SQL editor.');
+      return;
+    }
+
+    companies = data.map(c => ({ ...c, logos: c.logos || [] }));
+    render();
+  }
+
+  load();
+})();
+</script>
+
+</body>
+</html>

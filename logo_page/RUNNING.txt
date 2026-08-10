@@ -1,0 +1,145 @@
+===============================================================================
+ LOGO CATALOGUE - HOW TO RUN IT
+ (operations only: starting, deploying, changing the database)
+===============================================================================
+
+ Project folder:  C:\Users\User\Documents\work\pm_page\logo_page
+                  (moved in under pm_page; it now also ships as part of
+                   that site -- reachable at /logos and from the brand
+                   logo button inside the DM editor. It is still its own
+                   page and its own Supabase project: nothing below changed.)
+ Supabase project ref:  fbtvbdixarkfarwoivef
+
+
+-------------------------------------------------------------------------------
+ 1. RUN IT LOCALLY
+-------------------------------------------------------------------------------
+
+ Open PowerShell in the project folder and run:
+
+     netlify dev
+
+ Then open:  http://localhost:8888
+
+ - This serves the site from YOUR machine only. Nobody else can reach it.
+ - It is NOT a deploy.
+ - Uploads still go to the REAL Supabase database. Anything you add or
+   delete here is live data, not a sandbox.
+ - Stop it with Ctrl+C in that window.
+
+ If it fails with "EADDRINUSE ... port 3999", a copy is already running.
+ Find and stop it:
+
+     Get-NetTCPConnection -LocalPort 3999 -State Listen
+     Stop-Process -Id <the OwningProcess number shown>
+
+ You can also just double-click index.html, but some browsers block parts of
+ it when opened that way. `netlify dev` is the reliable path.
+
+
+-------------------------------------------------------------------------------
+ 2. PUT IT ON THE INTERNET
+-------------------------------------------------------------------------------
+
+ First time only (opens a browser tab to authorise):
+
+     netlify login
+
+ Then, to publish:
+
+     netlify deploy --prod
+
+ It prints a public URL when it finishes. Run the same command again any time
+ you change a file - that is the whole update process. No build step.
+
+ To check whether you are logged in:
+
+     netlify status
+
+
+-------------------------------------------------------------------------------
+ 3. CHANGE THE DATABASE
+-------------------------------------------------------------------------------
+
+ The file schema.sql is the source of truth for tables, the storage bucket,
+ and the access rules.
+
+ It CANNOT be applied from the command line - the anon key is not allowed to
+ change database structure. Apply it by hand:
+
+   1. Go to  https://supabase.com/dashboard/project/fbtvbdixarkfarwoivef
+   2. Left sidebar -> SQL Editor -> New query
+   3. Paste the whole contents of schema.sql
+   4. Run
+
+ schema.sql is safe to re-run as many times as you like. It will not
+ duplicate companies or wipe anything.
+
+
+-------------------------------------------------------------------------------
+ 4. LOOK AT THE DATA DIRECTLY
+-------------------------------------------------------------------------------
+
+ Uploaded image files:
+   https://supabase.com/dashboard/project/fbtvbdixarkfarwoivef/storage/buckets/logos
+
+   Folders are named by company UUID, not by company name. Click a folder,
+   then a file, to preview it.
+
+ The records themselves:
+   Dashboard -> Table Editor -> companies / logos
+
+   Rows with deleted_at filled in are in the recycle bin, not gone.
+
+
+-------------------------------------------------------------------------------
+ 5. THE FILES
+-------------------------------------------------------------------------------
+
+ index.html    The entire site. All the HTML, CSS and JavaScript.
+ config.js     Supabase URL + anon key.
+ schema.sql    Database structure. See section 3.
+ netlify.toml  Deploy settings. Rarely needs touching.
+ CLAUDE.md     Notes for Claude Code. Not used by the site.
+ RUNNING.txt   This file.
+
+
+-------------------------------------------------------------------------------
+ 6. THINGS THAT WILL BITE YOU
+-------------------------------------------------------------------------------
+
+ ANYONE WITH THE URL CAN UPLOAD AND DELETE.
+   There is no login. This was a deliberate choice. Once the site is
+   deployed, treat the URL as the only thing standing between your
+   catalogue and a stranger. Ask for a login gate before sharing it widely.
+
+ THE KEY IN config.js IS FINE TO SHARE. THE OTHER ONE IS NOT.
+   The "anon" key is designed to be public. The "service_role" key in the
+   Supabase dashboard bypasses every access rule - never put it in config.js
+   or any file that gets deployed.
+
+ COMPANY NAMES CANNOT BE CHANGED.
+   Set at creation, permanent. Enforced by the database. To fix a typo,
+   delete the company and make a new one.
+
+ "PERMANENT DELETE" IN THE RECYCLE BIN IS REAL.
+   It erases the image files from storage. Nothing recovers them.
+
+ THERE IS NO BACKUP.
+   Deleting a logo deletes it everywhere. The git repo only versions the
+   code, never the uploaded images.
+
+
+-------------------------------------------------------------------------------
+ 7. PICKING THIS BACK UP WITH CLAUDE CODE
+-------------------------------------------------------------------------------
+
+ In the project folder:
+
+     claude --continue     resume the most recent conversation
+     claude --resume       choose from a list of past conversations
+
+ CLAUDE.md in this folder is read automatically at the start of every
+ session, so the project context survives even if the conversation does not.
+
+===============================================================================
