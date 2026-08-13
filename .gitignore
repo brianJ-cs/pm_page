@@ -22,6 +22,9 @@ logo_page/.netlify/
 
 # 合成單檔也是產出來的（node build-single.mjs --bundle），只有要寄一個檔案給
 # 別人的時候才生。進了版控就會有人拿到過期的那一份 —— 要用再生一次就好。
+# （這條註解本來只是註解，檔案其實還被追蹤著：2026-08-11 有一次 git pull 就是
+#   被那份沒 commit 的舊產物擋住的。現在真的忽略了。）
+dm-editor-single.html
 dm-editor-single.html
 
 # 手動備份的資料夾，還有隨手截的圖 —— 歷史本身就是備份

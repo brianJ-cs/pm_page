@@ -287,6 +287,26 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Grants
+--
+-- RLS policy 和 table privilege 是**兩層不同的東西**，兩層都要過。
+-- 這一份本來只有 policy，沒有 grant —— 在原本那個專案（2026-07-17 建的）看不出來，
+-- 因為它的 public schema 對 anon 有預設權限；但貼到另一個專案上跑，表建得起來、
+-- policy 也建得起來，一打 REST 就是：
+--
+--   42501  permission denied for table companies
+--   hint: Grant the required privileges ... GRANT SELECT ON public.companies TO anon;
+--
+-- 症狀很像「schema 沒跑成功」，其實跑成功了，只是少了這一段。
+-- GRANT 是 idempotent 的，重跑不會有事。
+-- ---------------------------------------------------------------------------
+
+grant usage on schema public to anon;
+grant select, insert, update, delete on public.companies to anon;
+grant select, insert, update, delete on public.logos     to anon;
+
+
+-- ---------------------------------------------------------------------------
 -- Storage bucket
 -- ---------------------------------------------------------------------------
 
