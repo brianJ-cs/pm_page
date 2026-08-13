@@ -119,6 +119,22 @@ body{
 #selbar #selNone{margin-left:auto}
 td.pick,th.pick{width:34px;text-align:center;padding-left:12px}
 td.pick input,th.pick input{width:15px;height:15px;accent-color:var(--blue);cursor:pointer}
+/* 商品圖。放在最前面一欄：挑貨面板和版面上，圖就是最先認出「這是哪一支」的東西，
+   一整排空框自己會叫人去補 —— 藏在最後一欄的話，沒有人會捲過去看。 */
+td.im,th.im{width:44px;padding-left:4px;padding-right:4px;white-space:nowrap}
+.thumb{
+  width:34px;height:34px;padding:0;vertical-align:middle;
+  border:1.5px dashed var(--line-strong);border-radius:6px;background:var(--surface-2);
+  color:var(--muted);font:inherit;font-size:15px;font-weight:800;cursor:pointer;overflow:hidden;
+}
+.thumb:hover{border-color:var(--blue);color:var(--blue);background:var(--accent-tint)}
+.thumb.has{border-style:solid;background:var(--surface)}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.imgx{
+  border:none;background:none;color:var(--muted);cursor:pointer;
+  font:inherit;font-size:11px;padding:0 2px;vertical-align:middle;
+}
+.imgx:hover{color:var(--danger-ink)}
 tr.on td{background:var(--accent-tint)}
 table{border-collapse:separate;border-spacing:0;width:100%;max-width:1280px;margin:0 auto;
       background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -215,6 +231,7 @@ tr.bad input.sku{border-color:var(--danger-line);background:var(--danger-tint)}
   <span id="state"></span>
 </div>
 <input id="file" type="file" accept=".csv,.tsv,.txt,text/csv" hidden>
+<input id="imgFile" type="file" accept="image/*" hidden>
 
 <!-- 匯入：選檔 → 看它會改什麼 → 匯入。
      ⚠️ 中間本來還有「這幾欄是什麼」（可以自己改的對照表）和「前幾筆長這樣」，
@@ -644,11 +661,12 @@ function render(){
   const allOn = rows.length && rows.every(x => sel.has(x.i));
   const head = `<tr><th class="pick"><input type="checkbox" id="pickAll"`
              + `${allOn ? ' checked' : ''} title="看到的這幾筆全選"></th>`
+             + '<th class="im">圖</th>'
              + COLS.map(c => `<th style="width:${c[2]}">${c[1]}</th>`).join('')
              + '<th style="width:34px"></th></tr>';
   const body = order.map(c => {
     const list = byCat.get(c);
-    return `<tr><td class="grp" colspan="${COLS.length + 2}">${esc(c)}`
+    return `<tr><td class="grp" colspan="${COLS.length + 3}">${esc(c)}`
          + `<span class="n">${list.length} 筆</span></td></tr>`
          + list.map(x => rowHTML(x.r, x.i)).join('');
   }).join('');
@@ -658,10 +676,35 @@ function render(){
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/* 商品圖的鑰匙。**一定要跟畫布那一頁算出來的一模一樣**（2cell 的 imgKey，
+   那邊有完整的理由）。兩邊各算各的話，這裡放的圖版面上看不到，
+   而且兩邊都不會有任何錯誤訊息 —— 只是圖沒出現。改一邊就要改另一邊。
+     前三段 `品名|規格|顏色` ＝舊鑰匙，**一個字都不能動**（已上傳的圖對回去靠它）。
+     第四段只在前三段分不出來的時候才接（空調那種沒有規格也沒有顏色的），
+     用 SKU（這一列的身分），沒有才退回列上的型號。 */
+const imgKey = r => {
+  const spec = (r && r.spec) || '', color = (r && r.color) || '';
+  const head = ((r && r.name) || '') + '|' + spec + '|' + color;
+  if (spec || color) return head;
+  const tie = String((r && r.sku) || '').trim() || String((r && r.model) || '').trim();
+  return tie ? head + '|' + tie : head;
+};
+const imgKeyBase = k => String(k).split('|').slice(0, 3).join('|');
+/* 讀的時候退回舊鑰匙找一次 —— 這一版之前上傳的圖存在那底下，
+   不退的話所有沒有規格也沒有顏色的商品，縮圖會一次全部變空。 */
+function imgOf(r){
+  const m = CAT.img || {}, k = imgKey(r), o = imgKeyBase(k);
+  return m[k] || (o !== k ? m[o] : '') || '';
+}
+
 function rowHTML(r, i){
   const cls = [r.sku ? '' : 'bad', sel.has(i) ? 'on' : ''].filter(Boolean).join(' ');
+  const u = imgOf(r);
   return `<tr${cls ? ` class="${cls}"` : ''} data-i="${i}">`
     + `<td class="pick"><input type="checkbox" data-pick="${i}"${sel.has(i) ? ' checked' : ''}></td>`
+    + `<td class="im"><button class="thumb${u ? ' has' : ''}" data-img="${i}" title="${
+        u ? '換一張商品圖' : '放一張商品圖'}">${u ? `<img src="${esc(u)}" alt="">` : '＋'}</button>${
+        u ? `<button class="imgx" data-imgdel="${i}" title="拿掉這張圖">✕</button>` : ''}</td>`
     + COLS.map(c => {
     const f = c[0];
     const cls = f === 'sku' ? ' sku' : f === 'price' ? ' price' : '';
@@ -728,6 +771,76 @@ $('#tbody').addEventListener('click', e => {
   CAT.rows.splice(i, 1);
   sel.clear();
   markDirty(); render();
+});
+
+/* ---- 商品圖 --------------------------------------------------------------
+   沒有圖的商品在版面上是一個灰框（畫布畫的 placeholder），而「這一支沒有圖」
+   最該被發現的地方就是目錄這一頁 —— 挑貨的時候才發現，人已經在排版了。
+
+   圖**不進目錄那一列**，只存網址：整包目錄是一個 JSON 欄位，塞 base64 進去
+   會把它撐成好幾 MB，而每一次改一個字都要整包重傳（檔期那邊踩過同一個坑）。
+   Storage 的檔名＝那個商品的身分（`item-<鑰匙>`，upsert），跟畫布那一頁上傳
+   的是同一個物件 —— 兩邊放的是同一張圖，不是兩張。 */
+const IMG_MAX_PX = 900;      // 版面上最大也才幾百 px，再大只是白佔頻寬
+
+function shrinkImage(file){
+  return new Promise((ok, no) => {
+    const fr = new FileReader();
+    fr.onerror = () => no(new Error('讀不到這個檔案'));
+    fr.onload = () => {
+      const im = new Image();
+      im.onerror = () => no(new Error('這個檔案不是看得懂的圖'));
+      im.onload = () => {
+        const k = Math.min(1, IMG_MAX_PX / Math.max(im.width, im.height));
+        if (k >= 1) return ok(fr.result);            // 本來就夠小，別重壓一次
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        ok(cv.toDataURL('image/png'));
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+let imgFor = -1;             // 正在換哪一列的圖
+$('#tbody').addEventListener('click', e => {
+  const up = e.target.closest('[data-img]');
+  if (up){ imgFor = +up.dataset.img; $('#imgFile').click(); return; }
+  const del = e.target.closest('[data-imgdel]');
+  if (!del) return;
+  const r = CAT.rows[+del.dataset.imgdel];
+  if (!r) return;
+  /* 拿掉的是目錄裡那一筆對應，Storage 上那個物件不動 —— 別人可能還指著它，
+     而重放一張同名的圖本來就是 upsert。
+     這一列自己那張沒有的話，畫面上看到的是舊鑰匙底下那一張共用的 ——
+     清它會連同名的其他幾列一起清掉，因為那本來就是同一張。 */
+  const k = imgKey(r), o = imgKeyBase(k);
+  CAT.img = Object.assign({}, CAT.img);
+  if (CAT.img[k]) delete CAT.img[k]; else delete CAT.img[o];
+  markDirty(); render();
+});
+
+$('#imgFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  const r = CAT.rows[imgFor];
+  if (!file || !r) return;
+  if (!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
+  if (!r.name){ say('先給這一列一個商品名 —— 圖是照商品名認的'); return; }
+  const s = sync();
+  if (!s){ say('沒有接後端，圖存不起來'); return; }
+  say('傳圖中…');
+  try {
+    const blob = await (await fetch(await shrinkImage(file))).blob();
+    const url = await s.uploadImage('item-' + imgKey(r) + '.png', blob);
+    CAT.img = Object.assign({}, CAT.img, { [imgKey(r)]: url });
+    markDirty(); render();
+    say('放好了');
+  } catch (err){
+    say(String((err && err.message) || err));
+  }
 });
 
 $('#search').addEventListener('input', e => { q = e.target.value; render(); });

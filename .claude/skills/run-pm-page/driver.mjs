@@ -281,6 +281,23 @@ await connect();
 await send('Page.enable');
 await send('Runtime.enable');
 await send('Log.enable');
+
+/* 把外部網址整個擋掉 —— 這台機器連不出去，而 `<link>` 到 fonts.googleapis.com
+   的樣式表**會擋住後面那個 inline `<script>`**：整支程式要等那個請求自己放棄
+   （量到過 9 秒）才開始跑。在那之前 document.readyState 還是 loading、
+   頁面上什麼都沒有、而且 **一個錯誤都不會報** —— parity.mjs 的「量不到」
+   就是這樣來的（--wait 900 根本還沒輪到程式執行）。
+   擋掉之後請求立刻失敗，樣式表不再擋路，程式照常跑（字型換成系統字）。
+   ⚠️ 這也表示測出來的**字型不是正式站上的 Anton** —— 量字寬的東西
+   （2cell-parity）比的是兩邊同一個條件，所以還是對得起來；
+   要看真正的字型請用 --fonts 放行。 */
+if (!argv.includes('--fonts')) {
+  await send('Network.enable');
+  await send('Network.setBlockedURLs', { urls: [
+    '*://fonts.googleapis.com/*', '*://fonts.gstatic.com/*',
+    '*://cdn.jsdelivr.net/*', '*://unpkg.com/*',
+  ]});
+}
 await send('Emulation.setDeviceMetricsOverride',
   { width: 1600, height: 1000, deviceScaleFactor: 1, mobile: false });
 

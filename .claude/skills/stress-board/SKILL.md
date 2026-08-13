@@ -1,6 +1,6 @@
 ---
 name: stress-board
-description: 量拼板在「壓力測試」假檔期（一個版位 60 格）底下壞成什麼樣 —— 溢出、字級不齊、價格沒貼底、品名落點跑掉，四條規矩各給一個數字，有紅就 exit 1。改 2cell-product-pick.html 的排版（autoSpace、字級、座標系、貼底）之前先跑一次留基準，改完再跑一次比。
+description: 量拼板在「壓力測試」假檔期（照真的 DM 排，一頁 13 個版位、一格約 3.7×2.9cm）底下壞成什麼樣 —— 溢出、字級不齊、價格沒貼底、品名落點跑掉，四條規矩各給一個數字，有紅就 exit 1。改 2cell-product-pick.html 的排版（autoSpace、字級、座標系、貼底）之前先跑一次留基準，改完再跑一次比。
 ---
 
 # 壓力測試的量尺
@@ -16,8 +16,13 @@ node .claude/skills/stress-board/stress.mjs --shot out/s.png   # 順手截圖
 node .claude/skills/stress-board/stress.mjs --json > out/stress.json   # 存基準給 diff
 ```
 
-它自己會做完前置：生一個 60 格的假檔期（`#stressPlanBtn`）→ 開到拼板 → 等畫布掛好 →
-量每一格的畫布 iframe。走的是 `run-pm-page/driver.mjs`，所以**不會碰到正式 Supabase**。
+它自己會做完前置：生假檔期（`#stressPlanBtn`）→ 開到拼板 → **挑一塊有格子的版位**
+→ 等畫布掛好 → 量每一格的畫布 iframe。走的是 `run-pm-page/driver.mjs`，
+所以**不會碰到正式 Supabase**。
+
+⚠️ 「挑一塊有格子的」那一步不能省：假檔期照真的 DM 排之後，第一塊是**刊頭**
+（0 格，就是 DM 上那些整塊的圖）。停在那裡的話量到 0 格，四條規矩會**全部是綠的** ——
+而那只是因為沒有東西可量。這支挑的是格數最多的那一塊。
 
 ## 四條規矩（都是 CLAUDE.md 上寫過的，不是這支自己發明的）
 
@@ -48,7 +53,15 @@ node .claude/skills/stress-board/stress.mjs --json > out/stress.json   # 存基�
 
 ## 幾個坑
 
-- 這支**只看壓力測試那種極端尺寸**（每格 3.07cm × 0.93cm）。正常尺寸的格子要另外驗：
+- **假檔期現在是照真的那一張排的**（見 `DM.jpg`）：一張版＝對開攤開，上面並排兩個
+  直式頁面，一頁由上而下是幾條橫帶 —— 上半幾乎都是刊頭，下半是商品帶，
+  一帶再左右切成 2～3 個版位。一格約 **3.7cm × 2.9cm**，一個版位 6～20 格。
+  以前是「一個版位 60 格」，算出來一格 3.07cm × 0.93cm ——
+  比名片還扁，那個形狀在真的 DM 上不存在，壓出來的溢出多半是那個形狀造成的。
+  ⚠️ 商品帶的刊頭要指定高度（`TITLE = 1.2cm`）。預設的 `CONFIG.defaultMasthead`
+  是 36.6×13cm，塞進 7.6cm 高的商品帶會吃掉九成（上限就是九成），
+  20 格只好擠成一列 —— 量到過一格 3.66cm × **0.35cm**，比舊的還糟。
+- 這支看的是**整張版上最密的那一塊**。正常尺寸的格子要另外驗：
   `node .claude/skills/run-pm-page/scenario.mjs cell --shot out/c.png`。兩邊都要看 ——
   把極端那邊修好、正常那邊壞掉，是這個檔案改壞過的方式。
 - 畫布裡的 `BLOCKS`／`CELLS` 是 `let`，從外面 evaluate 讀不到，所以四條全部只問 DOM。
