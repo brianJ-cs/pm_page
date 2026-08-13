@@ -1,12 +1,15 @@
 ---
 name: 2cell-parity
-description: 跟 2cellOriginal.html 對帳 —— 同樣的商品，每一個元素佔格子的百分比差多少。驗收標準是「預設狀態下每個元素佔格子的比例要跟原版一樣」，這支就是那把尺。改 2cell-product-pick.html 的預設版面（PAD、字級、商品圖大小、欄位擺法）之前先跑一次留基準，改完再跑一次比。
+description: 跟 2cellOriginal.html 對帳 —— 同樣的商品，每一個元素佔格子的百分比差多少。它是一把**尺**，不是驗收標準（驗收標準是 CLAUDE.md 的最高原則：長得像 rule.png）。改 2cell-product-pick.html 的預設版面（PAD、字級、商品圖大小、欄位擺法）之前先跑一次留基準，改完再跑一次比，看自己動了多少。
 ---
 
 # 跟原版對帳
 
-`2cellOriginal.html` 是**規範**，不是舊檔案。談定的驗收標準是：
-**預設狀態下，每一個元素佔一格的百分比要跟原版一樣。**
+⚠️ **這支不是驗收標準。** 驗收標準是 `CLAUDE.md` 最高原則那一條：**長得像 `rule.png`**。
+`2cellOriginal.html` 曾經是規範，現在降級成**參考的一把尺** —— 用它量「我這次改動把每個元素
+搬了多少」，差多少不代表對或錯。原版跟 `rule.png` 不一樣的地方，**以 `rule.png` 為準**。
+
+它量的是：**預設狀態下，每一個元素佔一格的百分比，跟原版差幾個百分點。**
 
 ```bash
 cd C:/Users/User/Documents/work/pm_page
@@ -18,7 +21,8 @@ node .claude/skills/2cell-parity/parity.mjs --json > out/parity.json   # 留基�
 ```
 
 兩邊挑同一批商品（原版存列號、現在存 SKU，`CASES` 對好了），量同一段程式，
-所以差出來的就是版面的差，不是量法的差。差超過 1.5 個百分點就 `exit 1`。
+所以差出來的就是版面的差，不是量法的差。差超過 1.5 個百分點就 `exit 1` —— 那個 exit 1 讀成
+**「這裡跟原版不一樣，去看一眼是不是往 `rule.png` 的方向走」**，不是「改壞了」。
 
 ## 為什麼量百分比，不量 px
 

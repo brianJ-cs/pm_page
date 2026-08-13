@@ -2,6 +2,21 @@
 
 DM 落版／拼板 編輯器。**單檔 HTML，沒有 npm、沒有相依套件、沒有打包** —— 用瀏覽器直接開就是完整的程式。請維持這件事。（`build-single.mjs` 叫 build，但它只是把檔案複製進 `public/`；同步層也是手寫 `fetch`，不引 CDN 函式庫。）
 
+## 最高原則：長得像 `rule.png`
+
+**`rule.png` 就是規範。** 這支程式排出來的東西 —— **不只是最後的成品，第一版草稿就要** ——
+要盡可能接近 `rule.png` 那一張真正印出去的 DM。`ref.png` 是它商品格那一區的放大，
+談格子裡面怎麼擺的時候看那一張。
+
+- 這條**壓過所有其他規矩**。任何說法（舊的驗收標準、舊的參考檔、這份文件底下任何一段、
+  技能裡寫的標準）跟「長得像 `rule.png`」衝突時，**照這一條**，並且把那段舊的改掉，
+  不要留著兩套標準各說各話。
+- **`2cellOriginal.html` 不再是規範**，它降級成一把尺（`2cell-parity` 那支還能用來量
+  「改動前後差多少」，但它量出來的差**不是**驗收結果）。
+- **預設就要對。** 「使用者自己搬一搬就會像了」不算 —— 挑完貨、什麼都還沒動的那一版，
+  就該長得像 `rule.png`。
+- 驗收的方法是**看**：`run-pm-page` 截圖出來跟 `rule.png` 並排比，不是只看數字。
+
 | 檔案 | 做什麼 |
 |---|---|
 | `design_and_PM.html` | **整支程式**：登入、檔期列表、開檔表＋時間軸、總體／落版／拼板、意見欄。三個身分都從這裡進。所有程式碼在**同一個** `<script>` 裡 |
@@ -10,6 +25,7 @@ DM 落版／拼板 編輯器。**單檔 HTML，沒有 npm、沒有相依套件�
 | `logo_page/` | **品牌 Logo 庫**，本來是獨立的一站，整包搬進來當浮層（`/logos`）。**只有設計看得到** |
 | `supabase-sync.js` ＋ `config.js` | 共用資料層。零相依，只用 `fetch` 打 PostgREST；沒有 build，設定就靠 `config.js` 注入 |
 | `_redirects` | `/` ＝主程式；`/editor` 指回 `/`（行銷那一支併進來之前，編輯器住在那裡）；`/products`、`/logos` ＝那兩個庫的直達網址 |
+| `schema.sql` | `plans` 和 `catalogue` 的建表 SQL。**事後補的**（那兩張當初是在後台用點的），對著在跑的專案跑是安全的 —— 全部 `if not exists`，policy 只在還沒有的時候才建 |
 | `GLOSSARY.md` | **動手前先看**。「block」在這個專案有三個意思（版位／格／零件），吵過很多次 |
 
 ## 改完一定要跑起來看
@@ -33,8 +49,31 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=
 - **便利貼的顏色＝誰貼的**（設計天藍 `--sticky-design`／PM 黃 `--sticky-pm`，登入頁那兩顆點讀同一個名字），
   **圖示＝哪一種**，角落那個字＝哪一位（「設計乙」→ 乙）。判身分看 `whoId` 的前綴（`design:d1`），
   **不可以比 `=== 'design'`** —— 簽名變成「設計乙」之後那樣寫會把設計的貼紙判成 PM 的，只會被當成「顏色怪怪的」。
+- **桌面偏的那一點色＝你是誰**（2026-08 加）。三個身分沿用便利貼那套名字
+  （`--sticky-design` 天藍／`--sticky-pm` 黃／`--sticky-mkt` 薄荷綠，行銷那個只有 UI 在用）。
+  `applyMode()` 把 role 寫進 `body.dataset.role`，CSS 自己去挑 `--role`。
+  染的只有三處，**全部在桌面那一層**：body／`#boardRail` 的底混 7%、最上面那條列的上緣
+  一條 3px、名牌 `#whoBadge` 左邊一條 3px。**藍和紙一點都不動** —— 藍是「你正在點的東西」，
+  紙是要印出去的，兩者都不該因為誰在看而變色。7% 是下限：再多就開始像主題色，
+  而它只是一個記號（一個人常常同時開兩個視窗自己測「送給 PM」）。
+  ⚠️ `.bar` 要指名 `#editorChrome > .bar`：檔期卡上的進度條也叫 `.bar`。
 - **版位的底色＝狀態**：灰＝還沒提明細、白＝設計手上、綠＝整塊都在 PM。
   小地圖和總體現在**共用同一套**（鎖定那條特例跟著鎖定一起拿掉了）。
+- **紙色＝這本 DM 印在什麼顏色的紙上**（`plan.bg`，2026-08 加）。它跟刊頭圖同一層：
+  是**印出來的一部分**，不是看版的人的偏好 —— 存進檔期、跟著同步、**只有設計改得動**
+  （總體 工具列最下面那一段；PM 和行銷看得到顏色，但按不動，那一段的字換成「紙色由設計決定」）。
+  ⚠️ `--paper` 掛在 `:root`（`paintPaper()`），不是掛在 `#board` 或每一張 `.board-ws` 上：
+  版面重建的路有五六條，掛在版面上就得每一條都記得補回去，漏一條就是「切一刀之後又變回白的」。
+  ⚠️ **狀態色優先**：紙色只換掉 `.window-node` 的白那一級（白本來就是「在設計手上」），
+  灰和綠不讓，`.pm-filled` 那個綠也不讓。所以取色盤（`PAPER_PRESETS`）刻意避開灰綠區間。
+  ⚠️ 白＝不存欄位（`delete plan.bg`）：「從沒動過」和「特地選了白」在資料上是同一件事。
+  ⚠️ 兩色群組 `.cell.g2` 從紙色 `color-mix` 出來，不是寫死的 `--g2` —— 米色紙上還寫死
+  就會多出一塊藍灰。
+  ⚠️ 格子裡面那張紙是另一份 document：`postMessage({paper})`，而且 `d.ready` 那一包就要帶，
+  晚一步送會先閃一次白。**stage 模式的畫布本來就是透明的**，所以格子的顏色是主程式那邊的
+  `.cell` 在畫；畫布自己的 `--paper` 是給挑貨面板（`ui=panel`）和單獨開這一頁時用的。
+  ⚠️ 列印時 `.cell` 被洗成透明，整張版的底只剩 `#board` 撐著 —— 所以那裡是 `var(--paper)`，
+  不是 `transparent`。
 - 深色那一段（`操作區調深色`）放在 stylesheet **最後面**，靠來源順序覆蓋。淺色的東西要自己寫 `color` —— 不寫就會繼承深色底那套淺灰，白底上直接看不見（這個 bug 出現過三次：`#blockHead`、`.plan-card`、落版的字）。
 
 ## 大小
@@ -77,10 +116,29 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=
   而這邊要的只是「哪個品牌有圖、圖在哪」—— 兩個 GET 就夠了。
 - 品牌圖三層，前面的贏：後台照品牌名上傳的 > 後台照商品名上傳的（舊資料）> **Logo 庫**。
   手動排前面是刻意的：有人特地換過一張，那就是他要的那一張。庫是「沒有人特別指定時的正確答案」。
-- ⚠️ `logo_page/` 是**另一個 git repo**，而且從 CDN 載 `supabase-js`（跟這裡「零相依」那條不一樣）。
+- ⚠️ **Netlify 的站要指名**：`famous-buttercream-edc32c` 是這個專案的，`jocular-clafoutis-8c7671`
+  是 `logo_page` 的。這台機器上的 `~/.netlify/state.json`（家目錄那份全域設定）指著後者，
+  所以在 pm_page 裡不指名就會發到 Logo 的站上去 —— 8/09 真的發過去過。
+  兩個資料夾各自的 `.netlify/state.json` 已經寫死正確的 siteId（`.netlify/` 不進版控，
+  所以換一台機器要重做一次）。
+- ⚠️ `logo_page/` 從 CDN 載 `supabase-js`（跟這裡「零相依」那條不一樣）。
   那是它自己那一頁的事：斷網時它開不起來，主程式不受影響。
-  `build-single.mjs` 只搬它的 `index.html` 和 `config.js` —— 整包複製會把它的 `.git`、
-  `schema.sql` 和一支不相干的示範頁一起發出去。
+  `build-single.mjs` 只搬它的 `index.html` 和 `config.js` —— 整包複製會把它的
+  `schema.sql` 和本機的 netlify 快取一起發出去。
+  ⚠️ **Logo 那個專案在 free tier 上會被暫停**，一暫停子網域就整個解不到 DNS
+  （看起來像被刪了）。那時候品牌圖會全部變空框 —— 這正是「該把兩個 Supabase
+  合成一個」的理由，合併的做法見下面那一段。
+- **把 Logo 那個專案合進來**（還沒做，卡在一步 DDL）：
+  1. pm_page 那個專案的 SQL Editor 跑 `logo_page/schema.sql`（DDL，anon key 跑不動，
+     只能在後台做）。跑之前先確認 `storage.objects` 上沒有同名的 policy：
+     `select policyname from pg_policies where schemaname='storage' and tablename='objects';`
+     —— 那四條 `anon % logos` 是整份腳本唯一碰到共用東西的地方。
+  2. `node logo_page/migrate-to-pm.mjs` 先預演、`--go` 才真的搬。
+     ⚠️ 不能單純複製 `logos.path`：它是 `<company_id>/<uuid>.<ext>`，而 A 那邊的 25 家
+     是 seed 出來的、id 不一樣，所以要照名字把公司對起來再用新的 id 重組 path。
+  3. 兩支 config 指到同一個專案：`logo_page/config.js`、pm_page 的 `LOGO_SUPABASE`。
+  （2026-08-11 清點過：25 家活著的公司就是 seed 那 25 家，真正要搬的只有 Panasonic
+    那一張圖；回收桶裡那兩家是測試垃圾，不搬。）
 - ⚠️ **商品目錄存的是「整包」**（`rows` 就是全部），所以「畫面上是空的」時存一次＝把全公司的商品刪光。
   主程式那邊有 `catReady`（共用目錄拉完了沒），那一頁讀到之前**完全不存**（連本機快取都不寫）。
   空白有兩種：「真的是空的」和「還沒讀到」，長得一樣，差一整份公司資料。

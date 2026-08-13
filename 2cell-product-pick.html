@@ -38,7 +38,9 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .tsep{width:1px;height:22px;background:var(--line);margin:0 6px}
 #pad{width:140px;accent-color:var(--accent)}
 /* 格子陣列 */
-#grid{display:grid;gap:0;justify-content:center;box-shadow:0 6px 26px rgba(0,0,0,.07);background:#fff}
+/* --paper ＝這本 DM 印在什麼顏色的紙上。主程式用 postMessage 送過來（見 d.paper），
+   單獨開這一頁時沒有人送，就是白的 —— 跟以前一模一樣。 */
+#grid{display:grid;gap:0;justify-content:center;box-shadow:0 6px 26px rgba(0,0,0,.07);background:var(--paper,#fff)}
 #grid .cell{width:var(--cw);height:var(--ch)}
 /* 內容以 540×CH 排版再整體縮放：CH 照這一格真正的長寬比算出來，
    所以版面永遠填滿那一格 —— 不會為了保持 4:3 在兩側留下空白帶。 */
@@ -69,7 +71,7 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 
 
 /* ---------- 格子 ---------- */
-.cell{position:relative;width:var(--cw);height:var(--ch);background:#fff;
+.cell{position:relative;width:var(--cw);height:var(--ch);background:var(--paper,#fff);
   border:none;border-top:1px dashed #c9d0dc;border-bottom:1px dashed #c9d0dc;border-radius:0;
   cursor:pointer;padding:0;display:block}
 
@@ -96,8 +98,13 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    沒調過就沒有 --bs，calc 吃預設的 1，跟以前一模一樣。價格不走 CSS 這條路 ——
    它的字級是 JS 算好寫成 inline style 的，但**規矩是同一條**：
    基準（轉盤／同組）乘上這一塊自己的倍率（見 priceFsRaw）。 */
-.blk.name{font-size:calc(var(--fs-name,30px) * var(--bs,1));font-weight:800;letter-spacing:.5px}
-.blk.model{font-size:calc(var(--fs-model,13px) * var(--bs,1));font-weight:700;color:#666;letter-spacing:.3px}
+.blk.name{font-size:calc(var(--fs-name,30px) * var(--bs,1));font-weight:800;letter-spacing:.5px;line-height:1.12}
+/* ⚠️ font-weight 已經頂到 900 了，再往上沒有東西 —— 這個字型堆疊裡 700／800／900
+   對到的是同一個粗體face（量過：400 是 279.6，700 之後一律 286.5，只差 2.5%）。
+   小字配淺灰看起來就是不夠重，所以再補兩件事：描邊把筆畫真的加粗，顏色壓深一點。
+   描邊用 currentColor，選取變色時不會露出舊顏色的邊。 */
+.blk.model{font-size:calc(var(--fs-model,13px) * var(--bs,1));font-weight:900;color:#4a4a4a;
+  letter-spacing:.3px;-webkit-text-stroke:.028em currentColor}
 /* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
 .blk.brand .bimg{height:calc(var(--h-brand,26px) * var(--bs,1));display:block;pointer-events:none}
 .bph{position:relative;display:inline-block;
@@ -114,16 +121,19 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    漏掉那 4，看起來就是「價格拖得出下邊界」。 */
 .cstage .blk{margin:0}
 
-/* 拉過高度的圖：裡面填滿外框（PPT 拉邊中點就是這個行為 —— 比例會變）。
-   object-fit:fill 是刻意的：使用者自己把它拉扁的，不要偷偷保持比例。 */
-.blk.img.sized img,.blk.img.sized .ph{height:100%;object-fit:fill}
+/* 單向拉伸（.sized／object-fit:fill）整組拿掉了：圖不能再被拉扁。 */
 /* 預留圖是正方形：高度跟著寬度走，不要寫死。寫死 170 的話，三支商品擠一格、
    圖被縮窄之後就變成細長條，看起來不像「一張商品圖」而像一根柱子。 */
 /* 原版的預留圖高度是寫死的（170，佔 41.9% 格高），不是跟著寬度變成正方形 ——
    正方形那一版三張圖一分格寬就各剩 8% 格寬，整格空著（量到過）。 */
 /* 預留圖是正方形（談定）—— 原版寫死 170 高配 190 寬，其實是扁的。
-   拉過高度的圖（.sized）例外：那是使用者自己拉的，照他拉的比例。 */
-.blk.img .ph{aspect-ratio:1/1;height:auto}
+   **只有預留圖畫小一點**（框的 70%，四周留 15% 置中）：那張灰圖是「這裡還沒有圖」
+   的記號，不是內容，佔滿整個框的話一格看起來就像已經排好了。
+   ⚠️ 動的只有 `.ph`，**框（b.w）一個 px 都沒改** —— 換上真的商品圖之後
+   還是原來那個大小（談定：真圖現在的大小是對的）。
+   `margin:15%` 也讓框的高度維持 70%+15%+15% ＝ 100% 寬，正方形不變，
+   所以貼在它上面的那一疊、下面的價格都不會跟著移動。 */
+.blk.img .ph{aspect-ratio:1/1;height:auto;width:70%;margin:15% auto}
 /* 52 是原版的值，跟 priceBase() 是同一個數字；實際字級由 JS 依格高換算 */
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:var(--fs-price,52px);line-height:1}
 .spec{display:inline-block;border:var(--bd,1.5px) solid #111;border-radius:var(--r,6px);
@@ -131,7 +141,12 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
   font-size:calc(var(--fs-spec,14px) * var(--bs,1));font-weight:800;margin-bottom:var(--sp-mb,3px)}
 /* SKU 的基準是版位那支轉盤（--sku-fs），單塊微調是再乘上去 —— 乘的是轉盤現在
    那一級，不是寫死的 12，所以轉盤一動，調過的那幾塊也跟著一起動。 */
-.sku{font-size:calc(var(--sku-fs,12px) * var(--bs,1));color:#333;line-height:1.35;white-space:nowrap}
+/* 顏色、字重、字距一律跟機型（.blk.model）同一套 —— 那兩行是同一種東西
+   （這是哪一台），本來 SKU 比機型深一階（#1f1f1f 對 #4a4a4a），
+   併排在同一行之後那一階看起來就是「這兩行不同類」。 */
+.sku{font-size:calc(var(--sku-fs,12px) * var(--bs,1));font-weight:900;color:#4a4a4a;
+  letter-spacing:.3px;
+  line-height:1.35;white-space:nowrap;-webkit-text-stroke:.028em currentColor}
 /* 規格／SKU／價格整欄靠右：右緣對齊欄的右邊界，字級放大時往左溢出、右緣不動。
    靠的是 autoSpace 量好的欄寬（b.w2）當固定寬度框 + text-align:right —— 這樣
    轉盤把價格放大也不會把右緣推出格子外（本來是靠左，一放大就往右頂）。 */
@@ -141,6 +156,9 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    於是溢位只能往左長，右緣釘死。數字和逗號是強 LTR，「1,234」不會被翻過來。 */
 .blk.price{white-space:nowrap;direction:rtl}
 .blk.skub .sku{text-align:right}
+/* 排在左邊那一疊的 SKU（沒有 rx，用 left 定位）跟機型共用同一條左邊界，
+   所以靠左 —— 靠右是「整欄對齊右邊界」那件事的一部分，這裡沒有欄。 */
+.blk.skub.atleft,.blk.skub.atleft .sku{text-align:left}
 /* 剛排好的那一格先藏起來量寬高，靠右對齊、圖讓開都定位完才顯示 ——
    不然會看到價格先閃在估算的位置、再跳到定位（就是那個「先在中間閃一下」）。 */
 .cstage.measuring{visibility:hidden}
@@ -176,7 +194,8 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .item{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:8px;cursor:pointer;font-size:14px}
 /* 主標之外的那幾段（型號通常最長）：小一級、灰的，長了就切掉尾巴 ——
    一列擠不下的時候，該讓步的是它們，不是右邊的 SKU 和價格 */
-.item b{flex:none;white-space:nowrap}
+/* 主標＝型號，黑體：一群裡分辨得出誰是誰的就是它，不能跟旁邊那幾段灰字一樣淡 */
+.item b{flex:none;white-space:nowrap;color:#111;font-weight:800}
 .item .sub{font-size:12.5px;color:#666;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item:hover{background:#f4f6fa}
 .item input{width:16px;height:16px;accent-color:var(--accent)}
@@ -210,14 +229,14 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
    固定大小、不跟著版面縮放：它是操作用的，不是版面的一部分。
    （試過改成 Canva 那一套：細藍框＋圓點角＋長條邊中點、把手固定螢幕大小。
      談定不要 —— 版面上多一圈線就是多一圈線，不好看。） */
-/* 邊中點那四顆（只有圖片有）：擺在邊的正中間，游標也照 PPT 那樣分開兩種 */
-.rz-n,.rz-s{left:50%;transform:translateX(-50%);cursor:ns-resize}
-.rz-w,.rz-e{top:50%;transform:translateY(-50%);cursor:ew-resize}
-.rz-n{top:-1px}.rz-s{bottom:-1px}.rz-w{left:-1px}.rz-e{right:-1px}
+/* 只有四個角 —— 邊中點那四顆拿掉了，見 paintHandles。 */
+/* 白底、細環、正圓 —— 照 canvas-image-editor 那一套（顏色留這裡原本的藍，
+   也沒有旋轉那一顆）。實際大小由 paintHandles 逐顆算：螢幕上固定大小，
+   而且夾住不讓它蓋掉要改的那塊零件。 */
 .rz{
-  position:absolute;width:8px;height:8px;z-index:70;
+  position:absolute;width:10px;height:10px;z-index:70;
   background:#fff;border:1.5px solid #2b7fd4;border-radius:50%;
-  box-shadow:0 1px 3px rgba(0,0,0,.3);
+  box-shadow:0 1px 2px rgba(0,0,0,.28);
 }
 /* 把手貼在邊框「裡面」，不是掛在外面：靠右下的零件（價格、SKU 本來就對齊右下）
    如果把手往外突出，就會掉到畫布外被裁掉 —— 看不到也抓不到。 */
@@ -229,6 +248,13 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
    它們本來是「騎在框上」的，現在就是選取本身。 */
 /* 一把看得到的尺，開著就一直在。壓在最底下（z-index:0）—— 它是背景不是內容，
    蓋在商品圖上會被當成版面的一部分。 */
+/* 集體移動挑中的那一塊：紅色波浪底線。文字用 text-decoration；圖沒有文字可以
+   畫底線，改用一條波浪貼在下緣。 */
+.blk.bpick,.blk.bpick .sku,.blk.bpick .spec{
+  text-decoration:underline wavy #e33;text-decoration-skip-ink:none;text-underline-offset:.14em}
+.blk.img.bpick,.blk.brand.bpick{text-decoration:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 4 Q2 1 4 4 T8 4' stroke='%23e33' fill='none' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat:repeat-x;background-position:left bottom;background-size:auto .5em}
 .gridlines{
   position:absolute;inset:0;pointer-events:none;z-index:0;
   background-image:linear-gradient(to right,rgba(0,122,204,.16) 1px,transparent 1px),
@@ -563,12 +589,22 @@ function brandHTML(b, img){
     </svg><i>${b||'品牌'}</i></span>`;
 }
 
-/* 就地成群：連續且同名的列 → 一個商品。名稱不同即斷開。 */
+/* 一格放得下的是「同一個商品、**同一個品牌**」。
+   光比商品名不夠：公司的資料裡同一個「變頻冷暖空調」跨 HITACHI／Panasonic／…，
+   只比名字的話兩家會一起落進同一格，而格子左上只畫得出一張 logo
+   （buildBlocks 的品牌問的是第一列）—— 印出來就是 Panasonic 的機器掛著
+   HITACHI 的牌子，而且畫面上完全看不出哪裡不對。
+   品牌照 normBrand 比（大小寫、空白、`.` `-` `_` 都不算差別），
+   跟貼 logo 那條用同一把尺 —— 兩邊各一套的話會有「圖貼得上、卻不准放在一起」。 */
+function pickKey(r){ return (r ? r.name : '') + '|' + normBrand(rowBrand(r)); }
+
+/* 就地成群：連續且**同商品同品牌**的列 → 一群。斷開的規矩就是 pickKey，
+   所以清單上看到的一段就是可以一起勾進同一格的那一段。 */
 function groups(){
   const out=[];
   for(const r of ROWS){
     const last=out[out.length-1];
-    if(last && last.name===r.name) last.rows.push(r);
+    if(last && pickKey(last.rows[0])===pickKey(r)) last.rows.push(r);
     else out.push({name:r.name,rows:[r]});
   }
   return out;
@@ -583,7 +619,59 @@ function groups(){
    刻意只留一個名字 —— 以前是 MARGIN（左右）＋ MARGIN（上下）＋ PRICE_BOTTOM（價格例外）
    三個，於是「四邊一樣寬」只是剛好都填了同一個數字，誰改一個就破功。
    一個常數之後，那件事是結構保證的，不是巧合。 */
-const MARGIN = 8;
+/* 邊界。上層用 mm 給（一個版位一個），這裡照這一格自己的尺標換算成座標單位 ——
+   座標框是照長寬比正規化的，1 個單位在每一格代表的實際長度不一樣。
+   ⚠️ 夾住上限：扁格子只有 0.72cm 高，2mm 的上下邊界就吃掉 55% 的格高，
+   東西根本擺不進去。夾在短邊的 MARGIN_MAX_FRAC 以內 —— 扁格子拿到的會比
+   你調的少，那是刻意的：邊界再重要，也不能重要到把內容擠掉。 */
+const MARGIN_MM_DEFAULT = .8, MARGIN_MAX_FRAC = .06;
+let MARGIN_MM = MARGIN_MM_DEFAULT;
+/* 集體移動：開著的時候，放手那一下要把位移報給上層，由它發給其他每一格。 */
+let BULK_MOVE = false;
+/** 這一格：1cm 是幾個座標單位。兩軸一樣 —— 座標框是照長寬比開的（CW/CH ＝
+    CM_W/CM_H），所以 CW/CM_W 和 CH/CM_H 是同一個數。 */
+const unitsPerCm = () => (CM_W && CW) ? CW / CM_W : 0;
+/* 集體移動的目標不是「哪一種」，是「哪一種的第幾個」——「三個價格」的格子裡，
+   拖第二個價格就只該動每一格的第二個價格，不是三個一起飛。
+   右下那幾組本來就帶欄號（b.col）；沒有欄號的（品名、商標、商品圖）用它在同種
+   裡的順序 —— 那是 buildBlocks 排出來的，穩定。 */
+function slotOf(b){
+  if(!b) return 0;
+  if(b.col != null) return +b.col;
+  const same = BLOCKS.filter(x => x.kind === b.kind);
+  return Math.max(0, same.indexOf(b));
+}
+const bulkKey = b => b.kind + '#' + slotOf(b);
+/* Ctrl＋點：挑「要一起搬的是哪幾個」。挑起來的那一塊畫紅色波浪底線 ——
+   只畫在你點過的那一塊上（別格不畫：那是「你選了什麼」的回饋，不是預覽）。 */
+let BULK_KEYS = [];              // 上層廣播的目標清單（整個版位共用）
+const pickedIds = new Set();     // 這一格點過哪幾塊（只影響波浪線，不存檔）
+let bulkTick = 0;
+/** 這一趟要搬哪幾個。Ctrl 挑過就照挑的；沒挑過就只搬「你正在拖的那一個」——
+    三個價格的格子拖第二個，就只有第二個會動。 */
+const bulkTargets = src => (BULK_KEYS.length ? BULK_KEYS.slice() : [bulkKey(src)]);
+const matchKeys = keys => BLOCKS.filter(b => keys.indexOf(bulkKey(b)) >= 0);
+function bulkPreviewTick(src){
+  if(bulkTick) return;                       // 這一幀已經排過了
+  bulkTick = requestAnimationFrame(()=>{
+    bulkTick = 0;
+    if(!drag || !drag.orig || !drag.orig[src.id]) return;
+    const per = unitsPerCm(); if(!(per > 0)) return;
+    const dx = (+src.x||0) - (+drag.orig[src.id].x||0);
+    const dy = (+src.y||0) - (+drag.orig[src.id].y||0);
+    const keys = bulkTargets(src);
+    showBulkPreview(keys, dx, dy, drag.ids);
+    try{ parent.postMessage({ bulkPreview:{ keys,
+      dxMm:+(dx/per*10).toFixed(3), dyMm:+(dy/per*10).toFixed(3) } }, '*'); }catch(_){}
+  });
+}
+let MARGIN = 8;
+function setMargin(){
+  const perCm = (CM_W && CW) ? CW / CM_W : 0;      // 這一格：1cm 是幾個座標單位
+  if(!perCm){ MARGIN = 8; return; }                // 還不知道實際尺寸，先用舊值
+  const want = (MARGIN_MM / 10) * perCm;
+  MARGIN = Math.max(0, Math.min(want, Math.min(CW, CH) * MARGIN_MAX_FRAC));
+}
 /* 排版座標系：1 cm ＝ U_PER_CM 個座標單位，每一格都一樣。
 
    本來每一格的寬都固定 540，不管它在版上其實多大 —— 於是 cs（= 格子的實際
@@ -635,15 +723,32 @@ const ty = v => v * (REF_CM_H && CM_H ? REF_CM_H / CM_H : 1);
 
 /* ---- 字級：照原版的比例算，一個版位一個基準 ----------------------------
    PRICE_BASE 不再是寫死的 px，而是「原版那個 52」換算到這一格（priceBase()）。
-   SKU_FS 是版位那支轉盤，值仍然用原版的單位（預設 12），畫的時候一起換算。
+   SKU 跟價格一樣照「這一格有幾個」分三組（SKU_BY_COUNT），乘在 SKU_BASE 上。
    PRICE_MUL：轉盤那兩顆 ＋／− 調出來的**倍率**（1＝沒調過）。
    本來是一個絕對 px（在轉盤還是數字輸入框的年代），蓋過自動那一段 ——
    換成 ＋／− 之後「多大」不再由人指定，只有「比現在大一點／小一點」，
    所以它乘在自動算出來的基準上，不再蓋掉它。
    GROUP_FS：上層廣播回來的同組比例 —— 照比例排之後同組本來就一樣大，
    這一條只剩「轉盤調過」時還有意義，留著不擋路。 */
-const priceBase = () => ty(52);
-let SKU_FS = 12;
+/* 2026-08 談定的預設大小：原版那幾個數字（52、30、26、12、190/200）在實際版面上
+   都偏小。倍率乘在**畫出來**這一層，不動存下來的值 —— 轉盤存的是 12、舊檔期存的
+   也是 12，改存的值等於把每個人自己調過的那一級一起改掉，而且舊檔期不會跟著變大。
+   乘在這裡的話，新舊檔期一律照新的比例畫，轉盤的 ＋／− 照樣在它上面加減。 */
+/* SKU 的預設**跟機型同一級**（談定的，見 rule.png）：機型是 `13 * SZ_MODEL` ＝ 19.5，
+   SKU 的基準是 12，所以 19.5/12 ＝ 1.625。
+   本來是 2.25 ＝ 27，比機型大了快四成，而那兩行講的是同一件事（這是哪一台）——
+   一個比另一個大一號，看起來像 SKU 比較重要。長的型號配上放大的 SKU，
+   併排那一行還會頂出格子（量到過「KU：2156742黑/44橋」左邊被切掉）。
+   ⚠️ 這只是**預設**：上層那支 SKU 轉盤（SKU_BY_COUNT）照樣乘在它上面。 */
+const SZ_PRICE = 1.5, SZ_SKU = 1.625, SZ_NAME = 1.6, SZ_BRAND = 2, SZ_IMG = 2, SZ_MODEL = 1.5;
+
+const priceBase = () => ty(52 * SZ_PRICE);
+const SKU_BASE = 12;             // 原版那個數字，跟價格的 52 同一個地位
+let SKU_BY_COUNT = { 1:1, 2:1, 3:1 };   // 上層轉盤：照這一格有幾個 SKU 分組
+/* 上層那條 字級 上的商標／品名／型號／商品圖：一個版位一組倍率（1＝沒調過）。
+   跟 SZ_* 那組談定的預設值是兩件事 —— SZ_* 是「這支程式長什麼樣」，
+   這一組是「這一檔的這個版位要再大一點」。兩個相乘。 */
+let TYPE_MUL = { brand:1, name:1, model:1, img:1 };
 let PRICE_MUL = 1;
 let GROUP_FS = 0;
 let priceWanted = 1;            // 保留給上層那條協商用；照比例排之後永遠是 1
@@ -654,11 +759,34 @@ function priceCount(bs, off){
   return (bs || BLOCKS).filter(b => b.kind === 'price' && !o[b.uid]).length;
 }
 
-const PRICE_COUNT_FS = { 1: 1.55, 2: 1.25 };
-const countFs = () => PRICE_COUNT_FS[priceCount()] || 1;
+/* 幾個價格就用哪一級字。**1 ＝ 不動**，只有三組以上小一級（0.9）——
+   三組是沿著下緣攤開的（見 buildBlocks），一欄只剩三分之一格寬，
+   維持原來那一級的話數字會頂到隔壁那一欄。
+   四個以上沿用三個那一級：再往下分，每一級都只有一兩格用得到。
+   ⚠️ 這張表本來是 {1:1.55, 2:1.25}，可是 countFs() **從來沒有人叫過** ——
+   整張表是死的。照那組數字接回去會讓一價的價格一口氣大 55%，
+   而現在一價、二價長什麼樣是談定過的，所以那兩格改成 1（維持現狀）。 */
+const PRICE_COUNT_FS = { 3: 0.9 };
+const countFs = () => PRICE_COUNT_FS[Math.min(3, priceCount())] || 1;
 
-/** 這一組價格的基準比例：自動（同組最小，＝原版的 52 換算過的 priceBase()）× 轉盤倍率。 */
-function priceBaseFs(){ return (GROUP_FS || 1) * (PRICE_MUL || 1); }
+/** 這一格有幾個 SKU（藏起來的不算，理由同 priceCount）。
+    ⚠️ BLOCKS 是後面才宣告的 let，而 applyMetrics 在頂層就跑過一次（座標系一定案
+    就要算字級）—— 直接讀會踩到 TDZ，整支程式從那一行死掉、畫面全白。
+    這裡接住它：那個時候本來就還沒有零件，算出來是 0。 */
+function skuCount(bs, off){
+  const o = off || {};
+  let list = bs;
+  if(!list){ try{ list = BLOCKS; }catch(_){ list = []; } }
+  return (list || []).filter(b => b.kind === 'sku' && !o[b.uid]).length;
+}
+/** 這一格該用哪一級 SKU 倍率。四個以上就沿用三個那一級 —— 再細分下去，
+    每一級都只會有一兩格用到，調了也看不出差別。 */
+const skuMul = () => SKU_BY_COUNT[Math.min(3, Math.max(1, skuCount()))] || 1;
+
+/** 這一組價格的基準比例：自動（同組最小，＝原版的 52 換算過的 priceBase()）× 轉盤倍率
+    × 這一格有幾個價格那一級（countFs，見 PRICE_COUNT_FS）。
+    幾個價格是**這一格的事實**，不是誰調出來的，所以乘在基準上、轉盤照樣在它上面加減。 */
+function priceBaseFs(){ return (GROUP_FS || 1) * (PRICE_MUL || 1) * countFs(); }
 /** 要求的比例，還沒過「絕不溢出」那道夾子。
     ⚠️ 單格微調（b.fsFix）是**乘上去**的，不是蓋過去的：轉盤是「這一組價格多大」，
     單格微調是「這一塊比它的同伴大幾成」，兩件不同的事。
@@ -682,7 +810,12 @@ function priceFs(b){ return priceFsRaw(b) * (b.shrink || 1); }
 function applyType(t){
   if(!t) return;
   let hit = false;
-  if(+t.skuSize && +t.skuSize !== SKU_FS){ SKU_FS = +t.skuSize; hit = true; }
+  if(t.skuByCount){
+    for(const n of [1,2,3]){
+      const v = +t.skuByCount[n] || 1;
+      if(Math.abs(v - SKU_BY_COUNT[n]) > .0005){ SKU_BY_COUNT[n] = v; hit = true; }
+    }
+  }
   const mul = +t.priceMul || 1;
   if(mul !== PRICE_MUL){ PRICE_MUL = mul; hit = true; }
   const g = +t.groupFs || 0;
@@ -691,9 +824,22 @@ function applyType(t){
      沒有它的話（單獨開這一頁）就用自己這一格，＝ 原版的數字本人。 */
   const rh = +t.refCmh || 0;
   if(rh && Math.abs(rh - REF_CM_H) > .001){ REF_CM_H = rh; applyMetrics(); hit = true; }
+  if(t.marginMm != null){
+    const mm = +t.marginMm;
+    if(mm >= 0 && Math.abs(mm - MARGIN_MM) > .0005){ MARGIN_MM = mm; hit = true; }
+  }
+  if(t.mul){
+    for(const k in TYPE_MUL){
+      const v = +t.mul[k] || 1;
+      if(Math.abs(v - TYPE_MUL[k]) > .0005){ TYPE_MUL[k] = v; hit = true; }
+    }
+  }
   if(!hit) return;
   applyMetrics();        // SKU 轉盤的值是原版單位（預設 12），換算在 applyMetrics 裡
-  if(BLOCKS.length) renderOne(curCell, true);
+  /* renderOne 會把整格的 innerHTML 重寫，四顆把手跟著沒了 —— 而調字級的時候
+     那一塊通常正選著（你就是為了它才去按 ＋／−）。補畫一次，選取才不會
+     每按一下就掉一次。 */
+  if(BLOCKS.length){ renderOne(curCell, true); paintHandles(); }
 }
 let CELLS=[];          // [{id, picked:Set, blocks:[], layoutKey:''}]
 let curCell=0;         // 目前作用中的格子索引
@@ -761,6 +907,13 @@ if(UI_STAGE) document.body.classList.add('ui-stage');
    高度固定 420 之後，字級就是原版那些數字本人（52、30、14、12…），
    永遠在瀏覽器畫得出來的範圍內；縮到這一格多大是 --cs 的事（fitStage）。
    這正是原版的做法 —— 它的框永遠 540×420，只有 --cs 在變。 */
+/* 換座標系是很貴的一件事（下面 applyStageCm 會把每一塊的座標乘一次、整格重畫），
+   所以「形狀真的變了」和「數字抖了一下」一定要分得開。
+   上層送來的 cm 現在是照版面的數字算的、對縮放嚴格不變（見 cellCm），所以這條
+   死區只要擋得住浮點的最後一位就夠 —— 開太大反而會把真的改動（拉一格、改列數）
+   吃掉，而那些是該重排的。 */
+const REFRAME_TOL = .005;
+
 function adoptStageCm(w, h){
   w = +w || 0; h = +h || 0;
   if(!w || !h) return false;
@@ -778,6 +931,15 @@ function adoptStageCm(w, h){
   else                   { nw = O_W; nh = Math.round(O_W / aspect); }
   nw = Math.max(80, nw); nh = Math.max(80, nh);
   if(nw === CW && nh === CH && CM_W) return false;
+  /* ⚠️ 縮放不准換座標系。換一次＝每一塊的 x/y/w 乘一次（版面被縮放改掉，而且
+     會存下去）＋ renderOne(force) 整格 innerHTML 重寫（商品圖那個 <img> 重生，
+     連續滾輪時圖幾乎一直是空的）＋ CM_H 一變字級跟著抖（見 ty()）。
+     量到過 60 格的版位滾 12 下＝重建 240 次。
+     真正的修法在上層（cellCm 改成照版面的數字算，對縮放嚴格不變）；這裡這條
+     只是最後一道，擋浮點的最後一位。真的改了形狀（加減格子）差的是幾十個
+     百分點，照樣穿得過去。 */
+  if(CM_W && Math.abs(nw - CW) <= CW * REFRAME_TOL
+          && Math.abs(nh - CH) <= CH * REFRAME_TOL) return false;
   CM_W = w; CM_H = h; CW = nw; CH = nh;
   return true;
 }
@@ -812,17 +974,18 @@ function fitStage(){
    就得重算一次。放在一個地方算，不要散在各處 —— 散開就會有一半忘記更新，
    然後畫面上一半元素照新比例、一半照舊比例（這種錯最難看出來）。 */
 function applyMetrics(){
+  setMargin();           // 邊界跟著這一格的尺標走，尺標一換就要重算
   const r = document.documentElement.style;
-  r.setProperty('--fs-name',  ty(30).toFixed(2) + 'px');
-  r.setProperty('--fs-model', ty(13).toFixed(2) + 'px');
-  r.setProperty('--fs-price', ty(52).toFixed(2) + 'px');
+  r.setProperty('--fs-name',  ty(30 * SZ_NAME * TYPE_MUL.name).toFixed(2) + 'px');
+  r.setProperty('--fs-model', ty(13 * SZ_MODEL * TYPE_MUL.model).toFixed(2) + 'px');
+  r.setProperty('--fs-price', ty(52 * SZ_PRICE).toFixed(2) + 'px');
   r.setProperty('--fs-spec',  ty(14).toFixed(2) + 'px');
-  r.setProperty('--h-brand',  ty(26).toFixed(2) + 'px');
+  r.setProperty('--h-brand',  ty(26 * SZ_BRAND * TYPE_MUL.brand).toFixed(2) + 'px');
   // 品牌那塊是圖（或圖的預留位）—— 跟商品圖同一個道理，寬度不跟著長寬比拉
-  r.setProperty('--bph-w',    ty(120).toFixed(2) + 'px');
-  r.setProperty('--bph-h',    ty(28).toFixed(2) + 'px');
+  r.setProperty('--bph-w',    ty(120 * SZ_BRAND * TYPE_MUL.brand).toFixed(2) + 'px');
+  r.setProperty('--bph-h',    ty(28 * SZ_BRAND * TYPE_MUL.brand).toFixed(2) + 'px');
   r.setProperty('--h-ph',     oy(170).toFixed(2) + 'px');   // 預留圖高度 170/420
-  r.setProperty('--sku-fs',   ty(SKU_FS).toFixed(2) + 'px');
+  r.setProperty('--sku-fs',   ty(SKU_BASE * SZ_SKU * skuMul()).toFixed(2) + 'px');
   /* 框線／圓角／內距：原版的 1.5、6、2、4、1、8、3 也是在 540×420 裡量的 */
   r.setProperty('--bd',    oy(1.5).toFixed(2) + 'px');
   r.setProperty('--r',     oy(6).toFixed(2) + 'px');
@@ -840,7 +1003,16 @@ function applyMetrics(){
    一縮放就 ReferenceError。改叫 renderOne 自己重畫。） */
 let fitTimer = 0;
 if(UI_STAGE) addEventListener('resize', () => {
+  const was = CW + 'x' + CH;
   fitStage();
+  /* 座標系沒換＝這一趟只是縮放。--cs 是 transform（見 .cstage），底下的排版
+     用的又都是 offsetTop/offsetWidth 這種版面單位，量出來的東西一個都不會變 ——
+     重排一次的唯一效果就是把 innerHTML 重寫一遍，商品圖跟著閃一下。
+     （拼板上滾一格 = resize 一次，所以這條路是「縮放時圖一直是空的」的另一半。） */
+  if(CM_W && CW + 'x' + CH === was){
+    resizeHandles();      // 版面沒動，但 --cs 變了 —— 把手要重新換算螢幕大小
+    return;
+  }
   clearTimeout(fitTimer);
   fitTimer = setTimeout(() => { if(BLOCKS.length) renderOne(curCell, true); }, 80);
 });
@@ -895,6 +1067,55 @@ function applyStageCm(cm){
   if(BLOCKS.length) renderOne(curCell, true);
 }
 
+/* 把右緣錨點換成絕對座標。右下那一組是用 rx（離右邊界多遠）擺的，直接改 b.x
+   根本沒人在看，放手後會跳回右邊界。拖曳和集體移動都要先過這一手，所以放在頂層。 */
+function unpin(b){
+  if(!b || b.rx == null) return;
+  const n = bEl(b.id);
+  b.x = n ? n.offsetLeft : (CW - MARGIN - (+b.rx||0));
+  delete b.rx;
+}
+
+/* ---- 集體移動的預覽 -----------------------------------------------------
+   拖的過程只改 style（transform），**不動資料也不重建** —— 重建一次要重排、重量、
+   重畫，一格就頓，六十格就是投影片。放手才寫進座標（applyBulkMove）。
+   這是 editor(6).html 那支的做法：「過程中只改 style，不重建」。 */
+function clearBulkPreview(){
+  document.querySelectorAll('.blk[data-bprev]').forEach(n=>{
+    n.style.transform=''; n.removeAttribute('data-bprev');
+  });
+}
+function showBulkPreview(keys, dxU, dyU, except){
+  clearBulkPreview();
+  if(!keys || !keys.length) return;
+  const skip = except || [];
+  matchKeys(keys).filter(b => skip.indexOf(b.id) < 0).forEach(b => {
+    const n = bEl(b.id); if(!n) return;
+    n.style.transform = 'translate(' + dxU.toFixed(1) + 'px,' + dyU.toFixed(1) + 'px)';
+    n.setAttribute('data-bprev','1');
+  });
+}
+/** 上層轉來的集體移動：這一格所有同一種零件走同樣的**實際距離**。
+    照 mm 換算回自己的座標單位 —— 每一格的尺標不一樣，照單位搬會參差不齊。
+    走完照樣夾在格子裡（clampAll），所以某一格擠不下時它就停在邊上，
+    不會被推出去看不見。 */
+function applyBulkMove(m, except){
+  if(!m || !m.keys || !m.keys.length) return;
+  const per = unitsPerCm(); if(!(per > 0)) return;
+  const dx = (+m.dxMm || 0) / 10 * per, dy = (+m.dyMm || 0) / 10 * per;
+  if(!dx && !dy) return;
+  const hit = matchKeys(m.keys).filter(b => (except||[]).indexOf(b.id) < 0);
+  if(!hit.length) return;
+  /* 先量再搬：墨水框的 w/h/ox/oy 跟位置無關，所以搬之前量到的一樣能用，
+     而 clampAll 沒有 sizes 會直接 return（＝完全沒夾到）。 */
+  const sizes = {};
+  hit.forEach(b => { try{ sizes[b.id] = inkBox(b.id); }catch(_){} });
+  hit.forEach(b => { unpin(b); b.x = (+b.x||0) + dx; b.y = (+b.y||0) + dy; holdPlace(b); });
+  try{ clampAll(hit.map(b=>b.id), sizes); }catch(_){}
+  saveCell();
+  renderCell();
+}
+
 /* 面板模式：滾輪在面板上任何地方都是捲名單 — 不必先把游標移到捲軸上，
    也不會漏給外面那張版。 */
 if(UI_PANEL) addEventListener('wheel', e => {
@@ -926,7 +1147,12 @@ function applyRole(r){
 let STAGE_EDIT = !UI_STAGE || window.parent === window;
 function applyStageEditing(id){
   const on = String(id||'') === String(CELL_ID);
-  if(on === STAGE_EDIT) return;
+  /* ⚠️ 不是這一格的話，選取一定要收掉 —— 不能只看 STAGE_EDIT 有沒有變。
+     版上任何一格都直接點得到零件（不必先開那一格），所以「從來沒開過」的格子
+     照樣可能留著一個藍框和四顆把手；只比 STAGE_EDIT 的話它永遠等不到清除，
+     關掉面板之後那個框就一直留在版上。 */
+  const stale = !on && (selected.size || activeImg);
+  if(on === STAGE_EDIT && !stale) return;
   STAGE_EDIT = on;
   if(!on){ selected.clear(); activeImg=null; }
   renderCell();                 // 重畫會順手把工具列和 ＋ 一起重算
@@ -946,9 +1172,22 @@ function clearStageSel(){
 addEventListener('message',e=>{
   const d = e.data || {};
   if(d.boardRole==='pm'||d.boardRole==='design') applyRole(d.boardRole);
+  /* 紙色。只改一個 CSS 變數，不重畫任何東西 —— 版面上的零件座標跟顏色無關。 */
+  if(d.paper !== undefined)
+    document.documentElement.style.setProperty('--paper', d.paper || '#fff');
   /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
      CW 還停在預設值的話就會照錯的比例縮。 */
   if(d.stageCm) applyStageCm(d.stageCm);
+  if(d.stageScale){ STAGE_SCALE = +d.stageScale || 1; resizeHandles(); }
+  if(d.bulkMode !== undefined) BULK_MOVE = !!d.bulkMode;
+  if(d.bulkKeys) BULK_KEYS = d.bulkKeys.slice();
+  if(d.bulkPreview){
+    const per = unitsPerCm();
+    if(per > 0) showBulkPreview(d.bulkPreview.keys,
+      (+d.bulkPreview.dxMm||0)/10*per, (+d.bulkPreview.dyMm||0)/10*per);
+  }
+  if(d.bulkPreviewEnd) clearBulkPreview();
+  if(d.bulkApply){ clearBulkPreview(); applyBulkMove(d.bulkApply); }
   if(d.stageEditing !== undefined) applyStageEditing(d.stageEditing);
   if(d.stageClearSel) clearStageSel();      // 上層要印乾淨版了，把選取收起來
   /* 工具列那顆「顯示格線」：開＝一直看得到，關＝一直看不到。它不再跟拖曳綁在一起，
@@ -1229,10 +1468,52 @@ function skuLine(vs){
    block.kind: name | img | sku | price
    sku block 帶 vs（該塊包含哪些 row），拖曳合併就是把兩塊的 vs 併起來。
    pos 以格子左上為原點，px。 */
-/* 每個選項各自一張圖：key = 名稱|規格|顏色 */
+/* 每個選項各自一張圖：key = 名稱|規格|顏色〔|誰是誰〕
+   ------------------------------------------------------------------------
+   ⚠️ **前三段一個字都不能動**。已經上傳的圖、每一格自己換過的圖（cell.img）、
+   藏起來的零件（cell.off，uid 是 `img|`＋這把鑰匙算出來的）全都存著這個字串。
+   改了前三段＝舊檔期一開起來圖全部不見、藏起來的零件全部跑回來，而且不報錯。
+   所以要加的東西只能**往後接，而且只在本來就會撞在一起的時候接**。
+
+   第四段回答「同名、同規格、同顏色的那幾列，誰是誰」。公司很多品類根本沒有
+   規格和顏色欄 —— 空調就是：
+     空調,HITACHI,變頻冷暖空調,RAC-28NP1/RAS-28NJP1
+     空調,HITACHI,變頻冷暖空調,RAC-36NP1/RAS-36NJP1
+   前三段算出來三支一模一樣（`變頻冷暖空調||`），於是三支共用一張圖：在商品目錄
+   給其中一支放圖，另外兩支跟著變，而版面上看起來就是「這一格三張圖是同一張」。
+
+   用 SKU 當那一段：那本來就是這一列的身分（共用目錄也是照 SKU 合的），一定唯一。
+   沒有 SKU 的列才退回列上的型號；兩個都沒有就只好跟以前一樣併在一起 ——
+   那時候手上真的沒有東西分得出它們。
+   ⚠️ 型號讀的是 `r.model`（列上那一份），不走 rowModel()：對照表那一份是
+   「這個商品名的型號」，同名的每一列都一樣，拿它當鑰匙又併回去了。 */
 let IMG = {};
-function imgKey(r){ return r.name+'|'+(r.spec||'')+'|'+(r.color||''); }
-function keyLabel(k){ const a=k.split('|'); return a[0]+(a[1]?'　'+a[1]:'')+(a[2]?'　'+a[2]:''); }
+function imgKey(r){
+  const spec = (r && r.spec) || '', color = (r && r.color) || '';
+  const head = ((r && r.name) || '') + '|' + spec + '|' + color;
+  if (spec || color) return head;                      // 分得出來了，維持老鑰匙
+  const tie = String((r && r.sku) || '').trim() || String((r && r.model) || '').trim();
+  return tie ? head + '|' + tie : head;
+}
+/* 這把鑰匙的前三段 ＝ 這一版之前那把。讀圖的時候要退回去找一次，
+   不然所有沒有規格也沒有顏色的商品，圖會在使用者眼前一次全部消失。
+   只從字串上切，不必手上有那一列 —— 呼叫的地方有些只有 key。 */
+const imgKeyBase = k => String(k).split('|').slice(0, 3).join('|');
+
+/* 圖在哪：這一格自己換過的 > 目錄裡的；新鑰匙 > 舊鑰匙。
+   「這一格換過的」永遠排前面 —— 有人特地為這一格換過一張，那就是他要的那一張
+   （跟品牌圖那三層同一個道理）。 */
+function imgUrlOf(k){
+  const c = cellImgs(), o = imgKeyBase(k);
+  return c[k] || (o !== k && c[o]) || IMG[k] || (o !== k && IMG[o]) || '';
+}
+function keyLabel(k){
+  const a = String(k).split('|');
+  /* 第四段是 SKU 或型號 —— 它就是「這一支跟隔壁那一支差在哪」，
+     不寫的話圖庫清單上三支空調會列出三行一模一樣的字。 */
+  return a[0] + (a[1] ? '　' + a[1] : '') + (a[2] ? '　' + a[2] : '')
+             + (a[3] ? '　' + a[3] : '');
+}
 let BLOCKS = [];
 /* picked 與 BLOCKS 是「目前格」的視圖，切格時同步 */
 function loadCell(i){
@@ -1249,7 +1530,11 @@ function buildBlocks(){
   const sel = ROWS.filter(r=>picked.has(r.sku));
   if(!sel.length){ BLOCKS=[]; return; }
   const name = sel[0].name;
-  const rows = sel.filter(r=>r.name===name);
+  /* 照 pickKey 收，不是照商品名 —— 勾選那條已經擋住了，這裡是給**這條規矩之前
+     存下來的格子**的最後一道：那些格子裡真的躺著兩個品牌的 sku，照名字收會把
+     兩家一起排進來，然後掛上第一列那一家的 logo。 */
+  const key = pickKey(sel[0]);
+  const rows = sel.filter(r=>pickKey(r)===key);
   const cols = buildCols(rows);
   const single = cols.length===1;
   /* 排之前先把邊界和字級對到現在這個框 —— MARGIN/MARGIN 是快取下來的值，而框的大小
@@ -1266,43 +1551,104 @@ function buildBlocks(){
      字級和行距的數字（30、34、26、24、58、170）還是原版那一套，用 ty() 換算 ——
      那些是「多大」，不是「在哪」；在哪由這三個落點決定。 */
   /* 品牌和型號問的是**這一群裡的第一列**，不是商品名 —— 同名跨品牌的時候
-     （空調就是），照商品名查會查到別人的牌子。挑貨一次只挑得到同一個商品的
-     那幾個規格（見 renderPick 的 picked.clear），所以第一列就代表這一群。 */
+     （空調就是），照商品名查會查到別人的牌子。挑貨一次只挑得到同一個商品、
+     同一個品牌的那幾個規格（pickKey），所以第一列就代表這一群。 */
   const brand = rowBrand(rows[0]), bimg = bimgOf(rows[0]);
   const hasBrand = !!(brand || bimg);
 
   // 左上
   if(hasBrand) B.push({id:'b'+id++,kind:'brand',name,brand,bimg,x:MARGIN,y:MARGIN});
-  const nameY = hasBrand?MARGIN+ty(34):MARGIN;
+  const nameY = hasBrand?MARGIN+ty(34 * SZ_BRAND):MARGIN;
   B.push({id:'b'+id++,kind:'name',text:name,x:MARGIN,y:nameY});
   const mdl=rowModel(rows[0]);
-  if(mdl) B.push({id:'b'+id++,kind:'model',text:mdl,name,x:MARGIN,y:nameY+ty(34)});
+  let ly = nameY + ty(34 * SZ_NAME);
+  let modelY = null;
+  if(mdl){ modelY = ly;
+           B.push({id:'b'+id++,kind:'model',text:mdl,name,x:MARGIN,y:ly});
+           ly += ty(26 * SZ_MODEL); }
+  /* 只有一個價格時，SKU 跟機型排在一起（左邊那一疊，機型在上、SKU 在下）——
+     真正的 DM 就是這樣排的（見 ref.png）：右下角只留價格，左上角把「這是什麼」
+     一次講完。多個價格就不能這樣：那時候 SKU 說的是「這個號碼配這個價」，
+     一定要站在它自己那個價格上面，收到左邊就對不起來了。 */
+  const skuLeft = single;
+  /* 一價：第一條 SKU 跟機型**併在同一行**（rule.png 就是這樣），不是疊在它下面。
+     x 這裡只給一個估值 —— 機型那串字畫出來多寬只有瀏覽器知道，真正的 x 是
+     spreadStack 量完再對上去的。第二條以後照舊往下疊：同一行擺不下兩個號碼。 */
+  if(skuLeft) cols[0].lines.forEach((l,i)=>{
+    const inline = (i===0 && modelY!=null);
+    B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),x:MARGIN,
+            y: inline?modelY:ly, inline: inline||undefined});
+    if(!inline) ly += ty(24 * SZ_SKU);
+  });
+  /* 商品圖從這裡開始往下 —— 一價的圖要**貼著機型／SKU 那一行**（見 stickImage）。
+     這個值只是第一次畫的估值，量完 DOM 才是最後的位置。 */
+  const stackBottom = ly + (skuLeft && modelY!=null ? ty(24 * SZ_SKU) : 0);
 
   /* 右下。一價和多價走同一套 —— 原版把一價的價格單獨擺在別的地方，
-     談定改成「價格永遠在右下角」，所以不再分兩種。
-     欄距上限 ty(170)（原版的距離），不跟著格寬放大，價格才會聚在角落。 */
+     談定改成「價格永遠在右下角」，所以不再分兩種。 */
   const n=cols.length;
-  const gap=Math.min(ty(170),(CW-MARGIN*2)/n);
-  /* 每一欄用「離右邊界多遠」定位（rx），不是「左緣在哪」——
-     內容有多寬要畫出來才知道，用左緣推的話最後一欄一定會凸出去
+  /* 每一組用「離右邊界多遠」定位（rx），不是「左緣在哪」——
+     內容有多寬要畫出來才知道，用左緣推的話一定會凸出去
      （量到過扁格子超出右邊界 64 個單位）。改用右緣錨點，右邊界一定精準。 */
-  const rowsH=Math.max(...cols.map(c=>
-    c.lines.reduce((a,l)=>a+(l.spec?ty(26):0)+ty(24),0)));
-  // 由下往上推：價格那一塊約 ty(58) 高，下緣要落在 CH-MARGIN
-  const yTop=Math.max(MARGIN, CH-MARGIN-ty(58)-rowsH);
-  cols.forEach((c,ci)=>{
-    const rx=MARGIN+(n-1-ci)*gap;      // 這一欄的右緣離右邊界多遠
-    let y=yTop;
-    for(const l of c.lines){
-      if(l.spec){ B.push({id:'b'+id++,kind:'spec',spec:l.spec,rx,y,col:ci}); y+=ty(26); }
-      B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),rx,y,col:ci});
-      y+=ty(24);
-    }
-    B.push({id:'b'+id++,kind:'price',price:c.price,rx,y:y+ty(2),col:ci});
-  });
+  /* 幾組價格怎麼放，看有幾組（談定，見 rule.png／DM.jpg）：
+       一組、兩組 → **上下疊**，整疊靠右下角。
+         並排那一版的毛病：兩組都要擠在右下角那一塊寬度裡，欄距一縮 SKU 就互相撞
+         （量到過「…44橋SKU：2156739」黏成一行），而版上其實有的是上下的空間。
+       三組以上 → **沿著格子下緣攤開、平分整個格寬**，字級再小一級。
+         三組疊起來是一根從半腰壓到底的柱子，圖被擠到只剩一條；
+         真的那一張上（DM.jpg 那幾格 256G／512G／1TB）就是一整排排在下面。
+     一組＝規格＋SKU 一行（規格在 SKU 左邊的小方框），價格在它下面 ——
+     ⚠️ 只有「上下疊」才把規格併進 SKU 那一行：攤開之後一欄只剩三分之一格寬，
+     併排一定塞不下，所以那時候規格回到自己一行、站在 SKU 上面（原本的做法）。 */
+  const spread = n >= 3;
+  const lineH  = ty(24 * SZ_SKU);
+  const priceH = ty(58 * SZ_PRICE);
+  const gapG   = ty(10);                       // 兩組之間
+  /* 一價的 SKU 收在左上那一疊，所以這裡只剩規格那一行（ty(26)）。 */
+  const colH   = c => (skuLeft ? c.lines.reduce((a,l)=>a+(l.spec?ty(26):0),0)
+                    : spread ? c.lines.reduce((a,l)=>a+(l.spec?ty(26):0)+lineH,0)
+                             : c.lines.length * lineH) + priceH;
+  const inlineSpecs = !skuLeft && !spread;
+  if(spread){
+    // 每一欄分到一樣寬的一格，右緣落在自己那一格的右邊界 → 攤開之後間距一定相等
+    const slot = (CW - MARGIN*2) / n;
+    const yTop = Math.max(MARGIN, CH - MARGIN - Math.max(...cols.map(colH)));
+    cols.forEach((c,ci)=>{
+      const rx = MARGIN + (n-1-ci) * slot;
+      let y = yTop;
+      for(const l of c.lines){
+        if(l.spec){ B.push({id:'b'+id++,kind:'spec',spec:l.spec,rx,y,col:ci}); y+=ty(26); }
+        B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),rx,y,col:ci});
+        y+=lineH;
+      }
+      B.push({id:'b'+id++,kind:'price',price:c.price,rx,y:y+ty(2),col:ci});
+    });
+  }else{
+    const totalH = cols.reduce((a,c)=>a+colH(c),0) + gapG*(n-1);
+    // 由下往上推：整疊的下緣要落在 CH-MARGIN
+    let gy = Math.max(MARGIN, CH-MARGIN-totalH);
+    cols.forEach((c,ci)=>{
+      const rx=MARGIN;                   // 每一組都靠右邊界，上下疊
+      for(const l of c.lines){
+        /* x 要等畫出來量到 SKU 多寬才知道，這裡先跟 SKU 同一個 rx，
+           真正的位置是 packPriceGroups() 對上去的。 */
+        if(l.spec) B.push({id:'b'+id++,kind:'spec',spec:l.spec,rx,y:gy,col:ci,
+                           inline: inlineSpecs||undefined});
+        if(!skuLeft){
+          B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),rx,y:gy,col:ci});
+          gy+=lineH;
+        }else if(l.spec){ gy+=ty(26); }
+      }
+      B.push({id:'b'+id++,kind:'price',price:c.price,rx,y:gy+ty(2),col:ci});
+      gy += priceH + gapG;
+    });
+  }
 
-  // 中間偏左
-  stackImgs(B, rows, single?200:190, () => 'b'+id++);
+  /* 商品圖一律**貼在機型那一行底下、靠最左邊**（談定，不分幾個價格）——
+     往下填到下邊界，左緣就是版面的左邊界，而且讓開右下那一組（見 stickImage）。
+     以前多價走的是「垂直居中」，於是圖浮在半空、跟左上那一疊和右下的價格
+     兩邊都可能疊到；一價早就改成貼著了，兩種長得不一樣本來就沒有理由。 */
+  stackImgs(B, rows, (single ? 200 : 190) * SZ_IMG, () => 'b'+id++, stackBottom);
 
   BLOCKS=B;
   COORDS_V4 = true;            // 剛照新座標系排好的
@@ -1317,15 +1663,30 @@ function buildBlocks(){
 /* 商品圖：垂直居中、貼左邊界、由左往右排開，最後一張的右緣停在 CW-MARGIN。
    大小維持原版的比例（190／200 寬，正方形）—— 不跟著張數平分，
    平分過的那一版三張圖各剩 8% 格寬，整格看起來是空的。 */
-function stackImgs(B, rows, w, nextId){
+/* top ＝ 一價那條路傳進來的「那一疊的下緣」：圖從這裡開始，往下填到下邊界，
+   維持正方形。傳 null 就是原本的垂直居中（多價）。 */
+function stackImgs(B, rows, w, nextId, top){
   const n = rows.length;
-  const iw = w, ih = w;                                  // 預留圖是正方形
-  const y  = Math.max(MARGIN, Math.min((CH - ih) / 2, CH - MARGIN - ih));
+  let iw = w, ih = w;                                    // 預留圖是正方形
+  let y;
+  if(top != null){
+    ih = Math.max(ty(40), (CH - MARGIN) - top);          // 往下填滿剩下的高度
+    iw = Math.min(ih, CW - MARGIN*2);
+    ih = iw;
+    y  = top;
+  }else{
+    y  = Math.max(MARGIN, Math.min((CH - ih) / 2, CH - MARGIN - ih));
+  }
   const x0 = MARGIN;
-  const span = Math.max(0, (CW - MARGIN) - x0 - iw);        // 最後一張的左緣最多到這裡
-  const step = n > 1 ? span / (n - 1) : 0;
+  /* 好幾張圖並排時**不可以疊在一起**：先把每一張夾到「攤得開的寬度」，
+     再照這個寬度算間距。以前是照 span/(n-1) 攤，張數一多間距就小於圖本身，
+     三張圖疊成一團（看起來像只有一張，而且蓋住下面那張的商品名）。 */
+  const availW = Math.max(ty(40), (CW - MARGIN) - x0);
+  if (n > 1) iw = Math.min(iw, availW / n);
+  const step = n > 1 ? Math.max(iw, (availW - iw) / (n - 1)) : 0;
   rows.forEach((r, i) => B.push({ id:nextId(), kind:'img', row:r, key:imgKey(r),
-                                  x:x0 + i*step, y, w:iw, z:i+1 }));
+                                  x:x0 + i*step, y, w:iw, z:i+1,
+                                  stick: top!=null || undefined }));
 }
 
 /* 每一塊在版面上的「身分」，跟 b.id 不一樣：id 是重建時從 0 數的流水號，
@@ -1369,13 +1730,33 @@ function cellImgs(){
   return c.img;
 }
 
+/* 預留圖上寫的那一行字＝**這一張是這一群裡的哪一支**。
+   本來只寫規格和顏色，那對手機平板夠用（256G 黑／512G 橘），但公司很多品類
+   根本沒有這兩欄 —— 空調就是：同一格三支，三張預留圖上都寫著「—」，
+   誰是 HITACHI 誰是 Panasonic 完全看不出來，而缺圖的時候正是最需要分得出來的時候
+   （不然沒有人知道該補哪一張）。
+   所以退而求其次：規格顏色 → 型號 → 品牌。型號用斜線前那一段就夠認人
+   （`RAC-28NP1/RAS-28NJP1` 的後半是室外機），太長會撐出格子外面。
+   照 key 回頭去找那一列 —— 呼叫的三個地方手上不一定有列，而 key 一定有。 */
+function phTag(k, a, row){
+  const spec = [a[1], a[2]].filter(Boolean).join(' ');
+  if(spec) return spec;
+  /* ⚠️ 認人要用**那一列**，不是 key：沒有規格也沒有顏色的時候，同一個商品名
+     底下每一列算出來的 key 一模一樣（`變頻冷暖空調||`），照 key 回頭找只會
+     一直找到第一列 —— 三支空調的預留圖上就會寫著同一個型號。
+     版面上呼叫的地方手上都有那一列（stackImgs 把 row 一起放進零件裡）。 */
+  const r = row || ROWS.find(x => imgKey(x) === k);
+  const m = String(rowModel(r) || '').split('/')[0].trim();
+  if(m) return m.length > 14 ? m.slice(0,13) + '…' : m;
+  return rowBrand(r) || '—';
+}
+
 /* 商品圖：這一格換過的優先，其次是圖庫上傳的，都沒有就畫 placeholder
    （內嵌 SVG，斷網也看得到） */
-function imgHTML(k){
-  const mine = cellImgs()[k];
-  if(mine) return `<img src="${mine}" alt="" draggable="false">`;
-  if(IMG[k]) return `<img src="${IMG[k]}" alt="" draggable="false">`;
-  const a=k.split('|'), tag=[a[1],a[2]].filter(Boolean).join(' ')||'—';
+function imgHTML(k, row){
+  const url = imgUrlOf(k);
+  if(url) return `<img src="${url}" alt="" draggable="false">`;
+  const a=k.split('|'), tag=phTag(k,a,row);
   return `<svg class="ph" viewBox="0 0 100 100">
     <rect x="0" y="0" width="100" height="100" rx="3" fill="#f0f2f6" stroke="#d5dae3"
       stroke-width="0.7" stroke-dasharray="3 2"/>
@@ -1404,71 +1785,115 @@ function xrayDim(b){
 /* 這一塊自己調過的倍率。沒調過就不寫，CSS 那邊 var(--bs,1) 吃預設值。 */
 function bsVar(b){ return (b.sc && b.sc!==1) ? `;--bs:${b.sc}` : ''; }
 
+const pk = b => pickedIds.has(b.id) ? ' bpick' : '';
 function blockHTML(b,isCur=true){
   const on = (isCur&&selected.has(b.id))?' sel':'';
   const bs = bsVar(b);
   /* 右緣錨點：右下那一組用 right 定位（見 buildBlocks）。搬過之後就換回 left ——
      手動位置是絕對的，不該再跟著右邊界跑（見 mousedown 那邊的 unpin）。 */
   const pos = b.rx != null ? `right:${(+b.rx).toFixed(1)}px` : `left:${b.x}px`;
-  if(b.kind==='name')  return `<div class="blk name${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${b.text}</div>`;
+  if(b.kind==='name')  return `<div class="blk name${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${b.text}</div>`;
   if(b.kind==='img'){
     const dim = isCur?xrayDim(b):1;
-    const noimg = (cellImgs()[b.key]||IMG[b.key]) ? '' : ' noimg';   // 還沒換圖＝框紅的
-    const iw=(+b.w||0).toFixed(1);      // 寬度就是 buildBlocks 算好的比例
+    const noimg = imgUrlOf(b.key) ? '' : ' noimg';   // 還沒換圖＝框紅的
+    const iw=((+b.w||0) * TYPE_MUL.img).toFixed(1);   // 轉盤的倍率乘在畫的時候
     /* 拉過高度的圖（PPT 的邊中點把手）帶著自己的高度走；沒拉過就讓高度跟著寬度
        等比例（.ph 的 --h-ph / 真圖的 height:auto）。 */
-    const ih=+b.h ? `;height:${(+b.h).toFixed(1)}px` : ''; 
-    return `<div class="blk img${on}${noimg}${+b.h?' sized':''}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
-      style="${pos};top:${b.y}px;width:${iw}px${ih};z-index:${b.z};opacity:${dim}">
-      ${imgHTML(b.key)}
+    /* 高度一律跟著寬度等比例（.ph 的 aspect-ratio／真圖的 height:auto）。
+       舊資料可能還留著 b.h（單向拉伸那個功能留下來的），不理它 —— 拉不回來的
+       扁圖留在版上，比「不能改長寬比」這條規矩本身更糟。 */
+    return `<div class="blk img${on}${noimg}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
+      style="${pos};top:${b.y}px;width:${iw}px;z-index:${b.z};opacity:${dim}">
+      ${imgHTML(b.key, b.row)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
   /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的），所以查不到
      b.brand 就退回那張對照表 —— 不然舊檔期一開起來，品牌全部變成空白。 */
-  if(b.kind==='brand') return `<div class="blk brand${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${
+  if(b.kind==='brand') return `<div class="blk brand${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${
     brandHTML(b.brand != null ? b.brand : (BRAND[b.name]||''),
               b.bimg != null ? b.bimg : (BIMG[b.name]||''))}</div>`;
-  if(b.kind==='model') return `<div class="blk model${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">機型：${b.text}</div>`;
-  if(b.kind==='spec')  return `<div class="blk specb${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
+  if(b.kind==='model') return `<div class="blk model${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">機型：${b.text}</div>`;
+  if(b.kind==='spec')  return `<div class="blk specb${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
   /* 價格用哪一級字由 priceFs() 決定：基準（轉盤 > 同組最小 > 自動）× 這一塊自己的倍率。
      轉盤是允許溢出的（談定的），所以這裡不夾上限。 */
   if(b.kind==='price'){
     const fs=priceFs(b);
-    return `<div class="blk price${on}${b.cross?' crossed':''}" data-b="${b.id}" style="${pos};top:${b.y}px${
+    return `<div class="blk price${on}${pk(b)}${b.cross?' crossed':''}" data-b="${b.id}" style="${pos};top:${b.y}px${
       b.w2?`;width:${b.w2}px`:''}${
       fs?`;font-size:${(priceBase()*fs).toFixed(1)}px`:''}">${b.price}</div>`;
   }
   // sku
-  return `<div class="blk skub${on}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}">`+
+  return `<div class="blk skub${on}${pk(b)}${b.rx == null ? ' atleft' : ''}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}">`+
     `<div class="sku">${skuLine(b.vs)}</div></div>`;
 }
 
-function renderCell(){ renderOne(curCell); paintHandles(); reportBoard(); }
+function renderCell(){ renderOne(curCell); paintHandles(); reportBoard(); reportSel(); }
+/* 這一格有沒有抓著選取，報給上層 —— 上層再去把別格的收掉。
+   為什麼要繞上層一圈：每一格的畫布是各自獨立的文件，彼此看不到對方，
+   而版上任何一格都點得到（見 .ccanvas 的 pointer-events），
+   所以「點了 B 格，A 格的藍框要消失」只有上層講得出來。 */
+let lastSelSent = null;
+function reportSel(){
+  if(window.parent === window) return;
+  const on = !!(selected.size || activeImg);
+  if(on === lastSelSent) return;
+  lastSelSent = on;
+  try{ parent.postMessage({ stageSel: on ? String(CELL_ID) : '' }, '*'); }catch(_){}
+}
 
 /* 選中一塊就在四個角長出把手，拖角落等比放大縮小 —— 跟 PPT 一樣的手感。
    只在「剛好選一塊」時出現：多選時每一塊各自的基準倍率不同，一個角落沒辦法
    同時代表全部，硬做出來的結果只會跟你想的不一樣。工具列上的 ＋／− 才是多選用的。
    在 render 之後補上去，不塞進 blockHTML —— 那支函式一種零件一條分支，
    每條都補一次把手，遲早漏掉一種。 */
+/* 把手是「螢幕上的東西」，不是版面的一部分（同 CLAUDE.md 的 固定大小 那一條）：
+   版面整份被 --cs 縮進格子裡，把手要是跟著縮，縮小的時候就變成兩三個 px，
+   怎麼點都點不到（量到過 2.8px）。所以除以 --cs 把它換算回排版單位，
+   讓它在螢幕上永遠是同一個大小。
+   ⚠️ 但不能無上限地補：縮得很小的時候 1/--cs 會很大，一顆把手就蓋住整塊零件，
+   四顆疊起來比它要改的東西還大。所以夾在「這一塊短邊的 HANDLE_MAX_FRAC」以內 ——
+   縮到看不清楚的時候把手跟著小，那是對的：那個尺寸本來就不是拿來拖的，
+   要拖就先放大。下限留 6，再小就連看都看不到了。 */
+const HANDLE_PX = 10;          // 想要的螢幕大小（白底細環，見 .rz）
+/* 外面那層 .ccanvas 的 transform 把整份畫布又縮放了一次，而 iframe 裡量不到它
+   —— 上層會用 stageScale 報進來（見 fitCellCanvases）。單獨開這一頁時沒有人報，
+   那就是 1。 */
+let STAGE_SCALE = 1;
+const HANDLE_MIN = 6;          // 排版單位的下限
+const HANDLE_MAX_FRAC = .34;   // 最多吃掉這一塊短邊的幾成
+function handleSize(el){
+  const cs = (parseFloat(getComputedStyle(document.documentElement)
+               .getPropertyValue('--cs')) || 1) * (STAGE_SCALE || 1);
+  const want = HANDLE_PX / cs;
+  const cap  = Math.min(el.offsetWidth, el.offsetHeight) * HANDLE_MAX_FRAC;
+  return Math.max(HANDLE_MIN, Math.min(want, Math.max(HANDLE_MIN, cap)));
+}
+
+/* 只把既有的那四顆改大小。--cs 變了但版面沒重排時走這條 —— 直接叫 paintHandles
+   會再 append 一組，變成八顆疊著。 */
+function resizeHandles(){
+  const el = selected.size===1 ? bEl([...selected][0]) : null; if(!el) return;
+  const hs = el.querySelectorAll('.rz'); if(!hs.length) return;
+  const sz = handleSize(el), bd = Math.max(1, sz / 9);
+  hs.forEach(h=>{ h.style.width = h.style.height = sz.toFixed(1)+'px';
+                  h.style.borderWidth = bd.toFixed(2)+'px'; });
+}
+
 function paintHandles(){
   if(ROLE==='pm' || selected.size!==1) return;
   const el=bEl([...selected][0]); if(!el) return;
-  /* 只有四個角。每一塊零件的「大小」只有一個倍率（圖是 b.w、價格是 b.fsFix、
-     其他是 b.sc），沒有分開的寬和高可以拉 —— 所以邊中點那四顆做出來也只會等比縮放，
-     長得像 Word 卻不是 Word 的行為，比沒有更糟。真的要單向拉伸，得先讓零件有
-     寬高兩個維度，那是另一件事。 */
-  /* 圖片給八顆把手（跟 PPT 一樣）：四角等比例、四個邊中點單向拉伸。
-     其他零件只有四角 —— 它們的「大小」只有一個倍率（價格是 fsFix、文字是 sc），
-     單向拉伸做出來也只會等比縮放，長得像 PPT 卻不是那個行為，比沒有更糟。 */
-  const b0=BLOCKS.find(x=>x.id===[...selected][0]);
-  const corners = (b0 && b0.kind==='img')
-    ? ['nw','ne','sw','se','n','s','w','e']
-    : ['nw','ne','sw','se'];
+  /* 一律只有四個角。圖片本來多四顆邊中點可以單向拉伸（PPT 那一套），
+     談定拿掉：商品圖拉扁就不是那個商品的樣子了，而印出去改不回來。
+     四個角是等比例的，所以「拉大小」這件事永遠不會動到長寬比。 */
+  const corners = ['nw','ne','sw','se'];
+  const sz = handleSize(el), bd = Math.max(1, sz / 9);
   corners.forEach(c=>{
     const h=document.createElement('i');
     h.className='rz rz-'+c;
     h.dataset.corner=c;
     h.title='拖曳改大小（按住 Shift 微調）';
+    h.style.width = h.style.height = sz.toFixed(1)+'px';
+    h.style.borderWidth = bd.toFixed(2)+'px';
     el.appendChild(h);
   });
 }
@@ -1529,7 +1954,18 @@ function renderOne(i, force){
      對一次下緣、再畫一次。只有重建或強制的時候會走到，不是每次重畫。 */
   paint(false);
   if((rebuilt||force) && isCur){
+    // 先把上面那一疊推開（放大的那塊要先佔到位），再對齊四邊
+    try{ if(spreadStack(blocks)) paint(false); }catch(_){}
+    /* 攤開那幾組價格要**先夾**到塞得進自己那一欄：夾了字級，寬和高都會變，
+       後面兩趟（疊、對齊四邊）量到的才是最後那個大小。 */
+    try{ if(fitSpreadPrices(blocks)) paint(false); }catch(_){}
+    try{ if(packPriceGroups(blocks)) paint(false); }catch(_){}
     try{ if(nudgeGroupBottom(blocks)) paint(false); }catch(_){}
+    /* 商品圖**最後**才算，不能跟 spreadStack 一起做：它要讓開右下那一組，
+       而那一組真正的位置是上一行的 nudgeGroupBottom 對出來的。
+       早一步算的話量到的是還沒對齊前的位置 —— 那時候價格離右邊界還有一段，
+       圖就以為左邊只剩那麼點空間，於是縮得莫名其妙的小（量到過該有 78 卻只給 45）。 */
+    try{ if(stickImage(blocks)) paint(false); }catch(_){}
   }
 }
 
@@ -1542,6 +1978,226 @@ function renderOne(i, force){
 
    算的是「現在量到的差多少」，所以做過一次之後差就是 0 —— 重複跑不會愈挪愈歪。
    手動搬過的（placed）不碰：那是使用者放的位置。 */
+/* 左上那一疊（商標／品名／型號／SKU）本來是照一組固定間距排的，而那組數字
+   假設了預設字級。轉盤一把品名放大，下面那幾塊就被壓在它身上 —— 疊字。
+   所以畫完之後照**量到的高度**重新疊一次：一塊接一塊，誰變大就把下面的推開，
+   誰變小就收回來。量的是 offsetHeight（版面單位，跟座標同一把尺）。
+   手動搬過的（b.placed）不碰 —— 那是使用者自己放的位置。 */
+const STACK_GAP = 6;
+function spreadStack(blocks){
+  /* 併排的那條 SKU（b.inline）不進這一疊 —— 它跟機型是**同一行**，
+     疊進來就會被推到機型下面，那正是要拿掉的東西。它的位置在下面單獨對。 */
+  const list=(blocks||[]).filter(b=>!b.placed && b.rx==null && !b.inline
+    && ['brand','name','model','sku'].includes(b.kind));
+  if(list.length<2){
+    // 疊不起來也還是要把併排的 SKU 對好（右下那一組和圖各有自己那一趟，見 renderOne）
+    let m=false;
+    try{ if(inlineSku(blocks)) m=true; }catch(_){}
+    return m;
+  }
+  list.sort((a,b)=>(+a.y||0)-(+b.y||0));
+  /* ⚠️ 量的是**看得見的**上下緣（inkBox），不是框。字框比字高一大截（Anton、
+     大字級的品名尤其明顯），照框排出來的「6 個單位」在畫面上是一大條空白 ——
+     商標和品名中間那個大縫就是這樣來的。改用墨水框，縫多寬就是看起來多寬。 */
+  const ink=list.map(b=>{
+    let k=null; try{ k=inkBox(b.id); }catch(_){}
+    const n=bEl(b.id);
+    const h=(k && k.h) ? k.h : (n && n.offsetHeight ? n.offsetHeight : ty(24));
+    return { oy:(k ? k.oy : 0), h };
+  });
+  const hs=ink.map(k=>k.h);
+  const top=(+list[0].y||0) + ink[0].oy;      // 第一塊看得見的上緣
+  /* 下界＝右下那一組的上緣（沒有就是格子的下邊界）。整疊只能長到這裡，
+     再往下就是壓到價格身上，或整個掉出格子外。 */
+  let limit = CH - MARGIN;
+  (blocks||[]).forEach(b=>{ if(b.rx==null) return;
+    const n=bEl(b.id); if(n) limit=Math.min(limit, n.offsetTop); });
+  const need=hs.reduce((a,h)=>a+h,0), joints=list.length-1;
+  /* 裝得下就照正常間距；裝不下就把不足**平均分攤**成負間距 ——
+     擠是一定要擠的，但每一個接縫擠一樣多，最嚴重的那一處就是最輕的。
+     一路往下推的話最後一塊會被推出格子（看不到＝等於不見了），
+     全部堆在同一個接縫則是一塊完全蓋住另一塊。兩個都比平均分攤糟。 */
+  let gap = ty(STACK_GAP);
+  const room = Math.max(0, limit - top);
+  if(joints > 0 && need + gap*joints > room) gap = (room - need) / joints;
+  let y=top, moved=false;
+  list.forEach((b,i)=>{
+    const want = y - ink[i].oy;              // 框要往上退，墨水才落在 y
+    if(Math.abs((+b.y||0)-want)>.5){ b.y=want; moved=true; }
+    y += ink[i].h + gap;
+  });
+  try{ if(inlineSku(blocks)) moved=true; }catch(_){}
+  return moved;
+}
+
+/* 右下那一組（規格／SKU／價格）照**量到的高度**重新疊一次，一組一組往下。
+   跟左上那一疊（spreadStack）同一個道理，而且是同一個毛病：
+   排的時候一行給 ty(24*SZ_SKU) ＝ 39 個單位，可是那一行的字畫出來只有 26；
+   價格更誇張 —— Anton 的字框比數字高一大截（line-height:1 也一樣），
+   所以「SKU 在上、價格在下」中間會空出一條看起來莫名其妙的縫。
+   照墨水（inkBox）疊就沒有這件事：縫多寬就是看起來多寬。
+
+   規格小框在哪也在這裡決定，因為它是「哪一行」的一部分：
+     ・上下疊（一價、二價）→ 併進 SKU 那一行、站在它左邊
+     ・攤開（三價以上）   → 自己一行、站在 SKU 上面（一欄只剩三分之一格寬，併不下）
+   規格和 SKU **照順序配對**（同一欄裡第 i 個對第 i 個），不照 y 配 ——
+   第一趟疊完 y 就不一樣了，照 y 配第二趟就配不上。 */
+function packPriceGroups(blocks){
+  const grp=(blocks||[]).filter(b=>b.col!=null && b.rx!=null && !b.placed);
+  if(!grp.length) return false;
+  const cols=[...new Set(grp.map(b=>b.col))].sort((a,b)=>a-b);
+  const spread=cols.length>=3;              // 跟 buildBlocks 同一條規矩
+  const ink=b=>{ const el=bEl(b.id); if(!el) return null;
+                 let k=null; try{ k=inkBox(b.id); }catch(_){}
+                 return k ? { el, ...k }
+                          : { el, ox:0, oy:0, w:el.offsetWidth, h:el.offsetHeight }; };
+  // 起點＝這一組現在最上面那一塊的墨水上緣。整組要挪到哪是 nudgeGroupBottom 的事，
+  // 這裡只負責它們**彼此**的距離。
+  let top=Infinity;
+  grp.forEach(b=>{ const k=ink(b); if(k) top=Math.min(top, k.el.offsetTop+k.oy); });
+  if(!isFinite(top)) return false;
+  const gapLine=ty(4), gapGroup=ty(12);
+  let moved=false;
+  const put=(b,k,y)=>{ const want=y-k.oy;          // 框往上退，墨水才落在 y
+    if(Math.abs((+b.y||0)-want)>.5){ b.y=want; moved=true; } };
+  let gy=top;
+  cols.forEach(ci=>{
+    const bs=grp.filter(b=>b.col===ci);
+    const skus =bs.filter(b=>b.kind==='sku');
+    const specs=bs.filter(b=>b.kind==='spec');
+    const price=bs.find(b=>b.kind==='price');
+    let y = spread ? top : gy;                      // 攤開的每一欄都從同一條線開始
+    const rows=Math.max(skus.length, specs.length);
+    for(let i=0;i<rows;i++){
+      const sk=skus[i], sp=specs[i];
+      const kk=sk?ink(sk):null, pk=sp?ink(sp):null;
+      if(sk && kk && !spread && sp && pk){
+        // 併排：規格站在 SKU 左邊，兩者看得見的**下緣**對齊
+        put(sk,kk,y);
+        const wantRx=(+sk.rx||0)+kk.w+ty(8);
+        if(Math.abs((+sp.rx||0)-wantRx)>.5){ sp.rx=wantRx; moved=true; }
+        put(sp,pk,y+kk.h-pk.h);
+        y+=kk.h+gapLine;
+      }else{
+        if(sp && pk){ put(sp,pk,y); y+=pk.h+gapLine; }   // 規格自己一行
+        if(sk && kk){ put(sk,kk,y); y+=kk.h+gapLine; }
+      }
+    }
+    if(price){ const pk=ink(price); if(pk){ put(price,pk,y); y+=pk.h; } }
+    if(!spread) gy=y+gapGroup;                    // 上下疊：下一組接著往下
+  });
+  return moved;
+}
+
+/* 併排的那條 SKU：跟機型同一行、接在它右邊。
+   機型那串字（LSU22CHST/LSN22ICHST 之類）多寬只有畫出來才知道，所以位置是量的 ——
+   照字數估的話，長型號會把 SKU 推到格子外，短的又留一大段空白。
+   兩段之間留一個字寬的空隙，不畫分隔線：ref.png 上就是靠距離分開的。 */
+function inlineSku(blocks){
+  const sku=(blocks||[]).find(b=>b.kind==='sku' && b.inline && !b.placed);
+  const mdl=(blocks||[]).find(b=>b.kind==='model' && !b.placed);
+  if(!sku || !mdl) return false;
+  const mn=bEl(mdl.id), sn=bEl(sku.id);
+  if(!mn || !sn) return false;
+  let mk=null, sk=null;
+  try{ mk=inkBox(mdl.id); sk=inkBox(sku.id); }catch(_){}
+  if(!mk || !sk) return false;
+  const gap=ty(14);
+  // 機型墨水的右緣（版面座標）＋空隙，再退掉 SKU 自己的左內距
+  const wantX=(+mdl.x||0)+mk.ox+mk.w+gap-sk.ox;
+  /* 兩行的**基線**要對齊，不是框的上緣：兩邊字級不一樣（SKU 比機型大一級），
+     照上緣對的話小的那一行會浮在上面。用墨水的下緣對齊最接近視覺上的基線。 */
+  const wantY=(+mdl.y||0)+mk.oy+mk.h-sk.oy-sk.h;
+  let moved=false;
+  if(Math.abs((+sku.x||0)-wantX)>.5){ sku.x=wantX; moved=true; }
+  if(Math.abs((+sku.y||0)-wantY)>.5){ sku.y=wantY; moved=true; }
+  return moved;
+}
+
+/* 攤開的那幾組價格（三組以上）：夾到每一組都塞得進自己那一欄。
+   為什麼要量：欄寬是 格寬/n，而數字有幾位是商品決定的 —— 44900 和 1290
+   差了兩位，寫死一個字級一定有一種會頂到隔壁那一欄
+   （量到過 0.9 那一級的價格佔 38.5% 格寬，而一欄只有 33.3%，最左邊那個
+    直接凸出格子外 3.5%）。
+   夾出來的比例**整格共用一個**：同一格裡三個價格不一樣大，看起來像其中一個
+   比較重要，而它們只是三種容量。
+   用 b.shrink 這道夾子，不動 b.fsFix —— 那是使用者自己調的那一份。 */
+function fitSpreadPrices(blocks){
+  const ps=(blocks||[]).filter(b=>b.kind==='price' && b.col!=null && !b.placed);
+  const n=ps.length;
+  if(n<3) return false;
+  const slot=(CW-MARGIN*2)/n - ty(6);        // 留一點縫，兩欄的數字不要貼在一起
+  let k=1;
+  ps.forEach(b=>{
+    const el=bEl(b.id); if(!el) return;
+    let ink=null; try{ ink=inkBox(b.id); }catch(_){}
+    const w=(ink && ink.w) ? ink.w : el.offsetWidth;
+    if(!(w>0)) return;
+    /* 量到的寬度是**現在這個 shrink 之下**的，所以要先還原回沒夾過的寬度，
+       再算新的比例 —— 不還原的話每跑一次就再乘一次，數字會一路縮到看不見。 */
+    k=Math.min(k, slot*(b.shrink||1)/w);
+  });
+  if(!(k>0) || !isFinite(k)) return false;
+  let moved=false;
+  ps.forEach(b=>{ if(Math.abs((b.shrink||1)-k)>.005){ b.shrink=k; moved=true; } });
+  return moved;
+}
+
+/* 一價那張商品圖：上緣**貼著**機型／SKU 那一行的下緣（中間不留空），
+   往下填到下邊界，維持正方形。
+   為什麼要量：那一疊有多高要看品名換不換行、轉盤把字放多大 ——
+   寫死一個百分比的話，字一大圖就被壓到，字一小中間就開一個洞。
+   自己搬過（placed）或自己縮放過（w0）的不碰，那是使用者的東西。 */
+function stickImage(blocks){
+  const imgs=(blocks||[]).filter(b=>b.kind==='img' && b.stick && !b.placed && !b.w0);
+  if(!imgs.length) return false;
+  const stack=(blocks||[]).filter(b=>b.rx==null && !b.placed
+    && ['brand','name','model','sku'].includes(b.kind));
+  let bottom=-Infinity;
+  stack.forEach(b=>{ const n=bEl(b.id); if(!n) return;
+    let k=null; try{ k=inkBox(b.id); }catch(_){}
+    bottom=Math.max(bottom, n.offsetTop+(k?k.oy+k.h:n.offsetHeight));
+  });
+  if(!isFinite(bottom)) return false;
+  const top=bottom+ty(STACK_GAP);
+  const n=imgs.length;
+  /* 讓開右下那一組（規格／SKU／價格），一格都不許疊到。
+     那一組有兩種讓法，**取畫得比較大的那一種**：
+       ・站在它左邊（beside）：往下填到下邊界，寬度到那一組的左緣為止。
+         一個價格時通常是這種 —— 價格只佔右下一小塊，左邊又高又寬。
+       ・站在它上面（above）：整排攤開用滿格寬，高度到那一組的上緣為止。
+         價格一多就變這種 —— 幾組價格上下疊起來是一根很高的柱子，
+         硬要擠在它左邊的話每張圖只剩格寬的四分之一（量到過 27%，
+         而下面還空著一大片沒人用）。
+     兩種都是「貼著機型那一行、靠最左邊」，差別只在往哪個方向長。 */
+  let right=CW-MARGIN, high=CH-MARGIN;
+  (blocks||[]).forEach(b=>{ if(b.rx==null) return;
+    const el=bEl(b.id); if(!el) return;
+    let k=null; try{ k=inkBox(b.id); }catch(_){}
+    right=Math.min(right, el.offsetLeft+(k?k.ox:0));
+    high =Math.min(high,  el.offsetTop +(k?k.oy:0));
+  });
+  const gapI=ty(12);
+  const wide=Math.max(0, (CW-MARGIN)-MARGIN);          // 整個格寬
+  const beside=Math.max(0, right-gapI-MARGIN);         // 左邊界到那一組的左緣
+  /* 每一張都是正方形，所以「排得下幾張」同時夾寬也夾高：
+     n 張並排的總寬不能超過可用的寬，單張的高不能超過可用的高。 */
+  const wBeside=Math.min((CH-MARGIN)-top, beside/n);
+  const wAbove =Math.min(Math.max(0, high-gapI-top), wide/n);
+  let w=Math.max(wBeside, wAbove);
+  const availW=(wAbove>wBeside) ? wide : beside;
+  w=Math.max(ty(40), Math.min(w, CW-MARGIN*2));
+  const step=n>1 ? Math.max(w, (availW-w)/(n-1)) : 0;
+  let moved=false;
+  imgs.forEach((b,i)=>{
+    const wx=MARGIN+i*step;
+    if(Math.abs((+b.w||0)-w)>.5){ b.w=w; moved=true; }
+    if(Math.abs((+b.y||0)-top)>.5){ b.y=top; moved=true; }
+    if(Math.abs((+b.x||0)-wx)>.5){ b.x=wx; moved=true; }
+  });
+  return moved;
+}
+
 function nudgeGroupBottom(blocks){
   const el=cellEl(); if(!el) return false;
   if(!el.querySelector('.cstage')) return false;
@@ -1550,17 +2206,26 @@ function nudgeGroupBottom(blocks){
   let moved=false;
 
   // 左上那一疊：每一塊各自對左緣（框的內距不一樣），整疊一起對上緣
-  const stack=list.filter(b=>['brand','name','model'].includes(b.kind) && b.rx==null);
+  const stack=list.filter(b=>['brand','name','model','sku'].includes(b.kind) && b.rx==null);
   if(stack.length){
     let top=Infinity;
     stack.forEach(b=>{ const o=inkOf(b); if(!o) return;
-      const dx=MARGIN-(o.n.offsetLeft+o.k.ox);
-      if(Math.abs(dx)>.5){ b.x=(+b.x||0)+dx; moved=true; }
+      /* 併排的那條 SKU 不對左緣 —— 它的左緣是「機型的右緣＋一個空隙」（inlineSku），
+         拉回邊界就等於把它疊回機型上面。上緣那一下它要跟著整疊走。 */
+      if(!b.inline){
+        const dx=MARGIN-(o.n.offsetLeft+o.k.ox);
+        if(Math.abs(dx)>.5){ b.x=(+b.x||0)+dx; moved=true; }
+      }
       top=Math.min(top, o.n.offsetTop+o.k.oy);
     });
     if(isFinite(top)){
       const dy=MARGIN-top;
-      if(Math.abs(dy)>.5){ stack.forEach(b=>{ b.y=(+b.y||0)+dy; }); moved=true; }
+      if(Math.abs(dy)>.5){
+        stack.forEach(b=>{ b.y=(+b.y||0)+dy; });
+        /* 貼著那一疊的圖跟著一起挪，不然這一下會在 SKU 和圖中間開一條縫。 */
+        list.forEach(b=>{ if(b.kind==='img' && b.stick) b.y=(+b.y||0)+dy; });
+        moved=true;
+      }
     }
   }
 
@@ -1843,10 +2508,8 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
     if(b){
       const r=hz.parentElement.getBoundingClientRect(), k=scaleOf();
       const c=hz.dataset.corner;
-      const side = (c==='n'||c==='s'||c==='w'||c==='e') ? c : '';
-      rz={ id:b.id, corner:c, side, base:scaleBase(b),
-           /* 單向拉伸要的是「現在多寬多高」，不是倍率 —— 直接改 b.w／b.h */
-           w0:+b.w||r.width/k, h0:+b.h||r.height/k,
+      rz={ id:b.id, corner:c, base:scaleBase(b),
+           w0:+b.w||r.width/k, h0:r.height/k,
            mx:e.clientX, my:e.clientY,
            /* 對角那一點固定不動，量的是「游標離它多遠」的變化 —— 跟 PPT 一樣，
               拉哪一角就從那一角長出去。 */
@@ -1872,15 +2535,19 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   if(el){
     const id=el.dataset.b;
     const blk=BLOCKS.find(x=>x.id===id);
+    /* Ctrl／⌘＋點＝挑集體移動的目標，不是選取也不是拖曳：
+       兩件事共用同一下滑鼠會互相打架。 */
+    if((e.ctrlKey || e.metaKey) && blk && ROLE!=='pm'){
+      e.preventDefault();
+      const key = bulkKey(blk), had = pickedIds.has(id);
+      if(had) pickedIds.delete(id); else pickedIds.add(id);
+      try{ parent.postMessage({ bulkPick:{ key, on:!had } }, '*'); }catch(_){}
+      renderCell();
+      return;
+    }
     /* 右下那一組是用「離右邊界多遠」定位的（b.rx）。要搬它之前先換算成絕對的 x ——
        量它現在畫在哪（offsetLeft 就是排版座標），然後把錨點拿掉。
        不換的話拖曳算出來的 b.x 根本沒人在看，放手後它會跳回右邊界。 */
-    const unpin = b => {
-      if(!b || b.rx == null) return;
-      const n = bEl(b.id);
-      b.x = n ? n.offsetLeft : (CW - MARGIN - (+b.rx||0));
-      delete b.rx;
-    };
     unpin(blk);
     if(blk && blk.kind==='img'){
       // 點 PNG：立刻選為當前圖層並展開左右面板
@@ -1921,28 +2588,13 @@ addEventListener('mousemove',e=>{
          為什麼是「改完再檢查」而不是先算出上限：一塊零件畫出來多大要含字框、
          border、padding，那三樣只有瀏覽器算得準（拖曳那邊漏掉它們就是 4 個單位的洞）。 */
       const snap0 = { x:b.x, y:b.y, w:b.w, h:b.h, sc:b.sc, fsFix:b.fsFix, w0:b.w0 };
-      if(rz.side){
-        /* 邊中點：只動一個方向，比例會變 —— 那就是 PPT 拉邊的行為。
-           量的是「手移了多少」除以縮放，不是距離比例：單向拉伸沒有對角可以當支點。 */
-        let dx=(e.clientX-rz.mx)/k, dy=(e.clientY-rz.my)/k;
-        if(e.shiftKey){ dx*=.35; dy*=.35; }
-        if(rz.side==='e') b.w=Math.max(12, rz.w0+dx);
-        if(rz.side==='w') b.w=Math.max(12, rz.w0-dx);
-        if(rz.side==='s') b.h=Math.max(12, rz.h0+dy);
-        if(rz.side==='n') b.h=Math.max(12, rz.h0-dy);
-        /* 拉上緣／左緣的時候，對邊要留在原地（PPT 也是這樣）—— 補平移。 */
-        if(rz.side==='w') b.x=(+b.x||0)+(rz.w0-b.w);
-        if(rz.side==='n') b.y=(+b.y||0)+(rz.h0-b.h);
-        /* 只拉寬沒拉高的圖，高度本來是「跟著寬等比例」。一旦拉了寬，就把當下的
-           高度也記下來，否則它會突然跳回等比例的高度。 */
-        if((rz.side==='e'||rz.side==='w') && !b.h) b.h=rz.h0;
-      }else{
+      /* 四個角，一律等比例：量的是「游標離對角那一點多遠」的變化，
+         整塊只有一個倍率，所以長寬比不可能被拉走。 */
+      {
         const d=Math.hypot(e.clientX-rz.ax, e.clientY-rz.ay)/k;
         let r=d/rz.d0;
         if(e.shiftKey) r=1+(r-1)*.35;      // 微調：同樣的手移距離只走三分之一
         setBlockScale(b, rz.base*r);
-        // 四角是等比例：拉過高度的圖也要跟著一起縮，不然比例會走掉
-        if(b.kind==='img' && b.h) b.h=rz.h0*(rz.base*r)/(rz.base||1);
       }
       holdPlace(b);                     // 拉過大小就釘住，別再被自動排版搬走
       dragHappened=true;
@@ -1996,6 +2648,9 @@ addEventListener('mousemove',e=>{
     drag.hit=hit;
     renderCell();
     if(hit){ const t=bEl(hit.id); if(t) t.classList.add('drop'); }
+    /* 集體移動：本格其他同種零件先跟著動（renderCell 剛重建過，所以在它之後貼），
+       同時把位移報給上層去預覽別格。一幀報一次就夠，滑鼠的解析度比畫面高。 */
+    if(BULK_MOVE && src && drag.orig && drag.orig[src.id]) bulkPreviewTick(src);
   }else if(marq){
     const p=cellPt(e); marq.x1=p.x; marq.y1=p.y;
     const c=cellEl().getBoundingClientRect();
@@ -2119,7 +2774,7 @@ function renderLayers(){
   box.innerHTML=imgs.map(b=>
     `<div class="lyr${activeImg===b.id?' on':''}" data-lyr="${b.id}" draggable="true">
        <span class="lgrip">☰</span>
-       <span class="lthumb">${imgHTML(b.key)}</span>
+       <span class="lthumb">${imgHTML(b.key, b.row)}</span>
        <span class="lname">${keyLabel(b.key)}</span>
        <span class="lz">z${b.z}</span>
        <button class="mini" data-top="${b.id}" style="margin:0">最上面</button>
@@ -2480,6 +3135,22 @@ addEventListener('mouseup',e=>{
         const b=BLOCKS.find(x=>x.id===id);
         if(b) holdPlace(b);
       }
+      /* 集體移動：把「這一下移了多遠」換成 mm 報上去，其他格照同樣的實際距離走。
+         報的是主要那一塊的位移（多選時它們本來就一起走同樣的量）。 */
+      if(BULK_MOVE && src && drag.orig && drag.orig[src.id]){
+        const per = unitsPerCm();
+        const dx = (+src.x||0) - (+drag.orig[src.id].x||0);
+        const dy = (+src.y||0) - (+drag.orig[src.id].y||0);
+        clearBulkPreview();
+        if(per > 0 && (Math.abs(dx) > .5 || Math.abs(dy) > .5)){
+          const mm = { keys:bulkTargets(src),
+                       dxMm:+(dx/per*10).toFixed(3), dyMm:+(dy/per*10).toFixed(3) };
+          /* 本格裡同一種的其他零件（例如兩個 SKU 拖了其中一個）也要跟著走 ——
+             上層轉發時會跳過來源那一格，所以它們只能在這裡處理。 */
+          applyBulkMove(mm, drag.ids);
+          try{ parent.postMessage({ bulkMove: mm }, '*'); }catch(_){}
+        }
+      }
     }
     drag=null; guides=[]; renderCell();
   }
@@ -2527,16 +3198,14 @@ function renderPick(){
        空調,Panasonic,變頻冷暖空調,CU-UJ28BHA2/CS-UJ28BA2
      那時候整排長得一模一樣，八列都只有一個「—」，只能靠 SKU 認人。
 
-     規矩：**整群都一樣的東西寫在群組標題上，一列只寫它跟同伴不一樣的地方**。
-     所以 iPhone 那種（全部都是 Apple）不會每一列都掛一個 Apple 把 256G 擠成灰字，
-     而空調那種（三個品牌混在一起）才把品牌寫在每一列上。 */
-  const same = (rows, f) => new Set(rows.map(f)).size <= 1;
+     規矩：**商品名和品牌寫在群組標題上**（一群就是一個商品一個品牌，
+     見 groups），**型號留在列上，而且是那一列的主標**（黑體）——
+     一群裡分辨得出誰是誰的就是它，把它收上去標題的話底下只會剩一個「—」。
+     沒有型號的（iPhone 那種）主標就退回規格。 */
   $('#panePick').innerHTML = gs.map(g=>{
-    const oneBrand = same(g.rows, rowBrand) ? rowBrand(g.rows[0]) : '';
-    const oneModel = same(g.rows, rowModel) ? rowModel(g.rows[0]) : '';
-    const head = [g.name, oneBrand, oneModel].filter(Boolean).join('　·　');
+    const head = [g.name, rowBrand(g.rows[0])].filter(Boolean).join('　·　');
     return `<div class="grp">${head}</div>`+g.rows.map(r=>{
-      const b = [oneBrand?'':rowBrand(r), r.spec, r.color, oneModel?'':rowModel(r)]
+      const b = [rowModel(r), r.spec, r.color]
                   .map(v=>String(v||'').trim()).filter(Boolean);
       return `<label class="item"><input type="checkbox" data-sku="${r.sku}" ${picked.has(r.sku)?'checked':''}>
         <b>${b[0]||'—'}</b>${b.slice(1).map(v=>`<span class="sub">${v}</span>`).join('')}<span class="var">${r.sku}　$${r.price.toLocaleString()}</span></label>`;
@@ -2546,8 +3215,11 @@ function renderPick(){
     const row=ROWS.find(r=>r.sku===e.target.dataset.sku);
     if(!row) return;
     if(e.target.checked){
+      /* 放不進同一格的（換了商品、或同名換了品牌）＝把這一格換成新的那一支，
+         不是跳一個「不可以」—— 挑錯貨要改，多按一次確認只是在路上多一道門。
+         比的是 pickKey：以前只比 name，同名跨品牌那幾支（空調）就這樣混進同一格。 */
       const cur=ROWS.find(r=>picked.has(r.sku));
-      if(cur && cur.name!==row.name){ picked.clear(); setTimeout(renderPick,0); }
+      if(cur && pickKey(cur)!==pickKey(row)){ picked.clear(); setTimeout(renderPick,0); }
       picked.add(row.sku);
     } else picked.delete(row.sku);
     renderCell();
@@ -2588,7 +3260,7 @@ function renderEdit(){
          <span class="ithumb">${imgHTML(k)}</span>
          <span class="iname">${keyLabel(k)}</span>
          <button class="mini" data-img="${k}" style="margin:0">上傳</button>
-         ${IMG[k]?`<button class="mini" data-imgdel="${k}" style="margin:0">清除</button>`:''}
+         ${(IMG[k]||IMG[imgKeyBase(k)])?`<button class="mini" data-imgdel="${k}" style="margin:0">清除</button>`:''}
        </div>`).join('')+`</div>
     <input type="file" id="imgFile" accept="image/*" style="display:none">
     <div style="margin-top:12px">
@@ -2654,7 +3326,11 @@ function renderEdit(){
   /* 清除也要往上報 —— 商品圖現在跟品牌圖一樣是目錄的一部分，
      只在本機 delete 掉的話，下一次收到目錄它就又回來了。 */
   $('#paneEdit').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=()=>{
-    delete IMG[b.dataset.imgdel]; refreshAll(); reportCatalogue();
+    const k = b.dataset.imgdel;
+    /* 清的是「畫面上那一張」。這一列自己那張沒有的話，看到的就是舊鑰匙底下
+       那一張共用的 —— 清它會連同名的其他幾列一起清掉，因為那本來就是同一張。 */
+    if (IMG[k]) delete IMG[k]; else delete IMG[imgKeyBase(k)];
+    refreshAll(); reportCatalogue();
   });
   $('#addR').onclick=()=>{ ROWS.push({name:'新商品',spec:'128G',color:'',sku:'0000000',price:0}); reindex(); refreshAll(); reportCatalogue(); };
   $('#stress').onclick=()=>{

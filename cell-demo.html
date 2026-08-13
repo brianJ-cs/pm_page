@@ -1,0 +1,135 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>格子預設版面 demo · 一價／二價</title>
+<!--
+  格子（1 price / 2 price）的預設長相 demo。獨立一頁，不動 2cell-product-pick.html。
+  用 ref.png、DM.jpg 上的真資料，好跟原圖直接並排比。
+-->
+<style>
+  :root{
+    --paper:#fff;
+    --ink:#111;
+    --ink-dim:#8a8a8a;      /* 型號／SKU 那一行 */
+    --name:#0b3fa8;         /* 品名的藍 */
+    --price:#e2000f;        /* 價格的紅 */
+    --edge:#c9c9c9;         /* 格子的框線 */
+    --page:#f2f2f4;
+  }
+  body{margin:0;background:var(--page);color:var(--ink);
+       font:14px/1.5 "Microsoft JhengHei","PingFang TC",sans-serif;padding:28px}
+  h1{font-size:17px;margin:0 0 4px}
+  .sub{color:#666;font-size:13px;margin:0 0 22px}
+  .wrap{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start}
+  .lab{font-size:13px;margin:0 0 8px;font-weight:700}
+  .lab span{font-weight:400;color:#666}
+
+  /* ── 格子本體 ────────────────────────────────────────────
+     座標一律用 % —— 這一版談的是「每個元素佔格子多少比例」，
+     換成真的公分之後比例不變。 */
+  .cell{
+    position:relative;width:520px;aspect-ratio:1.42/1;   /* ref.png 量出來的格子比例 */
+    background:var(--paper);border:1px solid var(--edge);
+    box-sizing:border-box;overflow:hidden;
+  }
+  .cell > *{position:absolute}
+
+  /* 左上那一疊：logo → 品名 → 型號（＋SKU）→ 商品圖，由上往下靠左。
+     商品圖也排在這一疊裡（不是自己定位）—— 它要**貼著上面那一行的下緣**，
+     中間不留空。自己定位的話那個間距是寫死的百分比，字級一改就對不上。 */
+  .stack{top:4.5%;left:4%;width:60%}
+  .logo{font-size:26px;font-weight:800;letter-spacing:.5px;line-height:1.1}
+  .name{font-size:23px;font-weight:800;color:var(--name);line-height:1.25;margin-top:2px}
+  /* 型號和 SKU 同一行，中間留一段空白當分隔 —— 不加分隔線，
+     ref.png 上這兩段就是靠距離分開的。
+     ⚠️ 只有**一個價格**時 SKU 才收在這裡；兩個價格時 SKU 要站在自己那個價格上面。 */
+  .ids{display:flex;gap:14px;font-size:12px;color:var(--ink-dim);
+       line-height:1.45;margin-top:3px;white-space:nowrap}
+
+  /* 商品圖：貼著上面那一行，中間 0 間距 */
+  .img{
+    position:static;margin-top:0;width:74%;aspect-ratio:1/1;
+    display:flex;align-items:center;justify-content:center;
+    border:1px dashed #bbb;color:#aaa;font-size:12px;background:#fafafa;
+  }
+  /* 預留圖（還沒換上真的商品圖）畫小一點 —— 框不變，只有裡面那張圖縮。
+     換上真圖之後就是框本來的大小，跟現在一樣。 */
+  .img .ph{width:70%;height:70%;display:flex;align-items:center;justify-content:center;
+           border:1px dashed #cfcfcf;background:#fff;border-radius:3px}
+
+  /* 右下：價格。 */
+  .price{right:4%;bottom:4%;text-align:right;line-height:1}
+  .mkt{font-size:12px;color:#333;text-decoration:line-through;margin-bottom:2px}
+  .now{font-size:54px;font-weight:800;color:var(--price);letter-spacing:-1px;
+       font-style:italic}
+
+  /* 二價：兩組**上下疊**，不是左右並排。每一組 SKU 在上、價格在下。 */
+  .prices{right:4%;bottom:4%;text-align:right;display:flex;flex-direction:column;
+          align-items:flex-end;gap:6px}
+  .pgroup{display:flex;flex-direction:column;align-items:flex-end;line-height:1}
+  .pgroup .sku{font-size:12px;color:var(--ink-dim);letter-spacing:.3px;
+               white-space:nowrap;margin-bottom:1px}
+  .pgroup .sku i{font-style:normal;border:1.5px solid #111;border-radius:5px;
+                 padding:0 5px;margin-right:5px;font-size:11px;color:#111}
+  .pgroup .now{font-size:38px}
+
+  .note{margin-top:26px;font-size:13px;color:#444;max-width:820px}
+  .note b{color:#000}
+  code{background:#e7e7ea;padding:1px 5px;border-radius:3px;font-size:12px}
+</style>
+
+<h1>格子預設長什麼樣 —— 一個價格／兩個價格</h1>
+<p class="sub">資料：一價是 <code>ref.png</code> 左上那一格（LG），二價是內建那組 iPhone 17 Pro Max。</p>
+
+<div class="wrap">
+  <div>
+    <p class="lab">一個價格　<span>（已經照這樣做進程式了）</span></p>
+    <div class="cell">
+      <div class="stack">
+        <div class="logo">LG</div>
+        <div class="name">變頻冷暖空調</div>
+        <div class="ids">
+          <span>型號：LSU22CHST/LSN22ICHST</span>
+          <span>SKU：2160413</span>
+        </div>
+        <div class="img"><div class="ph">商品圖</div></div>
+      </div>
+      <div class="price">
+        <div class="mkt">市價 32900元</div>
+        <div class="now">28952</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="lab">兩個價格　<span>← 這一版要看的</span></p>
+    <div class="cell">
+      <div class="stack">
+        <div class="logo">Apple</div>
+        <div class="name">iPhone 17 Pro Max</div>
+        <!-- 二價：SKU 不收在這裡，它要站在自己那個價格上面 -->
+        <div class="ids"><span>型號：A3296</span></div>
+        <div class="img"><div class="ph">商品圖</div></div>
+      </div>
+      <div class="prices">
+        <div class="pgroup">
+          <div class="sku"><i>256G</i>SKU：2156742</div>
+          <div class="now">44900</div>
+        </div>
+        <div class="pgroup">
+          <div class="sku"><i>512G</i>SKU：2156739</div>
+          <div class="now">51900</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="note">
+  二價跟一價差三件事：<br>
+  ① <b>SKU 不收到左上那一疊</b> —— 兩個號碼各配一個價，收到左邊就對不起來了，
+     所以每個 SKU 站在**自己那個價格正上方**。<br>
+  ② <b>兩組價格上下疊</b>，不是左右並排（現在程式裡是並排的）。整組一樣靠右下角到底。<br>
+  ③ 規格（<code>256G</code>）掛在 SKU 前面當一個小框。<br>
+  另外：<b>預留圖畫小一點</b>（框的 70%）—— 框本身沒變，所以換上真的商品圖之後
+  大小跟現在一模一樣。
+</p>

@@ -61,6 +61,11 @@
        JS 那邊的 ROLE_COLOR 直接讀這兩個名字 —— 同一個顏色不留兩份。 */
     --sticky-design:#87CEEB;
     --sticky-pm:#ffd447;
+    /* 行銷不貼便利貼，所以這一個名字只有 UI 在用（桌面那一層的偏色、登入頁那顆點）。
+       放在這裡是因為三個身分色要一起看得到：第三個要在天藍和黃之間分得開，
+       而且不能是綠（綠是「在對方手上」）—— 薄荷綠夠淺，混進深色桌面之後不會被
+       當成狀態色。 */
+    --sticky-mkt:#8fd6b4;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height: 80%;}
@@ -247,16 +252,21 @@
     display:flex;align-items:center;gap:7px;
     font-size:15px;font-weight:800;color:var(--ink);margin-bottom:2px;
   }
-  /* 那一顆點＝這個身分貼出來的便利貼是什麼顏色。行銷不貼便利貼，所以沒有點 */
+  /* 那一顆點＝這個身分的顏色：便利貼是它、進去之後整片桌面偏的也是它。
+     三個都有點，因為現在三個身分都有顏色了（行銷那個只在 UI 上用）。 */
   #loginGate .lg-dot{width:11px;height:11px;border-radius:50%;flex:none}
   #loginGate .lg-dot.design{background:var(--sticky-design)}
   #loginGate .lg-dot.pm{background:var(--sticky-pm)}
+  #loginGate .lg-dot.marketing{background:var(--sticky-mkt)}
   #loginGate .lg-user{
     font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;text-align:left;
     border:1.5px solid var(--line-strong);border-radius:9px;
     padding:9px 13px;background:var(--surface-2);color:var(--ink);
   }
   #loginGate .lg-user:hover{background:var(--accent-tint);border-color:var(--accent-line);color:var(--accent-ink-strong)}
+  /* 上次就是這一位：藍框＝「你正在點的東西」那一套的最輕一級，只是指路，
+     不預設你就是他 —— 這一頁問的就是「你是誰」。 */
+  #loginGate .lg-user.last{border-color:var(--accent-line);background:var(--accent-tint)}
   #loginGate .lg-add{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
     border:1.5px dashed var(--line-strong);border-radius:9px;
@@ -548,6 +558,8 @@
     border-color:var(--green-rule);
   }
   .pm-blk.done{background:var(--green-rule);border-color:var(--green-rule)}
+  /* 在設計手上＝白的，跟下面那張小地圖同一套。灰留給「還沒開工」 */
+  .pm-blk.wip{background:var(--surface)}
   /* 拉開小地圖的把手：從卡片下緣凸出來一塊，像書籤。不做成按鈕是因為它不是一個
      「動作」，是這張卡片本身還有一截沒拉開。 */
   .mm-tab{
@@ -563,15 +575,34 @@
   .mm-tab.on .arw{transform:rotate(180deg)}
   /* 兩張版平均分掉整行，中間留一大段 —— 正面和背面是兩張不同的紙，
      貼在一起會看成一張被切開的版。 */
-  .mm-wrap{display:flex;gap:36px;width:100%;align-items:flex-start}
+  /* 兩張版並排，圖例整條掛在最下面（flex-wrap 讓它自己換到第二行） */
+  .mm-wrap{display:flex;flex-wrap:wrap;gap:36px;width:100%;align-items:flex-start}
   .mm-wrap.shut{display:none}
+  .mm-key{
+    flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:2px;
+    font-size:11.5px;font-weight:700;color:var(--muted);
+  }
+  .mm-key span{display:flex;align-items:center;gap:5px}
+  .mm-key i{
+    width:11px;height:11px;border-radius:3px;flex:none;
+    border:1px solid var(--ink);background:var(--surface);
+  }
+  .mm-key .k-part{background:linear-gradient(to top,var(--green) 50%,var(--surface) 50%)}
+  .mm-key .k-done{background:var(--green-rule)}
+  .mm-key .k-none{background:var(--g2)}
+  .mm-key .k-unlaid{background:repeating-linear-gradient(135deg,
+    var(--g2) 0 3px, var(--surface-2,#f3f5f9) 3px 6px)}
   .mm-side{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
   .mm-tag{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:3px}
   .mm-page{border:2px solid var(--ink);background:var(--surface);display:flex;overflow:hidden}
   .mm-split{display:flex;width:100%;height:100%;overflow:hidden}
   .mm-fold{width:3px;background:var(--rule);flex:none}
+  /* 底色講的是「球在誰手上」，跟編輯器左邊那張小地圖同一套（見 cardMiniNode）：
+     白＝在設計、半綠＝一半交出去了、綠＝整塊都在 PM、灰＝還沒開工、斜線＝還沒排版。
+     預設是白的（在設計手上）—— 以前預設是灰的，於是「排好版沒人挑」跟
+     「還沒排版」長得一模一樣。 */
   .mm-blk{
-    border:1.5px solid var(--ink);background:var(--g2);overflow:hidden;
+    border:1.5px solid var(--ink);background:var(--surface);overflow:hidden;
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     line-height:1.15;color:var(--ink-dim);font-weight:800;text-align:center;
   }
@@ -585,7 +616,14 @@
     color:var(--ok-ink);
   }
   .mm-blk.done{background:var(--green-rule);color:var(--surface)}
-  .mm-blk.unlaid{background:var(--g2);color:var(--muted)}
+  /* 還沒開工（每一格都還停在提明細）＝灰。跟「還沒排版」分開：
+     一個是版畫好了還沒動，一個是連版都還沒有 —— 要催的人不一樣。 */
+  .mm-blk.none{background:var(--g2);color:var(--muted)}
+  .mm-blk.unlaid{
+    background:repeating-linear-gradient(135deg,
+      var(--g2) 0 5px, var(--surface-2,#f3f5f9) 5px 10px);
+    color:var(--muted);
+  }
 
   /* ---- 目前階段管理列（從 落版單系統 搬過來）--------------------------
      它站在檔期列表最上面。這是一條**淺色**的帶子，坐在深色的操作區上，
@@ -864,8 +902,13 @@
      旁邊面板勾了什麼，這裡當場就長出來。
      isolate 讓卡片自己開一層，畫布 z-index:-1 壓在卡片底色之上、文字之下。 */
   #boardOverview .cell{position:relative;isolation:isolate}
+  /* ⚠️ 畫布**不跟著縮放改尺寸**，改的是 transform（大小、位置都由 fitCellCanvases
+     用 inline style 給）。以前是 inset:0 貼滿格子，於是每滾一格 60 支 iframe 就各自
+     被改一次寬高 → 每一支裡面的文件重排一次。量到的是一步縮放 184ms（把 iframe 的
+     尺寸凍住之後剩 65ms，整個拿掉是 53ms —— 也就是說那 119ms 全是它）。
+     縮放只改 transform 的話，那是合成器的事：格子裡的文件一動都不用動。 */
   .ccanvas{
-    position:absolute;inset:0;z-index:-1;width:100%;height:100%;
+    position:absolute;left:0;top:0;z-index:-1;transform-origin:0 0;
     border:0;background:transparent;pointer-events:none;
   }
   /* 正在拼的那一格，設計可以直接在版上搬東西；PM 只挑貨，不搬版 */
@@ -1295,13 +1338,17 @@
   .ruler-marker-x::after{top:2px;left:3px}
   .ruler-marker-y::after{left:2px;top:3px}
 
-  .board-ws{grid-column:2;grid-row:2;position:relative;background:var(--surface);box-shadow:0 0 0 1px var(--rule);overflow:hidden}
+  .board-ws{grid-column:2;grid-row:2;position:relative;background:var(--paper,var(--surface));box-shadow:0 0 0 1px var(--rule);overflow:hidden}
 
   .split-container{display:flex;width:100%;height:100%;overflow:hidden}
   .fold{width:2px;background:#5b6472;flex:none}
+  /* ⚠️ 版位的底色＝狀態（灰＝待提明細、白＝設計手上、綠＝整塊在 PM），那條規矩不讓。
+     紙色只換掉「白」那一級 —— 白本來就不是「紙」，是「在設計手上」，換成紙色之後
+     它講的還是同一件事，只是順便看得到這本 DM 印在什麼顏色上。
+     所以取色盤（見 #paperTray）刻意避開灰和綠的區間：那兩級要一直分得出來。 */
   .window-node{
     box-sizing:border-box;border:1px solid var(--line-strong);position:relative;
-    background:var(--surface);
+    background:var(--paper,var(--surface));
     display:flex;align-items:center;justify-content:center;overflow:hidden;
   }
   .window-node.unowned{background:#e9ecf2;border-color:#cdd4e0}
@@ -1339,6 +1386,36 @@
   }
   #totalRail .tool.sub{width:30px;height:30px;font-size:14px}
   #totalRail .tool.sub.on{background:var(--surface);color:var(--blue);border-color:var(--surface);font-weight:800}
+
+  /* ---- 紙色：接在工具下面的另一段（同一條列，但不是第五個工具）---- */
+  #paperTray{
+    display:flex;flex-direction:column;align-items:center;gap:6px;
+    margin-top:6px;padding-top:9px;border-top:1px solid rgba(255,255,255,.32);
+  }
+  #paperTray .rail-title{margin-bottom:0}
+  /* 兩欄剛好塞進 52px 的列子裡；五顆落點排成兩欄比排成一長條好指 */
+  #paperSwatches{display:grid;grid-template-columns:repeat(2,22px);gap:5px}
+  .pswatch{
+    width:22px;height:22px;padding:0;border-radius:5px;cursor:pointer;
+    border:1.5px solid rgba(255,255,255,.55);
+  }
+  .pswatch:hover:not(:disabled){border-color:var(--surface)}
+  /* 現在就是這一個：白框加一圈外光，在任何底色上都看得出來
+     （藍是「你正在點的東西」，這一條列本身就是藍的，所以這裡靠白）*/
+  .pswatch.on{border-color:var(--surface);box-shadow:0 0 0 2px rgba(255,255,255,.45)}
+  /* 按不動的時候不要淡掉：它還是在報告「這本 DM 是什麼顏色」，
+     淡掉會讓人以為顏色本身是淡的。改成不給游標、不給 hover。 */
+  .pswatch:disabled{cursor:default}
+  #paperCustom{
+    width:49px;height:22px;padding:0;border:1.5px solid rgba(255,255,255,.55);
+    border-radius:5px;background:transparent;cursor:pointer;
+  }
+  #paperCustom:disabled{cursor:default}
+  /* PM／行銷看到的那一句。寫著卻按不動比沒有更難懂，所以字要換掉，東西留著。 */
+  #paperTray .pt-note{
+    font-size:9.5px;line-height:1.35;text-align:center;color:rgba(255,255,255,.82);
+    max-width:46px;
+  }
 
   /* 切分：紅色那條線就是這一刀會落在哪，旁邊寫著它離那一塊的邊幾公分 ——
      跟行銷開檔那支（落版單系統 #cutPreview）同一個樣子、同一個單位。
@@ -1661,13 +1738,6 @@
   .mini-mark:hover{border-color:var(--blue);color:var(--chrome-ink)}
   .mini-mark.on{background:var(--blue);border-style:solid;border-color:var(--blue);color:#fff}
 
-  /* 小地圖底下那顆「進度」 */
-  .mini-prog{
-    display:block;width:100%;margin:10px 0 2px;font:inherit;font-size:12px;font-weight:800;
-    cursor:pointer;border:1px solid var(--chrome-line);border-radius:8px;padding:7px 8px;
-    background:var(--chrome-2);color:var(--chrome-ink);text-align:center;
-  }
-  .mini-prog:hover{border-color:var(--blue);background:#3a4457}
 
   /* 進度面板：蓋在畫面上，左邊版位、右邊 PM */
   #progMask{
@@ -1863,8 +1933,10 @@
   /* product cards — .sq/.g2 two-tone carried over from dm-block-zoom.html */
   /* card type scaled up to dm-block-zoom.html's .sq baseline (10px) and its
      2px hover outline, so the labels stay readable at 8-to-10 columns */
+  /* 底色＝這本 DM 印在什麼顏色的紙上（plan.bg → paintPaper() 把 --paper 掛在 #board
+     上）。沒有設過就是白的，所以 fallback 是原本的 --surface。 */
   .cell{
-    flex:1 1 0;min-width:0;background:var(--surface);border:1px solid var(--line-strong);border-radius:3px;
+    flex:1 1 0;min-width:0;background:var(--paper,var(--surface));border:1px solid var(--line-strong);border-radius:3px;
     padding:5px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;
     font-size:calc(10px * var(--z));line-height:1.3;text-align:center;overflow:hidden;
     touch-action:none;user-select:none;
@@ -1873,7 +1945,12 @@
        transition and must not be slowed by a default here */
     transition:background-color .13s ease,border-color .13s ease;
   }
-  .cell.g2{background:var(--g2);border-color:var(--g2-rule)}
+  /* 兩色群組的第二色是「隔壁那一組」的淡淡一階，不是一個固定的灰 —— 紙變成米色
+     之後還寫死 --g2，那一組就會變成米色紙上的一塊藍灰。 */
+  .cell.g2{
+    background:color-mix(in srgb, var(--paper,var(--surface)) 92%, var(--ink));
+    border-color:var(--g2-rule);
+  }
   .cell:hover{outline:2px solid var(--blue);outline-offset:-1px;z-index:1}
   /* 相接處只留一條線：右邊和下面那一條交給隔壁去畫，不然邊界會變兩倍粗 */
   .row .cell + .cell{border-left:none}
@@ -1944,6 +2021,9 @@
     content:"";width:46px;height:3px;border-radius:2px;background:rgba(74,111,220,.45);
   }
   .mh-grab:hover::after{background:var(--blue);height:4px;width:60px}
+  /* 拼板 不碰刊頭的尺寸：把手整根收起來，不是留著按不動 —— 寫著卻按不動比沒有
+     更難懂（同 CLAUDE.md 對 PM／行銷 那塊刊頭的處理）。改大小是 落版 的事。 */
+  #board.mh-locked .mh-grab{display:none}
   body.mh-resizing,body.mh-resizing *{cursor:ns-resize !important;user-select:none}
 
   /* ---- 刊頭擺在卡片旁邊 ----------------------------------------------------
@@ -2341,6 +2421,41 @@
      這些狀態維持原本的粗細 —— 它們該搶眼，因為它們會消失。 */
 
   /* ==========================================================================
+     身分色 —— 桌面偏一點，紙一點都不偏
+     ==========================================================================
+     一個人常常同時開兩個視窗（自己測「送給 PM」），而三個身分的畫面本來長得
+     一模一樣，只有右上角那個名牌分得出來 —— 而名牌就那麼小一顆。
+     ⚠️ **藍色一點都不動**：藍是「你正在點的東西」（分頁、選取、放下去的位置），
+     身分是「你是誰」。兩件事共用一個顏色的話，PM 看到的黃色分頁到底是
+     「我選的」還是「我是 PM」就講不清楚了。
+     ⚠️ **紙也一點都不動**：#sheetMain／#totalScroll 以內是版面本人，那是要印出去
+     的東西，不該因為誰在看而變色。染的只有桌面 —— 控制項站的那一層。
+     接在深色那一段後面，理由一樣：靠來源順序蓋過去。
+     ========================================================================== */
+  /* 還沒登入時也要有值，不然 color-mix 整條算不出來、桌面會變透明 */
+  body{--role:var(--sticky-design)}
+  body[data-role="design"]{--role:var(--sticky-design)}
+  body[data-role="pm"]{--role:var(--sticky-pm)}
+  body[data-role="marketing"]{--role:var(--sticky-mkt)}
+
+  /* 桌面整片微微偏色。7% 是刻意的下限：再多就開始像「主題色」，而它只是一個
+     記號 —— 深色底和 --chrome-ink 的對比度必須維持原樣。
+     只染這兩個：上面那幾條列和左右兩欄本來就沒有自己的底，它們透的就是 body。
+     （#boardRail 是唯一自己寫了 --chrome 的，所以要跟著換。） */
+  body{background:color-mix(in srgb, var(--role) 7%, var(--chrome))}
+  #boardRail{background:color-mix(in srgb, var(--role) 7%, var(--chrome))}
+  /* 最上面那條的上緣一條實色：整片偏色看得出「不一樣」，這一條才講得出「是哪一個」。
+     用 inset shadow 不用 border —— border 會把那條列變高 3px。
+     ⚠️ `.bar` 要指名是 #editorChrome 底下那一條：檔期卡上的進度條也叫 .bar
+     （見 renderPmPlans），照 class 掃會在每一張卡上畫一條身分色。
+     兩條列不會同時出現（檔期列表是 .topbar、編輯器是 #editorChrome 那條），
+     所以線永遠只有一條。 */
+  .topbar,#editorChrome > .bar{box-shadow:inset 0 3px 0 var(--role)}
+  /* 名牌本來就是唯一寫著「你是誰」的那一顆，讓那個顏色貼在字旁邊。
+     padding 要跟著讓出來，不然那條線會壓在名字上。 */
+  #whoBadge{box-shadow:inset 3px 0 0 var(--role);padding-left:9px}
+
+  /* ==========================================================================
      乾淨版（列印 → 另存為 PDF）
      印出來的東西要跟印刷廠拿到的那一份一樣：刊頭圖、每一格的商品版面，沒有別的。
      便利貼、標籤、把手、按鈕、壓暗、hover 的框全部是螢幕上的東西 —— 它們是
@@ -2360,13 +2475,17 @@
     #board{
       visibility:visible !important;
       position:fixed !important;left:0 !important;top:0 !important;margin:0 !important;
-      background:transparent !important;
+      /* 紙色是印出來的一部分（plan.bg），所以這裡不是 transparent 而是那個顏色 ——
+         格子下面那一句把每一格洗成透明了，整張版的底就只剩這裡撐著。
+         沒設過就是白的，跟以前一模一樣。 */
+      background:var(--paper,#fff) !important;
       transform:scale(var(--pk,1)) !important;transform-origin:top left !important;
     }
     #board *{visibility:visible !important}
     /* 螢幕上的東西：把手、標籤、便利貼、紅色數字、落點、拖曳線 */
     #board .grip,#board .cst,#board .cmk,#board .cnb,#board .cbadge,
     #board .mh-grab,#board .mh-move,#board .mh-x,#board .mh-zone,
+    #board .rowbtns,
     #board .drop-line,#board .mh-label{display:none !important}
     /* 格子只是位置，不是印出來的線。壓暗、選取、hover 的框同理 —— 那些講的是
        「棒子在誰手上」「你正在點哪一格」，跟印刷品無關。 */
@@ -2468,6 +2587,11 @@
            見 stylesheet 最後的 @media print。 -->
       <!-- 提交給設計：只有行銷、只有還是草稿的檔期看得到。每一塊版位都填齊了才按得下去。 -->
       <button class="btn primary" id="submitBtn" hidden>提交給設計</button>
+      <!-- 進度：本來掛在左欄小地圖上面。它問的是「這個檔期還剩多少」，跟旁邊那排
+           （在 PM n 格、已儲存）是同一種東西 —— 整個檔期現在怎麼樣，不是某一塊版位。
+           擺在這裡也不必先把左欄拉開才找得到。 -->
+      <button class="btn" id="progBtn"
+              title="看這個檔期交出去多少、每位 PM 拼完幾格">進度</button>
       <button class="btn" id="exportBtn"
               title="把這個版位印成乾淨版：沒有便利貼、按鈕、把手、壓暗和標籤。在列印對話框把目的地選成「另存為 PDF」">匯出乾淨版</button>
       <span id="hereNow"></span>
@@ -2578,6 +2702,17 @@
         <button class="tool sub on" data-cutdir="v" title="直切：切成左右兩塊">⇔</button>
         <button class="tool sub" data-cutdir="h" title="橫切：切成上下兩塊">⇕</button>
       </div>
+      <!-- 紙色。放在 總體 而不是 落版／拼板：底色是整本 DM 的事，跟切版、品類同一頁
+           （那兩頁做的是一個版位一個版位的事）。
+           **只有設計按得動**，跟刊頭圖同一條規矩 —— 那是會跟著整本印出去的主視覺。
+           PM 和行銷看得到現在是什麼顏色，但點不開（見 renderPaperTray）。 -->
+      <div id="paperTray">
+        <div class="rail-title">紙色</div>
+        <div id="paperSwatches"></div>
+        <!-- 自訂：落點只給那幾個常用的，真的要別的顏色再開這一個 -->
+        <input type="color" id="paperCustom" title="自訂紙色">
+        <div class="pt-note" id="paperNote"></div>
+      </div>
     </div>
     </div>
   </div>
@@ -2615,7 +2750,25 @@
          一個版位一套；價格照「這一格有幾個價格」分三組，各自一組 ＋／−。 -->
     <div id="typeWrap">
       <div class="rail-title">字級</div>
-      <div class="tw-n" data-tw="sku">SKU<span class="tw-b"
+      <div class="tw-n" data-tw="brand">商標<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="name">品名<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="model">型號<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="img">商品圖<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="sku1">一SKU<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="sku2">二SKU<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <div class="tw-n" data-tw="sku3">三SKU<span class="tw-b"
         ><button type="button" data-step="-1" title="縮小">−</button
         ><button type="button" data-step="1" title="放大">＋</button></span></div>
       <div class="tw-n" data-tw="1">一價<span class="tw-b"
@@ -2627,7 +2780,10 @@
       <div class="tw-n" data-tw="3">三價<span class="tw-b"
         ><button type="button" data-step="-1" title="縮小">−</button
         ><button type="button" data-step="1" title="放大">＋</button></span></div>
-      <button class="btn" id="typeReset" title="SKU 和三組價格都交還給自動" aria-label="還原成自動">
+      <div class="tw-n" data-tw="margin">邊界<span class="tw-b"
+        ><button type="button" data-step="-1" title="縮小">−</button
+        ><button type="button" data-step="1" title="放大">＋</button></span></div>
+      <button class="btn" id="typeReset" title="字級和邊界都交還給預設" aria-label="還原成預設">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>
@@ -2686,6 +2842,11 @@
            格線只給眼睛看，不吸 —— 零件放哪就是哪。 -->
       <button id="snapBtn" class="tgl" data-key="G"
               title="顯示格線 (G)：開著就一直看得到一層格線。它只是尺，零件不會被吸到線上">⊞</button>
+      <!-- 集體移動：開著的時候，拖一塊零件＝這個版位裡**每一格**的同一種零件一起走。
+           它是開關不是工具（工具講「點下去會發生什麼」，它講「這一下影響幾格」），
+           所以跟格線一樣長成 .tgl，不參與工具的互斥。 -->
+      <button id="bulkBtn" class="tgl" data-key="B"
+              title="集體移動 (B)：拖一個品名／SKU／價格，整個版位每一格的同一種都跟著走同樣的距離">⧉</button>
       <!-- 鎖定這張版。標籤寫在工具列裡，但它自己是 position:fixed，浮在畫面右邊 —
            這是 落版 最後才做的那一件事，值得一個固定又找得到的位置。 -->
       <button id="confirmBtn">確認格子排列</button>
@@ -3102,6 +3263,9 @@ function snapshot(){
   return JSON.stringify({
     layout: currentPlan.layout,
     guides: currentPlan.guides || null,
+    /* 紙色住在 plan 上不在 layout 底下，所以要自己收進來（跟 guides 同一個理由）。
+       換底色是一個看得見的動作，Ctrl+Z 退不回去只會被當成程式沒反應。 */
+    bg: currentPlan.bg || '',
     active: activeBlock ? activeBlock.id : null
   });
 }
@@ -3145,7 +3309,8 @@ function applySnapshot(json){
   currentPlan.layout = snap.layout;
   restoreNotes(currentPlan.layout, keepNotes);
   currentPlan.guides = snap.guides || { front: [], back: [] };
-  histLock = true;                             // rebuilding must not re-record
+  currentPlan.bg = snap.bg || '';
+  histLock = true;                           // rebuilding must not re-record
   histQuiet = Date.now() + 700;                // 連帶擋掉畫布晚一步的回報
   try { rebuildAll(snap.active); } finally { histLock = false; }
   markDirty();
@@ -4450,15 +4615,8 @@ function renderMinimap(){
      貼紙和蓋章是同一件事的兩半：一個是「我有話跟對面說」，一個是「這幾格換你了」，
      兩個都是對另一邊做的動作，手就該在同一個地方。 */
 
-  /* 進度站在小地圖上面：下面那兩張圖是「哪一塊在哪」，這一顆是「還剩多少」——
-     同一個問題的兩個問法。擺在上面是因為那兩張圖夠高，放底下就得先捲一段才看得到。 */
-  const prog = document.createElement('button');
-  prog.className = 'mini-prog';
-  prog.textContent = '進度';
-  prog.title = '看這個檔期交出去多少、每位 PM 拼完幾格';
-  prog.addEventListener('click', openProgress);
-  sheetSide.appendChild(prog);
-
+  /* 「進度」搬到上面那條工具列去了（#progBtn）—— 它講的是整個檔期，
+     而這一段講的是「哪一塊在哪」。 */
   setSecCount('mini', `${collectBlocks(layout.front, []).length
                        + collectBlocks(layout.back, []).length} 個版位`);
 
@@ -4944,9 +5102,61 @@ function syncPmFilled(sh){
   });
 }
 
+/* 列首那根 ⋮⋮：flex:none 的 14px ＋ 6px margin，固定寬、不跟著縮放。卡片分的是
+   「整列寬度減掉它」，所以算格子實際多寬的時候要扣。 */
+const GRIP_PX = 20, CELL_BD = 1;
+
+/** 這一格的畫布該多大、擺在哪。
+    ⚠️ iframe 的**版面尺寸**（width/height）只跟「沒有縮放時這一格多大」有關，
+    所以縮放時它一個 px 都不會變 —— 不變就不會觸發裡面那份文件重排，那正是
+    縮放最貴的一件事（見 .ccanvas 的註解）。縮放交給 transform:scale()。
+    尺寸全部用算的、不量 DOM：量 60 格就是 60 次 getBoundingClientRect，
+    每一次都可能逼出一輪重排，而那些數字版面自己就知道。 */
+function fitCellCanvases(m){
+  const z = sheetZoom || 1;
+  const rowW = m.side ? m.gridW - m.side.w : m.gridW;
+  if (!(rowW > 0) || !(m.rowH > 0)) return;
+  const rows = [...boardEl.children].filter(
+    r => r.classList && r.classList.contains('row') && !r.classList.contains('masthead-row'));
+  rows.forEach((row, ri) => {
+    const n = m.counts[ri];
+    if (!n) return;
+    // 格子畫出來的內距（框線裡面）：⋮⋮ 和框線都是固定 px，不隨縮放縮
+    const contentW = (rowW - GRIP_PX) / n - CELL_BD * 2;
+    const contentH = m.rowH - CELL_BD * 2;
+    /* 版面尺寸用「印出來那一格」除以縮放 —— 跟 cellCm 同一個基準，所以對縮放
+       嚴格不變。跟實際內距差的是 ⋮⋮ 和框線，取小的那個比例吸收掉（等比，不變形），
+       剩下的置中，就是那條最多 4px 的細邊。 */
+    const W0 = (rowW / z) / n, H0 = m.rowH / z;
+    if (!(W0 > 0) || !(H0 > 0)) return;
+    const s = Math.min(contentW / W0, contentH / H0);
+    if (!(s > 0) || !isFinite(s)) return;
+    const w0 = W0.toFixed(2), h0 = H0.toFixed(2);
+    const left = ((contentW - W0 * s) / 2).toFixed(2);
+    const top  = ((contentH - H0 * s) / 2).toFixed(2);
+    row.querySelectorAll('.ccanvas').forEach(f => {
+      // 寬高只在真的變了才寫：寫下去就是一次版面失效，而縮放時它本來就不該變
+      if (f.dataset.w0 !== w0){ f.style.width  = w0 + 'px'; f.dataset.w0 = w0; }
+      if (f.dataset.h0 !== h0){ f.style.height = h0 + 'px'; f.dataset.h0 = h0; }
+      f.style.transform = `translate(${left}px,${top}px) scale(${s.toFixed(5)})`;
+      /* 畫布裡的把手要「螢幕上永遠一樣大」，可是它看不到自己被這裡縮了多少
+         （iframe 裡量到的座標不含外面這層 transform）。只有這裡知道，所以告訴它。
+         只在真的變了才送 —— 縮放時每一格都送一次，不然就是白花的 60 則訊息。 */
+      const ss = s.toFixed(4);
+      if (f.dataset.ss !== ss){
+        f.dataset.ss = ss;
+        try { f.contentWindow.postMessage({ stageScale: +ss }, '*'); } catch (_){}
+      }
+    });
+  });
+}
+
 /** Size-only pass: no DOM is created, so focus, caret and selection survive. */
 function layoutGrid(m){
   syncPmFilled(m.sh);
+  /* 分頁切換多半走這條路（同一份 DOM，結構沒變），所以「刊頭鎖不鎖」要在這裡跟上，
+     不能只在重建那一趟設 —— 從 落版 切到 拼板 把手會留在畫面上。 */
+  boardEl.classList.toggle('mh-locked', mhLocked());
   boardEl.style.setProperty('--z', sheetZoom);          // card type scales with it
   boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
   boardEl.style.width = m.gridW + 'px';
@@ -4957,6 +5167,7 @@ function layoutGrid(m){
   }
   // the empty 刊頭 prints its own size, so it has to follow a live edge drag
   paintMhLabel(m);
+  fitCellCanvases(m);       // 畫布只換 transform，不換尺寸
 }
 
 /** 旁邊那根刊頭：讓出卡片那半邊的寬度，自己拉到滿高，縫也跟著站好。 */
@@ -4985,6 +5196,25 @@ function paintMhLabel(m){
   const w = m.side ? (m.sh.mastheadW * m.side.frac).toFixed(1) : m.sh.mastheadW;
   const h = m.side ? m.blockHcm.toFixed(1) : m.sh.mastheadH;
   size.textContent = `刊頭 ${w}×${h}cm`;
+  /* 後半句跟著分頁走（拼板 放不了圖）。「圖讀不到」那一句不碰 —— 它講的是
+     這張圖壞了，不是這裡能不能放圖。 */
+  const lab = size.parentElement, sub = lab && lab.querySelector('.mh-sub');
+  if (sub && !lab.dataset.err) sub.textContent = mhSubText(activeMode === 'design');
+  /* ⚠️ 這一段是**縮放時最貴的一件事**：底下那個二分法每試一次就 setProperty 一次
+     再讀 scrollHeight，＝逼瀏覽器把整張版（拼板時底下還掛著 60 支 iframe）重排一次，
+     九次就是九輪。量到過光是它一步縮放就吃掉 18.6ms。
+     但那個比例**跟縮放無關**：框和字級都乘同一個 var(--z)（見 .masthead 的 font-size），
+     放大兩倍是框和字一起放大兩倍，裝不裝得下完全一樣。所以只有「框的原始大小」或
+     「那句話」變了才需要重算 —— 除以 sheetZoom 就是原始大小，拿它當鑰匙。
+     鑰匙記在元素身上：重建出來的是新元素，沒有鑰匙，自然會重算一次。 */
+  const z = sheetZoom || 1;
+  const boxW = m.side ? m.side.w : m.gridW;
+  const boxH = m.side ? Math.max(m.totalH, m.stackH) : m.mhPx;
+  const fitKey = `${size.textContent}|${sub ? sub.textContent : ''}`
+               + `|${(boxW / z).toFixed(1)}|${(boxH / z).toFixed(1)}`;
+  if (mh.dataset.fitKey === fitKey) return;
+  mh.dataset.fitKey = fitKey;
+
   /* 整句都要看得見：框放不下就把字縮到放得下為止，不再把後半句收起來。
      二分找最大的、還裝得下的比例 —— 直接一格一格縮太慢，而且字會抖。
      縮不下去就停在下限，寧可小也不要少一半的字。 */
@@ -5070,6 +5300,7 @@ function renderGrid(block){
     grab.className = 'mh-grab v';
     grab.title = '拖曳調整刊頭與卡片各佔多少';
     grab.addEventListener('pointerdown', ev => {
+      if (mhLocked()) return;           // 站著的刊頭同理：拖它是改兩邊各佔幾成＝改尺寸
       ev.preventDefault(); ev.stopPropagation();
       mhSplit = { startX: ev.clientX, startFrac: m.side.frac, sh,
                   at: m.side.at, w: m.gridW };
@@ -5097,8 +5328,10 @@ function renderGrid(block){
   boardEl.style.setProperty('--z', sheetZoom);
   boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
   boardEl.style.width = m.gridW + 'px';
+  boardEl.classList.toggle('mh-locked', mhLocked());
   sizeSideMasthead(m);
   paintMhLabel(m);
+  fitCellCanvases(m);
 
   main.scrollLeft = keepL;              // stay where the user was looking
   main.scrollTop  = keepT;
@@ -5310,6 +5543,20 @@ function buildMastheadRow(sh, heightPx, pxPerCm, maxHcm, atBottom){
 }
 
 /** 刊頭本體。 */
+/* 拼板 上的刊頭是「看得到、量得到，但不動它」：那一頁在排格子裡的貨，刊頭的大小
+   和主視覺是版面的事，屬於 落版。同一塊 DOM 兩頁共用（sheetSig 不分頁，切分頁多半
+   走「只改大小」那條路），所以擋在**動作發生的當下**問一次，不靠重建。 */
+const mhLocked = () => activeTab === 'board';
+
+/* 空刊頭上那半句話：說的是「這裡現在能做什麼」，所以身分和分頁各不一樣。
+   算在一個地方，buildMasthead 和 paintMhLabel 都讀它 —— 那兩條路都會走到，
+   各寫一份遲早有一份忘了跟著改。 */
+function mhSubText(canImg){
+  if (!canImg) return ' — 刊頭圖由設計放';
+  return mhLocked() ? ' — 刊頭圖在 落版 放'
+                    : ' — 拖曳圖片到這裡，或點擊選擇檔案';
+}
+
 function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
   const mh = document.createElement('div');
   mh.className = 'masthead' + (sh.masthead.image ? ' hasimg' : '')
@@ -5335,18 +5582,20 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
       mh.classList.remove('hasimg');
       const bad = document.createElement('span');
       bad.className = 'mh-label';
-      bad.innerHTML = '<span class="mh-size">刊頭圖讀不到</span>' +
-                      (canImg ? '<span class="mh-sub"> — 網址失效了，點一下重放一張</span>'
-                              : '<span class="mh-sub"> — 網址失效了，請設計重放一張</span>');
+      /* 這一句是講「這張圖壞了」，不是講「這裡可以放圖」—— 標成 err，
+         paintMhLabel 就不會拿放圖的提示把它蓋掉。 */
+      bad.dataset.err = '1';
+      bad.innerHTML = '<span class="mh-size">刊頭圖讀不到</span><span class="mh-sub"> — 網址失效了，'
+        + (canImg ? (mhLocked() ? '請到 落版 重放一張' : '點一下重放一張')
+                  : '請設計重放一張') + '</span>';
       img.replaceWith(bad);
     });
     mh.appendChild(img);
   } else {
     const lab = document.createElement('span');
     lab.className = 'mh-label';
-    lab.innerHTML = '<span class="mh-size"></span>' +
-                    (canImg ? '<span class="mh-sub"> — 拖曳圖片到這裡，或點擊選擇檔案</span>'
-                            : '<span class="mh-sub"> — 刊頭圖由設計放</span>');
+    lab.innerHTML = '<span class="mh-size"></span><span class="mh-sub">'
+                  + mhSubText(canImg) + '</span>';
     mh.appendChild(lab);
   }
 
@@ -5369,6 +5618,13 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
        什麼時候都能換。（這裡以前擋在「版位鎖定」後面，那個鎖已經整條拿掉了。） */
     // click -> file picker
     mh.addEventListener('click', () => {
+      if (mhLocked()) return;              // 拼板 不放圖
+      /* 已經有圖了就不要用點的換。刊頭是整本 DM 的主視覺，而這塊框幾乎佔滿版位
+         上緣 —— 想拖一下版、或點一下想看清楚，手一滑就開了檔案總管，選完就換掉。
+         換圖要「把新的那一張拖進來」：那是一個講得出對象的動作，不會誤觸。
+         （空的、或圖讀不到的時候照舊點得開 —— 那時候沒有東西會被蓋掉，
+           而框上那句話寫的就是「點擊選擇檔案」。） */
+      if (mh.classList.contains('hasimg')) return;
       mhFile.onchange = () => {
         const f = mhFile.files && mhFile.files[0];
         if (f) readImage(f, sh);
@@ -5379,12 +5635,14 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
 
     // drag & drop
     ['dragenter','dragover'].forEach(t => mh.addEventListener(t, ev => {
+      if (mhLocked()) return;            // 不亮落點：這一頁放不了圖
       ev.preventDefault(); mh.classList.add('dropping');
     }));
     ['dragleave','drop'].forEach(t => mh.addEventListener(t, ev => {
       ev.preventDefault(); mh.classList.remove('dropping');
     }));
     mh.addEventListener('drop', ev => {
+      if (mhLocked()) return;
       const f = ev.dataTransfer && ev.dataTransfer.files[0];
       if (f && /^image\//.test(f.type)){ readImage(f, sh); return; }
       // a PDF or an .ai landing here is a mistake worth naming out loud
@@ -5397,6 +5655,7 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
   grab.className = 'mh-grab';
   grab.title = atBottom ? '往上拖：刊頭變長' : '往下拖：刊頭變長';
   grab.addEventListener('pointerdown', ev => {
+    if (mhLocked()) return;             // 拼板 不改刊頭的尺寸（CSS 也已經收起來了）
     ev.preventDefault();
     ev.stopPropagation();             // don't start a row drag
     // 列數鎖在拖之前的樣子，放手才解開
@@ -7018,6 +7277,13 @@ const cardEl = id => boardEl.querySelector(`.cell[data-cell-id="${id}"]`);
    旁邊那塊面板勾了什麼 → 這裡轉給該格的畫布 → 畫布自己排好、再把排好的樣子
    報回來存進檔期。存的只有資料，沒有畫面。 */
 const canvasFrame = id => { const el = cardEl(id); return el && el.querySelector('.ccanvas'); };
+/* 畫布報上來的座標用的是它自己的版面尺標，螢幕上它被 scale 過 —— 兩者的比值
+   就是那個 scale。用量到的寬除以版面寬，不必去問是誰設的。 */
+function canvasScale(f){
+  const lay = f.offsetWidth;
+  if (!lay) return 1;
+  return f.getBoundingClientRect().width / lay || 1;
+}
 const pickedOf = c => ((c.board && c.board.state && c.board.state.picked) || []);
 
 addEventListener('message', e => {
@@ -7040,6 +7306,9 @@ addEventListener('message', e => {
     e.source.postMessage({ boardRole: canvasRole(),
                            catalogue: CATALOGUE || undefined,
                            logos: LOGOS || undefined,
+                           /* 紙色跟身分一樣要在它一起來的時候就給：版面重畫時畫布是
+                              整批重掛的，晚一步送就會先閃一次白。 */
+                           paper: paperOf(currentPlan),
                            /* 版面重畫時畫布是整批重掛的，開著的那一格也在裡面 ——
                               它一起來就要知道自己是不是那一格。 */
                            stageEditing: boardCell ? String(boardCell.cell.id) : '',
@@ -7110,7 +7379,17 @@ addEventListener('message', e => {
     const f = canvasFrame(target.id);
     if (f && f.contentWindow && had)
       try { f.contentWindow.postMessage({ boardPicked: d.state.picked || [] }, '*'); } catch (_){}
-    else paintOneCanvas(target);      // 本來是空的：現在才長出畫布來
+    else {
+      paintOneCanvas(target);         // 本來是空的：現在才長出畫布來
+      /* ⚠️ 剛出生的 iframe 沒有尺寸也沒有 transform —— 那兩樣是 fitCellCanvases
+         用 inline style 給的（.ccanvas 的 CSS 刻意不管大小，見它的註解），
+         而畫這一格的那一趟渲染跑在它出生之前。不補這一下，它就停在 iframe
+         天生的 300×150：格子其實是 128×182，於是裡面那一份照 300×150 排、
+         再被塞進格子裡 —— 看起來就是整格內容擠到右下角然後被切掉，
+         **而且要重整才會好**（重整才會再走一次完整的版面）。
+         paintBoardThumbs 早就補了這一下，只有面板挑貨這條路漏掉。 */
+      if (lastMetrics) fitCellCanvases(lastMetrics);
+    }
     markBadge(target);
     noteBoardChange(target, was);      // 勾了什麼是一步；沒變就不要多一步
     return;
@@ -7212,7 +7491,15 @@ function syncTypeBar(){
   const t = typeOf(sheetOf(activeBlock));
   twRows.forEach(row => {
     const key = row.dataset.tw;
-    const v = key === 'sku' ? t.skuSize / TYPE_DEFAULT.skuSize : t.priceByCount[+key];
+    if (key === 'margin'){
+      let mt = row.querySelector('.tw-p');
+      if (!mt){ mt = document.createElement('span'); mt.className = 'tw-p';
+                row.insertBefore(mt, row.querySelector('.tw-b')); }
+      mt.textContent = (+t.marginMm).toFixed(1) + 'mm';   // 永遠寫著，它不是「調過沒」
+      return;
+    }
+    const v = /^sku[123]$/.test(key) ? t.skuByCount[+key.slice(3)]
+            : TYPE_KEYS.includes(key) ? t[key] : t.priceByCount[+key];
     let tag = row.querySelector('.tw-p');
     const off = Math.abs(v - 1) > .005;
     if (!off){ if (tag) tag.remove(); return; }
@@ -7232,14 +7519,29 @@ function bumpType(key, dir){
   const t = typeOf(sheetOf(activeBlock));
   const mul = dir > 0 ? TYPE_STEP : 1 / TYPE_STEP;
   const clamp = v => Math.min(TYPE_MAX, Math.max(TYPE_MIN, v));
-  const was = key === 'sku' ? t.skuSize : t.priceByCount[+key];
-  if (key === 'sku'){
-    const k = clamp((t.skuSize / TYPE_DEFAULT.skuSize) * mul);
-    t.skuSize = +(TYPE_DEFAULT.skuSize * k).toFixed(2);
+  const val = k => /^sku[123]$/.test(k) ? t.skuByCount[+k.slice(3)]
+                : k === 'margin' ? t.marginMm
+                : TYPE_KEYS.includes(k) ? t[k] : t.priceByCount[+k];
+  const was = val(key);
+  /* 邊界加減固定的 mm，不跟著乘 —— 它是一個實體長度，「大 8%」講不出意思，
+     而 0.2mm 是印刷上講得出來的一步。 */
+  if (key === 'margin'){
+    const m = Math.min(MARGIN_MM_MAX, Math.max(0,
+      +( (+t.marginMm || 0) + dir * MARGIN_MM_STEP ).toFixed(2)));
+    if (m === +t.marginMm) return false;
+    t.marginMm = m;
+    syncTypeBar(); queueType(activeBlock); markDirty();
+    return true;
+  }
+  if (/^sku[123]$/.test(key)){
+    const n = +key.slice(3);
+    t.skuByCount[n] = +clamp((+t.skuByCount[n] || 1) * mul).toFixed(3);
+  } else if (TYPE_KEYS.includes(key)){
+    t[key] = +clamp((+t[key] || 1) * mul).toFixed(3);
   } else {
     t.priceByCount[+key] = +clamp((+t.priceByCount[+key] || 1) * mul).toFixed(3);
   }
-  const now = key === 'sku' ? t.skuSize : t.priceByCount[+key];
+  const now = val(key);
   if (now === was) return false;          // 已經頂到上／下限，別再排隊重排
   syncTypeBar();
   queueType(activeBlock);                 // 一次按好幾下收成一次重排（80ms）
@@ -7283,7 +7585,9 @@ document.getElementById('typeReset').addEventListener('click', () => {
   if (!activeBlock) return;
   const t = typeOf(sheetOf(activeBlock));
   t.priceByCount = { 1:1, 2:1, 3:1 };
-  t.skuSize = TYPE_DEFAULT.skuSize;
+  t.skuByCount   = { 1:1, 2:1, 3:1 };
+  t.marginMm     = MARGIN_MM_DEFAULT;
+  TYPE_KEYS.forEach(k => t[k] = 1);
   syncTypeBar();
   pushType(activeBlock);
   commitAction();
@@ -8050,7 +8354,20 @@ document.addEventListener('keydown', e => {
    ⚠️ 舊資料存的是絕對 px（轉盤還是數字輸入框的時候，像 52、80）。倍率永遠落在
    0.4–3，所以 > 4 一律當成舊的 px 丟掉、交還自動 —— 換不回倍率（要知道當時的
    基準才算得出來），而自動那一套本來就是同組取最小，不會亂掉。 */
-const TYPE_DEFAULT = { skuSize: 12, priceByCount: { 1:1, 2:1, 3:1 } };
+/* 一個版位一套，全部都是**倍率**（1＝沒調過）。
+   商標／品名／型號／商品圖 是後來加的：那四樣本來只能整支程式改預設值，
+   可是「這一檔的品名要大一點」是每一檔都會有的事。 */
+const TYPE_KEYS = ['brand', 'name', 'model', 'img'];
+/* SKU 跟價格一樣照「這一格有幾個」分三組：兩個 SKU 的格子和三個的，字級本來就
+   該分開調。以前 SKU 存的是絕對 px（基準 12）而價格存倍率，兩支轉盤形狀不一樣，
+   每次都要記哪支是哪種 —— 改成同一種。 */
+/* 邊界用 mm，不是座標單位：座標框是照長寬比正規化出來的（見畫布的 adoptStageCm），
+   同樣的 8 個單位在 5.2cm 的格子上是 0.8mm、在 3.5cm 的扁格子上只有 0.14mm ——
+   也就是說舊的「邊界」根本不是一個固定的距離。改用 mm，每一格自己換算。 */
+const MARGIN_MM_DEFAULT = .8, MARGIN_MM_STEP = .2, MARGIN_MM_MAX = 6;
+const TYPE_DEFAULT = { priceByCount: { 1:1, 2:1, 3:1 }, skuByCount: { 1:1, 2:1, 3:1 },
+                       marginMm: MARGIN_MM_DEFAULT,
+                       brand: 1, name: 1, model: 1, img: 1 };
 const TYPE_MIN = .4, TYPE_MAX = 3, TYPE_STEP = 1.08;
 function typeOf(sh){
   if (!sh.type) sh.type = JSON.parse(JSON.stringify(TYPE_DEFAULT));
@@ -8060,7 +8377,14 @@ function typeOf(sh){
     const v = +t.priceByCount[n];
     t.priceByCount[n] = (!v || v > 4) ? 1 : v;      // 空的、舊的絕對 px → 自動
   });
-  if (!+t.skuSize) t.skuSize = TYPE_DEFAULT.skuSize;
+  if (!t.skuByCount) t.skuByCount = { 1:1, 2:1, 3:1 };
+  [1, 2, 3].forEach(n => { const v = +t.skuByCount[n];
+    t.skuByCount[n] = (!v || v > 4) ? 1 : v; });
+  delete t.skuSize;                  // 舊欄位（絕對 px），現在一律用倍率
+  { const m = +t.marginMm;
+    t.marginMm = (m >= 0 && m <= MARGIN_MM_MAX) ? m : MARGIN_MM_DEFAULT; }
+  // 舊版位沒有這四個欄位 —— 補成 1（＝跟以前長得一樣），不是留 undefined
+  TYPE_KEYS.forEach(k => { const v = +t[k]; t[k] = (!v || v > 4) ? 1 : v; });
   return t;
 }
 
@@ -8111,7 +8435,9 @@ function pushType(block){
     const dial = (n && n <= 3) ? t.priceByCount[n] : 1;
     try {
       f.contentWindow.postMessage({ type: {
-        skuSize: t.skuSize,
+        skuByCount: { 1:t.skuByCount[1], 2:t.skuByCount[2], 3:t.skuByCount[3] },
+        marginMm: t.marginMm,
+        mul: { brand: t.brand, name: t.name, model: t.model, img: t.img },
         priceMul: +dial || 1,                      // 1 ＝ 沒調過，就是自動算的那一級
         groupFs: (n && n <= 3 && g[n]) ? g[n] : 0,
         refCmh: refH || 0          // 字級的基準格高（cm）—— 一個版位一個
@@ -8124,17 +8450,34 @@ function pushType(block){
    都一樣長 —— 本來每一格都用固定 540 寬，窄格子等於被整個壓小，寫死的
    字級跟著失真。cm 是實際尺寸，跟縮放無關：r.width 和 pxPerCm 都含了
    sheetZoom，除完就約掉了。 */
-function cellCm(c, el){
+function cellCm(c, el, metrics){
   if (!activeBlock || !el) return null;
-  const k = sheetMetrics(activeBlock).pxPerCm;
+  // 整張版一起送的時候，版面的數字算一次就夠（60 格各算一次是純浪費）
+  const m = metrics || sheetMetrics(activeBlock);
+  const k = m.pxPerCm;
   if (!k || !isFinite(k) || k <= 0) return null;
-  /* 量的是**框線裡面**（clientWidth／clientHeight），不是 getBoundingClientRect ——
-     畫布那支 iframe 是 inset:0 貼在框線裡的，它拿到的長寬比要跟這裡算的一致。
-     差的只有兩條 1px 的框線，但畫布會照這個比例開座標框，然後把整份置中縮進去：
-     比例差一點，兩側就各留一條白邊，而拼板一放大那條白邊就跟著放大。 */
-  const w = el.clientWidth, h = el.clientHeight;
-  if (!w || !h) return null;
-  return { w: +(w / k).toFixed(3), h: +(h / k).toFixed(3) };
+  /* ⚠️ **不要量畫出來的那個框**。這一格幾公分是版面的事實，不該跟著縮放晃 ——
+     而量出來的一定會晃，有兩個原因，兩個都不是雜訊而是真的：
+       ・列首那根 ⋮⋮（.grip）是 flex:none 的 14px＋6px margin，**固定 20px、
+         不跟著縮放走**，卡片分的是「整列寬度減 20」。所以放得越大，那 20px
+         佔的比例越小，格子畫出來的長寬比就一路在變。
+       ・框線 1px 同理，而且 clientWidth 是整數 —— 縮到小的時候一格才 101×148，
+         一個 px 的進位就是 1%。60 格那種扁格子只有 0.7cm 高，量到的長寬比
+         前後晃了 3%。
+     晃進去的下場：座標系被重開、每一塊的座標乘一次、整格 innerHTML 重寫
+     （商品圖跟著重生），而且 CM_H 還是字級的分母（見畫布的 ty()），所以字也跟著抖。
+     量到過 60 格的版位滾 12 下＝重畫 240 次。
+     改成照版面自己的數字算：gridW 和 rowH 都乘過 sheetZoom，pxPerCm 也是，
+     除下去縮放**剛好約掉**，所以這個值對縮放是嚴格不變的 —— 不是「差不多穩定」。
+     算的是「印出來那一格」：不扣 ⋮⋮ 也不扣框線，那兩樣是螢幕上的東西，印不出來。
+     螢幕上因此會有一條細邊（畫布置中，見 fitStage 的 min()），越放大越窄 ——
+     跟以前那條「越放大越寬」的白邊剛好相反，而它換來的是縮放完全不動版面。 */
+  const row = el.parentElement;
+  const n = row ? row.querySelectorAll('.cell').length : 1;
+  // 刊頭站旁邊時，那一柱的寬度是從版面寬裡讓出去的（見 sizeSideMasthead 的 padding）
+  const rowW = m.side ? m.gridW - m.side.w : m.gridW;
+  if (!(rowW > 0) || !(m.rowH > 0) || !n) return null;
+  return { w: +((rowW / n) / k).toFixed(3), h: +(m.rowH / k).toFixed(3) };
 }
 
 /* 只改大小那條路（沒有重建）：iframe 換了寬高，但它的座標框還停在上一次重建時
@@ -8143,10 +8486,11 @@ function cellCm(c, el){
    所以尺寸一變就把新的 cm 補送一次。畫布自己會比對，框沒真的變就不重排。 */
 function pushCellCm(){
   if (!activeBlock) return;
+  const m = sheetMetrics(activeBlock);
   (sheetOf(activeBlock).cells || []).forEach(c => {
     const el = cardEl(c.id), f = el && el.querySelector('.ccanvas');
     if (!f || !f.contentWindow) return;
-    const cm = cellCm(c, el);
+    const cm = cellCm(c, el, m);
     if (cm) try { f.contentWindow.postMessage({ stageCm: cm }, '*'); } catch (_){}
   });
 }
@@ -8226,7 +8570,12 @@ function paintCellState(c){
    位置用量的，不用 offsetLeft/offsetWidth —— 那兩個是整數，而格子是 flex:1 1 0 分出來
    的小數寬，一格差不到 1px，一列排下去就歪掉十幾 px（量過 -3.8 一路到 -12.5）。 */
 function placeCellTag(row, el, tag){
-  const rr = row.getBoundingClientRect(), er = el.getBoundingClientRect();
+  placeCellTagAt(row.getBoundingClientRect(), el, tag);
+}
+/* 整列一起擺的時候，列的位置量一次就夠 —— 一格量一次的話 60 格就是 60 次，
+   而每一次 getBoundingClientRect 都可能逼出一輪重排。 */
+function placeCellTagAt(rr, el, tag){
+  const er = el.getBoundingClientRect();
   tag.style.left = (er.right - rr.left) + 'px';
   tag.style.top  = (er.top   - rr.top)  + 'px';
 }
@@ -8236,9 +8585,12 @@ function placeCellTag(row, el, tag){
     所以每次重排都整批重量一次 —— 少了這一步，量過整列歪到 30px。 */
 function placeCellTags(){
   boardEl.querySelectorAll('.row').forEach(row => {
-    row.querySelectorAll('.cst').forEach(tag => {
+    const tags = row.querySelectorAll('.cst');
+    if (!tags.length) return;
+    const rr = row.getBoundingClientRect();     // 一列量一次，不是一格量一次
+    tags.forEach(tag => {
       const el = row.querySelector(`.cell[data-cell-id="${tag.dataset.for}"]`);
-      if (el) placeCellTag(row, el, tag); else tag.remove();
+      if (el) placeCellTagAt(rr, el, tag); else tag.remove();
     });
   });
 }
@@ -8248,6 +8600,8 @@ function paintBoardThumbs(){
   if (activeTab !== 'board' || !activeBlock) return;
   queueType(activeBlock);        // 畫布重新掛上來，字級設定要跟著再送一次
   (sheetOf(activeBlock).cells || []).forEach(paintOneCanvas);
+  // 剛掛上來的那幾支還沒有尺寸和 transform（渲染那一趟跑在它們出生之前）
+  if (lastMetrics) fitCellCanvases(lastMetrics);
   document.getElementById('boardOverview').classList.toggle('nomarks', !showMarks);
   /* 再量一次：剛剛那一輪是在版面還沒安定下來時量的（捲軸這時候才出現，一出現
      格子就變窄）。下一幀量到的才是使用者真正看到的那一版。 */
@@ -8271,6 +8625,21 @@ function clearBoardThumbs(){
 boardOv.addEventListener('mousedown', e => {
   if (e.target.closest('.cell')) e.preventDefault();
 });
+
+/* 點在版面上、但不在那一格裡 → 那一格的選取收掉（藍框和四顆把手一起消失）。
+   ⚠️ 這一則只有在點**畫布以外**的地方時才收得到：iframe 裡面的點擊不會冒泡到
+   這一頁。所以這裡收到 mousedown，就代表使用者點的是格子外面的空地（或別格的
+   邊框），那正是「點出去」該有的意思。
+   點到別格的零件是另一條路（見 stageSel）—— 那時候上層是被那一格通知的。
+   工具列、意見欄、字級 那幾條不在 #boardOverview 裡，所以按它們不會收掉選取：
+   那些是「對選取做的事」，一按就取消選取的話等於按不到。 */
+boardOv.addEventListener('mousedown', e => {
+  const cell = e.target.closest('.cell');
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    if (cell && f.closest('.cell') === cell) return;   // 同一格的空白處，留著
+    try { f.contentWindow.postMessage({ stageClearSel: 1 }, '*'); } catch (_){}
+  });
+}, true);
 boardOv.addEventListener('click', e => {
   if (boardDragged){ boardDragged = false; return; }   // 那是拖版面，不是點格子
   // 便利貼自己處理點擊（挑出那一則），不要順手把這一格的面板開起來
@@ -8348,7 +8717,11 @@ addEventListener('message', e => {
   const cell = f && f.closest('.cell');
   if (!cell) return;
   const fr = f.getBoundingClientRect();
-  const L = fr.left + r.left, T = fr.top + r.top, R = fr.left + r.right, B = fr.top + r.bottom;
+  /* 畫布現在是 transform:scale 過的，它報上來的座標用的是自己那把尺，
+     跟畫面上的 px 不是 1:1 —— 乘回來才對得上（見 .ccanvas）。 */
+  const cs = canvasScale(f);
+  const L = fr.left + r.left * cs, T = fr.top + r.top * cs,
+        R = fr.left + r.right * cs, B = fr.top + r.bottom * cs;
   cell.querySelectorAll('.cmk').forEach(n => {
     const b = n.getBoundingClientRect();
     if (b.right > L && b.left < R && b.bottom > T && b.top < B) n.classList.add('dodge');
@@ -8367,8 +8740,8 @@ addEventListener('message', e => {
     ? [...boardOv.querySelectorAll('.ccanvas')].find(n => n.contentWindow === e.source)
     : null;
   if (f){
-    const r = f.getBoundingClientRect();
-    x = r.left + w.cx; y = r.top + w.cy;
+    const r = f.getBoundingClientRect(), cs = canvasScale(f);
+    x = r.left + w.cx * cs; y = r.top + w.cy * cs;
   } else {
     /* 退路：拿螢幕座標減掉視窗位置和瀏覽器外框去猜。外框高度是猜的、Windows 顯示
        縮放 125% 時 screenX 跟 CSS px 又不是同一把尺 —— 所以只有在認不出 iframe
@@ -8417,15 +8790,26 @@ let boardPan = null, boardDragged = false;
    所以這裡沒有「到底是點還是拖」要等，直接當成點那一格。
    補的是 click 不是直接開面板：點一格要先過蓋章／不是你的回合／手上拿著貼紙／
    拿著工具那一串判斷，那些只寫在 click 裡面一份，重寫一份遲早會跟本尊分岔。 */
+/* 某一格抓到選取了：其他每一格都放手。版上一次只該有一個藍框 ——
+   兩個框同時亮著，看起來就像兩邊都在編輯。 */
+addEventListener('message', e => {
+  if (!('stageSel' in (e.data || {}))) return;
+  if (!e.data.stageSel) return;                 // 放手的那則不必轉發
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    if (f.contentWindow === e.source) return;
+    try { f.contentWindow.postMessage({ stageClearSel: 1 }, '*'); } catch (_){}
+  });
+});
+
 addEventListener('message', e => {
   const p = e.data && e.data.stagePass;
   if (!p || activeTab !== 'board' || p.button !== 0) return;
   const f = [...boardOv.querySelectorAll('.ccanvas')].find(n => n.contentWindow === e.source);
   const cell = f && f.closest('.cell');
   if (!cell) return;
-  const r = f.getBoundingClientRect();
+  const r = f.getBoundingClientRect(), cs = canvasScale(f);
   cell.dispatchEvent(new MouseEvent('click',
-    { bubbles: true, clientX: r.left + p.cx, clientY: r.top + p.cy }));
+    { bubbles: true, clientX: r.left + p.cx * cs, clientY: r.top + p.cy * cs }));
 });
 
 boardOv.addEventListener('pointerdown', e => {
@@ -9000,6 +9384,67 @@ function exportClean(){
    但留著就是一個會過期的數字 —— 版位大小一變它就錯了）。 */
 addEventListener('afterprint', () => boardEl.style.removeProperty('--pk'));
 document.getElementById('exportBtn').addEventListener('click', exportClean);
+document.getElementById('progBtn').addEventListener('click', openProgress);
+
+/* ---- 集體移動 -----------------------------------------------------------
+   每一格是一支自己的 iframe，彼此看不到 —— 所以「整個版位一起移動」只能由這裡
+   轉一手：拖的那一格放手時報一個位移，這裡再發給其他每一格。
+   ⚠️ 位移用 **mm**，不是座標單位：座標框是照長寬比正規化的，同樣的單位數在寬格子
+   和窄格子代表的實際距離不一樣，整個版位會移得參差不齊。
+   ⚠️ 只在**放手**時發一次。拖曳途中每一幀就發給 60 支 iframe 的話，就是縮放那次
+   184ms/步 的重演。拖的那一格自己跟著手走，其他格在放手時到位。 */
+let bulkMove = false;
+/* Ctrl＋點挑出來的目標（'price#1' 這種）。整個版位共用一份，所以放在這裡，
+   由這裡廣播 —— 每一格自己記的話，你在 A 格挑的東西 B 格不會知道。 */
+let bulkKeys = [];
+function tellBulkKeys(){
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    try { f.contentWindow.postMessage({ bulkKeys }, '*'); } catch (_){}
+  });
+}
+addEventListener('message', e => {
+  const k = e.data && e.data.bulkPick;
+  if (!k || !k.key) return;
+  const at = bulkKeys.indexOf(k.key);
+  if (k.on && at < 0) bulkKeys.push(k.key);
+  if (!k.on && at >= 0) bulkKeys.splice(at, 1);
+  tellBulkKeys();
+});
+function tellBulkMode(){
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    try { f.contentWindow.postMessage({ bulkMode: bulkMove }, '*'); } catch (_){}
+  });
+}
+const bulkBtn = document.getElementById('bulkBtn');
+bulkBtn.addEventListener('click', () => {
+  bulkMove = !bulkMove;
+  bulkBtn.classList.toggle('on', bulkMove);
+  tellBulkMode();
+  toast(bulkMove
+    ? '集體移動：拖一塊，每一格的同一個一起走。Ctrl＋點可以挑要搬哪幾個（紅色波浪線）'
+    : '集體移動關了', 'info', 2600);
+});
+
+/* 拖曳途中的預覽：轉發給其他每一格。它們只改 style（見畫布的 showBulkPreview），
+   不動資料也不重建 —— 所以每一幀轉發六十則是負擔得起的，而放手才寫資料。 */
+addEventListener('message', e => {
+  const p = e.data && e.data.bulkPreview;
+  if (!p || activeTab !== 'board' || !activeBlock) return;
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    if (f.contentWindow === e.source) return;      // 來源那一格自己貼過了
+    try { f.contentWindow.postMessage({ bulkPreview: p }, '*'); } catch (_){}
+  });
+});
+
+addEventListener('message', e => {
+  const m = e.data && e.data.bulkMove;
+  if (!m || activeTab !== 'board' || !activeBlock) return;
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    if (f.contentWindow === e.source) return;        // 來源那一格自己已經走過了
+    try { f.contentWindow.postMessage({ bulkApply: m }, '*'); } catch (_){}
+  });
+  commitAction();                 // 整批算一步，Ctrl+Z 一次退回
+});
 
 /* 總體 那兩張版是開檔期時建好就留著的，狀態變了要就地更新底色和狀態字。
    不走 rebuildAll —— 那會把整棵樹連同 拼板 的畫布全部重建，每個 iframe 都重載
@@ -9023,6 +9468,105 @@ function paintTotalStates(){
      所以「還有幾塊沒填」跟著它更新 —— 另外找地方掛遲早會漏掉一條路。 */
   renderSubmitBtn();
 }
+
+/* ==========================================================================
+   紙色（plan.bg）
+   --------------------------------------------------------------------------
+   整本 DM 印在什麼顏色的紙上。它跟刊頭圖同一層 —— 是**印出來的一部分**，不是
+   看版的人的偏好，所以存進檔期、跟著同步、只有設計放得了（見 renderPaperTray）。
+
+   ⚠️ --paper 掛在 :root，不是掛在 #board 或每一張 .board-ws 上。版面每被重建一次
+   就要有人記得把它補回去，而重建的路有五六條（rebuildAll、reflowBoard、切分、
+   合併…）—— 漏掉一條就是「換了底色，切一刀之後又變回白的」，而且不報錯。
+   掛在根上就只有一個地方要對。
+   ========================================================================== */
+const PAPER_DEFAULT = '#ffffff';
+const paperOf = p => (p && p.bg) || PAPER_DEFAULT;
+
+/** 把現在這一檔的紙色寫進 CSS，並且告訴每一塊畫布（格子裡面也是那張紙）。 */
+function paintPaper(){
+  const c = paperOf(currentPlan);
+  document.documentElement.style.setProperty('--paper', c);
+  tellPaper();
+  renderPaperTray();
+}
+
+/** 畫布是另一份 document，顏色要送過去。做法照 tellBoardRole()：
+    嵌在格子裡的每一塊（.ccanvas）＋ 面板那一塊（#boardFrame）都是同一張紙。 */
+function tellPaper(){
+  const c = paperOf(currentPlan);
+  [document.getElementById('boardFrame')]
+    .concat([...boardEl.querySelectorAll('.ccanvas')])
+    .forEach(f => {
+      if (!f || !f.src || !f.contentWindow) return;
+      try { f.contentWindow.postMessage({ paper: c }, '*'); } catch (_){}
+    });
+}
+
+/* 落點只給這幾個。⚠️ 刻意避開灰和綠的區間：總體 那一頁灰＝待提明細、綠＝整塊在 PM，
+   紙色只換掉「白」那一級，三級要一直分得出來（見 .window-node）。
+   真的要別的顏色有下面那個自訂欄位，那是使用者自己負責的一步。 */
+const PAPER_PRESETS = [
+  { c:'#ffffff', n:'白' },
+  { c:'#fdf6e3', n:'米' },
+  { c:'#fdeef0', n:'粉' },
+  { c:'#f6f0fa', n:'藕' },
+  { c:'#eef4fb', n:'天' },
+];
+
+function renderPaperTray(){
+  const wrap = document.getElementById('paperSwatches');
+  const custom = document.getElementById('paperCustom');
+  const note = document.getElementById('paperNote');
+  if (!wrap) return;
+  /* 紙色跟刊頭圖同一條規矩（見 buildMasthead 的 canImg）：那是會跟著整本印出去的
+     主視覺，PM 手上那顆棒子管的是格子裡的貨、行銷管的是這本什麼時候做。 */
+  const can = activeMode === 'design';
+  const cur = (paperOf(currentPlan) || '').toLowerCase();
+
+  wrap.innerHTML = '';
+  PAPER_PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'pswatch' + (p.c === cur ? ' on' : '');
+    b.style.background = p.c;
+    b.dataset.bg = p.c;
+    b.disabled = !can;
+    /* 每一顆寫的都是「它自己是什麼顏色」——「現在就是這一個」交給 .on 那圈白框講。
+       按不動的人也照樣看得到名字：他要問的是「這本印在什麼紙上」，
+       而那個答案是「亮著的那一顆」。 */
+    b.title = p.n + '色紙';
+    wrap.appendChild(b);
+  });
+
+  custom.value = /^#[0-9a-f]{6}$/.test(cur) ? cur : PAPER_DEFAULT;
+  custom.disabled = !can;
+  /* 東西留著、字換掉：整段收起來會讓人以為程式壞了，而「寫著卻按不動」
+     沒有一句話解釋的話更難懂 —— 跟刊頭那塊「刊頭圖由設計放」同一個做法。 */
+  note.textContent = can ? '' : '紙色由設計決定';
+}
+
+/** 換一個顏色。它是**印出來的一部分**，所以走 commitAction()（進歷史＋存檔），
+    不是 markDirty()。 */
+function setPaper(c){
+  if (!currentPlan || activeMode !== 'design') return;
+  const v = String(c || '').toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(v)) return;
+  if (paperOf(currentPlan) === v) return;
+  /* 白＝沒設過，欄位就不留 —— 「從來沒動過」和「特地選了白」在資料上是同一件事，
+     合併時也不會為了一個等於預設值的欄位報衝突。 */
+  if (v === PAPER_DEFAULT) delete currentPlan.bg; else currentPlan.bg = v;
+  commitAction();
+  paintPaper();
+}
+
+document.getElementById('paperSwatches').addEventListener('click', e => {
+  const b = e.target.closest('.pswatch');
+  if (b && !b.disabled) setPaper(b.dataset.bg);
+});
+/* input 不是 change：拖著色環的時候版面就跟著變，那才看得出來這個顏色配不配。
+   換色不重畫版面（只改一個 CSS 變數），所以不必 debounce。 */
+document.getElementById('paperCustom').addEventListener('input',
+  e => setPaper(e.target.value));
 
 /* ==========================================================================
    BOOT
@@ -9888,26 +10432,45 @@ const planBlocksOf = plan => plan && plan.layout
 /** 這張版多大（cm）。boardCm() 問的是「現在開著的那一檔」，列表上沒有那個東西。 */
 const planCm = plan => (plan && DM_SIZE[plan.type]) || DM_SIZE_FALLBACK;
 
-/* 一個版位挑到哪了：wait 一格都還沒挑／doing 挑了一部分／done 每一格都有貨。
-   「做完」用「每一格都有貨」認，因為那正是 PM 在拼板要做的事。 */
-function blockPicked(b){
+/* 這一塊**卡在哪一關**：整塊裡走得最慢的那一格走到哪，就是這一塊的答案。
+   為什麼問最慢的那一格：一個版位是一起出稿的，十四格裡有一格還停在一校，
+   這一塊就是還沒過一校 —— 平均值會把那一格藏起來，而那一格正是要催的東西。
+   後面接的數字是「**還有幾格卡在那一關**」，全部都在同一關就不寫（14/14 是廢話）。 */
+function blockLag(b){
   const cells = (b.sheet && b.sheet.cells) || [];
-  const done = cells.filter(c => pickedOf(c).length).length;
-  return { done, total: cells.length,
-           state: !cells.length || !done ? 'wait' : done === cells.length ? 'done' : 'doing' };
+  if (!cells.length) return { t: '還沒排版', unlaid: true };
+  let min = Infinity, n = 0;
+  cells.forEach(c => {
+    const s = cellStage(c);
+    if (s < min){ min = s; n = 1; } else if (s === min) n++;
+  });
+  const k = (CELL_STAGES[min] || CELL_STAGES[0]).k;
+  return { t: k + (n === cells.length ? '' : ` ${n}/${cells.length}`),
+           stage: k, n, total: cells.length };
 }
 
 /* 小地圖本人。形狀的算法跟編輯器左邊那一張同源（同一棵樹、同一套百分比），
-   所以這裡畫出來的比例跟設計在編輯器裡看到的一模一樣。差別只有兩點：
-   這裡不能點，而且每一塊寫的是「挑到哪」而不是版位的狀態。 */
+   所以這裡畫出來的比例跟設計在編輯器裡看到的一模一樣，而且**現在連底色講的
+   也是同一件事**（blockState：球在誰手上）。
+   以前這一張問的是「挑好貨了沒」（blockPicked），編輯器那一張問的是「球在誰手上」
+   —— 兩張長得一樣、同一組綠白灰，講的卻是兩件事，看完一張再看另一張只會更亂。
+   而且「挑了幾格」是一個單調遞增的進度，這個系統沒有那種東西：棒子會被退回來
+   （蓋章退關、蓋章修改），挑好的貨不會變少，於是「挑完 85%」看起來像快好了，
+   實際上可能整塊卡在一校。 */
 function cardMiniNode(node, wpx, hpx){
   if (!node.children){
-    const p = blockPicked(node);
+    const sh = node.sheet || {};
+    const st = blockState(sh);
+    const lag = blockLag(node);
     const el = document.createElement('div');
-    el.className = 'mm-blk ' + (p.state === 'doing' ? 'part' : p.state === 'done' ? 'done' : '')
-                 + (p.total ? '' : ' unlaid');
-    if (p.state === 'doing' && p.total)
-      el.style.setProperty('--fill', Math.round(p.done / p.total * 100) + '%');
+    el.className = 'mm-blk ' + (st.k === 's-done' ? 'done' : st.k === 's-half' ? 'part' : '')
+                 + (lag.unlaid ? ' unlaid' : st.k === 's-none' ? ' none' : '');
+    /* 填多少＝**棒子傳過去多少了**（在 PM 幾格），不是挑了幾格。
+       s-half 本來就是「一半在 PM」那個狀態，這條漸層講的就是那個一半。 */
+    if (st.k === 's-half'){
+      const n = cellsAt(sh, 'pm').length, total = (sh.cells || []).length;
+      el.style.setProperty('--fill', Math.round(n / total * 100) + '%');
+    }
     /* 字級照這一塊真正有多大算：窄的版位分到的可能不到 60px 寬，
        寫死字級就會被切掉半截。 */
     el.style.fontSize = Math.max(13, Math.min(25, Math.floor(Math.min(hpx / 1.6, wpx / 2.4)))) + 'px';
@@ -9915,9 +10478,9 @@ function cardMiniNode(node, wpx, hpx){
        半個字，看起來像壞掉。 */
     el.innerHTML = hpx < 25 ? ''
                  : `<b>${escapeHtml(node.name || '版位')}</b>`
-                   + (hpx > 54 && p.total ? `<span>${p.done}/${p.total}</span>` : '');
-    el.title = `${node.name || '版位'}　`
-             + (p.total ? `${p.done}/${p.total} 格挑好貨` : '還沒排版');
+                   + (hpx > 54 ? `<span>${escapeHtml(lag.t)}</span>` : '');
+    el.title = `${node.name || '版位'}　${lag.t}`
+             + (lag.unlaid ? '' : `　·　${st.t}`);
     return el;
   }
   const el = document.createElement('div');
@@ -9947,42 +10510,53 @@ function cardMiniNode(node, wpx, hpx){
 
 /** 掛在卡片下半：一行摘要 ＋ 收起來的方塊條 ＋ 拉得開的小地圖。沒版面就整段不出現。 */
 function appendCardMap(card, plan){
-  const blks = planBlocksOf(plan).map(b => Object.assign({ name: b.name || '版位' }, blockPicked(b)));
+  const blks = planBlocksOf(plan).map(b => {
+    const sh = b.sheet || {};
+    return { name: b.name || '版位', st: blockState(sh), lag: blockLag(b),
+             pm: cellsAt(sh, 'pm').length, total: (sh.cells || []).length };
+  });
   const pmRow = document.createElement('div');
   pmRow.className = 'pm-row' + (blks.length ? '' : ' empty');
   card.appendChild(pmRow);
   if (!blks.length) return;
 
-  const done = blks.filter(b => b.state === 'done').length;
+  const done = blks.filter(b => b.st.k === 's-done').length;
   const line = document.createElement('div');
   line.className = 'pm-line';
 
   const sum = document.createElement('span');
   sum.className = 'pm-sum' + (done === blks.length ? ' all' : '');
-  sum.textContent = `版位 ${done}/${blks.length} 挑完`;
+  sum.textContent = `版位 ${done}/${blks.length} 都在 PM`;
   line.appendChild(sum);
 
-  /* 收起來的樣子：一塊版位一個方塊，填多少＝挑了幾格。 */
+  /* 收起來的樣子：一塊版位一個方塊，顏色跟下面那張小地圖同一套（球在誰手上），
+     填多少＝這一塊有幾格已經交到 PM 手上。 */
   const map = document.createElement('span');
   map.className = 'pm-map';
   blks.forEach(b => {
     const sq = document.createElement('i');
-    sq.className = 'pm-blk' + (b.state === 'done' ? ' done' : b.state === 'doing' ? ' part' : '');
-    if (b.state === 'doing' && b.total)
-      sq.style.setProperty('--fill', Math.round(b.done / b.total * 100) + '%');
-    sq.title = `${b.name}　${b.total ? `${b.done}/${b.total} 格挑好貨` : '還沒排版'}`;
+    sq.className = 'pm-blk' + (b.st.k === 's-done' ? ' done'
+                             : b.st.k === 's-half' ? ' part'
+                             : b.st.k === 's-wip'  ? ' wip' : '');
+    if (b.st.k === 's-half' && b.total)
+      sq.style.setProperty('--fill', Math.round(b.pm / b.total * 100) + '%');
+    sq.title = `${b.name}　${b.lag.t}` + (b.lag.unlaid ? '' : `　·　${b.st.t}`);
     map.appendChild(sq);
   });
   line.appendChild(map);
 
-  /* 一句話講「還缺多少」。全部都還沒動的時候只說一句還沒開始 ——
-     那時候「還沒挑完 10 塊」等於把整張版念一遍，那不是在點名，是在報名冊。 */
-  const left = blks.length - done;
+  /* 一句話講「現在該催誰」。整本 DM 最慢的那一關就是這一檔的瓶頸 ——
+     「還有 7 塊沒交」只講得出數量，講不出卡在哪，而卡在哪才是下一個動作。
+     全部都還沒動的時候只說一句還沒開始：那時候把每一塊念一遍不是在點名，
+     是在報名冊。 */
   const who = document.createElement('span');
-  who.className = 'pm-who' + (left ? '' : ' all');
-  who.textContent = !left            ? '都挑完了'
-                  : done === 0       ? '還沒開始'
-                                     : `還有 ${left} 塊沒挑完`;
+  who.className = 'pm-who' + (done === blks.length ? ' all' : '');
+  const laid = blks.filter(b => !b.lag.unlaid);
+  const slow = laid.length ? laid.reduce((a, b) => (b.lag.min < a.lag.min ? b : a)) : null;
+  who.textContent = !laid.length              ? '還沒排版'
+                  : done === blks.length      ? '都交給 PM 了'
+                  : slow.lag.min === 0        ? '還沒開始'
+                                              : `最慢卡在 ${slow.lag.stage}`;
   line.appendChild(who);
   pmRow.appendChild(line);
 
@@ -10015,6 +10589,15 @@ function appendCardMap(card, plan){
       box.appendChild(tag); box.appendChild(page);
       wrap.appendChild(box);
     });
+    /* 一行圖例。這幾個顏色本來講的是「挑完幾格」，現在講的是「球在誰手上」——
+       同一組顏色換了意思，不寫出來的話看過舊版的人會照舊的讀，而且不會發現。 */
+    const key = document.createElement('div');
+    key.className = 'mm-key';
+    key.innerHTML = ['<i class="k-wip"></i>在設計', '<i class="k-part"></i>一半交出去了',
+                     '<i class="k-done"></i>都在 PM', '<i class="k-none"></i>還沒開工',
+                     '<i class="k-unlaid"></i>還沒排版']
+                    .map(s => `<span>${s}</span>`).join('');
+    wrap.appendChild(key);
   };
 
   /* 把手掛在卡片下緣（不是那一行裡）—— 它是「這張卡還有一截沒拉開」的意思，
@@ -11398,6 +11981,14 @@ function hostWho(host){
 function applyMode(){
   const pm = activeMode === 'pm';
   syncListTitle();
+  /* 桌面偏哪個顏色＝現在是誰。掛在 body 上讓 CSS 自己去挑（見 身分色 那一段）——
+     用 activeMode（＝currentUser.role）不是 whoId 前綴：前綴那條規矩是便利貼的
+     （'design:d1'），這裡拿到的本來就是 role 本人。
+     applyMode() 是登入、換人、重載唯一的匯流點，掛在別處遲早會漏一條路。 */
+  document.body.dataset.role = activeMode;
+  /* 紙色那一排的按不按得動跟著身分走（只有設計改得動）。放在這裡是因為
+     applyMode() 就是「換了一個人在看」那條路。 */
+  renderPaperTray();
   document.querySelectorAll('.tab').forEach(b =>
     b.style.display = (pm && b.dataset.tab !== 'board') ? 'none' : '');
   // 復原/重做 only ever touch the 落版 tree, which PM never sees（行銷改得動落版，所以留著）
@@ -11437,20 +12028,24 @@ function renderLogin(){
 
     const head = document.createElement('div');
     head.className = 'lg-role';
-    /* 那一顆點＝這個身分貼出來的便利貼是什麼顏色。行銷不貼便利貼，所以沒有點 ——
-       名單這一頁順便就把「黃色是誰貼的」教掉了。 */
-    if (role !== 'marketing'){
-      const dot = document.createElement('span');
-      dot.className = 'lg-dot ' + role;
-      head.appendChild(dot);
-    }
+    /* 那一顆點＝這個身分的顏色。名單這一頁是唯一同時看得到三個顏色的地方，
+       所以「黃色是誰」和「進去之後桌面為什麼偏黃」都在這裡一次教掉。 */
+    const dot = document.createElement('span');
+    dot.className = 'lg-dot ' + role;
+    head.appendChild(dot);
     head.appendChild(document.createTextNode(ROLE_LABEL[role]));
     col.appendChild(head);
 
+    /* 上次是誰還記著，但只拿來把那一顆標起來 —— 少找一下，而按下去的還是你。
+       自動登進去的那一版拿掉了，理由見 bootLogin。 */
+    let last = '';
+    try { last = localStorage.getItem(USER_AT_KEY) || ''; } catch (e){}
+
     usersOf(role).forEach(u => {
       const b = document.createElement('button');
-      b.className = 'lg-user';
+      b.className = 'lg-user' + (u.id === last ? ' last' : '');
       b.textContent = u.name;
+      if (u.id === last) b.title = '上次就是你';
       b.addEventListener('click', () => login(u));
       col.appendChild(b);
     });
@@ -11496,20 +12091,22 @@ async function logout(){
 }
 document.getElementById('logoutBtn').addEventListener('click', logout);
 
-/* 進來的時候是誰：網址指定 > 上次那位 > 問。
+/* 進來的時候是誰：**網址指定的才自動進去，其他一律問**。
    `?as=design|pm|mkt|marketing` 挑那個身分的第一位、`?user=<id>` 挑指定那位 ——
-   測試腳本每次都是乾淨的瀏覽器，沒有這條旁路就會全部卡在登入頁。 */
+   測試腳本每次都是乾淨的瀏覽器，沒有這條旁路就會全部卡在登入頁。
+   ⚠️ 以前「上次那位」也會自動登進去，拿掉了：一台電腦上不只一個人用
+   （同一個連結發給整組人試），開起來直接變成上一個人的身分，而畫面上唯一
+   寫著你是誰的地方是右上角那個名牌 —— 沒有人會去看它，於是拿別人的身分
+   蓋了章、貼了便利貼。上次那位還是記著，只是拿來把登入頁上那一顆**標起來**
+   （見 renderLogin），少按幾下，但那一下還是你按的。 */
 function bootLogin(){
   renderLogin();
   const q = new URLSearchParams(location.search);
   const asked = q.get('user');
   const as = q.get('as');
   const role = as === 'mkt' ? 'marketing' : as;
-  let last = '';
-  try { last = localStorage.getItem(USER_AT_KEY) || ''; } catch (e){}
   const u = (asked && USERS.find(x => x.id === asked))
-         || (role && usersOf(role)[0])
-         || (last && USERS.find(x => x.id === last));
+         || (role && usersOf(role)[0]);
   if (u) login(u);
   else loginGate.hidden = false;
 }
@@ -11587,6 +12184,9 @@ function rebuildAll(keepId){
   /* 切一刀、改品類、Undo 都走這裡 —— 「還有幾塊沒填」跟著重算，
      不然按了 ✏ 品類 補完，那顆鈕還停在「還有 3 個沒填品類」。 */
   renderSubmitBtn();
+  /* Undo 可能退掉的就是一次換色，而且版面重建之後那一批畫布是新的 ——
+     不在這裡再說一次，格子裡面會停在白的。 */
+  paintPaper();
 }
 
 /* 對齊線存的是「尺規上的第幾格」。格從 20×10 改成公分之後，同一個數字會指到
@@ -11617,6 +12217,8 @@ function openPlan(plan){
   migrateGuidesToCm(plan);           // 舊檔期的對齊線是「尺」那套 20×10 的格
   layout = plan.layout;
   migratePlan();                     // 舊檔期的欄位搬到現在的寫法（cell.ok → cell.st）
+  /* 換一本 DM 就是換一張紙。要在 buildBoard 之前 —— .board-ws 一畫出來就該是那個顏色。 */
+  paintPaper();
 
   // reset editor state for the newly opened plan
   activeBlock = null;
@@ -11768,23 +12370,61 @@ function makeStressPlan(){
   const prods = stressProducts();
   if (!prods.length){ alert('沒有商品可塞'); return; }
 
-  /* 一頁 5 個版位（左欄 3、右欄 2），前後兩頁共 10 個，一個版位約 60 格。
-     群組數也混著給：一組的、兩組的、三組的 —— 版位標題那幾行、挑貨面板的分組
-     都吃這個。 */
+  /* ---- 版怎麼切：照著真的那一張排（見 DM.jpg）--------------------------------
+     一張 版（正面）是**對開攤開**的 78.7×54.5，上面並排著兩個直式的頁面 ——
+     所以 DM.jpg 那樣的一頁是這裡的**半張**，四頁＝正面兩頁＋背面兩頁。
+     一頁由上而下是幾條橫帶：上半幾乎都是刊頭（品牌主視覺、活動辦法、保固），
+     下半才是一條一條的商品帶，每條再左右切成 2～3 個版位。
+
+     ⚠️ 舊的那一份不是這樣：一個版位 60 格、一頁只有 5 個版位，算出來一格
+     3.07cm × 0.93cm —— 比名片還扁，那個形狀在真的 DM 上不存在。
+     它壓出來的「溢出」多半是那個形狀造成的，修那種溢出等於在修一個不會發生的情境。
+     照 DM.jpg 排，一格大約 4cm × 3.9cm（一頁橫向約 10 格），那才是要排得好看的尺寸。
+
+     格數也跟著真的走：一個版位 6～20 格，不是 60。整張版的格數反而沒少多少
+     （一面兩頁 ×2 面 ≈ 320 格，舊的是 600），iframe 的量還是壓得到。 */
   let n = 0;
-  const b = (size, groups) => blk('壓測' + String(++n).padStart(2, '0'), groups, size);
-  const G1 = [{ name:'商品', count:60 }];
-  const G2 = [{ name:'手機', count:36 }, { name:'平板', count:24 }];
-  const G3 = [{ name:'冰箱', count:24 }, { name:'洗衣機', count:22 }, { name:'小家電', count:14 }];
-  const stressPage = () => ({ dir:'row', fold:true, size:null, children:[
-    { dir:'col', size:50, children:[ b(34, G1), b(33, G2), b(null, G3) ] },
-    { dir:'col', size:50, children:[ b(50, G2), b(null, G1) ] }
+  /* mhH ＝ 這一塊的刊頭幾公分高。**商品帶一定要指定**：預設是 36.6×13cm
+     （CONFIG.defaultMasthead），那是給整塊都是圖的刊頭用的，塞進一條 7.6cm 高的
+     商品帶會吃掉九成（上限就是九成），20 格只好擠成一列 —— 量到過一格
+     3.66cm × 0.35cm，比舊的那個 60 格版位還扁。
+     真的那一張上，商品帶上面只有一條寫著「電競制霸戰場」的窄條（約 1.2cm）。 */
+  const b = (size, groups, mhH) => {
+    const node = blk('壓測' + String(++n).padStart(2, '0'), groups, size);
+    if (mhH != null) node.sheet.mastheadH = mhH;
+    return node;
+  };
+  const TITLE = 1.2;                       // 商品帶上面那條標題的高度（cm）
+  /* 刊頭帶：真的那一張上面這幾塊沒有格子，是整塊的圖（ASUS、SAMSUNG、活動辦法、
+     延長保固）。0 格的版位長什麼樣本來就要看得到 —— 那是設計最先排的東西。 */
+  const HEAD = () => [{ name:'刊頭', count:0 }];
+  const G6  = () => [{ name:'手機', count:6 }];
+  const G12 = () => [{ name:'手機', count:6 }, { name:'平板', count:6 }];
+  const G8  = () => [{ name:'筆電', count:8 }];
+  const G20 = () => [{ name:'線材', count:8 }, { name:'充電器', count:6 },
+                     { name:'行動電源', count:6 }];
+  const G14 = () => [{ name:'周邊', count:8 }, { name:'耳機', count:6 }];
+  /* 一頁（＝DM.jpg 那一張）。size 是那一帶佔這一頁的百分比，加起來 100。 */
+  const stressPagePortrait = () => ({ dir:'col', size:50, children:[
+    { dir:'row', size:22, children:[ b(50, HEAD()), b(null, G6(), TITLE)  ] },
+    { dir:'row', size:18, children:[ b(48, HEAD()), b(null, G12(), TITLE) ] },
+    b(12, HEAD()),                                                       // 活動辦法那一整條
+    b(8,  HEAD()),                                                       // 延長保固那一條
+    { dir:'row', size:13, children:[ b(42, G8(), TITLE), b(25, G6(), TITLE), b(null, G8(), TITLE) ] },
+    { dir:'row', size:13, children:[ b(42, G8(), TITLE), b(25, G6(), TITLE), b(null, G14(), TITLE) ] },
+    b(null, G20(), TITLE)                                                // 最下面那條配件
   ]});
+  /* 一面 ＝ 兩頁並排。 */
+  const stressPage = () => ({ dir:'row', fold:true, size:null,
+    children:[ stressPagePortrait(), stressPagePortrait() ] });
 
   const plan = {
     id: 'stress-' + Date.now(),
     name: '壓力測試（假檔期）',
-    type: '壓力測試',
+    /* 用真的 DM 類別，不是自己一個 '壓力測試' —— 那個字串查不到 DM_SIZE，
+       整張版會退回 A3（42×29.7），格子跟著只剩一半大，量出來的東西就不是
+       正式版上的東西。isStressPlan 還認得出它（id 是 stress- 開頭）。 */
+    type: '全省對開大DM',
     tags: ['壓測'],
     start: SEED_PLANS[0].start,
     durs: SEED_PLANS[0].durs.slice(),
@@ -11924,8 +12564,11 @@ const j = v => JSON.stringify(v);
 const jclone = v => JSON.parse(JSON.stringify(v));
 
 /* plan 裡除了 layout 以外的欄位，一個一個比（它們彼此不相干）。 */
+/* bg（紙色）在這一串裡，不在 layout 底下 —— 放進 layout 會被 planStruct() 當成骨架，
+   換個底色就報「兩邊都動了版面」並且整棵 rebuildAll()。它是一個字串，一個欄位一個
+   欄位比就夠了。 */
 const META_KEYS = ['name','type','tags','start','durs','submitted','stageOverride',
-                   'guides','guidesCm'];
+                   'guides','guidesCm','bg'];
 /** 一格扣掉便利貼之後長什麼樣 —— 拿來判斷「除了話以外，還有東西撞到嗎」。 */
 const stripNotes = c => { const o = Object.assign({}, c); delete o.notes; return o; };
 /* lastBy／lastById 刻意不在上面那一串裡：它們是記帳欄位，**每一次合併兩邊都不一樣**
@@ -12132,8 +12775,12 @@ function mergePlanInto(mine, base, theirs){
     const r = mergeCell(b, m, t);
     merged[id] = r.cell;
     report.notes += r.notes;
-    /* 只有便利貼不一樣的話不算衝突：那一格已經整個合好了，沒有東西被丟掉。 */
-    if (j(stripNotes(m)) !== j(stripNotes(t))) report.conflicts.push('一格');
+    /* 衝突＝**他有東西被我蓋掉**，所以要問的是「他跟祖先比動了什麼」，
+       不是「他跟我長不長一樣」。我自己改了多少不影響他有沒有損失。
+       比 m 跟 t 的話，「我搬零件、他只貼了一則便利貼」也會報衝突 —— 那一則
+       已經合進來了，什麼都沒少，而那正是這裡最常撞到的一種（見上面）。
+       他真的動了版面那一半才報：那一半用的是我的，他那一份確實沒了。 */
+    if (j(stripNotes(t)) !== j(stripNotes(b))) report.conflicts.push('一格');
   });
   grinCells(mine, merged);
   return report;
@@ -12157,6 +12804,9 @@ function afterMerge(planId, report){
        就是它們，不重畫的話畫面會停在舊名字，而資料庫上已經是新的了。 */
     document.getElementById('bannerName').textContent = currentPlan.name;
     document.getElementById('bannerRange').textContent = planRangeLabel(currentPlan);
+    /* 紙色也是合進來的欄位之一，而它不在 layout 底下 —— report.rebuilt 是假的時候
+       上面那幾條路都不會碰到它，畫面就會停在自己那個顏色。 */
+    paintPaper();
   }
   savePlans();
   if (!currentPlan) renderPlans();
@@ -12413,6 +13063,7 @@ async function adoptRemote(by){
   }
   document.getElementById('bannerName').textContent = currentPlan.name;
   document.getElementById('bannerRange').textContent = planRangeLabel(currentPlan);
+  paintPaper();                     // 他換過紙色的話，那也是「他那一份」的一部分
   remoteHit = null;
   renderRemoteBar();
   toast(`已更新成 ${by || '別人'} 的版本`, 'info', 2600);
