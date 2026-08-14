@@ -910,8 +910,11 @@
   #blockHead{white-space:nowrap;flex:none}
   #boardOverview .cell{pointer-events:auto;cursor:pointer;user-select:none;
     transition:outline-color .12s,background .12s,opacity .12s}
-  /* 搬列用的 ⋮⋮ 是 落版 的工具：PM 不搬列，那條就不該在他眼前 */
-  #boardOverview.pm .grip{display:none}
+  /* 搬列用的 ⋮⋮ 是 **落版** 的工具，所以 拼板 這一頁不給任何人看（本來只擋 PM）。
+     拼板 排的是格子裡的貨，列怎麼排是上一頁談好的事；而它在這裡不只是多一顆按鈕 ——
+     它是每一列左邊固定 20px（14＋6px margin）的一條，真的佔掉版面的寬度，
+     於是整張版看起來往右歪了一截。 */
+  #boardOverview .grip{display:none}
   /* 不歸這位 PM 管的格子：看得到位置，但不是他的活，點不進去 */
   #boardOverview .cell.dim{opacity:.26}
   /* 滾輪縮放、按著拖曳平移：整片版面在手上，跟拼板那頁同一套手感 */
