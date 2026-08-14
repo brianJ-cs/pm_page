@@ -19,7 +19,7 @@
  *           不帶的話乾淨的瀏覽器一開就停在登入頁）
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -149,6 +149,12 @@ for (let i = 0; i < rest.length; i++) {
   if (rest[i] === '--assert') { tail.push('--eval', inCanvas(rest[++i])); continue; }
   tail.push(rest[i]);
 }
+
+/* 開瀏覽器之前先對一次商品圖那把鑰匙（純 node，幾十毫秒）。
+   它壞掉的樣子是「圖沒出現」，console 一句話都不會有 —— 瀏覽器測不到，
+   所以掛在這裡：每一個場景都會經過，就不會有人忘記跑。 */
+const parity = spawnSync(process.execPath, [join(here, 'imgkey-parity.mjs')], { stdio: 'inherit' });
+if (parity.status) process.exit(parity.status);
 
 const args = [DRIVER, '--file', file, ...SCENES[name], ...tail];
 spawn(process.execPath, args, { stdio: 'inherit' })

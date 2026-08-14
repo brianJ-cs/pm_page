@@ -9,6 +9,9 @@
 :root{--ink:#111;--line:#e3e7ef;--bg:#f4f5f8;--accent:#d31f2b;--cw:540px;--ch:420px;
   --drop:#4a6fdc;   /* 藍＝放下去的位置 */
   --missing:#d31f2b;   /* 紅＝這裡還缺東西（還沒換上商品圖） */
+  --select:#007acc;   /* 藍＝你正在點的東西：選中的零件（多選時每一塊各描一圈） */
+  --picked:#e33;   /* 紅＝這一下會動到整個版位（集體移動開著時的選取）。刻意不是藍：
+                      藍是「你正在點的東西」，只動眼前這一格；紅是每一格都跟著走 */
   --danger-ink:#b3261e; --danger-tint:rgba(179,38,30,.08)}   /* 刪掉東西的那顆按鈕 */
 *{box-sizing:border-box}
 body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-box;background:var(--bg);color:var(--ink);
@@ -38,8 +41,10 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .tsep{width:1px;height:22px;background:var(--line);margin:0 6px}
 #pad{width:140px;accent-color:var(--accent)}
 /* 格子陣列 */
-/* --paper ＝這本 DM 印在什麼顏色的紙上。主程式用 postMessage 送過來（見 d.paper），
-   單獨開這一頁時沒有人送，就是白的 —— 跟以前一模一樣。 */
+/* --paper ＝**這一格**印什麼顏色的底（主程式的 落版 有一支 上色 工具）。
+   主程式用 postMessage 送過來（見 d.paper），單獨開這一頁時沒有人送，就是白的。
+   真正吃到它的是 ui=panel（挑貨面板畫的就是那一格）—— 嵌在格子裡的那一份是
+   透明的，顏色由主程式那邊的 .cell 在畫。 */
 #grid{display:grid;gap:0;justify-content:center;box-shadow:0 6px 26px rgba(0,0,0,.07);background:var(--paper,#fff)}
 #grid .cell{width:var(--cw);height:var(--ch)}
 /* 內容以 540×CH 排版再整體縮放：CH 照這一格真正的長寬比算出來，
@@ -49,13 +54,21 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
    因為比例排版不會超出框（見 buildBlocks）。 */
 .cstage{position:absolute;left:0;top:0;width:var(--lw,540px);height:var(--lh,420px);
   transform-origin:0 0;transform:scale(var(--cs,1))}
-/* 安全邊界的那個虛線框：**只剩上下兩條**，因為擋著的只剩上下（見 clampAll）。
-   框是拿來瞄準的，它說謊比沒有還糟 —— 上下差一個 MARGIN 那一次就是這樣，
-   左右畫著一條拖得過去的線也是同一種謊。 */
-.safe{position:absolute;left:0;right:0;top:var(--pad,8px);bottom:var(--pad,8px);
-  border-top:1px dashed rgba(211,31,43,.22);border-bottom:1px dashed rgba(211,31,43,.22);
+/* 安全邊界那條紅線：**四邊都畫**，因為四邊都擋著（見 clampAll）。
+   框是拿來瞄準的，它說謊比沒有還糟 —— 以前只畫上下、左右卻拖得過去，
+   就是那種謊；現在左右也擋，線也就補回來。
+   ⚠️ 線寬要除以 --cs：整個 .cstage 被縮到這一格多大（版面上一格常常只有
+   0.2 倍），寫死 1px 縮完是 0.2px —— 那條線畫不出來，等於沒有。 */
+.safe{position:absolute;inset:var(--pad,8px);
+  border:calc(1.4px / var(--cs,1)) dashed rgba(211,31,43,.55);
   pointer-events:none;display:none}
-.cell.cur .safe{display:block}
+/* **只有在調邊界的時候才看得到**（body.padding ＝ 手正放在那條拉桿／＋−上）。
+   它是一把尺，不是版面的一部分：一直畫著的話，每一格上都有一個紅框，
+   而排版的人整天看的是那張版長什麼樣。 */
+body.padding .cell.cur .safe{display:block}
+/* 印出去的是紙，尺不印 —— 主程式列印時每一格的畫布是另一份文件，
+   那邊的 @media print 管不到這裡，所以這條要寫在這一頁自己身上。 */
+@media print{ .safe{display:none !important} }
 /* 目前作用中的格子：只用內陰影標示，不加框線以免破壞黏合外觀 */
 .cell.cur{box-shadow:inset 0 0 0 2px var(--accent)}
 /* 只有非第一列的格子去掉上虛線，避免橫向相鄰時誤消 */
@@ -107,6 +120,11 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
   letter-spacing:.3px;-webkit-text-stroke:.028em currentColor}
 /* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
 .blk.brand .bimg{height:calc(var(--h-brand,26px) * var(--bs,1));display:block;pointer-events:none}
+/* 去背匯出的圖四周留著一大圈透明，那圈空白會頂著品名 —— 這一層把它切掉，
+   框的大小就是看得見的那一塊（見 brandGeom）。寬高都由 inline style 指定，
+   所以上面那條 --h-brand 在這裡要讓開。 */
+.blk.brand .bcrop{display:block;overflow:hidden;pointer-events:none}
+.blk.brand .bcrop .bimg{height:auto;max-width:none;display:block}
 .bph{position:relative;display:inline-block;
   width:calc(var(--bph-w,120px) * var(--bs,1));height:calc(var(--bph-h,28px) * var(--bs,1))}
 .bph svg{width:100%;height:100%;display:block}
@@ -201,7 +219,13 @@ body{margin:0;height:100vh;overflow:hidden;padding-top:52px;box-sizing:border-bo
 .item input{width:16px;height:16px;accent-color:var(--accent)}
 .grp{font-size:12px;font-weight:800;color:#888;margin:10px 0 4px}
 .grpline td{border-top:2px solid #b9c1cf}
-.imgrow{display:flex;align-items:center;gap:8px;padding:4px 0}
+.imgrow{display:flex;align-items:center;gap:8px;padding:4px 0;border-radius:6px}
+/* 放圖只有拖曳一種手勢（整支程式都不開檔案視窗），所以這一列自己就是落點。
+   平常那句提示是灰的，拖著東西經過才亮起來 —— 藍＝「放下去的位置」。 */
+.imgrow.dragover{background:rgba(74,111,220,.1);outline:2px solid var(--drop);outline-offset:-2px}
+.imgrow .hint{font-size:11.5px;color:#98a2b3;flex-shrink:0}
+.imgrow.dragover .hint{color:var(--drop)}
+.imgrow.imgbusy{opacity:.45}
 .ithumb{width:34px;height:34px;flex-shrink:0;display:block;overflow:hidden;border-radius:5px;background:#f0f2f6}
 .ithumb img,.ithumb svg{width:100%;height:100%;object-fit:cover;display:block}
 .iname{flex:1;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -245,16 +269,36 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .rz-se{right:0;bottom:0;cursor:nwse-resize}
 .rz-sw{left:0;bottom:0;cursor:nesw-resize}
 /* 選取框拿掉了（見上面 .blk.sel 那一段）—— 八顆把手自己就站得出來，
-   它們本來是「騎在框上」的，現在就是選取本身。 */
+   它們本來是「騎在框上」的，現在就是選取本身。
+   ⚠️ 只有「剛好選了一塊」才有把手，所以多選要自己畫得出來：框一圈藍
+   （藍＝你正在點的東西）。這幾塊會一起被拖走，看不見就等於沒選到。 */
+.blk.msel{border-color:var(--select);box-shadow:0 0 0 1px var(--select)}
 /* 一把看得到的尺，開著就一直在。壓在最底下（z-index:0）—— 它是背景不是內容，
    蓋在商品圖上會被當成版面的一部分。 */
-/* 集體移動挑中的那一塊：紅色波浪底線。文字用 text-decoration；圖沒有文字可以
-   畫底線，改用一條波浪貼在下緣。 */
-.blk.bpick,.blk.bpick .sku,.blk.bpick .spec{
-  text-decoration:underline wavy #e33;text-decoration-skip-ink:none;text-underline-offset:.14em}
-.blk.img.bpick,.blk.brand.bpick{text-decoration:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 4 Q2 1 4 4 T8 4' stroke='%23e33' fill='none' stroke-width='1.4'/%3E%3C/svg%3E");
-  background-repeat:repeat-x;background-position:left bottom;background-size:auto .5em}
+/* 集體移動開著時選起來的那幾塊：外圈跑一圈虛線，跟 落版「送給 PM」那顆鈕同一個做法
+   （四條邊各是一張重複漸層，動的是 background-position —— 虛線本身沒辦法動）。
+   紅沿用本來那條波浪線的顏色 —— 會動已經夠明顯了，但紅在滿是藍的畫布上才跳得出來。
+   底線本來得分文字和圖兩套寫法，會動的框一套就夠，圖和字都吃得到。
+   線是固定 px 的標記，不跟著格子縮 —— 它不是印出去的東西。 */
+.blk.bpick::after{
+  content:'';position:absolute;inset:-3px;border-radius:calc(var(--r,6px) + 3px);pointer-events:none;
+  background-image:
+    repeating-linear-gradient(90deg, var(--picked) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(90deg, var(--picked) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(0deg,  var(--picked) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(0deg,  var(--picked) 0 6px, transparent 6px 12px);
+  background-size:100% 2px, 100% 2px, 2px 100%, 2px 100%;
+  background-position:0 0, 0 100%, 0 0, 100% 0;
+  background-repeat:no-repeat;
+  animation:pickAnts 1.1s linear infinite;
+}
+@keyframes pickAnts{
+  to{ background-position:12px 0, -12px 100%, 0 -12px, 100% 12px; }
+}
+/* 會動的東西對某些人是干擾：關掉動畫時虛線框留著，指的還是同一件事。 */
+@media (prefers-reduced-motion: reduce){
+  .blk.bpick::after{ animation:none }
+}
 .gridlines{
   position:absolute;inset:0;pointer-events:none;z-index:0;
   background-image:linear-gradient(to right,rgba(0,122,204,.16) 1px,transparent 1px),
@@ -368,8 +412,10 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
   opacity:0;transition:opacity .18s;pointer-events:none;white-space:nowrap}
 #imgsay.on{opacity:.94}
 /* 拖著檔案經過哪一塊、哪一塊正在傳 */
-.blk.img.imgdrop{outline:3px solid var(--drop);outline-offset:2px}
-.blk.img.imgbusy{opacity:.45}
+.blk.imgdrop{outline:3px solid var(--drop);outline-offset:2px}
+.blk.imgbusy{opacity:.45}
+/* 空框點得下去（開那個庫）。手勢要看得出來 —— 不然它跟畫上去的灰框沒有兩樣。 */
+.blk.img.noimg,.blk.brand .bph{cursor:pointer}
 /* 還沒換圖的商品圖本來框一圈紅（一眼看得出還缺幾張圖）。拿掉了 ——
    原版沒有這個記號，而紅框是版面上最搶眼的東西，看起來像版面壞了。
    還缺幾張圖從預留圖本身就看得出來（那是一張灰色的虛線占位圖）。
@@ -422,7 +468,8 @@ body.ui-stage #grid{box-shadow:none;background:transparent;align-content:center;
 body.ui-stage .cell{border:0;background:transparent;cursor:default}
 body.ui-stage .cell.cur{box-shadow:none}
 body.ui-stage .cell.empty{font-size:0}     /* 空的就真的空著，字由落版那邊寫 */
-body.ui-stage .safe{display:none !important}
+/* 版面上的格子也要看得到那條紅線 —— 邊界調的就是版上那些格子，
+   看不到的話只能靠「東西好像往裡面縮了一點」猜。 */
 </style>
 </head>
 <body>
@@ -568,6 +615,22 @@ function bimgOf(r){
   return (b && BIMG[b]) || (r && BIMG[r.name]) || logoOf(b);
 }
 
+/* 畫 brand 零件的時候**當場再查一次**，不要用存檔裡那一串網址。
+   零件是排版當下存下來的，`b.bimg` 是「那一天庫裡的那一張」——
+   有人在 Logo 庫把圖換掉之後，這一格會永遠停在舊的那張（restoreBoard 把它
+   原封不動讀回來，layoutKey 也沒變所以不會重排），看起來就是「換不動」。
+   ⚠️ 只有查得出來才換。查不出來分兩種：庫還沒送到（LOGOS 是 null，例如單獨開
+   這一頁、或 Logo 那個專案被暫停）就沿用存檔那張 —— 那時候把圖清成空框，
+   等於一次連線問題就讓整本 DM 的品牌圖全部消失；庫送到了而這個牌子沒有圖，
+   才是真的被刪了，那就跟著空。 */
+function blockBimg(b){
+  /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的）。 */
+  const brand = b.brand != null ? b.brand : (BRAND[b.name] || '');
+  const live = bimgOf({ brand, name: b.name });
+  if(live) return live;
+  return LOGOS ? '' : (b.bimg != null ? b.bimg : (BIMG[b.name] || ''));
+}
+
 /* 品牌：同商品共用。BRAND 存品牌名，BIMG 存上傳的品牌 PNG(dataURL)。
    沒上傳圖時顯示長方形 placeholder，高度與品牌字級相當。 */
 let BRAND = {
@@ -577,6 +640,158 @@ let BRAND = {
 };
 let BIMG = {};
 function brandOf(n){ return BRAND[n]||''; }
+
+/* ====== 商標畫多大 ======
+   這個位子談好的框是 120 寬 × 26 高（placeholder 那個框）。以前不管哪一張都
+   固定「26 高」，於是別家的商標一律比 HITACHI 小一大截。
+
+   ⚠️ 光看圖檔的長寬**不夠**：這些圖多半是去背工具匯出來的，四周留著一大圈透明。
+   量過庫裡那五張（2026-08-13）：
+     HITACHI   836×194，字佔 724×119 → 佔畫布 53%
+     Panasonic 600×600，字佔 540×80  → 佔畫布 **12%**
+     Mitsubishi 980×980，圖佔 516×563 → 佔畫布 30%
+   所以照畫布配大小的話，Panasonic 那一張畫出來看得見的字只有 HITACHI 的四分之一
+   —— 「還是太小」講的就是這件事。
+
+   做法：量出**看得見的那一塊**（墨水框），然後
+     1. **每一張都畫成一樣高**（BRAND_INK_H），寬度照它自己的比例走 —— 不拉伸、
+        不夾寬度，所以沒有一張會變形。這是談定的規矩：預設大小＝一樣高。
+     2. 把四周那圈空白**裁掉**（外面一層 overflow:hidden，裡面那張圖照比例放大並
+        位移）—— 不裁的話，「一樣高」量到的是畫布，看得見的字還是各高各的
+        （Panasonic 那張只有 12% 是字，量畫布等於量一張空白）。
+   所以「一樣高」講的是**看得見的那一塊一樣高**，那才是眼睛看到的東西。 */
+const BRAND_W = 120, BRAND_H = 26;
+/* 統一高度＝ HITACHI 那張本來畫出來的墨水高度（119/194 × 26 ≒ 16）。
+   選它是因為那一張就是這個位子的標準答案（見 CLAUDE.md 的最高原則：長得像 rule.png），
+   而且它是最扁的那幾張之一 —— 訂在這裡，Panasonic（比例 6.75）畫出來 108 寬，
+   還在這個位子談好的 120 以內。**要整排一起變大就改這一個數字。** */
+const BRAND_INK_H = 16;
+
+/* 只有在**讀不到像素**（跨來源擋住、量不到墨水框）的時候才走這裡：那時候只知道
+   畫布的長寬，量不出看得見的那一塊，「一樣高」就無從談起 —— 退回照畫布的面積配，
+   至少不會有人特別小。正常情況（庫裡的圖）走的是 brandGeom 那條。 */
+function brandBaseH(ratio){
+  if(!(ratio > 0)) return BRAND_H;                 // 還沒量到：照舊
+  let h = Math.sqrt(BRAND_W * BRAND_H / ratio);
+  if(h * ratio > BRAND_W) h = BRAND_W / ratio;     // 比 HITACHI 還扁的：改夾寬度
+  return h;
+}
+
+/* 網址 → { r:畫布長寬比, ink:{w,h,ix,iy,iw,ih}|null }。量一次就記著：
+   重畫很頻繁，而同一張圖不會自己變。 */
+const LOGO_M = new Map();
+
+/* 墨水框用 canvas 讀像素量。Storage 那邊回 `access-control-allow-origin: *`，
+   所以掛 crossOrigin 之後畫布不會被污染 —— 萬一還是讀不到（換了來源、舊瀏覽器），
+   ink 就是 null，退回照畫布的長寬比配大小，也就是沒有裁切的那一版。
+   量的時候先縮到 256px：要的是一個框，不是原尺寸的精度。 */
+function measureLogo(url){
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  im.onload = () => {
+    const r = im.naturalHeight ? im.naturalWidth / im.naturalHeight : 0;
+    let ink = null;
+    try{
+      const S = 256, k = Math.min(1, S / Math.max(im.naturalWidth, im.naturalHeight));
+      const w = Math.max(1, Math.round(im.naturalWidth * k));
+      const h = Math.max(1, Math.round(im.naturalHeight * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d');
+      cx.drawImage(im, 0, 0, w, h);
+      const d = cx.getImageData(0, 0, w, h).data;
+      /* jpg 沒有透明，那種圖的空白是**白的**。四個角都接近白才把白當背景 ——
+         不然一張真的白底 logo 會被從中間裁開。 */
+      const near = i => d[i]>245 && d[i+1]>245 && d[i+2]>245;
+      const corner = i => d[i+3]<16 || near(i);
+      const bgWhite = corner(0) && corner((w-1)*4) && corner((h-1)*w*4) && corner(((h-1)*w+w-1)*4);
+      let x0=w, y0=h, x1=-1, y1=-1;
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        if(d[i+3] <= 16) continue;
+        if(bgWhite && near(i)) continue;
+        if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+      }
+      /* 整張都是空白就當作量不到（裁完什麼都不剩）。剛好填滿畫布的圖照樣記下來 ——
+         那時候墨水框就等於畫布，配大小走的還是同一條路，只是不必真的裁。 */
+      if(x1>=x0 && y1>=y0){
+        const inv = 1 / k;
+        ink = { w: im.naturalWidth, h: im.naturalHeight,
+                ix: x0*inv, iy: y0*inv, iw: (x1-x0+1)*inv, ih: (y1-y0+1)*inv };
+      }
+    }catch(_){ ink = null; }        // 跨來源讀不到像素：照畫布算，不裁
+    LOGO_M.set(url, { r, ink });
+    if(!r) return;
+    /* 商標的大小變了，左上那一疊要跟著讓開，不然品名會壓在商標身上。
+       正在編的那一格量得到 DOM，交給 force 那一趟的 spreadStack；
+       別的格子不量 DOM，所以照差額把那一疊挪一挪（refitBrandStack）。
+       只動用得到這張圖的格。 */
+    CELLS.forEach((c,i)=>{
+      const bs = (i===curCell ? BLOCKS : c.blocks) || [];
+      if(!bs.some(b => b.kind==='brand' && blockBimg(b) === url)) return;
+      if(i===curCell) renderOne(i, true);
+      else { refitBrandStack(bs); renderOne(i); }
+    });
+  };
+  im.onerror = () => { LOGO_M.set(url, { r:0, ink:null }); };   // 畫不出來的圖另有人講
+  im.src = url;
+}
+
+/* 這一張商標畫成什麼樣（全部是排版座標的單位）：
+     h/w      ＝ 看得見的那一塊要多大（也就是這一塊零件佔多少位子）
+     iw/ih    ＝ 裡面那張圖要放多大
+     ox/oy    ＝ 圖要往左上位移多少，才會讓墨水剛好落在框裡
+   量到之前回 null —— 那時候照舊 26 高，量到了會自己重畫。 */
+function brandGeom(url){
+  if(!url) return null;
+  if(!LOGO_M.has(url)){ LOGO_M.set(url, null); measureLogo(url); return null; }
+  const m = LOGO_M.get(url);
+  if(!m || !(m.r > 0)) return null;
+  const ink = m.ink;
+  if(!ink){                                   // 讀不到像素：照畫布配，不裁
+    const h = brandBaseH(m.r);
+    return { h, w: h*m.r, iw: h*m.r, ih: h, ox: 0, oy: 0, crop: false };
+  }
+  const ri = ink.ih ? ink.iw / ink.ih : m.r;
+  let h = BRAND_INK_H;                        // 一律一樣高
+  /* 唯一會讓它變矮的情況：寬到快掉出格子。那時候整張等比例縮小（還是不變形）——
+     這是「別掉出去」的保險，不是版面規矩，正常的商標碰不到。 */
+  const room = Math.max(BRAND_W, CW - MARGIN*2);
+  if(h * ri > room) h = room / ri;
+  const s = h / ink.ih;                       // 一個原圖 px 換算成幾個排版單位
+  /* 本來就填滿畫布的圖不必真的裁 —— 少一層 DOM，畫出來一模一樣。 */
+  const crop = ink.iw < ink.w * .98 || ink.ih < ink.h * .98;
+  return { h, w: ink.iw*s, iw: ink.w*s, ih: ink.h*s, ox: ink.ix*s, oy: ink.iy*s, crop };
+}
+
+/* 這一塊商標在排版座標裡佔多高。buildBlocks 拿它留位子（品名要從商標底下開始），
+   blockHTML 拿它寫成實際的高度 —— 兩邊一定要是同一個數字，不然留的位子
+   跟畫出來的高度對不起來。 */
+function brandSlotH(b){
+  const img = typeof b === 'string' ? b : blockBimg(b);
+  if(!img) return BRAND_H;
+  const g = brandGeom(img);
+  return g ? g.h : BRAND_H;
+}
+
+/* 商標當初留了多少位子（brand 零件上的 hres），跟現在該留多少的差額，
+   補在左上那一疊身上。量到比例、或那個牌子換了一張別的比例的圖，都會走到這裡。
+   手動搬過的（placed）和右下那一組（rx）不碰 —— 那是使用者放的位置。 */
+function refitBrandStack(blocks){
+  const br = (blocks||[]).find(b=>b.kind==='brand');
+  if(!br) return false;
+  const now = brandSlotH(br) + 8, was = br.hres != null ? br.hres : BRAND_H + 8;
+  br.hres = now;
+  const d = ty((now - was) * SZ_BRAND);
+  if(Math.abs(d) < .5) return false;
+  blocks.forEach(b=>{
+    if(b===br || b.placed || b.rx!=null) return;
+    /* 貼著那一疊底下的商品圖也要一起走（見 buildBlocks 的 stackBottom）——
+       只推字不推圖的話，圖會被壓到品名身上。 */
+    if(['name','model','sku'].includes(b.kind) || (b.kind==='img' && b.stick && !b.w0))
+      b.y = (+b.y||0) + d;
+  });
+  return true;
+}
 
 /* 品牌圖：有上傳用圖，否則畫長形 placeholder（內嵌，斷網可用）。
    收的是「品牌名 ＋ 圖」兩個字串，不是商品名 —— 呼叫的人手上有那一列，
@@ -619,13 +834,12 @@ function groups(){
    刻意只留一個名字 —— 以前是 MARGIN（左右）＋ MARGIN（上下）＋ PRICE_BOTTOM（價格例外）
    三個，於是「四邊一樣寬」只是剛好都填了同一個數字，誰改一個就破功。
    一個常數之後，那件事是結構保證的，不是巧合。 */
-/* 邊界。上層用 mm 給（一個版位一個），這裡照這一格自己的尺標換算成座標單位 ——
-   座標框是照長寬比正規化的，1 個單位在每一格代表的實際長度不一樣。
-   ⚠️ 夾住上限：扁格子只有 0.72cm 高，2mm 的上下邊界就吃掉 55% 的格高，
-   東西根本擺不進去。夾在短邊的 MARGIN_MAX_FRAC 以內 —— 扁格子拿到的會比
-   你調的少，那是刻意的：邊界再重要，也不能重要到把內容擠掉。 */
-const MARGIN_MM_DEFAULT = .8, MARGIN_MAX_FRAC = .06;
-let MARGIN_MM = MARGIN_MM_DEFAULT;
+/* 邊界。上層用**座標單位（px）**給（一個版位一個），這裡直接就是它 ——
+   跟這一頁單獨開時那條拉桿是同一個數字，紅線畫的也是同一個數字。
+   ⚠️ 座標框是照長寬比正規化的（見 adoptStageCm），所以同樣的 8 個單位在
+   高格子和扁格子上不是同一個實際長度。談定用 px：拉桿上看到幾就是幾，
+   紅線就是那個位置，不再有「你調 2mm、扁格子只拿到 0.9mm」那種說不清的事。 */
+const MARGIN_PX_DEFAULT = 8;
 /* 集體移動：開著的時候，放手那一下要把位移報給上層，由它發給其他每一格。 */
 let BULK_MOVE = false;
 /** 這一格：1cm 是幾個座標單位。兩軸一樣 —— 座標框是照長寬比開的（CW/CH ＝
@@ -642,14 +856,19 @@ function slotOf(b){
   return Math.max(0, same.indexOf(b));
 }
 const bulkKey = b => b.kind + '#' + slotOf(b);
-/* Ctrl＋點：挑「要一起搬的是哪幾個」。挑起來的那一塊畫紅色波浪底線 ——
-   只畫在你點過的那一塊上（別格不畫：那是「你選了什麼」的回饋，不是預覽）。 */
-let BULK_KEYS = [];              // 上層廣播的目標清單（整個版位共用）
-const pickedIds = new Set();     // 這一格點過哪幾塊（只影響波浪線，不存檔）
+/* 挑法只有一種：選取（點、Ctrl／Shift＋點、框選）。集體移動開著的時候，
+   選起來的那幾塊外圈跑一圈紅虛線 —— **紅色專講「這一下會動到整個版位」**，
+   不是另一種選取。以前是 Ctrl＋點另外挑一份清單，等於同一個畫面上兩套選取，
+   而它們長得不一樣、清空的時機也不一樣。 */
 let bulkTick = 0;
-/** 這一趟要搬哪幾個。Ctrl 挑過就照挑的；沒挑過就只搬「你正在拖的那一個」——
-    三個價格的格子拖第二個，就只有第二個會動。 */
-const bulkTargets = src => (BULK_KEYS.length ? BULK_KEYS.slice() : [bulkKey(src)]);
+/** 這一趟要搬哪幾個。拖的是選起來的其中一塊 → 選起來的那幾塊都算；
+    拖一塊沒選過的就只搬它 —— 三個價格的格子拖第二個，就只有第二個會動。 */
+const bulkTargets = src => {
+  if(!selected.has(src.id)) return [bulkKey(src)];
+  const ks = [...selected].map(id => BLOCKS.find(x => x.id === id))
+                          .filter(Boolean).map(bulkKey);
+  return ks.length ? [...new Set(ks)] : [bulkKey(src)];
+};
 const matchKeys = keys => BLOCKS.filter(b => keys.indexOf(bulkKey(b)) >= 0);
 function bulkPreviewTick(src){
   if(bulkTick) return;                       // 這一幀已經排過了
@@ -665,12 +884,31 @@ function bulkPreviewTick(src){
       dxMm:+(dx/per*10).toFixed(3), dyMm:+(dy/per*10).toFixed(3) } }, '*'); }catch(_){}
   });
 }
-let MARGIN = 8;
-function setMargin(){
-  const perCm = (CM_W && CW) ? CW / CM_W : 0;      // 這一格：1cm 是幾個座標單位
-  if(!perCm){ MARGIN = 8; return; }                // 還不知道實際尺寸，先用舊值
-  const want = (MARGIN_MM / 10) * perCm;
-  MARGIN = Math.max(0, Math.min(want, Math.min(CW, CH) * MARGIN_MAX_FRAC));
+let MARGIN = MARGIN_PX_DEFAULT;
+/* 紅線是 CSS 畫的（.safe 讀 --pad），數字只有這裡一個來源 —— 兩邊各算一次的話
+   遲早會有一條線指著別的地方，而那條線的用途就是「照著它擺」。 */
+function setMargin(m){
+  if(m != null) MARGIN = Math.max(0, +m || 0);
+  document.documentElement.style.setProperty('--pad', MARGIN + 'px');
+}
+/* 邊界變大時，把已經站在外面的零件拉回線內。四邊都夾 —— 紅線是牆，
+   牆往內移了，站在牆外的就得跟著進來，不然那條線又開始說謊。
+   拉桿（單獨開這一頁）和上層送下來的邊界走同一條：兩邊各寫一份的話，
+   版面上那一種永遠會少做一半（而且要拖一下才看得出來）。 */
+function clampToMargin(){
+  CELLS.forEach((c,i)=>{
+    const bs = (c===cell())?BLOCKS:c.blocks;
+    const el = document.getElementById('cell'+i);
+    if(!el||!bs.length) return;
+    const k=(el.clientWidth||CW)/CW;
+    bs.forEach(b=>{
+      const n=el.querySelector(`[data-b="${b.id}"]`);
+      const w=n?n.getBoundingClientRect().width/k:0;
+      const h=n?n.getBoundingClientRect().height/k:0;
+      b.x=Math.max(MARGIN,Math.min(b.x,CW-MARGIN-w));
+      b.y=Math.max(MARGIN,Math.min(b.y,CH-MARGIN-h));
+    });
+  });
 }
 /* 排版座標系：1 cm ＝ U_PER_CM 個座標單位，每一格都一樣。
 
@@ -765,8 +1003,10 @@ function priceCount(bs, off){
    四個以上沿用三個那一級：再往下分，每一級都只有一兩格用得到。
    ⚠️ 這張表本來是 {1:1.55, 2:1.25}，可是 countFs() **從來沒有人叫過** ——
    整張表是死的。照那組數字接回去會讓一價的價格一口氣大 55%，
-   而現在一價、二價長什麼樣是談定過的，所以那兩格改成 1（維持現狀）。 */
-const PRICE_COUNT_FS = { 3: 0.9 };
+   而現在一價、二價長什麼樣是談定過的，所以那兩格改成 1（維持現狀）。
+   三價那一級 2026-08 從 0.9 再往下 30%（0.9 × 0.7 = 0.63，談定）：
+   攤開的那三欄一欄只有三分之一格寬，0.9 那一級的數字幾乎把整欄佔滿。 */
+const PRICE_COUNT_FS = { 3: 0.63 };
 const countFs = () => PRICE_COUNT_FS[Math.min(3, priceCount())] || 1;
 
 /** 這一格有幾個 SKU（藏起來的不算，理由同 priceCount）。
@@ -824,9 +1064,10 @@ function applyType(t){
      沒有它的話（單獨開這一頁）就用自己這一格，＝ 原版的數字本人。 */
   const rh = +t.refCmh || 0;
   if(rh && Math.abs(rh - REF_CM_H) > .001){ REF_CM_H = rh; applyMetrics(); hit = true; }
-  if(t.marginMm != null){
-    const mm = +t.marginMm;
-    if(mm >= 0 && Math.abs(mm - MARGIN_MM) > .0005){ MARGIN_MM = mm; hit = true; }
+  let marginHit = false;
+  if(t.marginPx != null){
+    const px = Math.max(0, +t.marginPx || 0);
+    if(Math.abs(px - MARGIN) > .0005){ setMargin(px); marginHit = hit = true; }
   }
   if(t.mul){
     for(const k in TYPE_MUL){
@@ -836,6 +1077,8 @@ function applyType(t){
   }
   if(!hit) return;
   applyMetrics();        // SKU 轉盤的值是原版單位（預設 12），換算在 applyMetrics 裡
+  // 邊界往內移了：站在線外的零件先拉回來，再重畫（見 clampToMargin）
+  if(marginHit) clampToMargin();
   /* renderOne 會把整格的 innerHTML 重寫，四顆把手跟著沒了 —— 而調字級的時候
      那一塊通常正選著（你就是為了它才去按 ＋／−）。補畫一次，選取才不會
      每按一下就掉一次。 */
@@ -970,11 +1213,11 @@ function fitStage(){
   applyMetrics();
 }
 
-/* 邊界和字級都是「原版那個數字換算到這一格」，所以只要格子的尺寸或參考格變了，
+/* 字級是「原版那個數字換算到這一格」，所以只要格子的尺寸或參考格變了，
    就得重算一次。放在一個地方算，不要散在各處 —— 散開就會有一半忘記更新，
    然後畫面上一半元素照新比例、一半照舊比例（這種錯最難看出來）。 */
 function applyMetrics(){
-  setMargin();           // 邊界跟著這一格的尺標走，尺標一換就要重算
+  setMargin();           // 邊界本身不跟著尺標變（它是座標單位），但那條紅線要重寫
   const r = document.documentElement.style;
   r.setProperty('--fs-name',  ty(30 * SZ_NAME * TYPE_MUL.name).toFixed(2) + 'px');
   r.setProperty('--fs-model', ty(13 * SZ_MODEL * TYPE_MUL.model).toFixed(2) + 'px');
@@ -1172,15 +1415,19 @@ function clearStageSel(){
 addEventListener('message',e=>{
   const d = e.data || {};
   if(d.boardRole==='pm'||d.boardRole==='design') applyRole(d.boardRole);
-  /* 紙色。只改一個 CSS 變數，不重畫任何東西 —— 版面上的零件座標跟顏色無關。 */
+  /* 這一格的底色。只改一個 CSS 變數，不重畫任何東西 —— 零件座標跟顏色無關。 */
   if(d.paper !== undefined)
     document.documentElement.style.setProperty('--paper', d.paper || '#fff');
   /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
      CW 還停在預設值的話就會照錯的比例縮。 */
   if(d.stageCm) applyStageCm(d.stageCm);
   if(d.stageScale){ STAGE_SCALE = +d.stageScale || 1; resizeHandles(); }
-  if(d.bulkMode !== undefined) BULK_MOVE = !!d.bulkMode;
-  if(d.bulkKeys) BULK_KEYS = d.bulkKeys.slice();
+  /* 開關集體移動＝已經選起來的那幾塊要換個顏色（藍↔紅），所以要重畫。
+     沒有選取就什麼都不必動。 */
+  if(d.bulkMode !== undefined){
+    const was = BULK_MOVE; BULK_MOVE = !!d.bulkMode;
+    if(was !== BULK_MOVE && selected.size) renderCell();
+  }
   if(d.bulkPreview){
     const per = unitsPerCm();
     if(per > 0) showBulkPreview(d.bulkPreview.keys,
@@ -1190,6 +1437,9 @@ addEventListener('message',e=>{
   if(d.bulkApply){ clearBulkPreview(); applyBulkMove(d.bulkApply); }
   if(d.stageEditing !== undefined) applyStageEditing(d.stageEditing);
   if(d.stageClearSel) clearStageSel();      // 上層要印乾淨版了，把選取收起來
+  if(d.stageSnapshot) snapshotStage(d.stageSnapshot);   // 上層要這一格的點陣圖
+  /* 上層的手正放在邊界那條拉桿上 → 把紅線亮出來。純 CSS，不重畫任何東西。 */
+  if(d.marginGuide !== undefined) document.body.classList.toggle('padding', !!d.marginGuide);
   /* 工具列那顆「顯示格線」：開＝一直看得到，關＝一直看不到。它不再跟拖曳綁在一起，
      所以按下去的當下就要重畫，不然要等下一次動到版面才看得到。 */
   if(d.gridLines !== undefined){
@@ -1207,6 +1457,18 @@ addEventListener('message',e=>{
   if(d.boardPicked) applyPicked(d.boardPicked);
   // 面板那邊按了「刪掉」— uid 兩邊算出來是同一個，所以指名就認得出是哪一塊
   if(d.boardOff) applyOff(d.boardOff);
+  /* 別的地方（別一格的畫布、商品目錄那一頁）換了某一個商品的圖。
+     只補這一把鑰匙、只重畫用得到它的格 —— 這正是不走整包 catalogue 的理由：
+     那條路會把每一格的 layoutKey 清掉重排一次。 */
+  if(d.imgPatch){
+    const k = d.imgPatch.key, u = d.imgPatch.url || '';
+    if(k){
+      if(u) IMG[k] = u;
+      else if(IMG[k]) delete IMG[k];
+      else delete IMG[imgKeyBase(k)];
+      repaintImgKey(k);
+    }
+  }
   // 上層把剛剛那張圖傳完了（或失敗了）
   if(d.imgUploaded){
     const w = imgWaiting.get(d.imgUploaded.reqId);
@@ -1233,36 +1495,52 @@ function say(msg){
   sayTimer = setTimeout(()=>el.classList.remove('on'), 2400);
 }
 
-/* 縮圖一律出 PNG：商品圖常常是去背的，轉成 JPEG 會給它一塊白底。 */
+/* 縮圖出 WebP：商品圖常常是去背的，所以不能轉 JPEG（那會給它一塊白底），
+   但 PNG 存照片會胖上好幾倍 —— WebP 兩件事都做得到：留得住透明，又小。
+   老瀏覽器的 toBlob 給不出 WebP 就退回 PNG，副檔名照回傳的 blob.type 決定。
+   **回傳 Blob，不是 dataURL**：這一份要 postMessage 給上層，base64 先胖三分之一，
+   上層還得再 fetch() 解回二進位 —— Blob 本來就傳得過去（structured clone）。
+   壓完比原檔還大就用原檔：去背的小 PNG 常常是這樣（重壓一次只是變糊又變大）。 */
 function shrinkImage(file){
   return new Promise((ok,no)=>{
     const fr=new FileReader();
     fr.onerror=()=>no(new Error('讀不到這個檔案'));
     fr.onload=()=>{
       const im=new Image();
-      im.onerror=()=>no(new Error('這個檔案不是看得懂的圖'));
+      /* 最常見的一種是 iPhone 的 HEIC：檔名寫著 .jpg、type 也報 image/jpeg，
+         但瀏覽器畫不出來 —— 所以要指名，不然看到的只是「不是看得懂的圖」，
+         而檔案總管裡那個檔看起來明明就是一張 jpg。 */
+      im.onerror=()=>no(new Error('瀏覽器畫不出這個檔案（iPhone 的 HEIC 常常這樣，副檔名還是寫 .jpg）—— 請先另存成 PNG 或 JPG'));
       im.onload=()=>{
         const k=Math.min(1, IMG_MAX_PX/Math.max(im.width,im.height));
-        if(k>=1) return ok(fr.result);            // 本來就夠小，別重壓一次
         const cv=document.createElement('canvas');
-        cv.width=Math.round(im.width*k); cv.height=Math.round(im.height*k);
+        cv.width=Math.max(1,Math.round(im.width*k));
+        cv.height=Math.max(1,Math.round(im.height*k));
         cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
-        ok(cv.toDataURL('image/png'));
+        const take=b=>{
+          if(!b) return no(new Error('這個檔案壓不下來'));
+          ok(b.size < file.size ? b : file);
+        };
+        cv.toBlob(b=>{ b ? take(b) : cv.toBlob(take,'image/png'); }, 'image/webp', .92);
       };
       im.src=fr.result;
     };
     fr.readAsDataURL(file);
   });
 }
+const imgExt = blob => blob && blob.type==='image/webp' ? '.webp'
+                     : blob && blob.type==='image/jpeg' ? '.jpg' : '.png';
 
 let imgReqN = 0;
 const imgWaiting = new Map();
-function askUpload(name, dataUrl){
+/* name 不帶副檔名 —— 副檔名是壓完才知道的（見 shrinkImage），由這裡接上去。 */
+function askUpload(name, blob){
   return new Promise((ok,no)=>{
     if(window.parent===window) return no(new Error('單獨開這一頁沒有地方可以存'));
     const reqId = 'u'+(++imgReqN);
     imgWaiting.set(reqId,{ok,no});
-    try{ parent.postMessage({ boardCell:CELL_ID, imgUpload:{ reqId, name, dataUrl } }, '*'); }
+    try{ parent.postMessage({ boardCell:CELL_ID,
+                             imgUpload:{ reqId, name: name + imgExt(blob), blob } }, '*'); }
     catch(err){ imgWaiting.delete(reqId); return no(err); }
     setTimeout(()=>{
       if(imgWaiting.has(reqId)){ imgWaiting.delete(reqId); no(new Error('上傳等太久了')); }
@@ -1270,28 +1548,47 @@ function askUpload(name, dataUrl){
   });
 }
 
-/* 後台那幾顆「上傳」跟拖檔案進來走同一條路：縮圖 → 交給上層傳去 Storage → 只留網址。
-   以前這兩顆是自己 readAsDataURL 完就塞進 BIMG／IMG —— 圖看得到，所以看起來成功了，
-   但 IMG 根本沒人存（重整就沒了），BIMG 則是整包 base64 跟著共用目錄一起來回傳。 */
-function pickAndUpload(name, done){
-  const f = document.getElementById('imgFile');
-  if(!f) return;
-  f.onchange = async ()=>{
-    const file = f.files[0]; f.value = '';
-    if(!file) return;
-    if(!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
-    say('傳圖中…');
-    try{
-      done(await askUpload(name + '.png', await shrinkImage(file)));
-      say('換好了');
-    }catch(err){
-      say(String(err && err.message || err));
-    }
-  };
-  f.click();
+/* 品牌 logo 走另一個庫（logo_page 那個 Supabase），所以是另一句話 ——
+   回覆共用 imgUploaded 那條路：等的是同一件事（傳完了沒、網址是什麼）。 */
+function askLogoUpload(brand, blob, fileName){
+  return new Promise((ok,no)=>{
+    if(window.parent===window) return no(new Error('單獨開這一頁沒有地方可以存'));
+    const reqId = 'u'+(++imgReqN);
+    imgWaiting.set(reqId,{ok,no});
+    try{ parent.postMessage({ boardCell:CELL_ID,
+                             logoUpload:{ reqId, brand, name: fileName, blob } }, '*'); }
+    catch(err){ imgWaiting.delete(reqId); return no(err); }
+    setTimeout(()=>{
+      if(imgWaiting.has(reqId)){ imgWaiting.delete(reqId); no(new Error('上傳等太久了')); }
+    }, 30000);
+  });
 }
 
-const imgBlkAt = t => (t && t.closest) ? t.closest('.blk.img') : null;
+/* 一列一個落點（後台那兩排：品牌圖、商品圖）。
+   **整支程式都不開檔案視窗了**，所以每一個「可以放圖的地方」都得自己接得住拖曳 ——
+   以前那幾顆「上傳」是點一下開檔案總管，那個手勢只講得出「一個檔案」，
+   講不出「哪一張」，手一滑就換掉了別的東西。
+   只認從桌面拖進來的**檔案**（types 裡有 Files），不然拖一塊零件經過也會亮起來。 */
+function dropRow(el, then){
+  el.addEventListener('dragover', e=>{
+    if(![...(e.dataTransfer.types||[])].includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    el.classList.add('dragover');
+  });
+  ['dragleave','drop'].forEach(t=>el.addEventListener(t, ()=>el.classList.remove('dragover')));
+  el.addEventListener('drop', e=>{
+    const f = e.dataTransfer && e.dataTransfer.files[0];
+    if(!f) return;
+    e.preventDefault();
+    e.stopPropagation();
+    then(f);
+  });
+}
+
+/* 可以放圖的零件有兩種：商品圖和品牌 logo。兩個落點長得一樣（拖進來、亮起來、
+   放手就換），去處不一樣 —— 商品圖進共用目錄，logo 進品牌 Logo 庫。 */
+const imgBlkAt = t => (t && t.closest) ? t.closest('.blk.img, .blk.brand') : null;
 let dropHot = null;
 function markDrop(el){
   if(dropHot===el) return;
@@ -1319,41 +1616,123 @@ addEventListener('drop', async e=>{
 
   const b = BLOCKS.find(x=>String(x.id)===el.dataset.b);
   if(!b) return;
-  const f = e.dataTransfer.files[0];
-  if(!/^image\//.test(f.type)){ say('只收圖片檔'); return; }
+  if(b.kind==='brand') putLogo(b, e.dataTransfer.files[0], el);
+  else putProductImage(b.key, e.dataTransfer.files[0], el);
+});
 
-  el.classList.add('imgbusy');
+/* 放一張圖進去＝換掉**這個商品**的圖，存進共用目錄（IMG），不是存進這一格。
+   以前拖進來的圖寫在 cellImgs() 上，於是同一支商品在別格、別本 DM 還是一個灰框，
+   而且那一格的 override 會一直贏過後來補上的正確答案 —— 有人幫它補了圖，
+   最早拖過圖的那一格永遠看不到，看起來像「換不動」。
+   ⚠️ 換的是**這一把鑰匙**（品名|規格|顏色|SKU），不是同名的每一列：
+   同一個商品名底下 256G 黑 和 512G 橘 本來就是兩張不同的照片。 */
+async function putProductImage(key, file, el){
+  if(!file) return;
+  if(!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
+  if(el) el.classList.add('imgbusy');
+  say('傳圖中…');
   try{
-    const small = await shrinkImage(f);
-    const url = await askUpload(b.key + '.png', small);
-    cellImgs()[b.key] = url;
+    const url = await askUpload('item-'+key, await shrinkImage(file));
+    /* 這一格自己換過的那張會贏過目錄（見 imgUrlOf）—— 不清掉的話畫面上不會變，
+       而剛剛那個人要的就是他手上這一張。 */
+    const c = cellImgs();
+    delete c[key]; delete c[imgKeyBase(key)];
     saveCell();
-    refreshAll();          // 同一格裡同一個商品的圖層一起換掉
-    reportBoard();         // 上層收到才會寫進檔期、才會同步出去
+    setProductImg(key, url);
+    reportBoard();         // 這一格的 img override 少了一筆，要存回檔期
     say('換好了');
   }catch(err){
     say(String(err && err.message || err));
   }finally{
-    el.classList.remove('imgbusy');
+    if(el) el.classList.remove('imgbusy');
   }
-});
+}
+
+/* 品牌圖走的是整包目錄那條路，不是上面那個「只補一把鑰匙」的近路 ——
+   **品牌圖的有無會改變左上那一疊的落點**（有品牌圖，品名要往下讓一行，
+   見 buildBlocks 的 hasBrand），所以每一格都得重排一次，而那正是 reportCatalogue
+   → applyCatalogue 做的事。商品圖換一張不動任何位置，才有近路可以走。 */
+async function putBrandImage(name, file, el){
+  if(!file) return;
+  if(!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
+  if(el) el.classList.add('imgbusy');
+  say('傳圖中…');
+  try{
+    BIMG[name] = await askUpload('brand-'+name, await shrinkImage(file));
+    refreshAll();
+    reportCatalogue();
+    say('換好了');
+  }catch(err){
+    say(String(err && err.message || err));
+  }finally{
+    if(el) el.classList.remove('imgbusy');
+  }
+}
+
+/* 拖到左上那張 logo 上＝換掉**這個品牌**的 logo，而且是換進品牌 Logo 庫裡那一張。
+   為什麼不是存在這一格、也不是存進商品目錄：Logo 庫才是「這個牌子長什麼樣」的
+   正確答案（見 CLAUDE.md 那三個庫）—— 存在別的地方的話，同一個牌子在別格、
+   別本 DM 還是舊的那張，下一個人再換一次，而兩張都還在庫外面。
+   上傳由上層做（金鑰在那邊），換完上層會把新的那一份發給每一塊畫布。 */
+async function putLogo(b, file, el){
+  if(!file) return;
+  if(!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
+  const brand = (b.brand != null ? b.brand : (BRAND[b.name]||'')) || rowBrand(b.row);
+  if(!brand){ say('這一格沒有品牌名，先去商品目錄填上'); return; }
+  if(el) el.classList.add('imgbusy');
+  say('傳圖中…');
+  try{
+    await askLogoUpload(brand, await shrinkImage(file), file.name);
+    /* 有人以前照品牌名（或商品名）手動傳過一張的話，那一張排在庫前面（見 bimgOf）——
+       不清掉的話剛剛拖進去的那張永遠看不到，看起來像「換不動」。 */
+    const manual = BIMG[brand] ? brand : (BIMG[b.name] ? b.name : '');
+    if(manual){ delete BIMG[manual]; reportCatalogue(); }
+    say('換好了 —— Logo 庫裡那一張也換了');
+  }catch(err){
+    say(String(err && err.message || err));
+  }finally{
+    if(el) el.classList.remove('imgbusy');
+  }
+}
+
+/* 目錄裡那一格換掉，然後只重畫用得到它的那幾格。
+   **不走 reportCatalogue()**：那會把整份目錄（幾千列）往上丟，上層整包寫回資料庫、
+   再發給每一塊畫布，每一塊又把每一格的 layoutKey 清掉重排一次 —— 為了一串網址。
+   換成一句 catalogueImg：上層只補那一個 key，再原樣轉給其他畫布。 */
+function setProductImg(key, url){
+  if(url) IMG[key] = url;
+  /* 清除的時候：這一列自己那張沒有的話，畫面上看到的是舊鑰匙底下那一張共用的。 */
+  else if(IMG[key]) delete IMG[key];
+  else delete IMG[imgKeyBase(key)];
+  repaintImgKey(key);
+  if(window.parent !== window)
+    try{ parent.postMessage({ boardCell:CELL_ID, catalogueImg:{ key, url: url||'' } }, '*'); }catch(_){}
+}
+
+/* 只有那幾張圖要換，版面一個 px 都沒動 —— 所以 renderOne 不帶 force：
+   layoutKey 沒變它就只是照現成的零件重畫一次 HTML，不會重排。 */
+function repaintImgKey(key){
+  const base = imgKeyBase(key);
+  CELLS.forEach((c,i)=>{
+    const bs = (i===curCell ? BLOCKS : c.blocks) || [];
+    if(bs.some(b=>b.kind==='img' && (b.key===key || imgKeyBase(b.key)===base))) renderOne(i);
+  });
+}
 
 /* ====== 共用商品目錄 ======
    目錄是全公司一份，存在上層那邊（上層才有連線的金鑰）。這一頁只負責：
    收到就換掉、改到就往上報。上層沒給（單獨開這一頁、或還沒接後端）就繼續用
    檔案裡寫死的那份，跟以前一模一樣。 */
-/* 品牌 Logo 庫換了一份就整批重排：品牌圖的有無會改變左上那一疊的落點
-   （有品牌圖的話品名要往下讓一行，見 buildBlocks 的 hasBrand），
-   所以不能只換圖，得走跟換目錄同一條路。 */
+/* 品牌 Logo 庫換了一份就每一格重畫一次 HTML，**但不重排**：品牌圖是畫的時候
+   才查的（blockBimg），零件的位置一個都不用動。
+   以前這裡是清掉 layoutKey 整批重建 —— 那會把使用者搬過的零件位置全部洗掉，
+   只為了換一張圖；而且重建出來的那一份又把新網址存進 b.bimg，下一次還是舊的。 */
 function applyLogos(map){
   if(!map || typeof map !== 'object') return;
   const before = JSON.stringify(LOGOS||null), now = JSON.stringify(map);
-  if(before === now) return;                 // 沒變就別重排（每次掛上來都會送一次）
+  if(before === now) return;                 // 沒變就別重畫（每次掛上來都會送一次）
   LOGOS = map;
-  layoutKey = '';
-  CELLS.forEach(c=>{ c.layoutKey = ''; });
-  saveCell();
-  refreshAll();
+  CELLS.forEach((c,i)=>renderOne(i));        // 不帶 force：layoutKey 沒變就只重畫
 }
 
 function applyCatalogue(cat){
@@ -1486,7 +1865,10 @@ function skuLine(vs){
    沒有 SKU 的列才退回列上的型號；兩個都沒有就只好跟以前一樣併在一起 ——
    那時候手上真的沒有東西分得出它們。
    ⚠️ 型號讀的是 `r.model`（列上那一份），不走 rowModel()：對照表那一份是
-   「這個商品名的型號」，同名的每一列都一樣，拿它當鑰匙又併回去了。 */
+   「這個商品名的型號」，同名的每一列都一樣，拿它當鑰匙又併回去了。
+   ⚠️ product.html 有一份一模一樣的（那一頁載不了共用的 .js —— 畫布是 srcdoc 塞進去的）。
+   改這裡就要改那裡：對不起來的時候兩邊都不會報錯，只是圖沒出現。
+   有一支在盯：`.claude/skills/run-pm-page/imgkey-parity.mjs`（scenario.mjs 每次都會先跑）。 */
 let IMG = {};
 function imgKey(r){
   const spec = (r && r.spec) || '', color = (r && r.color) || '';
@@ -1557,8 +1939,14 @@ function buildBlocks(){
   const hasBrand = !!(brand || bimg);
 
   // 左上
-  if(hasBrand) B.push({id:'b'+id++,kind:'brand',name,brand,bimg,x:MARGIN,y:MARGIN});
-  const nameY = hasBrand?MARGIN+ty(34 * SZ_BRAND):MARGIN;
+  /* hres＝這一塊當初留了多少位子。比例是量出來的（可能晚一步才知道），
+     所以要留著證據，之後才對得出差多少（見 refitBrandStack）。 */
+  if(hasBrand) B.push({id:'b'+id++,kind:'brand',name,brand,bimg,x:MARGIN,y:MARGIN,
+                       hres:brandSlotH(bimg)+8});
+  /* 商標底下留的位子＝那張圖真正畫多高 ＋ 8（原本寫死 34＝26＋8，26 是「所有商標
+     都一樣高」那個年代的高度）。方形的商標會長到 56，還照 34 留位子的話品名
+     會壓在它身上 —— 正在編的那一格 spreadStack 會量完再推開，但別的格子不會量。 */
+  const nameY = hasBrand?MARGIN+ty((brandSlotH(bimg) + 8) * SZ_BRAND):MARGIN;
   B.push({id:'b'+id++,kind:'name',text:name,x:MARGIN,y:nameY});
   const mdl=rowModel(rows[0]);
   let ly = nameY + ty(34 * SZ_NAME);
@@ -1605,10 +1993,13 @@ function buildBlocks(){
   const priceH = ty(58 * SZ_PRICE);
   const gapG   = ty(10);                       // 兩組之間
   /* 一價的 SKU 收在左上那一疊，所以這裡只剩規格那一行（ty(26)）。 */
+  /* 規格跟 SKU 同一行（見下面的 inlineSpecs），所以一行就是一行 —— 不必再替規格
+     多留一條 ty(26)。只有一價那種「SKU 收到左上那一疊」的，規格才自己站一行。 */
   const colH   = c => (skuLeft ? c.lines.reduce((a,l)=>a+(l.spec?ty(26):0),0)
-                    : spread ? c.lines.reduce((a,l)=>a+(l.spec?ty(26):0)+lineH,0)
-                             : c.lines.length * lineH) + priceH;
-  const inlineSpecs = !skuLeft && !spread;
+                               : c.lines.length * lineH) + priceH;
+  /* 規格一律貼著 SKU 的左端（談定）。以前攤開的那一版讓規格自己站一行，理由是
+     一欄只剩三分之一格寬、併排塞不下 —— 現在照談定的來，塞不塞得下由字級那邊處理。 */
+  const inlineSpecs = !skuLeft;
   if(spread){
     // 每一欄分到一樣寬的一格，右緣落在自己那一格的右邊界 → 攤開之後間距一定相等
     const slot = (CW - MARGIN*2) / n;
@@ -1617,7 +2008,9 @@ function buildBlocks(){
       const rx = MARGIN + (n-1-ci) * slot;
       let y = yTop;
       for(const l of c.lines){
-        if(l.spec){ B.push({id:'b'+id++,kind:'spec',spec:l.spec,rx,y,col:ci}); y+=ty(26); }
+        /* 規格**貼著 SKU 的左端**（談定，攤開的也一樣）：同一行，緊接在號碼左邊。
+           真正的 x 是 packPriceGroups 量完 SKU 多寬才對得上去的。 */
+        if(l.spec) B.push({id:'b'+id++,kind:'spec',spec:l.spec,rx,y,col:ci,inline:true});
         B.push({id:'b'+id++,kind:'sku',vs:l.vs.slice(),rx,y,col:ci});
         y+=lineH;
       }
@@ -1785,9 +2178,15 @@ function xrayDim(b){
 /* 這一塊自己調過的倍率。沒調過就不寫，CSS 那邊 var(--bs,1) 吃預設值。 */
 function bsVar(b){ return (b.sc && b.sc!==1) ? `;--bs:${b.sc}` : ''; }
 
-const pk = b => pickedIds.has(b.id) ? ' bpick' : '';
+/* 集體移動開著時，選起來的那幾塊改畫紅虛線：同樣是「選到的」，但那一下拖出去
+   動的是每一格。藍和紅不疊 —— 兩個記號指同一件事只會讓人以為它們不一樣。 */
+const pk = b => (BULK_MOVE && selected.has(b.id)) ? ' bpick' : '';
 function blockHTML(b,isCur=true){
-  const on = (isCur&&selected.has(b.id))?' sel':'';
+  /* 選了不只一塊時，選取本身要看得見：把手只畫在「剛好選了一塊」的時候
+     （四個角是拉大小用的，一次拉一塊），所以框選一片下來畫面上什麼都不會變 ——
+     看起來就像沒選到。多選的那幾塊各自描一圈藍。 */
+  const many = isCur && selected.has(b.id) && selected.size>1 && !BULK_MOVE;
+  const on = (isCur&&selected.has(b.id)) ? (many?' sel msel':' sel') : '';
   const bs = bsVar(b);
   /* 右緣錨點：右下那一組用 right 定位（見 buildBlocks）。搬過之後就換回 left ——
      手動位置是絕對的，不該再跟著右邊界跑（見 mousedown 那邊的 unpin）。 */
@@ -1808,10 +2207,32 @@ function blockHTML(b,isCur=true){
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
   /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的），所以查不到
-     b.brand 就退回那張對照表 —— 不然舊檔期一開起來，品牌全部變成空白。 */
-  if(b.kind==='brand') return `<div class="blk brand${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${
-    brandHTML(b.brand != null ? b.brand : (BRAND[b.name]||''),
-              b.bimg != null ? b.bimg : (BIMG[b.name]||''))}</div>`;
+     b.brand 就退回那張對照表 —— 不然舊檔期一開起來，品牌全部變成空白。
+     圖不讀 b.bimg，當場再查一次（見 blockBimg）：庫裡換過的圖要跟著換。 */
+  if(b.kind==='brand'){
+    const img = blockBimg(b);
+    const g = img ? brandGeom(img) : null;
+    /* 單位換算跟 applyMetrics 那幾條一樣：排版單位 → px，再乘這一塊自己的 --bs。 */
+    const u = v => ty(v * SZ_BRAND * TYPE_MUL.brand).toFixed(2);
+    const px = v => `calc(${u(v)}px * var(--bs,1))`;
+    let inner;
+    if(g && g.crop){
+      /* 外面這一層就是墨水框（看得見的那一塊），裡面那張圖放大之後往左上位移，
+         四周那圈空白被 overflow 切掉。零件佔的位子＝這一層，所以品名貼得上來。 */
+      inner = `<span class="bcrop" style="width:${px(g.w)};height:${px(g.h)}">`
+            + `<img class="bimg" src="${img}" alt="" draggable="false" style="`
+            + `width:${px(g.iw)};height:${px(g.ih)};`
+            + `margin-left:calc(0px - ${px(g.ox)});margin-top:calc(0px - ${px(g.oy)})"></span>`;
+    } else if(img){
+      /* 沒量到（或本來就填滿畫布）：照舊用 --h-brand 那條，高度自己算。 */
+      inner = brandHTML(b.brand != null ? b.brand : (BRAND[b.name]||''), img);
+    } else {
+      inner = brandHTML(b.brand != null ? b.brand : (BRAND[b.name]||''), '');
+    }
+    const hv = (img && !(g && g.crop)) ? `;--h-brand:${u(brandSlotH(img))}px` : '';
+    return `<div class="blk brand${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${hv}">${
+      inner}</div>`;
+  }
   if(b.kind==='model') return `<div class="blk model${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">機型：${b.text}</div>`;
   if(b.kind==='spec')  return `<div class="blk specb${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}"><div class="spec${b.dark?' dark':''}">${b.spec}</div></div>`;
   /* 價格用哪一級字由 priceFs() 決定：基準（轉盤 > 同組最小 > 自動）× 這一塊自己的倍率。
@@ -2071,8 +2492,8 @@ function packPriceGroups(blocks){
     for(let i=0;i<rows;i++){
       const sk=skus[i], sp=specs[i];
       const kk=sk?ink(sk):null, pk=sp?ink(sp):null;
-      if(sk && kk && !spread && sp && pk){
-        // 併排：規格站在 SKU 左邊，兩者看得見的**下緣**對齊
+      if(sk && kk && sp && pk){
+        // 併排：規格站在 SKU 左邊、緊貼著它，兩者看得見的**下緣**對齊
         put(sk,kk,y);
         const wantRx=(+sk.rx||0)+kk.w+ty(8);
         if(Math.abs((+sp.rx||0)-wantRx)>.5){ sp.rx=wantRx; moved=true; }
@@ -2083,7 +2504,11 @@ function packPriceGroups(blocks){
         if(sk && kk){ put(sk,kk,y); y+=kk.h+gapLine; }
       }
     }
-    if(price){ const pk=ink(price); if(pk){ put(price,pk,y); y+=pk.h; } }
+    if(price){ const pk=ink(price); if(pk){ put(price,pk,y); y+=pk.h;
+      /* SKU 靠左（談定）：這一欄的左邊界＝**價格看得見的左緣**，所以號碼的第一個字
+         跟數字的第一位對成一條線。攤開的那一版在 buildBlocks 就算得出左邊界
+         （每一欄一樣寬），上下疊這一版算不出來 —— 欄有多寬要等價格畫出來才知道。 */
+    } }
     if(!spread) gy=y+gapGroup;                    // 上下疊：下一組接著往下
   });
   return moved;
@@ -2182,17 +2607,29 @@ function stickImage(blocks){
   const beside=Math.max(0, right-gapI-MARGIN);         // 左邊界到那一組的左緣
   /* 每一張都是正方形，所以「排得下幾張」同時夾寬也夾高：
      n 張並排的總寬不能超過可用的寬，單張的高不能超過可用的高。 */
-  const wBeside=Math.min((CH-MARGIN)-top, beside/n);
-  const wAbove =Math.min(Math.max(0, high-gapI-top), wide/n);
+  /* 兩種讓法各有自己的下緣：站旁邊的填到下邊界，站上面的填到那一組的上緣。 */
+  const lowBeside=CH-MARGIN, lowAbove=Math.max(MARGIN, high-gapI);
+  const wBeside=Math.min(lowBeside-top, beside/n);
+  const wAbove =Math.min(Math.max(0, lowAbove-top), wide/n);
+  const above=wAbove>wBeside;
   let w=Math.max(wBeside, wAbove);
-  const availW=(wAbove>wBeside) ? wide : beside;
+  const availW=above ? wide : beside;
+  const low   =above ? lowAbove : lowBeside;
   w=Math.max(ty(40), Math.min(w, CW-MARGIN*2));
+  /* ⚠️ 上緣照 top 貼，但**下緣不准掉出這一側的底**。品名放大（或換行）之後
+     那一疊會一路往下長，top 跟著跑到底線下面，剩下的高度變成 0 甚至負的 ——
+     w 有 ty(40) 這道地板頂著，y 卻沒有，於是那張正方形整個掛在格子外面，
+     被 .cell 的 overflow 裁掉。症狀是「字放大一點，商品圖就不見了」，
+     而且完全不報錯。擠不下就讓它疊回那一疊身上 —— 寧可疊也不要不見
+     （跟 stackImgs 那條同一個道理）。
+     沒擠到的時候 top+w 本來就在底線以內，這一行量出來是 top 本人。 */
+  const iy=Math.max(MARGIN, Math.min(top, low-w));
   const step=n>1 ? Math.max(w, (availW-w)/(n-1)) : 0;
   let moved=false;
   imgs.forEach((b,i)=>{
     const wx=MARGIN+i*step;
     if(Math.abs((+b.w||0)-w)>.5){ b.w=w; moved=true; }
-    if(Math.abs((+b.y||0)-top)>.5){ b.y=top; moved=true; }
+    if(Math.abs((+b.y||0)-iy)>.5){ b.y=iy; moved=true; }
     if(Math.abs((+b.x||0)-wx)>.5){ b.x=wx; moved=true; }
   });
   return moved;
@@ -2359,22 +2796,21 @@ function measure(){
 
 /* 這一塊現在有沒有乖乖待在邊界裡。用畫出來的位置問（offsetLeft/Top），
    所以右緣錨點（b.rx）那幾塊也問得到。
-   左右問的是格子的邊（0／CW），跟 clampAll 同一套 —— 不然一塊刻意貼到左緣的價格，
-   會在下一次改大小的時候被當成「凸出去了」整份還原回去。 */
+   四邊都問 MARGIN，跟 clampAll 同一套 —— 兩邊的尺不一樣的話，會有一塊「拖不過去
+   卻被判定凸出去」的零件，每次改大小就被整份還原回去。 */
 function withinMargin(id){
   const n=bEl(id); if(!n) return true;
   const k=inkBox(id);
   const l=n.offsetLeft+k.ox, t=n.offsetTop+k.oy;
-  return l >= -.5 && t >= MARGIN-.5
-      && l + k.w <= CW + .5
+  return l >= MARGIN-.5 && t >= MARGIN-.5
+      && l + k.w <= CW - MARGIN + .5
       && t + k.h <= CH - MARGIN + .5;
 }
 
 /* 依候選線做弱磁吸；回傳 {dx,dy,guides} */
-/* 安全邊界：**只剩上下**。左右擋的是格子本身的邊（0 和 CW），不是 MARGIN ——
-   價格、SKU 這些要能真的貼到格子的左右邊緣，那是排版的人自己要決定的事；
-   MARGIN 只是預設版面擺零件的落點，不該同時當成一道拖不過去的牆。
-   （格子的邊還是擋著：拖出去就被 overflow:hidden 吃掉，那不是「貼邊」是「不見了」。） */
+/* 安全邊界：**四邊都擋**（談定的）。以前左右擋的是格子本身的邊（0 和 CW），
+   理由是「價格、SKU 要能真的貼到格子邊緣」；改成四邊之後那件事做不到了，
+   換來的是紅線就是牆 —— 看得到的那條線和拖得到的地方是同一條。 */
 function clampAll(ids,sizes){
   if(!sizes) return;
   // 以整組外框計算，維持相對位置
@@ -2388,8 +2824,8 @@ function clampAll(ids,sizes){
   }
   if(L===Infinity) return;
   let ox=0, oy=0;
-  if(L<0) ox=-L;
-  if(R+ox>CW) ox=Math.min(ox,CW-R);
+  if(L<MARGIN) ox=MARGIN-L;
+  if(R+ox>CW-MARGIN) ox=Math.min(ox,(CW-MARGIN)-R);
   if(T<MARGIN) oy=MARGIN-T;
   if(B+oy>CH-MARGIN) oy=Math.min(oy,(CH-MARGIN)-B);
   if(ox||oy) for(const id of ids){
@@ -2535,16 +2971,6 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   if(el){
     const id=el.dataset.b;
     const blk=BLOCKS.find(x=>x.id===id);
-    /* Ctrl／⌘＋點＝挑集體移動的目標，不是選取也不是拖曳：
-       兩件事共用同一下滑鼠會互相打架。 */
-    if((e.ctrlKey || e.metaKey) && blk && ROLE!=='pm'){
-      e.preventDefault();
-      const key = bulkKey(blk), had = pickedIds.has(id);
-      if(had) pickedIds.delete(id); else pickedIds.add(id);
-      try{ parent.postMessage({ bulkPick:{ key, on:!had } }, '*'); }catch(_){}
-      renderCell();
-      return;
-    }
     /* 右下那一組是用「離右邊界多遠」定位的（b.rx）。要搬它之前先換算成絕對的 x ——
        量它現在畫在哪（offsetLeft 就是排版座標），然後把錨點拿掉。
        不換的話拖曳算出來的 b.x 根本沒人在看，放手後它會跳回右邊界。 */
@@ -2555,10 +2981,13 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
       openPanels(true);
       setTimeout(renderLayers,0);
     }
+    /* Ctrl／⌘ 和 Shift 是同一件事：加進選取（再點一次就拿掉）。
+       兩顆都認 —— 別的軟體兩種都有人用，而這裡不需要它們分工。 */
+    const add = e.shiftKey || e.ctrlKey || e.metaKey;
     if(!selected.has(id)){
-      if(!e.shiftKey) selected.clear();
+      if(!add) selected.clear();
       selected.add(id);
-    }else if(e.shiftKey){ selected.delete(id); }
+    }else if(add){ selected.delete(id); }
     // 拖動所有已選 block —— PM 只能選，位置是設計的事
     if(ROLE!=='pm'){
       [...selected].forEach(i=>unpin(BLOCKS.find(x=>x.id===i)));
@@ -2744,6 +3173,33 @@ document.getElementById('grid').addEventListener('wheel',e=>{
 document.getElementById('grid').addEventListener('click',e=>{
   const btn=e.target.closest('[data-top]');
   if(btn){ e.stopPropagation(); bringTop(btn.dataset.top); }
+});
+
+/* 點一個空框＝把那個庫開起來：商品圖的空框去商品目錄，品牌的空框去品牌 Logo 庫。
+   空框講的就是「這裡少一張圖」，而那張圖不在這本 DM 裡 —— 少的東西在哪裡，
+   點它就該到得了，不必先記得它叫什麼名字再回上面那排找按鈕。
+   只認真正的「點」：搬零件也是先按下去的，位移超過幾個 px 就是在拖它，不是在問路。 */
+/* ⚠️ 不能掛 click：按下去那一下就會重畫整格（換格、選取都會），按住的那個節點
+   當場被換掉，於是瀏覽器的 click 落在共同祖先上，`closest('.blk')` 什麼都找不到。
+   所以按下去的時候先記住是哪一塊，放手的時候再問。 */
+let clickAt=null;
+document.getElementById('grid').addEventListener('mousedown',e=>{
+  clickAt=null;
+  if(window.parent===window) return;             // 單獨開這一頁：沒有那兩個庫可以開
+  if(e.target.closest('[data-top]')) return;
+  const el=e.target.closest('.blk'); if(!el) return;
+  clickAt={x:e.clientX, y:e.clientY, id:el.dataset.b};
+});
+addEventListener('mouseup',e=>{
+  const c=clickAt; clickAt=null;
+  if(!c) return;
+  if(Math.abs(e.clientX-c.x)>3 || Math.abs(e.clientY-c.y)>3) return;   // 那是在拖它
+  const b=BLOCKS.find(x=>String(x.id)===c.id); if(!b) return;
+  const el=bEl(b.id);
+  const lib = (b.kind==='img'   && !imgUrlOf(b.key))            ? 'product'
+            : (b.kind==='brand' && el && el.querySelector('.bph')) ? 'logo' : '';
+  if(!lib) return;
+  try{ parent.postMessage({ boardCell:CELL_ID, openLib:lib }, '*'); }catch(_){}
 });
 /* 兩個窗口一律同進同退，不因格子有沒有內容而分開。
    各留各的：設計 沒有選商品面板，PM 沒有圖層面板（疊放順序是排版的事）。 */
@@ -3242,10 +3698,10 @@ function renderEdit(){
     }).join('')+`</table>
     <div class="grp" style="margin-top:16px">品牌（同商品名一起改；一列一個牌子請去「商品目錄」那一頁）</div>
     <div>`+[...new Set(ROWS.map(r=>r.name))].map(n=>
-      `<div class="imgrow">
+      `<div class="imgrow" data-bimg="${n}">
          <span class="bthumb">${brandHTML(BRAND[n]||'', BIMG[n]||'')}</span>
          <input class="binput" value="${brandOf(n)}" data-brand="${n}" placeholder="品牌名">
-         <button class="mini" data-bimg="${n}" style="margin:0">上傳</button>
+         <span class="hint">拖圖到這裡</span>
          ${BIMG[n]?`<button class="mini" data-bdel="${n}" style="margin:0">清除</button>`:''}
        </div>`).join('')+`</div>
 
@@ -3256,13 +3712,12 @@ function renderEdit(){
 
     <div class="grp" style="margin-top:16px">商品圖</div>
     <div id="imgList">`+[...new Set(ROWS.map(r=>imgKey(r)))].map(k=>
-      `<div class="imgrow">
+      `<div class="imgrow" data-img="${k}">
          <span class="ithumb">${imgHTML(k)}</span>
          <span class="iname">${keyLabel(k)}</span>
-         <button class="mini" data-img="${k}" style="margin:0">上傳</button>
+         <span class="hint">拖圖到這裡</span>
          ${(IMG[k]||IMG[imgKeyBase(k)])?`<button class="mini" data-imgdel="${k}" style="margin:0">清除</button>`:''}
        </div>`).join('')+`</div>
-    <input type="file" id="imgFile" accept="image/*" style="display:none">
     <div style="margin-top:12px">
       <button class="mini" id="addR">+ 一列</button>
       <button class="mini" id="paste">貼上批次</button>
@@ -3310,27 +3765,23 @@ function renderEdit(){
     CELLS.forEach((c,i)=>renderOne(i));
     reportCatalogue();
   });
-  // 上傳品牌 PNG
-  $('#paneEdit').querySelectorAll('[data-bimg]').forEach(b=>b.onclick=()=>
-    pickAndUpload('brand-'+b.dataset.bimg, url=>{
-      BIMG[b.dataset.bimg]=url; refreshAll(); reportCatalogue();
-    }));
+  // 品牌 PNG：整列就是落點（點一下不開檔案視窗 —— 見 putProductImage 那一段）
+  $('#paneEdit').querySelectorAll('[data-bimg]').forEach(row=>dropRow(row, file=>
+    putBrandImage(row.dataset.bimg, file, row)));
   $('#paneEdit').querySelectorAll('[data-bdel]').forEach(b=>b.onclick=()=>{
     delete BIMG[b.dataset.bdel]; refreshAll(); reportCatalogue();
   });
-  // 上傳商品圖
-  $('#paneEdit').querySelectorAll('[data-img]').forEach(b=>b.onclick=()=>
-    pickAndUpload('item-'+b.dataset.img, url=>{
-      IMG[b.dataset.img]=url; refreshAll(); reportCatalogue();
-    }));
-  /* 清除也要往上報 —— 商品圖現在跟品牌圖一樣是目錄的一部分，
-     只在本機 delete 掉的話，下一次收到目錄它就又回來了。 */
+  /* 商品圖：整列就是落點，跟拖到版面上那個灰框走同一條路（putProductImage）——
+     兩個地方放進去的是同一個東西，就不該有兩種寫法。 */
+  $('#paneEdit').querySelectorAll('[data-img]').forEach(row=>dropRow(row, file=>
+    putProductImage(row.dataset.img, file, row).then(()=>renderEdit())));
+  /* 清除也要往上報 —— 商品圖跟品牌圖一樣是目錄的一部分，
+     只在本機 delete 掉的話，下一次收到目錄它就又回來了。
+     清的是「畫面上那一張」：這一列自己那張沒有的話，看到的就是舊鑰匙底下那一張
+     共用的，清它會連同名的其他幾列一起清掉 —— 因為那本來就是同一張。 */
   $('#paneEdit').querySelectorAll('[data-imgdel]').forEach(b=>b.onclick=()=>{
-    const k = b.dataset.imgdel;
-    /* 清的是「畫面上那一張」。這一列自己那張沒有的話，看到的就是舊鑰匙底下
-       那一張共用的 —— 清它會連同名的其他幾列一起清掉，因為那本來就是同一張。 */
-    if (IMG[k]) delete IMG[k]; else delete IMG[imgKeyBase(k)];
-    refreshAll(); reportCatalogue();
+    setProductImg(b.dataset.imgdel, '');
+    renderEdit();
   });
   $('#addR').onclick=()=>{ ROWS.push({name:'新商品',spec:'128G',color:'',sku:'0000000',price:0}); reindex(); refreshAll(); reportCatalogue(); };
   $('#stress').onclick=()=>{
@@ -3466,6 +3917,8 @@ addEventListener('keydown', e=>{
 /* ====== 互動 ====== */
 document.getElementById('grid').onclick=e=>{
   if(!e.target.closest('.cell')) return;
+  /* ⚠️ 點那個空的灰框**不會**開檔案視窗（整支程式都不開了）：放圖只有
+     「把那一張拖進來」這一種手勢。灰框上寫的就是這件事。 */
   // 點格子內部只會「開啟」面板，不會關閉；關閉只發生在點格子外面
   if(!e.target.closest('.blk') && !dragHappened){
     openPanels(true);
@@ -3521,24 +3974,25 @@ addEventListener('mousedown',e=>{
 },true);
 
 const padEl=document.getElementById('pad');
+padEl.value=MARGIN;
+document.getElementById('padv').textContent=MARGIN+' px';
+/* 紅線只在**手放在這條拉桿上**的時候亮著（見 .safe），手一離開就馬上收 ——
+   不留倒數。點到別的地方去了，記號就該當場消失：留一段餘命的話，那條線會在
+   你已經在看別的東西的時候還亮著，而它長得就像版面上真的有一條線。 */
+let padHover=false, padDrag=false, padFocus=false;
+const syncPadGuide=()=>document.body.classList.toggle('padding', padHover||padDrag||padFocus);
+padEl.addEventListener('pointerenter',()=>{ padHover=true;  syncPadGuide(); });
+padEl.addEventListener('pointerleave',()=>{ padHover=false; syncPadGuide(); });
+padEl.addEventListener('pointerdown', ()=>{ padDrag=true;   syncPadGuide(); });
+// 拉桿會抓住指標，放手常常發生在它外面 —— 掛在 window 上才收得到
+addEventListener('pointerup',    ()=>{ if(padDrag){ padDrag=false; syncPadGuide(); } }, true);
+addEventListener('pointercancel',()=>{ if(padDrag){ padDrag=false; syncPadGuide(); } }, true);
+padEl.addEventListener('focus',()=>{ padFocus=true;  syncPadGuide(); });
+padEl.addEventListener('blur', ()=>{ padFocus=false; syncPadGuide(); });
 padEl.oninput=()=>{
-  MARGIN=+padEl.value;
+  setMargin(padEl.value);
   document.getElementById('padv').textContent=MARGIN+' px';
-  document.documentElement.style.setProperty('--pad',MARGIN+'px');
-  // 邊界變大時，把已經超出的元素拉回來
-  CELLS.forEach((c,i)=>{
-    const bs = (c===cell())?BLOCKS:c.blocks;
-    const el=document.getElementById('cell'+i);
-    if(!el||!bs.length) return;
-    const k=(el.clientWidth||CW)/CW;
-    bs.forEach(b=>{
-      const n=el.querySelector(`[data-b="${b.id}"]`);
-      const w=n?n.getBoundingClientRect().width/k:0;
-      const h=n?n.getBoundingClientRect().height/k:0;
-      b.x=Math.max(MARGIN,Math.min(b.x,CW-MARGIN-w));
-      b.y=Math.max(MARGIN,Math.min(b.y,CH-MARGIN-h));
-    });
-  });
+  clampToMargin();
   CELLS.forEach((c,i)=>renderOne(i));
 };
 
@@ -3645,11 +4099,118 @@ function runPriceStress(){
 }
 document.getElementById('stressDrag').onclick=runPriceStress;
 
-// 從 MARGIN 來，不要再寫一次數字 —— 邊界只有一個來源（見 MARGIN 的註解）
-document.documentElement.style.setProperty('--pad', MARGIN + 'px');
+/* ==========================================================================
+   把這一格畫成一張圖
+   ==========================================================================
+   上層拿不到 iframe 裡的畫面 —— 跨文件就是看不到，所以只能由這一頁自己畫：
+   把 #stage 整棵複製一份塞進 SVG 的 foreignObject，再讓瀏覽器把那張 SVG 畫到
+   canvas 上。不引任何套件（見 CLAUDE.md）的話這是唯一畫得出點陣圖的路。
+   ⚠️ foreignObject 裡面**不載任何外部資源**：商品圖、品牌 logo 那幾個 <img>
+      的網址在裡面等於是空的，所以要先一張一張轉成 data: 才塞得進去。
+      （Storage 回 `access-control-allow-origin:*`，掛 crossOrigin 之後畫布不會被
+        污染 —— 品牌 logo 的墨水框早就靠這件事在量了。）
+   ⚠️ 複製的是 **#stage 整棵**，不是 #grid：那幾條 CSS 是 `body.ui-stage #stage`、
+      `#wrap`、`#grid` 一路串下來的，少一層或少了 body 上那個 class，
+      裡面就照「沒有被嵌住」的樣子排。所以外面包的是 `<body class="ui-stage">`。
+   ⚠️ 讀不到的那張圖就整個拿掉，不要讓一張圖把整張快照拖垮 —— 少一張商品圖看得
+      出來，一片全白看不出是拍壞了還是真的沒挑。 */
+const SNAP_IMG = new Map();            // 網址 → data:，同一張圖只轉一次
+
+function snapDataUrl(url){
+  if(SNAP_IMG.has(url)) return SNAP_IMG.get(url);
+  const p = new Promise(ok => {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => {
+      try{
+        /* 縮到 420px 再轉：這張圖是要塞進 SVG 的字串裡的，而整串又要再 base64
+           一次 —— 原尺寸的商品照一張就能把那串撐到幾 MB，而快照本來就畫得很小。 */
+        const k = Math.min(1, 420 / Math.max(im.naturalWidth || 1, im.naturalHeight || 1));
+        const cv = document.createElement('canvas');
+        cv.width  = Math.max(1, Math.round((im.naturalWidth  || 1) * k));
+        cv.height = Math.max(1, Math.round((im.naturalHeight || 1) * k));
+        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+        ok(cv.toDataURL('image/png'));
+      }catch(_){ ok(''); }
+    };
+    im.onerror = () => ok('');
+    im.src = url;
+  });
+  SNAP_IMG.set(url, p);
+  return p;
+}
+
+const xmlEsc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* btoa 只吃 latin1，而這一頁滿滿是中文 —— 先轉 UTF-8 位元組。
+   ⚠️ 一次 `String.fromCharCode(...bytes)` 會爆堆疊（一格的 SVG 動輒幾十萬個位元組），
+   所以要分段餵。 */
+function b64utf8(str){
+  const bytes = new TextEncoder().encode(str);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+async function snapshotStage(req){
+  const id = (req && req.id) || '';
+  /* 失敗要講得出是哪一種。三種的處理完全不一樣：SVG 解不開是這一頁自己組錯了，
+     畫布被污染是某一張圖沒帶 CORS，拋例外是別的事 —— 沒有這一句就只剩「空的」。 */
+  const send = (url, why) => {
+    try{ parent.postMessage({ boardCell:CELL_ID,
+                              stageSnap:{ id, url: url || '', why: why || '' } }, '*'); }catch(_){}
+  };
+  try{
+    const w = Math.max(1, Math.round(innerWidth)), h = Math.max(1, Math.round(innerHeight));
+    const clone = document.getElementById('stage').cloneNode(true);
+    await Promise.all([...clone.querySelectorAll('img')].map(async im => {
+      const u = im.getAttribute('src') || '';
+      if(!u || u.startsWith('data:')) return;
+      const d = await snapDataUrl(u);
+      if(d) im.setAttribute('src', d); else im.remove();
+    }));
+    const css  = (document.querySelector('style') || {}).textContent || '';
+    const vars = document.documentElement.getAttribute('style') || '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
+      + `<foreignObject width="100%" height="100%">`
+      + `<body xmlns="http://www.w3.org/1999/xhtml" class="ui-stage" style="margin:0;${xmlEsc(vars)}">`
+      + `<style>${xmlEsc(css)}</style>`
+      + new XMLSerializer().serializeToString(clone)
+      + `</body></foreignObject></svg>`;
+    /* ⚠️ 一定要 data:，**不可以** blob:。blob: 的來源跟著這一頁走，而這一頁常常是
+       用 file:// 直接打開的（見 CLAUDE.md：這支程式就是一個檔案）—— 那時候它是
+       opaque origin，畫上去畫布就被污染，toDataURL 直接丟 SecurityError。
+       data: 沒有這個問題。base64 不是為了好看：整串 SVG 走 encodeURIComponent
+       會把裡面那幾張圖的 base64 再逃逸一次，反而更長。 */
+    const dataUrl = 'data:image/svg+xml;base64,' + b64utf8(svg);
+    const im = new Image();
+    let why = '';
+    im.onload = () => {
+      let out = '';
+      try{
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d');
+        /* 底色由上層那一格在畫（stage 的畫布本來就是透明的），快照要自己補上，
+           不然 jpeg 沒有透明、空的地方會變成黑的。 */
+        cx.fillStyle = (req && req.bg) || '#fff';
+        cx.fillRect(0, 0, w, h);
+        cx.drawImage(im, 0, 0);
+        out = cv.toDataURL('image/jpeg', .72);
+      }catch(e){ why = 'canvas:' + (e && e.name); }
+      send(out, why);
+    };
+    im.onerror = () => send('', 'svg-load');
+    im.src = dataUrl;
+  }catch(e){ send('', 'throw:' + (e && e.message || e)); }
+}
+
+setMargin();     // 紅線先照預設畫上（--pad 只有 setMargin 一個來源）
 applyRole(ROLE);
 initLayerDnD();
 makeCells(1,1); loadCell(0);
+
 fitStage();                    // 畫布模式：先照這一格的大小把自己縮好
 refreshAll();
 if(UI_PANEL) openPanels(true);

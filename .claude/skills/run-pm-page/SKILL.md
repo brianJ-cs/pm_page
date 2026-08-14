@@ -93,6 +93,24 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=
 - `--headed` 會把瀏覽器叫出來，是拿來 debug driver 本身的，不是給一般測試用的。
 - 截圖預設寫到 `out/`，那個資料夾在 `.gitignore` 裡。
 
+## 瀏覽器測不到的那一個：`imgkey-parity.mjs`
+
+```bash
+node .claude/skills/run-pm-page/imgkey-parity.mjs
+```
+
+商品圖那把鑰匙（`imgKey()`）在 `product.html` 和 `2cell-product-pick.html` 各有一份
+（畫布是 srcdoc 塞進去的，載不了共用的 `.js`）。**兩邊差一個字，商品目錄那一頁放的圖
+版面上就找不到 —— 而且兩邊都不會有任何錯誤訊息，圖只是沒出現。**
+所以它是 driver 抓不到的那一種壞法：console 乾乾淨淨，畫面上少一張圖。
+
+這一支把兩份原始碼挖出來、拿同一批商品各跑一遍再比（不是比字面：一邊是
+`function imgKey(r){}`、一邊是 `const imgKey = r => {}`，本來就長得不一樣）。
+順便盯 `design_and_PM.html` 裡那一行 inline 的舊鑰匙。
+
+`scenario.mjs` 每一個場景開瀏覽器之前都會先跑它，所以平常不必自己記得跑；
+只改了 `imgKey` 想快速對一下的時候才單獨叫它（純 node，不開瀏覽器）。
+
 ## 另一支也能跑
 
 ```bash

@@ -306,13 +306,19 @@ await send('Emulation.setDeviceMetricsOverride',
    在每個 document 開始跑之前先把 window.SUPABASE 釘成唯讀的空設定：config.js
    之後那句 window.SUPABASE = {...} 就會靜靜地失敗（非嚴格模式不報錯），
    PlanSync.ok() 回 false，整支走純 localStorage。
-   真的要測同步再加 --live。 */
+   真的要測同步再加 --live。
+
+   ⚠️ LOGO_SUPABASE 也要釘：品牌 Logo 庫是**另一個** Supabase 專案，PlanSync.ok()
+   管不到它。拖一張圖到版上那張 logo 上就是直接寫進去（uploadLogo），只釘
+   window.SUPABASE 的話那條路在測試裡是活的 —— 已經往正式的 Logo 庫塞過一張
+   8×8 的測試圖了。 */
 if (!argv.includes('--live')) {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
-    Object.defineProperty(window, 'SUPABASE', {
-      value: { url:'', anonKey:'', bucket:'' },
-      writable: false, configurable: false,
-    });
+    for (const k of ['SUPABASE', 'LOGO_SUPABASE'])
+      Object.defineProperty(window, k, {
+        value: { url:'', anonKey:'', bucket:'' },
+        writable: false, configurable: false,
+      });
   `});
 }
 

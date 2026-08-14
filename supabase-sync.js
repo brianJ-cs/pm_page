@@ -128,7 +128,11 @@
         'apikey': key,
         'Authorization': 'Bearer ' + (CFG.accessToken || key),
         'Content-Type': blob.type || 'image/png',
-        'x-upsert': 'true'          // 同一個商品換圖＝蓋掉舊的，不要愈積愈多
+        /* 同一個商品換圖＝蓋掉舊的，不要愈積愈多。
+           ⚠️ 副檔名也算在路徑裡：改用 WebP 之後，本來有 `.png` 的那幾支會多留一個
+           舊物件（目錄裡存的是網址，指的是新的那一個，所以畫面上是對的）。
+           之後每一次都是 `.webp` 蓋 `.webp`，不會繼續長。 */
+        'x-upsert': 'true'
       },
       body: blob
     });
@@ -459,8 +463,98 @@
     return out;
   }
 
+  /* 換掉某一家的 logo。**這是這一層唯一會寫進 Logo 庫的路**（其他都只讀）——
+     排版的人在版上看得出「這個牌子的圖不對」，而他手上就有對的那一張；
+     叫他記得再開一次 Logo 庫、找到那一家、刪掉舊的再傳一次，中間每一步都會忘。
+
+     那邊一家公司只能有一張活著的 logo（partial unique index 保證的），所以
+     「換」＝先把舊的那張丟進回收桶、再插新的。順序不能倒過來：先插會撞到那個
+     索引；而先收舊的、插不進去的話那一家會變成沒有圖 —— 所以插失敗要把舊的放回來。
+     公司找不到就開一家新的：商品目錄裡打得出這個牌子，就表示公司真的存在。 */
+  async function uploadLogo(brand, blob, fileName) {
+    const c = window.LOGO_SUPABASE || {};
+    const u = String(c.url || '').trim().replace(/\/+$/, '');
+    const k = String(c.anonKey || '').trim();
+    if (!/^https?:\/\/.+/.test(u) || k.length < 20)
+      throw new Error('沒有接上品牌 Logo 庫，這張圖存不起來');
+
+    const want = normBrand(brand);
+    if (!want) throw new Error('這一格沒有品牌名，不知道要換哪一家的 logo');
+
+    const bucket = c.bucket || 'logos';
+    const H = { apikey: k, Authorization: 'Bearer ' + k };
+    const J = Object.assign({ 'Content-Type': 'application/json' }, H);
+
+    const r = await fetch(
+      `${u}/rest/v1/companies?select=id,name,alt_name,deleted_at,logos(id,path,deleted_at)`,
+      { headers: H });
+    if (!r.ok) throw new Error(`讀不到 Logo 庫 ${r.status}`);
+
+    let co = (await r.json()).find(x => x && !x.deleted_at &&
+      (normBrand(x.name) === want || normBrand(x.alt_name) === want));
+    if (!co) {
+      const ins = await fetch(`${u}/rest/v1/companies`, {
+        method: 'POST',
+        headers: Object.assign({ Prefer: 'return=representation' }, J),
+        body: JSON.stringify({ name: String(brand).trim() })
+      });
+      if (!ins.ok) throw new Error(`開不了「${brand}」這一家 ${ins.status}`);
+      co = (await ins.json())[0];
+      co.logos = [];
+    }
+
+    const ext = blob && blob.type === 'image/webp' ? '.webp'
+              : blob && blob.type === 'image/jpeg' ? '.jpg' : '.png';
+    /* 路徑照那邊的規矩：`<company_id>/<uuid>.<ext>`（見 logo_page 的 uploadOne）。
+       每次一個新的 uuid，所以不必 upsert，也不會有快取拿到舊圖那件事。 */
+    const uid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID()
+              : 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+    const path = `${co.id}/${uid}${ext}`;
+
+    const up = await fetch(`${u}/storage/v1/object/${bucket}/${path}`, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': (blob && blob.type) || 'image/png' }, H),
+      body: blob
+    });
+    if (!up.ok) throw new Error(`上傳失敗 ${up.status} ${await up.text()}`);
+
+    const old = (co.logos || []).filter(l => l && !l.deleted_at);
+    if (old.length) {
+      const bin = await fetch(`${u}/rest/v1/logos?company_id=eq.${co.id}&deleted_at=is.null`, {
+        method: 'PATCH', headers: J,
+        body: JSON.stringify({ deleted_at: new Date().toISOString() })
+      });
+      if (!bin.ok) throw new Error(`收不起舊的那一張 ${bin.status}`);
+    }
+
+    const ins = await fetch(`${u}/rest/v1/logos`, {
+      method: 'POST',
+      headers: Object.assign({ Prefer: 'return=representation' }, J),
+      body: JSON.stringify({ company_id: co.id, path,
+                             file_name: fileName || (String(brand).trim() + ext) })
+    });
+    if (!ins.ok) {
+      const why = `${ins.status} ${await ins.text()}`;
+      /* 舊的已經收走了，新的又插不進去 —— 放著不管的話這家公司會整個沒有圖，
+         而版上只看得到一個空框，看不出剛剛失敗的是哪一步。 */
+      if (old.length) {
+        try {
+          await fetch(`${u}/rest/v1/logos?id=eq.${old[0].id}`, {
+            method: 'PATCH', headers: J, body: JSON.stringify({ deleted_at: null }) });
+        } catch (_) {}
+      }
+      throw new Error(`存不進 Logo 庫 ${why}`);
+    }
+
+    /* 兩種寫法都要更新（Panasonic ↔ 國際牌）：商品目錄裡打的是哪一種都算數，
+       只補一個的話另一種寫法的商品會繼續指著剛剛被收走的那張圖。 */
+    return { url: `${u}/storage/v1/object/public/${bucket}/${path}`,
+             company: co.name,
+             keys: [normBrand(co.name), normBrand(co.alt_name)].filter(Boolean) };
+  }
+
   window.PlanSync = { ok, pullAll, pullIndex, pullSome, stampOf, setMerge, setSaved,
-                      pullLogos, normBrand,
+                      pullLogos, uploadLogo, normBrand,
                       pushPresence, pullPresence, dropPresence,
                       upsert, remove, queueUpsert, queueRemove, flush, uploadImage,
                       pullCatalogue, queueCatalogue, setCatalogueMerge, setCatalogueAfter };

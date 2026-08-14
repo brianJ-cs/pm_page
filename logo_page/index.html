@@ -105,10 +105,11 @@
     object-fit: contain; padding: 14%; opacity: .3; pointer-events: none;
   }
 
-  /* Filled = one logo in, slot closed. Reads as a frame rather than an empty
-     dashed box, and drops no longer highlight it as a target. */
+  /* Filled = one logo in. Reads as a frame rather than an empty dashed box,
+     but it is still a drop target: dropping a new image swaps the logo out. */
   .drop.filled { border-style: solid; border-color: #c8c8d2; }
-  .drop.filled:hover, .drop.filled.dragover { border-color: #8e8e9c; background: #fff; }
+  .drop.filled:hover { border-color: #8e8e9c; }
+  .drop.filled.dragover { border-color: #2a5cf0; background: #eef3ff; }
   .drop.filled .plus { display: none; }
   .drop.filled .peek { opacity: 1; }
 
@@ -370,9 +371,6 @@
     transition: border-color .15s, background .15s;
   }
 
-  /* Needs to out-specify `.panel .bigdrop` above, which sets display: flex. */
-  .panel .bigdrop.hide { display: none; }
-
   .panel .bigdrop:hover, .panel .bigdrop.dragover {
     border-color: #2a5cf0; background: #eef3ff;
   }
@@ -591,6 +589,23 @@
     return db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
   }
 
+  // 收之前先讓瀏覽器真的畫一次。iPhone 拍的 HEIC 是最常見的一種：檔名寫著 .jpg、
+  // file.type 也報 image/jpeg，一路傳得上去、資料庫那一列也好好的 —— 可是瀏覽器
+  // 畫不出 HEIC，所以這一頁和 DM 版上都只看到一個空框，而中間每一步都沒有報錯。
+  // （2026-08-13 踩到：Panasonic 那張 IMG_9362.jpg 其實是 ftyp heic。）
+  // SVG 跳過：沒有寫死寬高的 SVG 在 <img> 裡量不到尺寸，會被誤判成壞檔。
+  function decodable(file) {
+    if (file.type === 'image/svg+xml') return Promise.resolve(true);
+    return new Promise(ok => {
+      const url = URL.createObjectURL(file);
+      const im = new Image();
+      const done = v => { URL.revokeObjectURL(url); ok(v); };
+      im.onload = () => done(im.naturalWidth > 0 && im.naturalHeight > 0);
+      im.onerror = () => done(false);
+      im.src = url;
+    });
+  }
+
   function uid() {
     if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
     return Date.now() + '-' + Math.random().toString(16).slice(2);
@@ -651,13 +666,16 @@
 
   // --- upload ------------------------------------------------------------
 
+  // 換圖就是拖一張新的進去，不必先刪。一家公司只能有一張活著的 logo（partial
+  // unique index），所以順序是**先把舊的丟進回收桶、再插新的** —— 倒過來會撞索引。
+  // 舊的只是進回收桶（還原得回來），Storage 上那個物件也留著。
   async function uploadOne(company, file) {
-    // The real one-per-company gate. ingest() checks too, for a better message,
-    // but this is what a second tab or a stale view runs into.
-    if (hasLogo(company)) throw new Error('每間公司只能放一個 logo');
     if (!file.type.startsWith('image/')) throw new Error('不是圖片檔');
     if (file.size > MAX_BYTES) throw new Error('檔案超過 5MB');
+    if (!await decodable(file))
+      throw new Error('瀏覽器畫不出這個檔案（iPhone 的 HEIC 常常這樣，副檔名還寫 .jpg）—— 請先另存成 PNG 或 JPG');
 
+    const old = liveLogos(company)[0] || null;
     const path = company.id + '/' + uid() + '.' + extensionFor(file);
 
     const up = await db.storage.from(BUCKET).upload(path, file, {
@@ -665,12 +683,27 @@
     });
     if (up.error) throw up.error;
 
+    if (old) {
+      const stamp = new Date().toISOString();
+      const bin = await db.from('logos').update({ deleted_at: stamp }).eq('id', old.id);
+      if (bin.error) {
+        await db.storage.from(BUCKET).remove([path]);  // don't orphan the object
+        throw bin.error;
+      }
+      old.deleted_at = stamp;
+    }
+
     const ins = await db.from('logos')
       .insert({ company_id: company.id, path: path, file_name: file.name })
       .select().single();
 
     if (ins.error) {
       await db.storage.from(BUCKET).remove([path]);  // don't orphan the object
+      // 收了舊的又插不進去，這家公司會變成沒有圖 —— 把舊的放回來。
+      if (old) {
+        const back = await db.from('logos').update({ deleted_at: null }).eq('id', old.id);
+        if (!back.error) old.deleted_at = null;
+      }
       throw ins.error;
     }
 
@@ -686,19 +719,14 @@
     dropEl.classList.toggle('error', !!msg);
   }
 
-  // One logo per company, so this takes a single file: the slot is either free
-  // or it is not. Dropping several at once uses the first and says so, which
-  // beats uploading one and reporting the rest as failures.
+  // One logo per company, so this takes a single file: it either fills the slot
+  // or replaces what is in it. Dropping several at once uses the first and says
+  // so, which beats uploading one and reporting the rest as failures.
   async function ingest(dropEl, errEl, company, fileList, onEach) {
     const files = Array.from(fileList || []);
     if (!files.length) return;
 
     setDropError(dropEl, errEl, null);
-
-    if (hasLogo(company)) {
-      setDropError(dropEl, errEl, '已經有 logo 了，請先刪除');
-      return;
-    }
 
     dropEl.classList.add('busy');
     let failure = null;
@@ -765,6 +793,13 @@
     cap.className = 'cap';
     cap.textContent = logo.file_name || '';
     cap.title = logo.file_name || '';
+
+    // 傳上去了、卻畫不出來（HEIC 就是這樣）。不講的話這裡只是一塊空白，
+    // 看起來像「還沒傳成功」—— 而它其實傳成功了，DM 版上也是同一塊空白。
+    img.addEventListener('error', () => {
+      cap.textContent = '畫不出來 · ' + (logo.file_name || '這個檔案');
+      cap.title = '瀏覽器畫不出這個檔案（多半是 HEIC）—— 換一張 PNG／JPG';
+    });
 
     const kill = document.createElement('button');
     kill.className = 'kill';
@@ -833,8 +868,8 @@
       const logos = liveLogos(company);
       n.textContent = '';
 
-      // The slot is taken: no upload area until the logo is deleted.
-      bigdrop.classList.toggle('hide', logos.length > 0);
+      // 有圖了也留著這一區：拖一張新的進來就是換掉，不必先刪。
+      hint.textContent = logos.length ? '點擊或拖曳圖片換掉（舊的進回收桶）' : '點擊或拖曳圖片上傳';
 
       if (!logos.length) {
         const e = document.createElement('div');
@@ -906,19 +941,23 @@
 
     cell.append(drop, name);
 
-    // A filled tile stops being a drop zone and becomes a frame: solid border,
-    // logo at full strength, no "+" inviting a second file. Clicking still
-    // opens the panel, which is where the logo gets deleted to free the slot.
+    // A filled tile becomes a frame: solid border, logo at full strength, no "+"
+    // inviting a second file — but it stays a drop zone, because 換一張圖就是
+    // 拖一張新的上去（舊的自己進回收桶）。Clicking still opens the panel.
     function paint() {
       const logo = liveLogos(company)[0] || null;
       drop.classList.toggle('filled', !!logo);
-      drop.title = logo ? '' : '點擊或拖曳圖片上傳';
+      drop.title = logo ? '拖曳圖片換掉（舊的進回收桶）' : '點擊或拖曳圖片上傳';
 
       let peek = drop.querySelector('.peek');
       if (logo) {
         if (!peek) {
           peek = document.createElement('img');
           peek.className = 'peek';
+          // 空白的格子有兩種：沒傳過，和傳上去了但瀏覽器畫不出來（HEIC）。
+          // 長得一模一樣，所以後者要自己說出來。
+          peek.addEventListener('error', () =>
+            setDropError(drop, errMsg, '這張畫不出來（多半是 HEIC）—— 換一張 PNG／JPG'));
           drop.insertBefore(peek, plus);
         }
         peek.src = publicUrl(logo.path);
