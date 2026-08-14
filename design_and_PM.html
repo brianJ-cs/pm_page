@@ -2069,49 +2069,33 @@
      pointer-events:none：蓋著的時候還是點得到底下的格子，它只是一層皮。
      z-index 只要壓過畫布（那幾支是 -1／0），不必壓過把手和標籤 —— 那些本來就是
      螢幕上的東西，早就在了，不必遮。 */
-  #boardCover{position:absolute;inset:0;z-index:3;pointer-events:none}
+  /* 位置和大小是 JS 量出來的（boardInkRect）—— 不是 inset:0，見那一支的理由 */
+  #boardCover{position:absolute;z-index:3;pointer-events:none}
   #boardCover img{
     position:absolute;object-fit:fill;
     transition:opacity .24s ease;
   }
   #boardCover img.gone{opacity:0}
 
-  /* ---- 整本預覽 ------------------------------------------------------------
-     跟商品目錄那張浮層同一階（600）：它們都是「蓋住整頁的一張大視窗」，
-     而確認框（700）要壓得過它們。 */
-  #dmPrevMask{
-    display:none;position:fixed;inset:0;z-index:600;
-    background:rgba(20,26,38,.5);align-items:center;justify-content:center;padding:24px;
-  }
-  #dmPrevMask.on{display:flex}
-  #dmPrevBox{
-    background:var(--surface);border-radius:12px;width:min(1500px,96vw);height:min(900px,92vh);
-    display:flex;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(20,30,60,.34);
-  }
-  #dmPrevHd{
-    display:flex;align-items:center;gap:10px;padding:10px 14px;
-    border-bottom:1px solid var(--line);font-size:14px;
-  }
-  #dmPrevHd b{font-size:16px}
-  #dmPrevNote{flex:1;color:var(--muted);font-size:12.5px;font-weight:700}
-  /* 兩張版並排、各自照 DM 真正的長寬比 —— 跟小地圖同一個道理（miniPageH），
-     比例不一樣的話同一塊版位在兩個地方會長得不一樣胖。 */
-  #dmPrevBody{flex:1;overflow:auto;padding:16px;display:flex;gap:22px;
-              align-items:flex-start;justify-content:center;background:var(--bg)}
-  #dmPrevBody .pv-side{display:flex;flex-direction:column;gap:6px}
-  #dmPrevBody .pv-cap{font-size:12.5px;font-weight:800;color:var(--muted)}
-  #dmPrevBody .pv-page{
-    background:var(--surface);border:1px solid var(--line-strong);position:relative;
-    display:flex;
-  }
-  #dmPrevBody .pv-split{display:flex;min-width:0;min-height:0}
-  #dmPrevBody .pv-fold{flex:none;width:1px;background:var(--line-strong)}
-  #dmPrevBody .pv-blk{position:relative;overflow:hidden;border:1px solid var(--line-strong);
-                      min-width:0;min-height:0;box-sizing:border-box}
-  #dmPrevBody .pv-blk img{position:absolute;object-fit:fill}
+  /* ---- 整本點陣圖：**就地換掉** 總體 上那兩張版 ----------------------------
+     它不是一張浮層 —— 浮層要人先開再關，而這件事是「同一張版的另一種看法」，
+     那就該在原地換過去（跟工具的開關一樣是 toggle）。所以它疊在 .board-ws
+     上面、剛好同一個框：尺規、標題、捲動都照舊，換掉的只有版面本身。 */
+  .board-ws{position:relative}
+  .pv-over{position:absolute;inset:0;z-index:6;background:var(--surface);display:flex}
+  .pv-split{display:flex;min-width:0;min-height:0}
+  .pv-fold{flex:none;width:1px;background:var(--line-strong)}
+  .pv-blk{position:relative;overflow:hidden;border:1px solid var(--line-strong);
+          min-width:0;min-height:0;box-sizing:border-box}
+  .pv-blk img{position:absolute;object-fit:fill}
   /* 沒拍到的那一塊要說得出「還沒看過」。畫成一塊空白的話，跟「真的一格都沒挑」
      長得一模一樣 —— 那是兩件完全不同的事。 */
-  #dmPrevBody .pv-blk .pv-none{
+  /* 印完就丟的那一份。平常推到畫面外 —— 它只在列印那一刻站到左上角
+     （見最後那段 @media print），不然按下匯出到列印對話框跳出來之間，
+     畫面上會閃過兩張版。 */
+  #dmPrintHost{position:fixed;left:-99999px;top:0;display:flex;gap:24px;background:#fff}
+  #dmPrintHost .dmp-page{position:relative;flex:none;background:#fff}
+  .pv-blk .pv-none{
     position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     text-align:center;font-size:11px;font-weight:800;color:var(--muted);
     background:repeating-linear-gradient(45deg,var(--g2) 0 6px,transparent 6px 12px);
@@ -2774,6 +2758,21 @@
     #board .masthead{border:0 !important;background:transparent !important}
     /* 畫布本人 —— 這才是要印的東西。平常它壓在卡片底色之下（z-index:-1）。 */
     #board .ccanvas{visibility:visible !important;z-index:0 !important}
+
+    /* ---- 匯出的是整本點陣圖（總體 那顆開著的時候）----
+       這時候要印的不是某一個版位，所以把 #board 也一起收掉 —— 上面那幾條
+       是無條件放行它的。 */
+    body.print-dm #board{visibility:hidden !important}
+    #dmPrintHost{
+      visibility:visible !important;left:0 !important;
+      transform:scale(var(--pk,1));transform-origin:top left;
+    }
+    #dmPrintHost *{visibility:visible !important}
+    /* 「還沒看過」那塊斜線是資訊，不是裝飾：印出來的那一份也要看得出哪裡沒有圖
+       （底色預設會被丟掉，所以要指名 exact —— 跟格子的底色同一條）。 */
+    #dmPrintHost .pv-none{
+      -webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;
+    }
   }
 </style>
 </head>
@@ -2891,18 +2890,6 @@
   <!-- 這一刀會切在哪：紅線 ＋ 幾公分。站在最外面，不塞進版位裡 -->
   <div id="cutPreview"><span class="lbl"></span></div>
 
-  <!-- 整本預覽：正面背面攤在一起，每一塊版位用它自己那幾格拍下來的圖拼回去。
-       它是一張看的東西，不是操作介面 —— 點不動、也不會跳到那一塊去。 -->
-  <div id="dmPrevMask">
-    <div id="dmPrevBox">
-      <div id="dmPrevHd">
-        <b id="dmPrevName"></b>
-        <span id="dmPrevNote"></span>
-        <button class="btn" id="dmPrevClose">關掉</button>
-      </div>
-      <div id="dmPrevBody"></div>
-    </div>
-  </div>
 
   <!-- 品類／支數：貼在點到的那一塊旁邊。跟開檔那支的「點選」是同一件事 -->
   <div id="itemPop">
@@ -7191,8 +7178,11 @@ const dmPrevBtn = document.getElementById('dmPrevBtn');
 /** 「整本預覽」只在 總體 出現：那是唯一看得到整本的那一頁。
     草稿那一段一起收 —— 那時候一格貨都還沒挑，預覽是一片「還沒看過」。 */
 function syncDmPrevBtn(){
-  dmPrevBtn.style.display =
-    (activeTab === 'total' && !(isMkt() && isDraft(currentPlan))) ? '' : 'none';
+  const on = activeTab === 'total' && !(isMkt() && isDraft(currentPlan));
+  dmPrevBtn.style.display = on ? '' : 'none';
+  /* 那一頁走掉了就把它放下 —— 一個看不到的開關還開著，回來的時候會發現版面
+     長得不一樣而找不到是誰做的（跟工具列那顆刷子同一條規矩）。 */
+  if (!on && dmBitmapOn) setDmBitmap(false);
 }
 const bannerProg = document.getElementById('bannerProg');
 
@@ -9919,7 +9909,36 @@ document.addEventListener('pointercancel', () => endStampDrag(true));
 /* A4 橫式扣掉 8mm 邊，96dpi 下的 px。紙的尺寸是固定的事實，不必也不該讓人調。 */
 const PAPER = { w: 1085, h: 756 };
 
+/* 整本點陣圖開著的時候，匯出的就是**你現在看到的那個** —— 兩張版攤在一起，
+   而不是某一個版位。「匯出」該匯出畫面上這一份，不該有第二種答案。
+   不直接印 #totalScroll：那裡面還坐著尺規、標題和小工具列，而尺規是 grid 的
+   兩條軌道，display:none 之後整個 grid 會重排。所以複製那兩層出來單獨印。 */
+function exportDmBitmap(){
+  const overs = [...document.querySelectorAll('.pv-over')];
+  if (!overs.length){ toast('還沒有點陣圖可以匯出', 'warn', 2600); return; }
+  const host = document.createElement('div');
+  host.id = 'dmPrintHost';
+  let w = 0, h = 0;
+  overs.forEach((o, i) => {
+    const r = o.getBoundingClientRect();
+    const page = document.createElement('div');
+    page.className = 'dmp-page';
+    page.style.width = r.width + 'px';
+    page.style.height = r.height + 'px';
+    page.appendChild(o.cloneNode(true));
+    host.appendChild(page);
+    w += r.width + (i ? 24 : 0);
+    h = Math.max(h, r.height);
+  });
+  document.body.appendChild(host);
+  host.style.setProperty('--pk', Math.min(1, PAPER.w / w, PAPER.h / h));
+  document.body.classList.add('print-dm');
+  toast('在列印對話框把「目的地」選成『另存為 PDF』', 'info', 5000);
+  setTimeout(() => window.print(), 200);
+}
+
 function exportClean(){
+  if (dmBitmapOn && activeTab === 'total') return exportDmBitmap();
   if (!currentPlan || !activeBlock){ toast('先選一個版位再匯出', 'warn', 2600); return; }
   // 模式、面板、選起來的便利貼都是螢幕上的東西，印之前先收乾淨
   setStampMode(false); closeBoardCell(); clearNoteSel();
@@ -9943,7 +9962,12 @@ function exportClean(){
 }
 /* 印完把縮放拿掉：--pk 只在列印那一刻成立（@media print 以外沒有人讀它，
    但留著就是一個會過期的數字 —— 版位大小一變它就錯了）。 */
-addEventListener('afterprint', () => boardEl.style.removeProperty('--pk'));
+addEventListener('afterprint', () => {
+  boardEl.style.removeProperty('--pk');
+  document.body.classList.remove('print-dm');
+  const h = document.getElementById('dmPrintHost');
+  if (h) h.remove();               // 那一份是印完就丟的，留著只會過期
+});
 exportBtn.addEventListener('click', exportClean);
 progBtn.addEventListener('click', openProgress);
 
@@ -9970,20 +9994,46 @@ const snapKey = (pid, bid) => pid + '|' + bid;
 const blockSnap = (pid, bid) => SNAPS.get(snapKey(pid, bid));
 
 const snapAt = new Map();       // 這一塊上次拍是什麼時候
+/** 這一塊「印出去的那一片」有多大。
+    ⚠️ **不可以拿 `#board` 的 rect 當基準**：每一列左邊還坐著一支拖曳把手
+    （`.grip`，14px ＋ 6px margin），那是螢幕上的東西、不是版面的一部分
+    （列印時它本來就 `display:none`）。拿 #board 量的話每一塊的左邊都會多出
+    一條 2.7% 的白邊，而且每一塊寬度不同、白邊寬度還不一樣。
+    所以量的是**內容自己的外框**：所有格子 ＋ 刊頭的聯集。 */
+function boardInkRect(){
+  let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+  const eat = el => {
+    const q = el.getBoundingClientRect();
+    if (!q.width || !q.height) return;
+    l = Math.min(l, q.left); t = Math.min(t, q.top);
+    r = Math.max(r, q.right); b = Math.max(b, q.bottom);
+  };
+  boardEl.querySelectorAll('.cell').forEach(eat);
+  const mh = boardEl.querySelector('.masthead');
+  if (mh) eat(mh);
+  if (!isFinite(l)) return null;
+  return { left:l, top:t, width:r - l, height:b - t };
+}
+
 function captureBlockSnap(){
   if (activeTab !== 'board' || !activeBlock || !currentPlan) return;
-  const br = boardEl.getBoundingClientRect();
-  if (!br.width || !br.height) return;
+  const br = boardInkRect();
+  if (!br || !br.width || !br.height) return;
   const key = snapKey(currentPlan.id, activeBlock.id);
-  /* 一分鐘內拍過就不再拍：這一支掛在「手停下來 2.5 秒」上，而排版的人本來就
+  /* 一分鐘內拍過就不再全部重拍：這一支掛在「手停下來 2.5 秒」上，而排版的人本來就
      一直在停 —— 每停一次就把幾十格重新光柵化一遍，那個成本會被感覺到。
-     ⚠️ 所以預覽上看到的是「這一分鐘之內的樣子」，不是當下這一秒。 */
-  if (Date.now() - (snapAt.get(key) || 0) < 60000) return;
-  snapAt.set(key, Date.now());
+     ⚠️ 所以看到的是「這一分鐘之內的樣子」，不是當下這一秒。
+     ⚠️ **還沒有圖的那幾格照樣要問**：拍照的時候有的畫布還在開機（訊息處理器都還沒
+     掛上，那一問就掉了）。全部跳過的話那一格會空整整一分鐘，而畫面上看不出
+     它是「還沒拍到」還是「本來就沒東西」。 */
+  const fresh = Date.now() - (snapAt.get(key) || 0) < 60000;
+  if (!fresh) snapAt.set(key, Date.now());
   if (!SNAPS.has(key)) SNAPS.set(key, new Map());
+  const have = SNAPS.get(key);
   boardEl.querySelectorAll('.cell').forEach(el => {
     const f = el.querySelector('.ccanvas'), id = el.dataset.cellId;
     if (!f || !f.contentWindow || !id) return;
+    if (fresh && have.has(id)) return;          // 有了、而且這一分鐘拍過了
     const r = el.getBoundingClientRect();
     snapPend.set(id, { key,
       x:(r.left - br.left) / br.width, y:(r.top - br.top) / br.height,
@@ -10039,8 +10089,16 @@ function showBoardCover(){
   if (!currentPlan || !activeBlock) return;
   const store = blockSnap(currentPlan.id, activeBlock.id);
   if (!store || !store.size) return;
+  /* 蓋布要蓋在「印出去的那一片」上，不是整個 #board —— 幾何是照那一片算的
+     （見 boardInkRect：左邊那條把手不算）。差的就是那 20px，不對齊的話
+     每一格都會往右偏一點點，看起來像沒對準。 */
+  const ink = boardInkRect(), bb = boardEl.getBoundingClientRect();
+  if (!ink) return;
   const cover = document.createElement('div');
   cover.id = 'boardCover';
+  cover.style.cssText =
+    `left:${ink.left - bb.left}px;top:${ink.top - bb.top}px;`
+    + `width:${ink.width}px;height:${ink.height}px`;
   store.forEach((s, id) => {
     /* 刊頭不必蓋：它是上層自己的 <img>，這一幀就畫得出來 —— 蓋布是為了那些
        還在生的 iframe。蓋了反而糟：它等不到 ready，會一路掛到 6 秒的保險。 */
@@ -10101,47 +10159,38 @@ function pvNode(node, plan){
   return el;
 }
 
-const dmPrevMask = document.getElementById('dmPrevMask');
-function openDmPreview(){
-  if (!currentPlan || !layout) return;
-  const cm = planCm(currentPlan);
-  /* 一張版的寬度照兩張並排排得下算，高度照這一檔真正的長寬比 ——
-     跟小地圖、總體 同一把尺（見 CLAUDE.md：boardPx／miniPageH）。 */
-  const W = Math.min(700, (Math.min(1500, innerWidth * .96) - 22 - 32) / 2);
-  const H = Math.round(W * cm.h / cm.w);
-  const body = document.getElementById('dmPrevBody');
-  body.innerHTML = '';
-  [['front','正面'], ['back','背面']].forEach(([side, title]) => {
-    const wrap = document.createElement('div');
-    wrap.className = 'pv-side';
-    const cap = document.createElement('div');
-    cap.className = 'pv-cap';
-    cap.textContent = title;
-    const page = document.createElement('div');
-    page.className = 'pv-page';
-    page.style.width = W + 'px';
-    page.style.height = H + 'px';
+/* 開著沒？狀態只有一個地方記，因為有三個人在問：那顆鈕、重建版面、還有匯出。 */
+let dmBitmapOn = false;
+
+function paintDmBitmap(){
+  document.querySelectorAll('.pv-over').forEach(n => n.remove());
+  if (!dmBitmapOn || !currentPlan || !layout) return;
+  [['front'], ['back']].forEach(([side]) => {
+    const b = boards[side];
+    if (!b || !b.ws) return;
+    const over = document.createElement('div');
+    over.className = 'pv-over';
     const tree = pvNode(layout[side], currentPlan);
     tree.style.flex = '1 1 auto';
     tree.style.minWidth = '0px';
-    page.appendChild(tree);
-    wrap.appendChild(cap); wrap.appendChild(page);
-    body.appendChild(wrap);
+    over.appendChild(tree);
+    b.ws.appendChild(over);
   });
+}
+
+function setDmBitmap(on){
+  dmBitmapOn = !!on;
+  dmPrevBtn.classList.toggle('on', dmBitmapOn);
+  paintDmBitmap();
+  if (!dmBitmapOn) return;
   const all = allBlocks().length;
   const got = allBlocks().filter(b => (blockSnap(currentPlan.id, b.id) || {}).size).length;
-  document.getElementById('dmPrevName').textContent = currentPlan.name || '';
-  document.getElementById('dmPrevNote').textContent = got === all
-    ? `${all} 個版位都拍到了`
-    : `${got}/${all} 個版位有圖 —— 沒去過的版位拍不到（一格一格是它自己畫的）`;
-  dmPrevMask.classList.add('on');
+  toast(got === all
+    ? `整本點陣圖：${all} 個版位都拍到了`
+    : `整本點陣圖：${got}/${all} 個版位有圖 —— 沒去過的版位拍不到（一格一格是它自己畫的）`,
+    got === all ? 'ok' : 'info', 3600);
 }
-document.getElementById('dmPrevBtn').addEventListener('click', openDmPreview);
-document.getElementById('dmPrevClose').addEventListener('click',
-  () => dmPrevMask.classList.remove('on'));
-dmPrevMask.addEventListener('click', e => {
-  if (e.target === dmPrevMask) dmPrevMask.classList.remove('on');
-});
+dmPrevBtn.addEventListener('click', () => setDmBitmap(!dmBitmapOn));
 
 /* 那一格畫好了就淡掉那一格（使用者選的：不等到齊）。全部淡完就把蓋布收掉。 */
 function coverCellReady(id){
@@ -13419,6 +13468,7 @@ function rebuildAll(keepId){
   editorHost.appendChild(buildBoard('front', '正面'));
   editorHost.appendChild(buildBoard('back',  '背面'));
   fitBoards();
+  paintDmBitmap();                 // 兩張版是新的，那一層要跟著貼回去
   drawGuides('front'); drawGuides('back');
 
   const all = collectBlocks(layout.front, []).concat(collectBlocks(layout.back, []));
