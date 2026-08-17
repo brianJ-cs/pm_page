@@ -955,7 +955,7 @@ const oy = v => v * CH / O_H;
    讓實際印出來一樣大。格子一樣高（絕大多數）→ 比例是 1 → 就是原版的數字。 */
 let REF_CM_H = 0;                      // 參考格高（cm）；0 ＝ 沒有，就用自己的
 /* 這一格的座標是不是已經是新座標系（v4）。新排的（buildBlocks）當然是；
-   舊檔要換算成功才算。沒換算成功就不能蓋章 —— 見 restoreBoard。 */
+   舊檔要換算成功才算。沒換算成功就不能蓋 v4 那個版本章 —— 見 restoreBoard。 */
 let COORDS_V4 = true;
 const ty = v => v * (REF_CM_H && CM_H ? REF_CM_H / CM_H : 1);
 
@@ -1451,8 +1451,11 @@ addEventListener('message',e=>{
      那份時對不上，畫布會整格空掉。 */
   if(d.catalogue) applyCatalogue(d.catalogue);
   if(d.logos) applyLogos(d.logos);
-  // 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）
-  if(d.boardRestore !== undefined) restoreBoard(d.boardRestore);
+  /* 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）。
+     收完就回報「我畫好了」—— 上層那張蓋布是照這一句在淡的。
+     ⚠️ 空的那一格（boardRestore 是 null）也要回報：restoreBoard 會直接 return，
+     不報的話那一格會被蓋到 6 秒的保險才掀開，而它根本沒有東西要等。 */
+  if(d.boardRestore !== undefined){ restoreBoard(d.boardRestore); tellPainted(); }
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
   if(d.boardPicked) applyPicked(d.boardPicked);
   // 面板那邊按了「刪掉」— uid 兩邊算出來是同一個，所以指名就認得出是哪一塊
@@ -3106,7 +3109,7 @@ addEventListener('mousemove',e=>{
    而格子正好佔滿整張版，等於整片都不能縮放。
    疊在圖上時仍然先給「切換圖層」用（那是這裡本來就有的手勢），沒有圖才轉出去。 */
 /* 拼板 那邊把每一格的畫布都打開了（要拖零件就直接拖，不必先點開那一格），代價是
-   「按在空白處」那一下也會被這個 iframe 收走 —— 而平移、蓋章、貼貼紙、點開這一格
+   「按在空白處」那一下也會被這個 iframe 收走 —— 而平移、上色、貼貼紙、點開這一格
    全都靠那一下。所以只要這一下不是按在零件上，就把它原封不動轉出去，外面照它本來
    的規則處理；轉的是 iframe 自己的 clientX/clientY，跟滾輪那條路同一個做法。 */
 if(UI_STAGE) addEventListener('pointerdown',e=>{
@@ -4153,6 +4156,43 @@ function b64utf8(str){
   return btoa(s);
 }
 
+/* 價格那幾個數字用的 Anton 是 <link> 拉進來的網路字型，而**一張 SVG 被當成 <img>
+   畫的時候不會去載任何外部資源** —— 那一層裡 `font-family:Anton` 直接掉回
+   sans-serif：筆畫變細、字變窄，拍出來的價格跟螢幕上不是同一個東西。
+   而「跟螢幕上一模一樣」正是這張圖唯一的用途（它要冒充還沒畫好的那一格）。
+   所以字型本身也要塞進去：抓那支 woff2，轉成 data: 的 @font-face 跟著 CSS 一起走。
+   ⚠️ 只要**基本拉丁**那一個 subset：Anton 只用在價格和 SKU（都是數字），
+   越南文和拉丁擴充那兩包塞進去只是讓每一張 SVG 多幾十 KB。
+   ⚠️ 一支 iframe 抓一次就留著（60 格各自是一個 document，但走的是瀏覽器同一份
+   HTTP 快取，第一次之後幾乎免費）。
+   ⚠️ 抓不到就回空字串（斷網、被擋、CORS 都算）—— 那時候價格會拍成替代字，
+   但總比整張圖拍不出來好。測試環境本來就把 fonts.* 擋掉（driver 的 --fonts 才放行），
+   所以這條路平常就是空的。 */
+let snapFontPromise = null;
+function snapFontCss(){
+  if(snapFontPromise) return snapFontPromise;
+  snapFontPromise = (async () => {
+    try{
+      const link = document.querySelector('link[href*="fonts.googleapis.com"]');
+      if(!link) return '';
+      const css = await (await fetch(link.href)).text();
+      const faces = css.match(/@font-face\s*\{[^}]*\}/g) || [];
+      /* 數字在基本拉丁那一包（unicode-range 含 U+0000）—— 挑不出來就用最後一個，
+         Google 那份 CSS 一向把 latin 排在最後。 */
+      const face = faces.find(f => /U\+0000/.test(f)) || faces[faces.length - 1] || '';
+      const url = (face.match(/url\((https:[^)]+\.woff2)\)/) || [])[1];
+      if(!url) return '';
+      const buf = await (await fetch(url)).arrayBuffer();
+      const b = new Uint8Array(buf);
+      let bin = '';
+      for(let i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]);
+      return `@font-face{font-family:'Anton';font-style:normal;font-weight:400;`
+           + `src:url(data:font/woff2;base64,${btoa(bin)}) format('woff2')}`;
+    }catch(_){ return ''; }
+  })();
+  return snapFontPromise;
+}
+
 async function snapshotStage(req){
   const id = (req && req.id) || '';
   /* 失敗要講得出是哪一種。三種的處理完全不一樣：SVG 解不開是這一頁自己組錯了，
@@ -4172,10 +4212,11 @@ async function snapshotStage(req){
     }));
     const css  = (document.querySelector('style') || {}).textContent || '';
     const vars = document.documentElement.getAttribute('style') || '';
+    const face = await snapFontCss();      // Anton 要跟著進去，不然價格會是替代字
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">`
       + `<foreignObject width="100%" height="100%">`
       + `<body xmlns="http://www.w3.org/1999/xhtml" class="ui-stage" style="margin:0;${xmlEsc(vars)}">`
-      + `<style>${xmlEsc(css)}</style>`
+      + `<style>${xmlEsc(face + css)}</style>`
       + new XMLSerializer().serializeToString(clone)
       + `</body></foreignObject></svg>`;
     /* ⚠️ 一定要 data:，**不可以** blob:。blob: 的來源跟著這一頁走，而這一頁常常是
@@ -4204,6 +4245,31 @@ async function snapshotStage(req){
     im.onerror = () => send('', 'svg-load');
     im.src = dataUrl;
   }catch(e){ send('', 'throw:' + (e && e.message || e)); }
+}
+
+/* ---- 「這一格畫好了」------------------------------------------------------
+   上層在 拼板 進場時會先蓋一張上次拍的點陣圖（見主程式的 showBoardCover），
+   蓋著的那一格要等**這一句**才掀開。
+   ⚠️ 以前上層是聽 `ready` 掀的 —— 那一句的意思是「iframe 起來了、可以收東西了」，
+   這時候版面上一個字都還沒有：蓋布掀開之後你還是會看著一格空白，然後內容才跳出來。
+   真正該等的是「上次拼的東西已經排回畫面上」，也就是 restoreBoard 收完那一刻。
+   ⚠️ 順便等一下字型：價格用的 Anton 是網路字型，它到齊之前那幾個數字是替代字的
+   位置，掀開之後會自己跳一次（見底下 fonts.ready 那一段會重排）。但**最多等 600ms** ——
+   斷網或字型拉不到的時候，等下去就是一直蓋著一張過期的圖，那比跳一下糟。
+   ⚠️ 只報一次：後面挑貨、重排都會再畫，那時候蓋布早就不在了。 */
+let paintedSent = false;
+function tellPainted(){
+  if(paintedSent || !UI_STAGE || window.parent === window) return;
+  paintedSent = true;
+  const send = () => requestAnimationFrame(() => {
+    try{ parent.postMessage({ boardCell:CELL_ID, stagePainted:true }, '*'); }catch(_){}
+  });
+  const fonts = document.fonts && document.fonts.ready;
+  if(!fonts) return send();
+  let done = false;
+  const once = () => { if(done) return; done = true; send(); };
+  fonts.then(once).catch(once);
+  setTimeout(once, 600);
 }
 
 setMargin();     // 紅線先照預設畫上（--pad 只有 setMargin 一個來源）

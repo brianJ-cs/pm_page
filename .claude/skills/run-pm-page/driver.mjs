@@ -18,6 +18,7 @@
  * Steps (applied left to right):
  *   --file <path>        load a local .html (repeatable; re-navigates)
  *   --wait <ms>          sleep
+ *   --size <WxH>         resize the viewport (窄視窗才看得到的擠壓就靠它)
  *   --waitfor <sel>      poll until the selector exists (5s cap)
  *   --click <sel>        real mouse press+release at the element's centre
  *   --click-text <text>  click the first element whose textContent contains it
@@ -327,9 +328,13 @@ try {
     const step = argv[i];
     const arg = () => argv[++i];
     switch (step){
-      case '--headed': case '--live': break;   // 開瀏覽器 / 允許連 Supabase，都在啟動時處理過了
+      case '--headed': case '--live': case '--fonts': break;   // 開瀏覽器 / 允許連 Supabase / 放行網路字型，都在啟動時處理過了
       case '--file':      await load(arg()); break;
       case '--wait':      await sleep(+arg()); break;
+      case '--size':      { const [w, h] = arg().split(/[x,]/).map(Number);
+                            await send('Emulation.setDeviceMetricsOverride',
+                              { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+                            console.log(`size   ${w}x${h}`); break; }
       case '--waitfor':   await waitFor(arg()); break;
       case '--click':     { const s = arg(); await click(s); console.log('click  ' + s); break; }
       case '--click-text':{ const t = arg(); await clickText(t); console.log('click  "' + t + '"'); break; }
