@@ -87,15 +87,19 @@
      中文沒有空白，被擠到就是一個字一行 —— 「磁吸對齊」在 1600 寬的視窗上就已經
      斷成兩行，把整條列撐高一截。 */
   .bar .right{white-space:nowrap}
-  .tab{
+  /* 分頁那顆藥丸。`.pilltab`＝長得一樣、但**不是**一個分頁（現在只有「進度」）：
+     ⚠️ 不可以直接給它 class="tab" —— 那三個地方（setTab 上色、綁 click、
+     syncTabs 收起來）全都是 `querySelectorAll('.tab')` 然後讀 `dataset.tab`，
+     混進去就是一顆會把你切到 undefined 分頁的鈕。 */
+  .tab,.pilltab{
     font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;
     border:1px solid var(--accent-line);border-radius:999px;padding:7px 22px;
     background:var(--accent-tint);color:var(--blue);flex:none;
   }
-  .tab:hover{background:var(--accent-tint-2)}
+  .tab:hover,.pilltab:hover{background:var(--accent-tint-2)}
   .tab.active{background:var(--blue);border-color:var(--blue);color:var(--surface)}
 
-  .bar .right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .bar .right{margin-left:auto;display:flex;align-items:center;gap:16px;min-width:0}
 
   /* ---- 復原 / 重做 (步驟記錄) ---- */
   .hist{display:flex;gap:6px;margin-left:6px}
@@ -209,16 +213,34 @@
   /* 檔期名站在分頁左邊，靠一條分隔線跟分頁分開 —— 不用底色，那一列才不會
      被兩塊顏色切成兩半。 */
   /* 擠不下的時候讓的是這裡：檔期名長度沒有上限，而它旁邊那幾顆鈕各自只有一個尺寸 */
+  /* 但**讓不到把名字讓掉**（2026-08 修）：以前這一段可以縮到 0 寬，而先不見的
+     偏偏是名字（.nm 自己 ellipsis 到 0，後面那段日期是 nowrap、縮不動），
+     於是右邊那句進度一變長（倒數從「2 天」變「8 小時」、切分那組座標欄一冒出來）
+     檔期名就整個消失，三顆分頁還跟著平移 —— 看起來像畫面自己跳了一下。
+     現在下限是「至少放得下名字」，到了底就換右邊那句進度被切。 */
   .banner{
-    display:flex;align-items:baseline;gap:9px;flex:0 1 auto;min-width:0;
+    display:flex;align-items:baseline;gap:9px;flex:0 20 auto;
+    /* 縮到底也留一個位子給名字（以前是 min-width:0 ＝可以縮成 0）。這一條列上
+       右邊那一段「現在：一改・倒數 2 天…」長度一直在變，讓到 0 的話名字說不見
+       就不見，而分頁跟著那個寬度整排平移。
+       shrink 給 20 是**順序**不是比例：先把這一段壓到那個下限（讓掉的是後面
+       那段日期，橫幅上還有一份），到底了才輪到右邊那句進度被切 —— 兩邊照
+       basis 各讓一點的話，會變成兩邊都缺一角。
+       下限跟著視窗放（1600 以上就是滿的 240px，窄下去才一點一點還回去）：
+       這一條列在 1280 上本來就塞不滿，硬留 240px 給名字的話換成右邊那顆
+       「登出」被擠出畫面 —— 名字看不到只是難認，鈕按不到是真的擋住人。 */
+    min-width:clamp(0px,40vw - 372px,240px);
     /* 讓到底就是讓掉，不是把字印到分頁上：擠成 0 寬時 出稿 那一段（nowrap）
        會整段溢出來壓在「總體」上面，看起來像兩行字疊在一起。 */
     overflow:hidden;
     padding:2px 16px 2px 2px;margin-right:2px;border-right:1px solid var(--chrome-line);
   }
-  .banner .nm{font-size:15.5px;font-weight:800;color:var(--ink);
-    min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .banner .rg{font-size:13px;font-weight:800;color:var(--amber)}
+  /* 真的擠不下時讓的是日期那一段，不是名字：名字答的是「你在看哪一本 DM」，
+     日期在橫幅上還有一份。所以 .nm 不縮（只有自己太長才 ellipsis），.rg 才縮。 */
+  .banner .nm{font-size:15.5px;font-weight:800;color:var(--ink);flex:0 0 auto;
+    max-width:20ch;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .banner .rg{font-size:13px;font-weight:800;color:var(--amber);flex:0 1 auto;
+    min-width:0;overflow:hidden;text-overflow:ellipsis}
 
   /* ---- 檔期列表 (from design_team.html) ---- */
   /* 上緣那條藏起來的藍色橫列（.modebar）沒有了：設計／PM／行銷那三顆和換 PM 的
@@ -973,6 +995,11 @@
   /* 面板開著的時候，被拼的那一格自己亮起來，兩邊才對得上 */
   #boardOverview .cell.editing{outline:3px solid var(--blue);outline-offset:-3px;background:var(--accent-tint)}
   #boardFrame{flex:1;width:100%;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+  /* 換一格時整塊面板是同一顆 iframe：新的文件要等載進來才接手，那之前瀏覽器還在
+     畫**上一格**的面板 —— 看起來就是「面板閃一下變成別一格的」，而閃過去那一份
+     是真的可以按的（勾的是別一格的貨）。所以換格的那一段先蓋起來，等它報到才露出來
+     （見 openBoardCell 的 loading）。 */
+  #boardStage.loading #boardFrame{visibility:hidden}
 
   /* ---- 標記／留言（貼紙欄 + 意見欄）------------------------------------------
      照 block-comment-demo / block-review-demo 那兩支的做法搬過來：貼紙是實體，
@@ -1998,17 +2025,49 @@
   #board{display:flex;flex-direction:column;gap:var(--gap);margin:15px auto;
          position:relative;--z:1;--gap:0px}
   /* 進場的蓋布：上次拍到的那一版蓋在還在生的畫布上面。一格一張圖，那一格畫好了
-     就淡掉那一張（見 coverCellReady）—— 不等到齊，所以看得到它一塊一塊讓開。
+     蓋布是整張版一張 canvas，換成真的由「使用者動手了」觸發（見 armCoverIntent）。
      pointer-events:none：蓋著的時候還是點得到底下的格子，它只是一層皮。
      z-index 只要壓過畫布（那幾支是 -1／0），不必壓過把手和標籤 —— 那些本來就是
      螢幕上的東西，早就在了，不必遮。 */
   /* 位置和大小是 JS 量出來的（boardInkRect）—— 不是 inset:0，見那一支的理由 */
-  #boardCover{position:absolute;z-index:3;pointer-events:none}
-  #boardCover img{
-    position:absolute;object-fit:fill;
-    transition:opacity .24s ease;
+  /* 蓋布：整張版一張 canvas，疊在版面上。低解析度畫、CSS 放大回原尺寸 ——
+     所以它是一張「模糊的整張版」，換成真的時看起來像對焦。 */
+  #boardCover{position:absolute;z-index:3;pointer-events:none;
+              opacity:1;transition:opacity .24s ease}
+  #boardCover.gone{opacity:0}
+  /* 蓋布長得跟真的一模一樣 —— 所以蓋著的時候要有一句話說「這是照片，真的還在
+     載」，不然人會對著一張不會回應的版面按半天（那一層 pointer-events:none，
+     按下去其實是落在底下還沒長好的版上，什麼都不會發生）。
+     它是**標記**：固定大小、不跟著縮放、不印出去，跟版位標題同一族。
+     站在 #boardOverview 上不是 #board 裡：#board 有 transform，擺進去會跟著
+     縮放一起變大變小，而它講的是「現在的狀態」，不是版面的一部分。 */
+  /* position:fixed ＋ JS 擺位（跟蓋布同一個做法）：#boardOverview 是會捲的，
+     absolute 放進去它會跟著版面捲走 —— 而這一句話講的是整個畫面的狀態。
+     它也沒有 position:relative，硬加一條會改掉裡面每一個 absolute 的參考框。 */
+  #coverLoad{
+    position:fixed;transform:translateX(-50%);z-index:8;
+    pointer-events:none;display:flex;align-items:center;gap:7px;
+    padding:5px 12px;border-radius:999px;
+    /* 不透明的白（不是那層薄墨 --chrome-fill）：它疊在蓋布 —— 一張長得跟真的
+       一模一樣的版面 —— 上面，7% 的墨在白紙上等於看不見。 */
+    background:var(--surface);border:1px solid var(--line-strong);
+    font-size:12px;font-weight:800;color:var(--ink);
+    box-shadow:0 3px 14px rgba(0,0,0,.16);
   }
-  #boardCover img.gone{opacity:0}
+  #coverLoad::before{
+    content:'';width:9px;height:9px;border-radius:50%;background:var(--blue);
+    animation:coverPulse 1s ease-in-out infinite;
+  }
+  @keyframes coverPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}
+  @media (prefers-reduced-motion:reduce){ #coverLoad::before{animation:none} }
+  /* 蓋著的時候真的那一層**整個藏起來**（不是被蓋住而已）：蓋布沒畫到的地方
+     就不會有東西從底下透出來。列和刊頭各自淡，`#board` 本身不動 ——
+     蓋布是它的小孩，一起淡掉就等於沒蓋。 */
+  #board.covered > .row, #board.covered > .masthead{opacity:0}
+  #board > .row, #board > .masthead{transition:opacity .24s ease}
+  /* ⚠️ 蓋布**沒有**淡出（見 liftBoardCover）：它跟底下那一份是「幾乎一樣、
+     但不完全一樣」的兩層，淡出等於讓人看著兩層混色 260ms —— 那正是使用者
+     講的「還是有一下閃」。到齊就直接拿掉。 */
 
   /* ---- 整本點陣圖：**就地換掉** 總體 上那兩張版 ----------------------------
      它不是一張浮層 —— 浮層要人先開再關，而這件事是「同一張版的另一種看法」，
@@ -2021,6 +2080,11 @@
   .pv-blk{position:relative;overflow:hidden;border:1px solid var(--line-strong);
           min-width:0;min-height:0;box-sizing:border-box}
   .pv-blk img{position:absolute;object-fit:fill}
+  /* 還沒挑貨的格子／還沒放圖的刊頭：畫框，不留白。留白看起來像那裡沒有版面，
+     而那一格是真的存在、只是空的（見 pvNode）。刊頭用虛線 —— 跟版上一樣，
+     那是「等著放圖」的意思。 */
+  .pv-empty{position:absolute;border:1px solid var(--line-strong);box-sizing:border-box}
+  .pv-empty.mast{border-style:dashed}
   /* 沒拍到的那一塊要說得出「還沒看過」。畫成一塊空白的話，跟「真的一格都沒挑」
      長得一模一樣 —— 那是兩件完全不同的事。 */
   /* 印完就丟的那一份。平常推到畫面外 —— 它只在列印那一刻站到左上角
@@ -2034,6 +2098,27 @@
     background:repeating-linear-gradient(45deg,var(--g2) 0 6px,transparent 6px 12px);
     padding:4px;
   }
+  /* 正在拍的那一塊會呼吸 —— 一句「載入中…」躺在那裡不動，跟一個壞掉的狀態
+     長得一模一樣。慢（1.6s）是刻意的：它要看起來像「還在跑」，不是要人盯著它。 */
+  .pv-blk .pv-none.pv-load{animation:pvLoad 1.6s ease-in-out infinite}
+  @keyframes pvLoad{0%,100%{opacity:1}50%{opacity:.5}}
+  @media (prefers-reduced-motion:reduce){ .pv-blk .pv-none.pv-load{animation:none} }
+
+  /* ---- 預熱用的暗房（見 farmBlock）----------------------------------------
+     沒去過的版位在這裡偷偷排一次、拍完就拆。
+     ⚠️ 不可以 display:none：那樣裡面的畫布不排版，也就沒有東西可以拍。
+     ⚠️ 也不推到畫面外：看不到的 iframe 會被瀏覽器降速，一屋子一起降就等不完。
+        所以是留在原地、透明、收不到滑鼠，壓在整頁最底下。
+     ⚠️ 大小是 0 而 overflow 是 visible：版面照它自己的尺寸排（百分比才對得上
+        版上那一份），但一個 px 都不佔位。 */
+  #snapFarm{position:fixed;left:0;top:0;width:0;height:0;
+            opacity:0;pointer-events:none;z-index:-1;overflow:visible}
+  #snapFarm .snap-board{display:flex;flex-direction:column;gap:var(--gap);
+            position:relative;--z:1;--gap:0px}
+  /* 畫布是絕對定位擺進格子裡的，格子沒有 position 的話整批會疊在版面左上角
+     —— 量出來的框全部一樣，蓋布和預覽就整個錯位（拼板 那邊是
+     #boardOverview .cell 給的）。 */
+  #snapFarm .cell{position:relative;isolation:isolate}
   .row{position:relative;display:flex;gap:var(--gap);align-items:stretch}
   .row.dragging{cursor:grabbing;opacity:.85;z-index:5;overflow:visible}
   /* ⋮⋮ 是操作用的把手，不是版面的一部分 —— 留一點縫，讓卡片那一塊自己是完整的 */
@@ -2318,7 +2403,10 @@
   #saveState.done {color:var(--green-ink);background:var(--green);border-color:var(--green-rule)}
   #saveState.fail {color:var(--surface);background:var(--accent);border-color:var(--accent)}
   /* 進度跟著跑到那一列的最右邊，和檔期名各據一端 */
-  .bar .prog{font-size:13px;font-weight:800;color:var(--amber)}
+  /* 真的擠不下時讓的是這一句，不是檔期名：它長度一直在變（倒數、幾格），
+     而它旁邊那幾顆鈕各自只有一個尺寸。切掉的部分在橫幅上還讀得到。 */
+  .bar .prog{font-size:13px;font-weight:800;color:var(--amber);
+    flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
   .bar .prog b{color:var(--ink);font-variant-numeric:tabular-nums}
   .pill.prog{color:var(--green-ink);border-color:var(--green-rule);background:var(--green)}
   /* 交了一半／一格都還沒交：綠是「這份沒你的事了」，那兩種都還沒到那一步 */
@@ -2778,6 +2866,12 @@
     <button class="tab active" data-tab="total">總體</button>
     <button class="tab" data-tab="sheet">落版</button>
     <button class="tab" data-tab="board">拼板</button>
+    <!-- 進度：跟分頁同一顆藥丸、就站在 拼板 右邊。它問的是「這個檔期做到哪」，
+         跟三個分頁是同一層的東西（都在講整本 DM），本來擠在右邊那排小鈕裡 ——
+         那一排講的是「對眼前這一份做什麼」（匯出、預覽、存檔）。
+         ⚠️ class 是 pilltab 不是 tab，理由見那條 CSS。 -->
+    <button class="pilltab" id="progBtn"
+            title="看這個檔期交出去多少、每位 PM 拼完幾格">進度</button>
     <div class="hist">
       <button class="btn icon" id="undoBtn" data-key="⌘Z" title="復原 (⌘/Ctrl+Z)" disabled>↶</button>
       <button class="btn icon" id="redoBtn" data-key="⇧⌘Z" title="重做 (⌘/Ctrl+Shift+Z)" disabled>↷</button>
@@ -2809,8 +2903,6 @@
            而 總體 就是唯一看得到整本的那一頁（落版／拼板 一次只有一塊版位）。 -->
       <button class="btn" id="dmPrevBtn"
               title="整本 DM 現在長什麼樣：正面背面攤在一起，用每一格拍下來的圖拼">整本預覽</button>
-      <button class="btn" id="progBtn"
-              title="看這個檔期交出去多少、每位 PM 拼完幾格">進度</button>
       <button class="btn" id="exportBtn"
               title="把這個版位印成乾淨版：沒有便利貼、按鈕、把手、壓暗和標籤。在列印對話框把目的地選成「另存為 PDF」">匯出乾淨版</button>
       <span id="hereNow"></span>
@@ -5185,6 +5277,11 @@ function switchBlock(block){
   const moved = block !== activeBlock;      // 真的換了一個版位，不是重畫同一個
   activeBlock = block;
   if (moved) beatNow();
+  /* 挑了一塊＝下一步很可能就是切過去看它，所以現在就去拍它（farmTodo 把挑起來的
+     那一塊排第一）。不等進 總體 那一發的話，時鐘是從**進這一頁**開始算的，
+     而人是先進來、看一看、才點的 —— 點完馬上切過去就來不及了。
+     拼板 上這一支自己會擋掉（那一頁不預熱）。 */
+  if (moved) farmSweep(600);
   renderMinimap();
   /* 總體 這一頁沒有那張畫布 —— #sheetPane 停在別的分頁上，量不到寬，硬畫會拿 0
      去算出一份尺寸全錯的版，而且它會被 sheetSig 記下來。這裡點小地圖只是「挑一塊」，
@@ -5196,7 +5293,7 @@ function switchBlock(block){
   if (activeTab === 'board'){
     closeBoardCell();
     focusCell = null; selNote = null;
-    if (moved) showBoardCover();          // 換一塊也蓋一次（同樣是幾十支 iframe 重掛）
+    // 蓋布交給 paintBoardThumbs（renderGrid 剛剛重建過，boardRebuilt 已經立起來了）
     paintBoardThumbs(); renderRail(); applyFocusCell();
     syncTypeBar();          // 換版位＝換一套字級設定
     queueType(block);
@@ -5391,8 +5488,21 @@ function makeCard(cell){
 /* Everything renderGrid needs to know about the finished sheet, with no DOM
    writes — so the same numbers can either build the board or just re-size the
    board that is already there. */
-function sheetMetrics(block){
+/* 版面能用的那個窗口有多大。**量得到就記下來**：總體 這一頁的 #sheetPane 停在
+   別的分頁上（見 hostSheet），clientWidth 是 0 —— 而預熱要在那一頁替沒去過的
+   版位算一次版面（見 farmBlock）。照 0 算會被下面兩個下限接住變成 320×240，
+   於是一列最多四格，排出來的是一份列數完全不同的版，而那一份會被當成
+   「這一塊長這樣」貼到整本預覽上。 */
+let paneSeen = { w: 0, h: 0 };
+function paneBox(){
   const main = sheetMainEl;
+  if (main.clientWidth > 0 && main.clientHeight > 0)
+    paneSeen = { w: main.clientWidth, h: main.clientHeight };
+  return paneSeen;
+}
+
+function sheetMetrics(block){
+  const pane = paneBox();
   const sh = sheetOf(block);
 
   /* ---- shape the grid like the block's segment on the minimap ----
@@ -5422,8 +5532,8 @@ function sheetMetrics(block){
      320×240，於是 maxPerRow 永遠是 4：不管版位多寬、有幾格，一列最多四格。
      60 格的版位因此被排成 15 列 × 4 格 —— 一格 8.5cm 寬、1.3cm 高，畫布裡的
      品名、商品圖、價格整疊塞不進去就滿出來，壓在上下兩列身上（壓力測試那張圖）。 */
-  const availW = Math.max(320, main.clientWidth - 12);
-  const availH = Math.max(240, main.clientHeight - blockHead.offsetHeight - 34);
+  const availW = Math.max(320, pane.w - 12);
+  const availH = Math.max(240, pane.h - blockHead.offsetHeight - 34);
 
   /* Row count from the shape, then grid-reorder.html's splitEven spreads the
      cells across those rows as evenly as possible. Every row is flex-filled to
@@ -5542,11 +5652,13 @@ const GRIP_PX = 20, CELL_BD = 1;
     縮放最貴的一件事（見 .ccanvas 的註解）。縮放交給 transform:scale()。
     尺寸全部用算的、不量 DOM：量 60 格就是 60 次 getBoundingClientRect，
     每一次都可能逼出一輪重排，而那些數字版面自己就知道。 */
-function fitCellCanvases(m){
+/* root 預設是版上那張，也可以是暗房裡預熱的那一份（見 farmBlock）——
+   兩邊的畫布要一樣大、擺在一樣的地方，所以共用這一支。 */
+function fitCellCanvases(m, root){
   const z = sheetZoom || 1;
   const rowW = m.side ? m.gridW - m.side.w : m.gridW;
   if (!(rowW > 0) || !(m.rowH > 0)) return;
-  const rows = [...boardEl.children].filter(
+  const rows = [...(root || boardEl).children].filter(
     r => r.classList && r.classList.contains('row') && !r.classList.contains('masthead-row'));
   rows.forEach((row, ri) => {
     const n = m.counts[ri];
@@ -6309,6 +6421,7 @@ function readImage(file, sh){
     renderGrid(activeBlock);
     /* 換圖會讓 renderGrid 整張重建（版面簽名裡有「刊頭有沒有圖」），而 拼板 的
        畫布是掛在那些格子上的 —— 不補畫一次，放完圖整張版就變成一片空格。 */
+    staleSnapBlock(activeBlock);      // 刊頭是點陣圖的一部分，換了就要重拍
     if (activeTab === 'board') paintBoardThumbs();
     commitAction();
   };
@@ -7475,6 +7588,9 @@ const VIEWS = {
       totalZoom = 1;
       syncTotalZoomHint();
       fitBoards();
+      /* 沒去過的版位在背景先拍起來 —— 整本預覽那顆鈕就在這一頁上，
+         按下去才開始拍的話，看到的會是一整頁「還沒看過」（見 farmSweep）。 */
+      farmSweep();
     },
     unmount(){
       hideTip();
@@ -7504,6 +7620,7 @@ const VIEWS = {
       renderHead();
       renderGrid(activeBlock);
       if (activeBlock) requestAnimationFrame(() => zoomToFit(true));
+      farmSweep(2000);        // 這一頁也閒著：順手把還沒拍過的版位補起來
     },
     unmount(){ hideTip(); }
   },
@@ -7512,6 +7629,9 @@ const VIEWS = {
      with its own styles and script, so nothing of this editor applies inside. */
   board: {
     mount(){
+      /* 這一頁本身就掛著幾十支畫布 —— 暗房再開一屋子等於把最重的一頁乘二。
+         而且要在 showBoardOverview() **之前**停：那一支馬上就要生新的 iframe。 */
+      farmStop();
       snapWrap.style.display = 'none';
       markWrap.style.display = 'flex';
       document.getElementById('toolHint').style.display = 'none';
@@ -7533,6 +7653,9 @@ const VIEWS = {
    回去 — 兩邊永遠是同一份、同一組事件，不必養第二套 render。 */
 let boardCell = null;               // 面板正在拼的那一格，null = 面板關著
 let boardLoaded = null;             // iframe 現在載的是哪一格，避免重載洗掉進度
+/* 換格之後在等哪一格的面板報到（見 openBoardCell 的 loading）。空字串＝沒有在等。 */
+let panelWait = '';
+let panelWaitT = 0;
 
 /** Park 落版's three nodes somewhere. 落版 takes all three in a row; 拼板 keeps
     the minimap in its own left column so it survives the drill-in. */
@@ -7587,9 +7710,8 @@ function showBoardOverview(){
   renderMinimap();
   renderHead();
   renderGrid(activeBlock);
-  /* 蓋布要在畫布掛上去**之前**貼好：晚一步貼，第一批冒出來的格子已經被看到了，
-     那正是它要遮的東西。 */
-  showBoardCover();
+  /* 蓋布要在畫布掛上去**之前**貼好（晚一步貼，第一批冒出來的格子已經被看到了）——
+     那件事現在由 paintBoardThumbs 開頭統一做，七條重生畫布的路共用同一個判斷。 */
   paintBoardThumbs();
   renderRail();
   applyFocusCell();
@@ -7641,18 +7763,37 @@ function openBoardCell(anchor, block, cells, at){
 
   const f = document.getElementById('boardFrame');
   if (boardLoaded !== boardCell.cell.id){
+    /* 蓋起來再換：iframe 要等新的文件載進來才換手，那之前它畫的還是上一格的面板。
+       露出來的時機是那一頁報 ready、而且 restore 也送完了（見 message 那邊的 panelWait）
+       —— 一格空白的面板比一格別人的面板好，後者是按得下去的。
+       保險 2.5 秒：報到那一句沒來（載不起來、被擋掉）也不能永遠蓋著。 */
+    panelWait = String(boardCell.cell.id);
+    st.classList.add('loading');
+    clearTimeout(panelWaitT);
+    panelWaitT = setTimeout(showBoardPanel, 2500);
     // ui=panel：那一頁只出借面板（PM 挑貨／設計 圖層），不是整個編輯器
     setPickFrame(f, 'ui=panel&role=' + canvasRole()
                   + '&block=' + encodeURIComponent(block.name)
                   + '&cell=' + encodeURIComponent(boardCell.cell.id));
     boardLoaded = boardCell.cell.id;
-  } else tellBoardRole();      // 同一格再打開：iframe 沒重載，內容還在
+  } else {
+    showBoardPanel();          // 同一格再打開：iframe 沒重載，內容還在
+    tellBoardRole();
+  }
   tellStageEditing();
 }
 
 
+/** 面板露出來。等的那一格不必再等（關掉面板、保險到期走的也是這一支）。 */
+function showBoardPanel(){
+  panelWait = '';
+  clearTimeout(panelWaitT);
+  document.getElementById('boardStage').classList.remove('loading');
+}
+
 function closeBoardCell(){
   boardCell = null;
+  showBoardPanel();            // 關掉了就別留著那層蓋子，下一次開同一格才看得到內容
   document.getElementById('boardStage').classList.remove('on');
   updateRailTab();
   boardEl.querySelectorAll('.cell.editing').forEach(n => n.classList.remove('editing'));
@@ -7817,7 +7958,17 @@ addEventListener('message', e => {
      ⚠️ **不是** `ready`：那一句只代表 iframe 起來了、可以收東西了，這時候格子裡
      一個字都還沒有 —— 照它掀的話，蓋布讓開之後你看著的是一格空白，內容才跳出來。
      那正是蓋布要遮的東西。 */
-  if (d.stagePainted){ coverCellReady(String(target.id)); return; }
+  /* 「這一格畫好了」。**蓋布不再聽這一句** —— 換成真的只由「使用者動手了」決定
+     （見 armCoverIntent）。這一句還留著是因為**預熱**要它：暗房要等每一格畫好
+     才拍得到東西（見 farmBlock）。 */
+  if (d.stagePainted){ noteCoverPainted(target.id, e.source); return; }
+
+  /* 使用者在某一格的畫布裡動手了 → 蓋布可以掀了（見 2cell 的 tellAct）。
+     ⚠️ 這一句是**必要的**，不是保險：armCoverIntent 聽的是這一頁的
+     wheel／pointerdown／keydown，而在 拼板 上滑鼠幾乎永遠停在某一格上面 ——
+     那一下落在 iframe 裡，這一頁一個事件都收不到。少了這一句，
+     「滾輪縮放」和「點一格」都掀不動蓋布，每一次都得等滿 12 秒的保險。 */
+  if (d.stageAct){ liftBoardCover(); return; }
 
   if (d.ready){                       // iframe 起來了：身分、共用目錄和上次的內容送回去
     e.source.postMessage({ boardRole: canvasRole(),
@@ -7834,6 +7985,12 @@ addEventListener('message', e => {
                            stageEditing: boardCell ? String(boardCell.cell.id) : '',
                            gridLines,       // 工具列那顆開關現在是開是關
                            boardRestore: (target.board || {}).state || null }, '*');
+    /* 換格時面板是蓋著的（見 openBoardCell）：上面那一句 restore 就是它要的最後一樣
+       東西，收下之後那一頁就是這一格的樣子了 —— 下一幀（畫完）才掀開，
+       不然會先看到一份什麼都沒勾的清單。只有面板那一份算，版上那幾十塊畫布
+       也走這條路。 */
+    if (d.src === 'panel' && panelWait && panelWait === String(target.id))
+      requestAnimationFrame(showBoardPanel);
     return;
   }
 
@@ -8288,7 +8445,13 @@ const boardStateJson = c => JSON.stringify((c.board && c.board.state) || null);
 function noteBoardChange(c, was){
   const now = boardStateJson(c);
   const boot = was === 'null' && !pickedOf(c).length;   // 空格子開機報到
-  if (!boot && now !== was) commitAction(); else markDirty();
+  if (!boot && now !== was){
+    /* 這一格真的變了（挑了貨、搬了零件、刪了東西）→ 它的點陣圖過期了。
+       開機報到那一種不算：那時候畫面上什麼都沒改。 */
+    staleSnapCell(c.id);
+    scheduleSnap();               // 手一停就重拍那一格
+    commitAction();
+  } else markDirty();
 }
 
 function markBadge(c){
@@ -9098,11 +9261,17 @@ function sheetRefCmH(block){
 }
 
 /** 把這個版位的字級設定送給它底下每一塊畫布。 */
-function pushType(block){
+/* find：這一格的畫布在哪。預設是版上那一份；預熱時傳的是暗房裡那一批
+   （見 farmBlock）—— 字級是排版的一部分，不送的話拍到的那張跟版上長得不一樣。 */
+function pushType(block, find){
   if (!block) return;
+  /* 字級一改，這一塊**每一格**畫出來都不一樣了 → 整塊的點陣圖過期。
+     不必逐格記，把「上次拍是什麼時候」清掉就等於整塊重拍（見 captureBlockSnap）。
+     ⚠️ 預熱那條路傳 find 進來，那是拍給別的版位用的，不算「使用者改了什麼」。 */
+  if (!find && block === activeBlock){ staleSnapBlock(block); scheduleSnap(); }
   const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh), refH = sheetRefCmH(block);
   (sh.cells || []).forEach(c => {
-    const f = canvasFrame(c.id);
+    const f = find ? find(c.id) : canvasFrame(c.id);
     if (!f || !f.contentWindow) return;
     const st = (c.board && c.board.state) || null;
     const n = st && st.nPrice;
@@ -9205,8 +9374,31 @@ function paintOneCanvas(c){
    量過整列歪到 30px）。標籤沒有了，這三支跟著走。 */
 
 /** 整張版：每一格該有畫布的都給它。只有 拼板 這一頁會叫。 */
+/** 這一格等一下會**生一支新的畫布**嗎 —— 有貨、而且現在身上沒有畫布。
+    ⚠️ 判斷「要不要蓋布」只能問這一件事，**不能問「版面有沒有重建」**。
+    踩過的坑：畫布是離開 拼板 時被 `clearBoardThumbs()` 拆掉的，而**卡片留著**；
+    回到 拼板 時 `sheetSig` 沒變 → `renderGrid()` 走「只改大小」的快路 → 沒有重建，
+    可是那 60 支畫布全部要重新生一遍。照「有沒有重建」判斷的話這一趟不蓋布，
+    於是 落版 → 拼板 是整張版當著你的面長出來 —— 而那是最常走的一條路。 */
+function canvasMissing(c){
+  if (!pickedOf(c).length) return false;
+  const el = cardEl(c.id);
+  return !!el && !el.querySelector('.ccanvas');
+}
+
 function paintBoardThumbs(){
   if (activeTab !== 'board' || !activeBlock) return;
+  /* ⚠️ **先蓋、再掛畫布**（跟 demo 同一個順序）：反過來的話第一批冒出來的格子
+     已經被看到了，而那正是蓋布要遮的東西。
+     這裡是**唯一**的入口 —— 會重生畫布的路（switchBlock、showBoardOverview、
+     reflowBoard、rebuildAll、afterMerge、合併、換刊頭圖、還有從 落版 切回來）
+     全都經過這裡，所以判斷只寫這一次。
+     ⚠️ **一支都不用生就不准蓋**：畫布沒被換掉的話它們早就報過「我好了」
+     （tellPainted 一支只報一次），蓋上去沒有人會來掀，只能等保險 ——
+     蓋著一張過期的圖八秒，比不蓋還糟。 */
+  const missing = new Set((sheetOf(activeBlock).cells || [])
+    .filter(canvasMissing).map(c => String(c.id)));
+  if (missing.size) showBoardCover(missing);   // 只有真的要生新畫布時才蓋
   queueType(activeBlock);        // 畫布重新掛上來，字級設定要跟著再送一次
   (sheetOf(activeBlock).cells || []).forEach(paintOneCanvas);
   // 剛掛上來的那幾支還沒有尺寸和 transform（渲染那一趟跑在它們出生之前）
@@ -9773,6 +9965,9 @@ function exportDmBitmap(){
 }
 
 function exportClean(){
+  /* 暗房是 position:fixed 的，而 fixed 的東西會跟著印（它是透明的，但一屋子
+     溢出去的版面照樣算進版面高度）。要印之前先拆掉 —— 回到這一頁還會再排一次。 */
+  farmStop();
   if (dmBitmapOn && activeTab === 'total') return exportDmBitmap();
   if (!currentPlan || !activeBlock){ toast('先選一個版位再匯出', 'warn', 2600); return; }
   // 面板、選起來的便利貼都是螢幕上的東西，印之前先收乾淨
@@ -9802,6 +9997,7 @@ addEventListener('afterprint', () => {
   document.body.classList.remove('print-dm');
   const h = document.getElementById('dmPrintHost');
   if (h) h.remove();               // 那一份是印完就丟的，留著只會過期
+  farmSweep(1500);                 // 印之前把暗房停了（見 exportClean），印完接回去
 });
 exportBtn.addEventListener('click', exportClean);
 progBtn.addEventListener('click', openProgress);
@@ -9820,22 +10016,53 @@ progBtn.addEventListener('click', openProgress);
       是這個專案踩過的坑（見 CLAUDE.md：base64 會把 localStorage 撐爆、每次存檔
       重傳好幾 MB、還被歷史那 50 份快照各留一份）。所以重整就沒了，
       而它本來就只是「上次看到的樣子」。
-   ⚠️ **只拍得到你開過的版位**：沒開過的那一塊從來沒有 iframe，誰都畫不出來。
-      預覽上那種寫「還沒看過」，不要畫一塊空白 —— 空白跟「真的沒挑貨」長得一樣。
+   ⚠️ 版上這條路**只拍得到你開過的版位**（沒開過的那一塊從來沒有 iframe）——
+      所以沒去過的那幾塊由**預熱**在背景補（見底下的 farmBlock）。兩條路拍出來的
+      是同一種東西：都走 captureInto。
+      真的還沒有圖的，預覽上寫「載入中…」／「還沒挑貨」，不要畫一塊空白 ——
+      空白跟「真的沒挑貨」長得一樣，而那是兩件完全不同的事。
    ========================================================================== */
 const SNAPS = new Map();        // `${planId}|${blockId}` → Map(cellId → {url,x,y,w,h})
 const snapPend = new Map();     // cellId → 幾何＋收進哪一份（回覆才知道要貼哪裡）
 const snapKey = (pid, bid) => pid + '|' + bid;
 const blockSnap = (pid, bid) => SNAPS.get(snapKey(pid, bid));
+/** 這一塊**真的有圖**沒有 —— 不是「有沒有資料」。沒挑貨的格子也會記一筆（只有
+    框和底色，見 captureInto），所以 `.size` 現在回答不了這個問題了。 */
+function snapHasArt(store){
+  if (!store) return false;
+  for (const v of store.values()) if (v && v.url) return true;
+  return false;
+}
 
 const snapAt = new Map();       // 這一塊上次拍是什麼時候
+/* 這一塊裡**哪幾格變了、還沒重拍**。
+   ⚠️ 拍照有一分鐘的節流（見 captureBlockSnap），那是為了「排版的人本來就一直在停」
+   —— 但**真的改過的那一格不能被它擋住**：擋住的話下次進場蓋的是一分鐘前的樣子，
+   而那張圖看起來跟真的一模一樣，人只會以為自己剛剛的改動沒有存到。
+   所以節流照舊擋沒變的格子，變過的那幾格照樣重拍 —— 改一格就只重拍一格，
+   不是整塊六十格重來。 */
+const snapStale = new Map();    // key → Set(cellId)
+function staleSnapCell(cellId, block){
+  const b = block || activeBlock;
+  if (!currentPlan || !b || cellId == null) return;
+  const key = snapKey(currentPlan.id, b.id);
+  if (!snapStale.has(key)) snapStale.set(key, new Set());
+  snapStale.get(key).add(String(cellId));
+}
+/** 整塊都要重拍（字級、刊頭這種一改就每一格都不一樣的東西）。 */
+function staleSnapBlock(block){
+  const b = block || activeBlock;
+  if (!currentPlan || !b) return;
+  snapAt.delete(snapKey(currentPlan.id, b.id));
+}
 /** 這一塊「印出去的那一片」有多大。
     ⚠️ **不可以拿 `#board` 的 rect 當基準**：每一列左邊還坐著一支拖曳把手
     （`.grip`，14px ＋ 6px margin），那是螢幕上的東西、不是版面的一部分
     （列印時它本來就 `display:none`）。拿 #board 量的話每一塊的左邊都會多出
     一條 2.7% 的白邊，而且每一塊寬度不同、白邊寬度還不一樣。
     所以量的是**內容自己的外框**：所有格子 ＋ 刊頭的聯集。 */
-function boardInkRect(){
+function boardInkRect(root){
+  const host = root || boardEl;
   let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
   const eat = el => {
     const q = el.getBoundingClientRect();
@@ -9843,8 +10070,8 @@ function boardInkRect(){
     l = Math.min(l, q.left); t = Math.min(t, q.top);
     r = Math.max(r, q.right); b = Math.max(b, q.bottom);
   };
-  boardEl.querySelectorAll('.cell').forEach(eat);
-  const mh = boardEl.querySelector('.masthead');
+  host.querySelectorAll('.cell').forEach(eat);
+  const mh = host.querySelector('.masthead');
   if (mh) eat(mh);
   if (!isFinite(l)) return null;
   return { left:l, top:t, width:r - l, height:b - t };
@@ -9852,8 +10079,6 @@ function boardInkRect(){
 
 function captureBlockSnap(){
   if (activeTab !== 'board' || !activeBlock || !currentPlan) return;
-  const br = boardInkRect();
-  if (!br || !br.width || !br.height) return;
   const key = snapKey(currentPlan.id, activeBlock.id);
   /* 一分鐘內拍過就不再全部重拍：這一支掛在「手停下來 2.5 秒」上，而排版的人本來就
      一直在停 —— 每停一次就把幾十格重新光柵化一遍，那個成本會被感覺到。
@@ -9863,12 +10088,40 @@ function captureBlockSnap(){
      它是「還沒拍到」還是「本來就沒東西」。 */
   const fresh = Date.now() - (snapAt.get(key) || 0) < 60000;
   if (!fresh) snapAt.set(key, Date.now());
+  /* 「有了」＝**真的有一張圖**，不是「有一筆資料」：沒挑貨的格子現在也記一筆
+     （只有框和底色，見 captureInto），拿 has(id) 判斷的話那幾格會被永遠跳過。 */
+  const have = SNAPS.get(key) || new Map();
+  const stale = snapStale.get(key);
+  snapStale.delete(key);          // 這一趟就是為了它們拍的
+  captureInto(boardEl, key,
+    id => fresh && !!(have.get(id) || {}).url && !(stale && stale.has(id)));
+}
+
+/** 這一片版面上的每一格都拍一張，收進 `SNAPS[key]`。
+    root 可以是版上那張，也可以是暗房裡預熱的那一份（見 farmBlock）——
+    兩邊要拍出同一種東西（同樣的框、同樣的百分比），所以只有這一支。 */
+function captureInto(root, key, skip){
+  const br = boardInkRect(root);
+  if (!br || !br.width || !br.height) return false;
   if (!SNAPS.has(key)) SNAPS.set(key, new Map());
-  const have = SNAPS.get(key);
-  boardEl.querySelectorAll('.cell').forEach(el => {
+  const store0 = SNAPS.get(key);
+  root.querySelectorAll('.cell').forEach(el => {
     const f = el.querySelector('.ccanvas'), id = el.dataset.cellId;
-    if (!f || !f.contentWindow || !id) return;
-    if (fresh && have.has(id)) return;          // 有了、而且這一分鐘拍過了
+    if (!id) return;
+    /* **沒挑貨的格子也要記一筆**（沒有網址，只有框和底色）。以前這裡直接跳過，
+       於是整本預覽畫出來的只有「挑過貨的那幾格」—— 一塊挑一半的版位就變成幾張
+       商品圖浮在一片白上，既看不出格子在哪、也看不出它有幾格。而「挑一半」正是
+       這本 DM 大部分時間的樣子。facade 要嘛長得像真的，要嘛就別蓋。
+       ⚠️ 沒有畫布＝這一格真的沒有貨，所以**每次都要覆蓋**（貨被拿掉的那一格
+       不能留著上次那張圖）；有畫布的先放一個框墊著，拍到了再換成圖。 */
+    const cr0 = el.getBoundingClientRect();
+    const live = !!(f && f.contentWindow);
+    if (cr0.width && cr0.height && store0 && (!live || !(store0.get(id) || {}).url))
+      store0.set(id, { url:'', bg: getComputedStyle(el).backgroundColor,
+        cx:(cr0.left - br.left) / br.width, cy:(cr0.top - br.top) / br.height,
+        cw:cr0.width / br.width,            ch:cr0.height / br.height });
+    if (!live) return;
+    if (skip && skip(id)) return;
     /* 量的是**畫布那支 iframe**，不是格子。拍到的就是那支 iframe 的視窗
        （snapshotStage 用的是它自己的 innerWidth/innerHeight），而畫布是縮好之後
        **置中**擺在格子的框線裡面的（見 fitCellCanvases：框線 ＋ 最多 4px 的細邊）。
@@ -9896,18 +10149,139 @@ function captureBlockSnap(){
      它不必拍：刊頭是**上層自己的 <img>**（不在 iframe 裡），手上就有網址，
      直接記下來給預覽貼同一張就好。讀不到的那張已經被換成一句話了（見
      buildMasthead 的 error），那時候 querySelector 找不到 img，也就不會記。 */
-  const mimg = boardEl.querySelector('.masthead img');
+  const mast = root.querySelector('.masthead');
+  const mimg = root.querySelector('.masthead img');
   const store = SNAPS.get(key);
-  if (mimg && mimg.getAttribute('src')){
-    const r = mimg.getBoundingClientRect();
-    if (r.width && r.height)
-      store.set('__mast', { url: mimg.getAttribute('src'),
-        x:(r.left - br.left) / br.width, y:(r.top - br.top) / br.height,
-        w:r.width / br.width,            h:r.height / br.height });
+  const box = mimg && mimg.getAttribute('src') ? mimg : mast;
+  const r = box && box.getBoundingClientRect();
+  if (r && r.width && r.height){
+    /* 還沒放圖的刊頭一樣要畫一個框（`mast:true`）。整塊留白的話，預覽上那一片
+       看起來像「這裡什麼都沒有」，而它其實是整塊版位最大的一片版面。 */
+    store.set('__mast', { url: (box === mimg) ? mimg.getAttribute('src') : '', mast:true,
+      x:(r.left - br.left) / br.width, y:(r.top - br.top) / br.height,
+      w:r.width / br.width,            h:r.height / br.height });
   } else {
-    store.delete('__mast');           // 刊頭被拿掉了，預覽上那一張也要跟著消失
+    store.delete('__mast');           // 刊頭整個被拿掉了，預覽上那一塊也要跟著消失
   }
+  return true;
 }
+
+/* ==========================================================================
+   點陣圖存起來（IndexedDB）
+   ==========================================================================
+   ⚠️ **這是「進場不再看到東西一個一個長出來」真正缺的那一塊。**
+   在這之前 SNAPS 只活在記憶體：一重整就沒了，於是每次重新打開這支程式、
+   第一次進 拼板，都是「沒有圖可以蓋」——demo 上那個「第一趟：沒得蓋」的狀態，
+   而使用者幾乎永遠只會遇到第一趟。蓋布做得再好也蓋不到。
+   ⚠️ **不能進 plan、也不能進 localStorage**：圖是 base64，塞進 plan 會把
+   localStorage 撐爆、每次存檔重傳好幾 MB，還被歷史那 50 份快照各留一份 ——
+   這三條這個專案都踩過（見 CLAUDE.md）。IndexedDB 是另一個庫、另一套配額，
+   而且存的是「上次看到的樣子」，本來就不該跟著檔期同步給別人。
+   ⚠️ 拿它來蓋之前要**比對簽名**：版位的格子換過了（加減格、改品類）就丟掉不用。
+   一張對不上的蓋布會變成「兩份錯開的版面疊在一起」，比不蓋還糟。
+   ⚠️ IndexedDB 開不起來（file:// 某些設定、無痕、配額滿）就整個功能安靜地關掉 ——
+   退回原本「只活在記憶體」的行為，不能讓它擋住程式起來。
+   ========================================================================== */
+const SNAP_DB = 'pm_snaps_v1', SNAP_STORE = 'snaps';
+const snapDirty = new Set();          // 這一輪有哪幾塊要寫回去
+let snapDbP = null;
+
+function snapDb(){
+  if (snapDbP) return snapDbP;
+  snapDbP = new Promise(res => {
+    try {
+      const rq = indexedDB.open(SNAP_DB, 1);
+      rq.onupgradeneeded = () => {
+        if (!rq.result.objectStoreNames.contains(SNAP_STORE))
+          rq.result.createObjectStore(SNAP_STORE);
+      };
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => res(null);
+    } catch (_){ res(null); }
+  });
+  return snapDbP;
+}
+
+/** 這一塊版位「長什麼樣」的指紋。格子換了（加減格、改品類、換刊頭圖）就對不上，
+    那張舊圖就不能拿來蓋。只認結構，不認內容 —— 內容變了那張圖只是舊，不是錯。 */
+function snapSig(block){
+  const sh = sheetOf(block);
+  return (sh.cells || []).map(c => c.id).join(',') + '|' + (sh.mhRev || 0);
+}
+
+/** 開檔期時把這一檔存過的點陣圖撈回記憶體。撈不到就算了（安靜地退回沒有圖）。 */
+async function loadSnaps(plan){
+  const db = await snapDb();
+  if (!db || !plan) return;
+  const blocks = new Map(allBlocks().map(b => [b.id, b]));
+  await new Promise(res => {
+    let tx;
+    try { tx = db.transaction(SNAP_STORE, 'readonly'); } catch (_){ return res(); }
+    const st = tx.objectStore(SNAP_STORE);
+    const rq = st.openCursor(IDBKeyRange.bound(plan.id + '|', plan.id + '|￿'));
+    rq.onsuccess = () => {
+      const cur = rq.result;
+      if (!cur) return res();
+      const rec = cur.value, bid = String(cur.key).slice(String(plan.id).length + 1);
+      const blk = blocks.get(bid);
+      // 版位不在了、或格子換過了 → 這一份沒有用，順手清掉
+      if (!blk || !rec || rec.sig !== snapSig(blk)) cur.delete();
+      else if (!SNAPS.has(cur.key)) SNAPS.set(cur.key, new Map(rec.cells));
+      cur.continue();
+    };
+    rq.onerror = () => res();
+  });
+  // 撈回來的圖要讓畫面知道：整本預覽開著就補上，預熱也不必再拍這幾塊
+  if (dmBitmapOn) paintDmBitmap();
+  sweepSnaps(db);
+}
+
+/* 舊檔期的圖不會有人來清（那一檔可能再也不會被打開），一季一季累積下去就是
+   一個只長不消的庫。**兩週沒被更新過的就丟掉** —— 它記的是「上次看到的樣子」，
+   兩週前的那一份早就不是了，留著只佔配額。一個工作階段只掃一次。 */
+let snapSwept = false;
+function sweepSnaps(db){
+  if (snapSwept || !db) return;
+  snapSwept = true;
+  const cut = Date.now() - 14 * 864e5;
+  try {
+    const st = db.transaction(SNAP_STORE, 'readwrite').objectStore(SNAP_STORE);
+    const rq = st.openCursor();
+    rq.onsuccess = () => {
+      const cur = rq.result;
+      if (!cur) return;
+      if (!cur.value || !(cur.value.at > cut)) cur.delete();
+      cur.continue();
+    };
+  } catch (_){}
+}
+
+/** 把這一輪動過的那幾塊寫回去。一分鐘一次就夠 —— 它記的是「上次看到的樣子」，
+    不是資料，晚一分鐘沒有人會少東西。 */
+async function flushSnaps(){
+  if (!snapDirty.size || !currentPlan) return;
+  const db = await snapDb();
+  if (!db) { snapDirty.clear(); return; }
+  const keys = [...snapDirty];
+  snapDirty.clear();
+  const blocks = new Map(allBlocks().map(b => [b.id, b]));
+  try {
+    const tx = db.transaction(SNAP_STORE, 'readwrite');
+    const st = tx.objectStore(SNAP_STORE);
+    keys.forEach(key => {
+      const store = SNAPS.get(key);
+      const bid = key.slice(key.indexOf('|') + 1);
+      const blk = blocks.get(bid);
+      if (!store || !store.size || !blk) return;
+      st.put({ at: Date.now(), sig: snapSig(blk), cells: [...store] }, key);
+    });
+  } catch (_){}
+}
+setInterval(flushSnaps, 60000);
+/* 關掉分頁前再寫一次 —— 不然剛拍好那一分鐘的東西全部白拍。
+   用 pagehide 不用 unload：後者在行動裝置上根本不保證會跑到。 */
+addEventListener('pagehide', flushSnaps);
+addEventListener('visibilitychange', () => { if (document.hidden) flushSnaps(); });
 
 /* 拍照很貴（一格一張 SVG 光柵化），所以只在**手停下來之後**拍一次。
    掛在 paintBoardThumbs 上 —— 那是「這一塊剛畫好」唯一的匯流點。 */
@@ -9924,16 +10298,84 @@ addEventListener('message', e => {
   if (!g) return;
   snapPend.delete(s.id);
   const store = SNAPS.get(g.key);
-  if (store && s.url) store.set(s.id, { url:s.url, x:g.x, y:g.y, w:g.w, h:g.h,
-                                        cx:g.cx, cy:g.cy, cw:g.cw, ch:g.ch });
+  if (store && s.url){
+    store.set(s.id, { url:s.url, x:g.x, y:g.y, w:g.w, h:g.h,
+                      cx:g.cx, cy:g.cy, cw:g.cw, ch:g.ch });
+    snapDirty.add(g.key);          // 一分鐘後寫進 IndexedDB（見 flushSnaps）
+  }
+  // 預熱那一趟要知道還剩幾格沒回報（回報完就可以拆掉那一屋子 iframe）
+  if (farmJob && farmJob.frames.has(s.id)) farmJob.snapped.add(s.id);
 });
 
-/* ---- 拼板 進場的蓋布 ---------------------------------------------------- */
+/* ---- 拼板 進場的蓋布 ----------------------------------------------------
+   整張版**一張圖**（canvas），不是一格一張 —— 一格一張只蓋得到上次拍到的那幾格，
+   其餘是洞，而洞裡就是東西在一個一個長出來。
+   COVER_Q：蓋布畫多大。**跟著螢幕的實際像素走**（HiDPI 就畫兩倍），不再刻意畫糊 ——
+   換成真的只由「使用者動手」觸發（見 armCoverIntent），所以它在螢幕上待的時間
+   比以前長得多，糊的就看得出來糊。
+   ⚠️ 上限是**來源**：每一格那張 jpeg 是畫布自己拍的（見 2cell 的 SNAP_SS），
+   這裡再放大也長不出它沒有的細節。 */
+const COVER_DPR = Math.min(2, window.devicePixelRatio || 1), COVER_FADE_MS = 240;
+/* 但要有一個**畫素預算**：蓋布是照「版面沒縮放時」的大小建的（進場那一趟
+   zoomToFit 還沒跑），一張全開的 DM 可以到四千多 px 寬 —— 乘上 HiDPI 就是
+   一塊四千萬畫素、一百多 MB 的畫布，而它顯示出來只有幾百 px 寬。
+   四百萬畫素換算過來仍然遠比顯示尺寸細，看不出上限。 */
+const COVER_MAX_PX = 4e6;
+function coverQuality(w, h){
+  return Math.min(COVER_DPR, Math.sqrt(COVER_MAX_PX / Math.max(1, w * h)));
+}
 let coverTimer = null;
+/* 蓋布上那一枚「載入中 n/m」。
+   為什麼要：蓋布是**照片**，長得跟真的一模一樣，所以「還在載」和「載完了、
+   就是長這樣」在畫面上是同一張圖。沒有這一句的話，慢的那幾次看起來就是
+   「程式當掉了」—— 而它其實正在生幾十支畫布。
+   數的是**這一趟真的會生新畫布的那幾格**（paintBoardThumbs 算出來的那個集合），
+   不是所有有貨的格子：畫布還活著那幾格早就報過 stagePainted 了，一支只報一次
+   （見 tellPainted），把它們算進分母的話那個數字永遠到不了底。
+   ⚠️ 它只是**說明**，不是掀蓋布的條件 —— 換成真的仍然只由「使用者動手了」
+   決定（見 armCoverIntent）。這個訊號有太多種不準的方式，拿它當說明頂多是
+   數字停在 18/20，拿它掀蓋布就是掀早了看到一片空白。 */
+let coverWait = null, coverDone = 0;
+function paintCoverBadge(){
+  let el = document.getElementById('coverLoad');
+  const on = !!coverWait && !!document.getElementById('boardCover');
+  if (!on || coverDone >= coverWait.size){ if (el) el.remove(); return; }
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'coverLoad';
+    document.body.appendChild(el);
+  }
+  el.textContent = '載入中… ' + coverDone + '/' + coverWait.size + ' 格';
+  placeCoverBadge();
+}
+/** 擺在 拼板 那一片版面的上緣正中。跟蓋布一樣是量出來的，理由見 #coverLoad。 */
+function placeCoverBadge(){
+  const el = document.getElementById('coverLoad');
+  if (!el) return;
+  const r = boardOv.getBoundingClientRect();
+  el.style.left = (r.left + r.width / 2) + 'px';
+  el.style.top  = (r.top + 12) + 'px';
+}
+/** 某一格回報「我畫好了」。只認**現在活著的那一支**報的：進場那一趟版面會
+    重建兩三次，被丟掉那一批的回報可能還在路上（postMessage 是非同步的），
+    照收的話這個數字會自己跳到底，而畫面上還是空的。 */
+function noteCoverPainted(id, src){
+  if (!coverWait || !coverWait.has(String(id))) return;
+  const f = canvasFrame(id);
+  if (!f || f.contentWindow !== src) return;
+  coverWait.delete(String(id));
+  coverDone++;
+  paintCoverBadge();
+}
 function hideBoardCover(){
   clearTimeout(coverTimer);
+  disarmCoverIntent();
+  coverWait = null; coverDone = 0;
+  boardEl.classList.remove('covered');   // 忘了這一句，真的那一層會一直是透明的
   const el = document.getElementById('boardCover');
   if (el) el.remove();
+  const bd = document.getElementById('coverLoad');
+  if (bd) bd.remove();
 }
 /** 把蓋布擺到「印出去的那一片」上，不是整個 #board —— 幾何是照那一片算的
     （見 boardInkRect：左邊那條把手不算）。差的就是那 20px，不對齊的話每一格
@@ -9944,6 +10386,7 @@ function hideBoardCover(){
     舊的尺寸上，於是螢幕上是**兩份錯開的版面疊在一起**（真的那份在底下透出來），
     比不蓋還糟。裡面每一張圖都是百分比，所以外框對了就全對了。 */
 function placeBoardCover(){
+  placeCoverBadge();
   const cover = document.getElementById('boardCover');
   if (!cover) return;
   const ink = boardInkRect();
@@ -9955,29 +10398,141 @@ function placeBoardCover(){
   cover.style.height = ink.height + 'px';
 }
 
-function showBoardCover(){
+function showBoardCover(waitFor){
   hideBoardCover();
   if (!currentPlan || !activeBlock) return;
   const store = blockSnap(currentPlan.id, activeBlock.id);
   if (!store || !store.size) return;
-  const cover = document.createElement('div');
-  cover.id = 'boardCover';
-  store.forEach((s, id) => {
-    /* 刊頭不必蓋：它是上層自己的 <img>，這一幀就畫得出來 —— 蓋布是為了那些
-       還在生的 iframe。蓋了反而糟：它等不到 ready，會一路掛到 6 秒的保險。 */
-    if (id === '__mast') return;
-    const im = document.createElement('img');
-    im.src = s.url;
-    im.dataset.for = id;
-    im.style.cssText = `left:${s.x*100}%;top:${s.y*100}%;width:${s.w*100}%;height:${s.h*100}%`;
-    cover.appendChild(im);
+  const ink = boardInkRect();
+  if (!ink || !ink.width || !ink.height) return;
+
+  /* 蓋布是**整張版一張圖**（一塊 canvas），不是一格一張。
+     一格一張的毛病是它只蓋得到「上次拍到的那幾格」—— 中間挑過貨的、剛切出來的
+     都是洞，而洞裡就是真的版面在一個一個長出來。整張畫的話沒有洞可言：
+     有圖的格子貼圖，沒圖的由這一層自己畫出框和底色，**每一格都被蓋住**。
+     ⚠️ 幾何一律**現場量**（每一格的 rect），只有「圖」來自快照 ——
+     快照裡那份幾何可能是上一次的版面，拿它來擺就會整片錯開。
+     ⚠️ 解析度見 coverQuality()：跟著螢幕的實際畫素走，但有畫素預算擋著。 */
+  const q = coverQuality(ink.width, ink.height);
+  const cv = document.createElement('canvas');
+  cv.id = 'boardCover';
+  cv.width  = Math.max(1, Math.round(ink.width  * q));
+  cv.height = Math.max(1, Math.round(ink.height * q));
+  const cx = cv.getContext('2d');
+  cx.setTransform(q, 0, 0, q, 0, 0);
+  cx.imageSmoothingEnabled = true;
+  cx.imageSmoothingQuality = 'high';
+
+  const rel = r => ({ x: r.left - ink.left, y: r.top - ink.top, w: r.width, h: r.height });
+  const frame = (b, bg) => {
+    cx.fillStyle = bg || '#fff';
+    cx.fillRect(b.x, b.y, b.w, b.h);
+    cx.strokeStyle = 'rgba(0,0,0,.16)';
+    cx.lineWidth = 1;
+    cx.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
+  };
+
+  /* 先把骨架畫滿（每一格的框和底色），再把有圖的貼上去。
+     骨架是同步畫完的，所以蓋布**貼上去那一刻就是滿的** —— 圖是 data: 的，
+     解碼很快，下一兩幀就補上。 */
+  const jobs = [];
+  boardEl.querySelectorAll('.cell').forEach(el => {
+    const id = el.dataset.cellId;
+    const b = rel(el.getBoundingClientRect());
+    if (!b.w || !b.h) return;
+    frame(b, getComputedStyle(el).backgroundColor);
+    const s = id && store.get(String(id));
+    if (s && s.url) jobs.push([s.url, b]);
   });
-  if (!cover.children.length) return;      // 只拍到刊頭的話沒有東西要蓋
-  boardEl.appendChild(cover);
-  placeBoardCover();
-  /* 保險：有格子永遠不回報（挑掉了、格數變了、那一格根本沒有畫布）也不能
-     把畫面一直蓋著 —— 蓋著的是一張過期的圖，而它看起來跟真的一模一樣。 */
-  coverTimer = setTimeout(hideBoardCover, 6000);
+  const mh = boardEl.querySelector('.masthead');
+  if (mh){
+    const b = rel(mh.getBoundingClientRect());
+    if (b.w && b.h){
+      frame(b, '#fff');
+      const mi = mh.querySelector('img');
+      const src = (mi && mi.getAttribute('src')) || (store.get('__mast') || {}).url;
+      if (src) jobs.push([src, b]);
+    }
+  }
+
+  const bb = boardEl.getBoundingClientRect();
+  cv.style.left   = (ink.left - bb.left) + 'px';
+  cv.style.top    = (ink.top  - bb.top)  + 'px';
+  cv.style.width  = ink.width  + 'px';
+  cv.style.height = ink.height + 'px';
+  boardEl.appendChild(cv);
+  /* 真的那一層整個藏起來 —— 不是「蓋在上面」而是「換掉」。
+     蓋在上面的話，蓋布沒畫到的地方（新切出來的格子、還沒拍過的）就是一個洞，
+     而洞裡正在一個一個長東西。 */
+  boardEl.classList.add('covered');
+
+  jobs.forEach(([url, b]) => {
+    const im = new Image();
+    im.onload = () => {
+      if (document.getElementById('boardCover') !== cv) return;   // 已經換掉了
+      cx.drawImage(im, b.x, b.y, b.w, b.h);
+    };
+    im.src = url;
+  });
+
+  armCoverIntent();
+  /* 記號跟著蓋布一起出現：這一趟在等幾格，就從 0/n 開始數。 */
+  coverWait = new Set([...(waitFor || [])].map(String));
+  coverDone = 0;
+  paintCoverBadge();
+  /* 保險：一直沒有人動手也不能永遠蓋著一張照片 —— 版面底下是會變的
+     （每 5 秒合併一次別人的改動），而蓋布看起來跟真的一模一樣。
+     這不是「載好了沒」的判斷，只是一個上限。 */
+  coverTimer = setTimeout(liftBoardCover, 12000);
+}
+
+/* ---- 什麼時候換成真的 ----------------------------------------------------
+   **只有一個條件：使用者動手了**（滾輪縮放、按下去、按鍵）。那一刻他要的是真的
+   版面，不是一張照片；在那之前他只是在看，而蓋布長得跟真的一樣，多蓋一秒沒有成本。
+   ⚠️ 這裡本來還有第二個條件「每一支新畫布都回報過了」，**拿掉了**：那件事要靠
+   幾十支 iframe 各自誠實回報，而它們的回報有太多種不準的方式（一支只報一次、
+   舊那批的回報還在路上、圖等到上限就照報）—— 這一路上「蓋布提早不見」每一次
+   追到最後都是那個訊號在騙人。而「有沒有動手」是這一層自己就知道的事，
+   不必問任何人。
+   蓋布 pointer-events:none，所以使用者那一下本來就落在真的版面上，
+   這裡只是把皮掀掉。
+   ⚠️ **這三個監聽器只收得到落在這一頁上的動作**。版上每一格都是一支 iframe，
+   滑鼠停在格子上時滾輪和按鍵是它們收到的 —— 所以畫布那邊還要自己講一句
+   （見 2cell 的 tellAct → 上面訊息路的 d.stageAct）。少了那一條，最常做的
+   兩件事（滾輪縮放、點一格）都掀不動蓋布。 */
+let coverIntent = null;
+function armCoverIntent(){
+  disarmCoverIntent();
+  coverIntent = () => liftBoardCover();
+  addEventListener('wheel',       coverIntent, { passive:true, capture:true });
+  addEventListener('pointerdown', coverIntent, { capture:true });
+  addEventListener('keydown',     coverIntent, { capture:true });
+}
+function disarmCoverIntent(){
+  if (!coverIntent) return;
+  removeEventListener('wheel',       coverIntent, { capture:true });
+  removeEventListener('pointerdown', coverIntent, { capture:true });
+  removeEventListener('keydown',     coverIntent, { capture:true });
+  coverIntent = null;
+}
+
+/** 換成真的：**交叉淡出**。
+    這裡跟「兩張一模一樣的圖之間不要動畫」不衝突 —— 蓋布是**低解析度放大**的，
+    跟底下那份差在清晰度，淡進淡出看起來就是對焦，不是閃。 */
+function liftBoardCover(){
+  clearTimeout(coverTimer);
+  disarmCoverIntent();
+  const bd = document.getElementById('coverLoad');
+  if (bd) bd.remove();                    // 皮要掀了，那一句話沒有意義了
+  coverWait = null; coverDone = 0;
+  const cover = document.getElementById('boardCover');
+  if (!cover || cover.classList.contains('gone')) return;
+  /* 慢一幀再開始：畫布回報時它自己那一幀排完了，但合成到螢幕上是後面的事。 */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    boardEl.classList.remove('covered');     // 真的那一層淡回來
+    cover.classList.add('gone');             // 蓋布淡出
+    setTimeout(() => cover.remove(), COVER_FADE_MS + 40);
+  }));
 }
 /* ---- 整本預覽 ------------------------------------------------------------
    骨架照 progNode 那一套（同一棵樹、同一組百分比），葉子改成貼那一塊拍到的圖。
@@ -9991,19 +10546,38 @@ function pvNode(node, plan){
     if (!store || !store.size){
       const d = document.createElement('div');
       d.className = 'pv-none';
-      d.textContent = (node.name || '版位') + '\n還沒看過';
+      /* 兩種空長得一模一樣，差的是一整塊版的工作：**真的一格都還沒挑**，
+         還是挑了、只是這裡還沒拍到（暗房正在把那一塊排一遍，見 farmBlock）。
+         挑過貨的那一種寫「載入中…」：按下這顆鈕的同時就排了一次預熱
+         （見 farmSweep），所以那是**正在發生的事**，等一下就自己長出來。
+         以前寫「還沒拍到」—— 那聽起來像一個要自己去處理的狀態，於是人會關掉
+         再開一次，而那只是把預熱重排一遍，更慢。
+         真的一格都沒挑的那一種照舊：那不是等一下就會好的事。 */
+      const any = (sheetOf(node).cells || []).some(c => pickedOf(c).length);
+      if (any) d.className += ' pv-load';
+      d.textContent = (node.name || '版位') + '\n' + (any ? '載入中…' : '還沒挑貨');
       d.style.whiteSpace = 'pre-line';
       el.appendChild(d);
       return el;
     }
     store.forEach(s => {
-      const im = document.createElement('img');
-      im.src = s.url;
       /* 貼**格子自己的框**（c*），不是畫布的框 —— 差的那一圈就是格子與格子之間的
          白線（見 captureBlockSnap）。刊頭沒有 c*（它本來就是整塊貼），退回 x/y/w/h。 */
       const x = s.cx != null ? s.cx : s.x, y = s.cy != null ? s.cy : s.y;
       const w = s.cw != null ? s.cw : s.w, h = s.ch != null ? s.ch : s.h;
-      im.style.cssText = `left:${x*100}%;top:${y*100}%;width:${w*100}%;height:${h*100}%`;
+      const pos = `left:${x*100}%;top:${y*100}%;width:${w*100}%;height:${h*100}%`;
+      /* 沒有圖的那一筆＝這一格還沒挑貨（或刊頭還沒放圖）。畫它的**框**，
+         不要留白：留白看起來像那裡沒有版面，而那一格是真的存在、只是空的。 */
+      if (!s.url){
+        const d = document.createElement('div');
+        d.className = 'pv-empty' + (s.mast ? ' mast' : '');
+        d.style.cssText = pos + (s.bg ? `;background:${s.bg}` : '');
+        el.appendChild(d);
+        return;
+      }
+      const im = document.createElement('img');
+      im.src = s.url;
+      im.style.cssText = pos;
       el.appendChild(im);
     });
     return el;
@@ -10052,24 +10626,270 @@ function setDmBitmap(on){
   paintDmBitmap();
   if (!dmBitmapOn) return;
   const all = allBlocks().length;
-  const got = allBlocks().filter(b => (blockSnap(currentPlan.id, b.id) || {}).size).length;
+  const got = allBlocks().filter(b => snapHasArt(blockSnap(currentPlan.id, b.id))).length;
+  /* 還沒拍到的，現在就去拍（見 farmSweep）—— 這一頁按下去才發現少了一半，
+     那正是最該立刻補的時候，補一塊畫面上就多一塊。 */
+  if (got < all) farmSweep(0);
   toast(got === all
     ? `整本點陣圖：${all} 個版位都拍到了`
-    : `整本點陣圖：${got}/${all} 個版位有圖 —— 沒去過的版位拍不到（一格一格是它自己畫的）`,
+    : `整本點陣圖：${got}/${all} 個版位有圖 —— 其餘的正在背景拍，拍好一塊補一塊`,
     got === all ? 'ok' : 'info', 3600);
 }
 dmPrevBtn.addEventListener('click', () => setDmBitmap(!dmBitmapOn));
 
-/* 那一格畫好了就淡掉那一格（使用者選的：不等到齊）。全部淡完就把蓋布收掉。 */
-function coverCellReady(id){
-  const cover = document.getElementById('boardCover');
-  if (!cover) return;
-  const im = cover.querySelector(`img[data-for="${id}"]`);
-  if (im){
-    im.classList.add('gone');
-    setTimeout(() => { im.remove(); if (!cover.children.length) hideBoardCover(); }, 260);
+/* ==========================================================================
+   預熱：沒去過的版位也要有圖
+   ==========================================================================
+   點陣圖是**每一格自己畫自己**送上來的（跨文件拍不到），所以本來只有你真的打開
+   過的那一塊才有 —— 整本預覽上十三塊裡十二塊寫著「還沒看過」，而那顆鈕問的
+   正是「整本現在長什麼樣」。
+   所以在背景把每一塊都排一次：畫面外一間**暗房**（#snapFarm），一次一塊，
+   排好、等它畫完、拍完就拆掉。拍出來的走的是同一條路（captureInto → snapPend
+   → SNAPS），所以整本預覽和進場的蓋布都吃得到，也就不必再管它是誰拍的。
+   ⚠️ **只在 總體／落版 跑，切進 拼板 就當場收工**（farmStop）：那一頁本身就掛著
+      幾十支畫布，再開一屋子等於把最重的一頁乘二。而預熱要遮的是「切過去那一下」，
+      本來就發生在你還沒切過去的時候。
+   ⚠️ 暗房**不可以 display:none**：那樣裡面的畫布不排版，也就沒有東西可以拍。
+      也不推到畫面外 —— 看不到的 iframe 會被瀏覽器降速，一屋子一起降就等不完了。
+      所以是留在原地、透明、收不到滑鼠。
+   ⚠️ 暗房裡的畫布掛的是 `cell=farm:<id>`：它們回報上來的東西不可以被當成
+      「版上那一格」收下來（那會把預熱的結果寫進正在編輯的檔期）。前綴讓上面
+      那條主訊息路自己認不出來、直接放掉，這裡再單獨接。
+   ⚠️ 只補**完全沒有圖**的版位，而且跳過開著的那一塊 —— 那一塊版上那份會自己拍
+      （scheduleSnap），兩邊同時對同一格發 stageSnapshot 會互相蓋掉 snapPend。
+   ========================================================================== */
+const FARM_PREFIX = 'farm:';
+let farmJob = null;          // 現在暗房裡排的是哪一塊（null ＝暗房是空的）
+let farmBusy = false;
+let farmTimer = 0;
+/* 試過的：版位 key → 什麼時候試的。**不是**一個永久的黑名單 —— 一格都還沒挑貨
+   的版位拍不出東西（也就永遠不會有圖），照它排下去就是一個空轉的迴圈；但過一陣子
+   PM 可能就挑了，永久記住的話那一塊要等到有人親自打開才會有圖。 */
+const farmTried = new Map();
+const FARM_RETRY = 90000;
+
+const farmSleep = ms => new Promise(r => setTimeout(r, ms));
+
+function farmHostEl(){
+  let el = document.getElementById('snapFarm');
+  if (!el){
+    el = document.createElement('div');
+    el.id = 'snapFarm';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+/** 暗房清空。iframe 一拆，還在路上的回報自己會落空 —— 每一段等待都比對
+    farmJob 是不是還是自己那一份，所以拆掉就等於叫停。 */
+function farmClear(){
+  const el = document.getElementById('snapFarm');
+  if (el) el.textContent = '';
+  farmJob = null;
+}
+/* farmPaused：叫停之後**不要自己接著排下一塊**。farmClear() 只拆掉眼前那一份，
+   而正在跑的那個迴圈下一圈就會再生一屋子 —— 列印那條路就是這樣被咬到的
+   （拆了、印出來還是有）。要再開工一律經過 farmSweep()。 */
+let farmPaused = false;
+function farmStop(){
+  farmPaused = true;
+  clearTimeout(farmTimer);
+  farmClear();
+}
+
+/** 這一檔還有哪幾塊沒有圖，**挑起來的那一塊排第一**。
+    ⚠️ 挑起來的那一塊（activeBlock）以前是跳過的，理由是「版上那份會自己拍」——
+    那句話只有在 拼板 才成立，而暗房本來就只在 總體／落版 跑（那兩頁上這一塊
+    一支畫布都沒有，沒有人會拍它）。跳過的下場是**唯一沒有蓋布的，剛好就是你
+    正要打開的那一塊**：在 總體 點一塊、切過去 —— 那正是最常走的一條路，
+    於是整件事看起來像完全沒有生效。
+    排第一是同一個道理：手指已經指著它了。 */
+function farmTodo(){
+  if (!currentPlan || !layout) return [];
+  return allBlocks().filter(b =>
+    Date.now() - (farmTried.get(snapKey(currentPlan.id, b.id)) || 0) > FARM_RETRY
+    && !snapHasArt(blockSnap(currentPlan.id, b.id)))
+    .sort((a, b) => (a === activeBlock ? -1 : 0) - (b === activeBlock ? -1 : 0));
+}
+
+/** 過一下再開工。延遲是刻意的：剛切進來那一兩秒畫面自己還在排版、量尺寸，
+    這時候再生幾十支 iframe，慢的是使用者看得到的那一份。 */
+function farmSweep(delay){
+  if (!currentPlan || activeTab === 'board') return;
+  farmPaused = false;
+  clearTimeout(farmTimer);
+  farmTimer = setTimeout(farmRun, delay == null ? 1200 : delay);
+}
+
+async function farmRun(){
+  if (farmBusy) return;
+  farmBusy = true;
+  try {
+    for (;;){
+      // 一塊拍完就重問一次：中途換檔、切進 拼板、要列印了都得當場停下來
+      if (farmPaused || !currentPlan || activeTab === 'board') break;
+      const todo = farmTodo();
+      if (!todo.length) break;
+      await farmBlock(todo[0]);
+      await farmSleep(320);
+    }
+  } finally {
+    farmBusy = false;
+    farmClear();
   }
 }
+
+/** 等到 ok() 為真、或等太久、或這一趟被叫停了。 */
+function farmUntil(job, ok, ms){
+  return new Promise(res => {
+    const t0 = Date.now();
+    const tick = () => {
+      if (farmJob !== job || ok() || Date.now() - t0 > ms) return res();
+      setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
+async function farmBlock(block){
+  const plan = currentPlan;
+  const key = snapKey(plan.id, block.id);
+  farmTried.set(key, Date.now());
+  const m = sheetMetrics(block);
+  if (!(m.gridW > 0) || !(m.rowH > 0)) return;
+
+  const job = { plan, block, key, frames: new Map(), painted: new Set(), snapped: new Set() };
+  farmJob = job;
+  const host = farmHostEl();
+  host.textContent = '';
+  const board = farmBuild(block, m, job);
+  host.appendChild(board);
+  fitCellCanvases(m, board);          // 畫布多大、擺哪裡：跟版上同一支算
+
+  if (job.frames.size){
+    /* 等的是 stagePainted（東西真的排回畫面上），不是 ready —— 照 ready 拍會拍到
+       一格空白，那正是這張圖要避免的。等不到的就算了：拍到幾格是幾格，
+       總比整塊空著好。 */
+    await farmUntil(job, () => job.painted.size >= job.frames.size, 14000);
+    if (farmJob !== job) return;
+    pushType(block, id => job.frames.get(String(id)) || null);
+    await farmSleep(340);             // 字級送下去，畫布要再排一次
+  }
+  if (farmJob !== job) return;
+
+  captureInto(board, key);
+  await farmUntil(job, () => job.snapped.size >= job.frames.size, 8000);
+  if (farmJob !== job) return;
+  farmClear();
+  // 預覽開著的話，拍好一塊就補上一塊 —— 不必等整本拍完才看得到
+  if (dmBitmapOn) paintDmBitmap();
+}
+
+/** 暗房裡那一份版面。跟 renderGrid 排出來的要**一樣**（同樣的列、同樣的格寬），
+    不然拍到的百分比貼到預覽上就是另一塊版。所以格子照樣走 makeCard（底色、
+    g2 那一階都在圖裡），列高、列數、刊頭的位置全部照 sheetMetrics 的數字。
+    ⚠️ 但**不畫那根 ⋮⋮**：拼板 本來就把它藏起來（見 #boardOverview .grip），
+       畫了的話每一列左邊多 20px，格子跟著窄一截。 */
+function farmBuild(block, m, job){
+  const sh = m.sh;
+  const board = document.createElement('div');
+  board.className = 'snap-board';
+  board.style.width = m.gridW + 'px';
+  const rowW = m.side ? m.gridW - m.side.w : m.gridW;
+  const k = m.pxPerCm;
+
+  const rows = [];
+  let at = 0;
+  m.counts.forEach(count => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.height = m.rowH + 'px';
+    sh.cells.slice(at, at + count).forEach(c => {
+      const el = makeCard(c);
+      if (pickedOf(c).length){
+        const f = document.createElement('iframe');
+        f.className = 'ccanvas';
+        f.setAttribute('scrolling', 'no');
+        f.title = '';
+        /* 這一格幾公分：跟 cellCm 同一條算式（那一支問的是版上開著的那一塊，
+           這裡問的是別的塊，所以照 m 自己算一次）。畫布的座標系照它開，
+           不給的話那一格會用預設的框排，字級整個不一樣。 */
+        const cm = (k > 0 && rowW > 0 && count)
+          ? { w:+((rowW / count) / k).toFixed(3), h:+(m.rowH / k).toFixed(3) } : null;
+        setPickFrame(f, 'ui=stage&cell=' + encodeURIComponent(FARM_PREFIX + c.id)
+          + (cm ? '&cmw=' + cm.w + '&cmh=' + cm.h : ''));
+        el.appendChild(f);
+        job.frames.set(String(c.id), f);
+      }
+      row.appendChild(el);
+    });
+    at += count;
+    rows.push(row);
+  });
+
+  if (m.mhAt >= 0){
+    const row = document.createElement('div');
+    row.className = 'row masthead-row';
+    row.style.height = m.mhPx + 'px';
+    const mh = farmMast(sh);
+    mh.style.flex = '1 1 auto';
+    mh.style.minWidth = '0';
+    row.appendChild(mh);
+    rows.splice(m.mhAt, 0, row);
+  }
+  rows.forEach(r => board.appendChild(r));
+
+  // 站在旁邊的那一根：照 sizeSideMasthead 那一套讓出寬度、拉到滿高
+  if (m.side){
+    const mh = farmMast(sh);
+    mh.classList.add('side', m.side.at === 'left' ? 'at-left' : 'at-right');
+    mh.style.top = '0px';
+    mh.style[m.side.at] = '0px';
+    mh.style.width  = Math.max(20, m.side.w - ROW_GAP) + 'px';
+    mh.style.height = Math.max(m.totalH, m.stackH) + 'px';
+    board.style[m.side.at === 'left' ? 'paddingLeft' : 'paddingRight'] = m.side.w + 'px';
+    board.appendChild(mh);
+  }
+  return board;
+}
+
+/* 刊頭只要那個框和那張圖：拍照拍不到它（它本來就是上層的 <img>），
+   captureInto 記的是它的網址和位置。空刊頭連字都不必寫 —— 那些是螢幕上的東西。 */
+function farmMast(sh){
+  const mh = document.createElement('div');
+  mh.className = 'masthead';
+  const url = sh.masthead && sh.masthead.image;
+  if (url){
+    mh.classList.add('hasimg');
+    const im = document.createElement('img');
+    im.src = url;
+    mh.appendChild(im);
+  }
+  return mh;
+}
+
+/* 暗房裡那幾支畫布的專線。前綴讓主訊息路認不出它們（那是刻意的，見上面），
+   所以開機要給的東西（身分、目錄、logo、底色、上次拼好的內容）要在這裡再給一次。 */
+addEventListener('message', e => {
+  const d = e.data || {};
+  const raw = d.boardCell;
+  if (!raw || String(raw).indexOf(FARM_PREFIX) !== 0) return;
+  const job = farmJob;
+  if (!job) return;
+  const id = String(raw).slice(FARM_PREFIX.length);
+  if (d.stagePainted){ job.painted.add(id); return; }
+  if (!d.ready) return;               // 預熱不收畫布報上來的任何狀態，只給不拿
+  const c = (sheetOf(job.block).cells || []).find(x => String(x.id) === id);
+  if (!c) return;
+  try {
+    e.source.postMessage({ boardRole: canvasRole(),
+                           catalogue: CATALOGUE || undefined,
+                           logos: LOGOS || undefined,
+                           paper: bgOf(c) || '#ffffff',
+                           gridLines,
+                           boardRestore: (c.board || {}).state || null }, '*');
+  } catch (_){}
+});
 
 /* ---- 集體移動 -----------------------------------------------------------
    每一格是一支自己的 iframe，彼此看不到 —— 所以「整個版位一起移動」只能由這裡
@@ -10507,9 +11327,11 @@ function applyPaint(cells, hex){
     if (hex) c.bg = hex; else delete c.bg;
     setCellBgEl(cardEl(c.id), hex);
     tellCellPaper(c);
+    staleSnapCell(c.id);      // 底色是烤進點陣圖裡的（stageSnapshot 帶 bg）—— 要重拍
     n++;
   });
   if (!n) return 0;
+  scheduleSnap();
   /* 最常用數的是「上過幾格」，不是「按過幾次按鈕」—— 一次框 12 格跟點 12 次
      是同一件事，而使用者記得的是「我用這個顏色塗了很多」。 */
   if (hex){
@@ -11619,7 +12441,16 @@ function tickPill(el){
 function planRangeLabel(plan){
   const st = planStages(plan);
   const a = st[0].from, b = st[st.length-1].to;
-  return `${fmtMD(a)}(${WD[a.getDay()]})–${fmtMD(b)}(${WD[b.getDay()]})　出稿 ${fmtMD(b)} 09:00`;
+  // 後面那一段「出稿 10/02 09:00」拿掉了：b 就是出稿那一天，同一個日期寫兩次，
+  // 而它佔的寬度是這一段的一半 —— 這一條列本來就塞不滿。
+  return `${fmtMD(a)}(${WD[a.getDay()]})–${fmtMD(b)}(${WD[b.getDay()]})`;
+}
+
+/** 塞進橫幅那一段日期。擠不下時它會被切（見 .banner 的 shrink 順序），
+    所以完整的那一份留在 title 裡 —— 切掉的字要有地方讀得回來。 */
+function setBannerRange(plan){
+  const el = document.getElementById('bannerRange');
+  el.textContent = el.title = planRangeLabel(plan);
 }
 
 const planList = document.getElementById('planList');
@@ -13483,8 +14314,13 @@ function migrateGuidesToCm(plan){
 }
 
 function openPlan(plan){
+  /* 暗房裡那一份是上一檔的，當場拆掉重來。farmTried 一起清 —— 那個 Set 是一路
+     累積的，不清的話重開同一檔（改完時程回來、Ctrl+Z 之後的重建）就再也不預熱。
+     ⚠️ 要在 applyMode() **之前**：那一支會排一次 farmSweep，收在後面就被自己停掉了。 */
+  farmStop();
+  farmTried.clear();
   currentPlan = plan;
-  resetRemoteWatch();              // 換一檔＝重新開始算：還沒動過手，也還沒撞到誰
+  resetRemoteWatch();            // 換一檔＝重新開始算：還沒動過手，也還沒撞到誰
   beatNow();                       // 馬上報位置，別讓人看到你還在上一檔
   if (!plan.layout) plan.layout = buildLayout();   // fresh tree per 檔期
   if (!plan.guides) plan.guides = { front: [], back: [] };
@@ -13502,7 +14338,7 @@ function openPlan(plan){
   editorHost.appendChild(buildBoard('back',  '背面'));
 
   document.getElementById('bannerName').textContent  = plan.name;
-  document.getElementById('bannerRange').textContent = planRangeLabel(plan);
+  setBannerRange(plan);
 
   listChrome.style.display = 'none';
   editorChrome.style.display = 'flex';
@@ -13522,6 +14358,11 @@ function openPlan(plan){
   // the baseline every undo eventually walks back to
   histStack = []; histAt = -1;
   pushHistory();
+
+  /* 上次開這一檔時拍的點陣圖撈回來 —— **沒有這一步，重整之後第一次進 拼板
+     永遠沒有東西可以蓋**，而那是使用者最常遇到的一次。不 await：撈到就補上，
+     撈不到也不能擋住檔期開起來。 */
+  loadSnaps(plan);
 }
 
 
@@ -14127,7 +14968,7 @@ function afterMerge(planId, report){
     /* 檔期本身的欄位也可能是合進來的（對方改了名字或時程）—— 橫幅上那兩行寫的
        就是它們，不重畫的話畫面會停在舊名字，而資料庫上已經是新的了。 */
     document.getElementById('bannerName').textContent = currentPlan.name;
-    document.getElementById('bannerRange').textContent = planRangeLabel(currentPlan);
+    setBannerRange(currentPlan);
     /* 對方上的色也是合進來的東西之一。上面那幾條路（thumbs、redrawSheet）都不會
        重生卡片，所以要在這裡從資料把每一格的底色刷一遍。 */
     paintCellBgs();
@@ -14389,7 +15230,7 @@ async function adoptRemote(by){
     updateProgress();
   }
   document.getElementById('bannerName').textContent = currentPlan.name;
-  document.getElementById('bannerRange').textContent = planRangeLabel(currentPlan);
+  setBannerRange(currentPlan);
   paintCellBgs();                   // 他上過色的話，那也是「他那一份」的一部分
   paintCellPasses();                // 他蓋過的「通過」同理
   if (paintPop.classList.contains('on')) renderPaintPop();

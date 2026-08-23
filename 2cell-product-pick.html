@@ -473,6 +473,22 @@ body.ui-stage .cell.empty{font-size:0}     /* 空的就真的空著，字由落�
 </style>
 </head>
 <body>
+<script>
+/* ⚠️ 這一段非在 <body> 的第一行不可。整支程式收在最下面那個 <script> 裡，
+   而 `ui-stage`／`ui-panel` 這個 class 是它加的 —— 等輪到它的時候，瀏覽器早就
+   把上面那條工具列、左邊的後台、那顆「產生格子」整個畫出來了。嵌在版面裡的
+   那幾十支 iframe 於是每一支都先閃一次完整的操作介面（後台／版面 1×1／邊界／
+   壓力測試），格子才長出來 —— 那正是「挑完貨，格子先閃一下奇怪的東西」。
+   （每一支 iframe 都要重新 parse 這一整份檔案，所以那一閃不短。）
+   這裡只判斷 `ui=`，不重複任何邏輯；下面那支照樣會再加一次（同一個 class，
+   加兩次沒有差別），單獨開這一頁時兩邊都不動。
+   參數兩種來源都要看：單檔版是 srcdoc，沒有網址，上層把它塞在 __PICK_PARAMS
+   （插在 <head> 後面，所以這時候讀得到）。 */
+try{
+  var u = new URLSearchParams(window.__PICK_PARAMS || location.search).get('ui') || '';
+  if(u === 'panel' || u === 'stage') document.body.classList.add('ui-' + u);
+}catch(e){}
+</script>
 
 <aside id="side">
   <div class="side-hd"><span>後台編輯</span><button class="mini" id="sideClose" style="margin:0">收起</button></div>
@@ -680,6 +696,9 @@ function brandBaseH(ratio){
 /* 網址 → { r:畫布長寬比, ink:{w,h,ix,iy,iw,ih}|null }。量一次就記著：
    重畫很頻繁，而同一張圖不會自己變。 */
 const LOGO_M = new Map();
+/* 量商標最多等這麼久。等的期間那一格是藏著的，所以這個數字是「最久空白多久」——
+   一張 logo 幾十 KB，正常幾十毫秒就回來了；吊著的那一種不能陪它一直等。 */
+const LOGO_WAIT = 1200;
 
 /* 墨水框用 canvas 讀像素量。Storage 那邊回 `access-control-allow-origin: *`，
    所以掛 crossOrigin 之後畫布不會被污染 —— 萬一還是讀不到（換了來源、舊瀏覽器），
@@ -720,20 +739,41 @@ function measureLogo(url){
       }
     }catch(_){ ink = null; }        // 跨來源讀不到像素：照畫布算，不裁
     LOGO_M.set(url, { r, ink });
-    if(!r) return;
-    /* 商標的大小變了，左上那一疊要跟著讓開，不然品名會壓在商標身上。
-       正在編的那一格量得到 DOM，交給 force 那一趟的 spreadStack；
-       別的格子不量 DOM，所以照差額把那一疊挪一挪（refitBrandStack）。
-       只動用得到這張圖的格。 */
-    CELLS.forEach((c,i)=>{
-      const bs = (i===curCell ? BLOCKS : c.blocks) || [];
-      if(!bs.some(b => b.kind==='brand' && blockBimg(b) === url)) return;
-      if(i===curCell) renderOne(i, true);
-      else { refitBrandStack(bs); renderOne(i); }
-    });
+    repaintBrand(url);
   };
-  im.onerror = () => { LOGO_M.set(url, { r:0, ink:null }); };   // 畫不出來的圖另有人講
+  /* 畫不出來的圖另有人講 —— 但**還是要重畫**：量不到的時候那幾格是藏著的
+     （見 renderOne 的 waitLogo），沒有這一句就永遠藏著。 */
+  im.onerror = () => { LOGO_M.set(url, { r:0, ink:null }); repaintBrand(url); };
+  /* 沒有回應的那一種（網址還在、伺服器不回）不會走 onerror，會一直吊著。
+     藏著等下去就是「那一格永遠空白」，比閃一下糟得多 —— 到時間就當作量不到。 */
+  setTimeout(() => {
+    if(LOGO_M.get(url) !== null) return;
+    LOGO_M.set(url, { r:0, ink:null });
+    repaintBrand(url);
+  }, LOGO_WAIT);
   im.src = url;
+}
+
+/* 商標的大小量出來了（或量不到了），左上那一疊要跟著讓開，不然品名會壓在
+   商標身上。正在編的那一格量得到 DOM，交給 force 那一趟的 spreadStack；
+   別的格子不量 DOM，所以照差額把那一疊挪一挪（refitBrandStack）。
+   只動用得到這張圖的格。 */
+function repaintBrand(url){
+  CELLS.forEach((c,i)=>{
+    const bs = (i===curCell ? BLOCKS : c.blocks) || [];
+    if(!bs.some(b => b.kind==='brand' && blockBimg(b) === url)) return;
+    if(i===curCell) renderOne(i, true);
+    else { refitBrandStack(bs); renderOne(i); }
+  });
+}
+
+/* 這張商標還在量（LOGO_M 裡是 null ＝已經開始、還沒有結果）。
+   量到之前 brandGeom 回 null，整疊照「26 高」那個暫代值排 —— 那不是它最後的
+   位置，而量到的那一刻整疊會跳一次。所以這段時間那一格先藏起來（見 renderOne）。 */
+function logoPending(url){
+  if(!url) return false;
+  if(!LOGO_M.has(url)){ LOGO_M.set(url, null); measureLogo(url); return true; }
+  return LOGO_M.get(url) === null;
 }
 
 /* 這一張商標畫成什麼樣（全部是排版座標的單位）：
@@ -797,7 +837,7 @@ function refitBrandStack(blocks){
    收的是「品牌名 ＋ 圖」兩個字串，不是商品名 —— 呼叫的人手上有那一列，
    它比這裡更知道這一列的品牌是誰（見 rowBrand）。 */
 function brandHTML(b, img){
-  if(img) return `<img class="bimg" src="${img}" alt="" draggable="false">`;
+  if(img) return `<img class="bimg" src="${img}" alt="" draggable="false" decoding="sync">`;
   return `<span class="bph"><svg viewBox="0 0 120 28" preserveAspectRatio="none">
       <rect x="0.6" y="0.6" width="118.8" height="26.8" rx="4" fill="#f0f2f6"
         stroke="#c9d0dc" stroke-width="1.2" stroke-dasharray="4 3"/>
@@ -1452,7 +1492,8 @@ addEventListener('message',e=>{
   if(d.catalogue) applyCatalogue(d.catalogue);
   if(d.logos) applyLogos(d.logos);
   /* 上層把這一格上次拼到哪裡送回來（restoreBoard 定義在下面，執行時才會用到）。
-     收完就回報「我畫好了」—— 上層那張蓋布是照這一句在淡的。
+     收完就回報「我畫好了」（那一句還會等圖和字型，見 tellPainted）——
+     上層那張蓋布是照這一句掀的。
      ⚠️ 空的那一格（boardRestore 是 null）也要回報：restoreBoard 會直接 return，
      不報的話那一格會被蓋到 6 秒的保險才掀開，而它根本沒有東西要等。 */
   if(d.boardRestore !== undefined){ restoreBoard(d.boardRestore); tellPainted(); }
@@ -2151,7 +2192,7 @@ function phTag(k, a, row){
    （內嵌 SVG，斷網也看得到） */
 function imgHTML(k, row){
   const url = imgUrlOf(k);
-  if(url) return `<img src="${url}" alt="" draggable="false">`;
+  if(url) return `<img src="${url}" alt="" draggable="false" decoding="sync">`;
   const a=k.split('|'), tag=phTag(k,a,row);
   return `<svg class="ph" viewBox="0 0 100 100">
     <rect x="0" y="0" width="100" height="100" rx="3" fill="#f0f2f6" stroke="#d5dae3"
@@ -2223,7 +2264,7 @@ function blockHTML(b,isCur=true){
       /* 外面這一層就是墨水框（看得見的那一塊），裡面那張圖放大之後往左上位移，
          四周那圈空白被 overflow 切掉。零件佔的位子＝這一層，所以品名貼得上來。 */
       inner = `<span class="bcrop" style="width:${px(g.w)};height:${px(g.h)}">`
-            + `<img class="bimg" src="${img}" alt="" draggable="false" style="`
+            + `<img class="bimg" src="${img}" alt="" draggable="false" decoding="sync" style="`
             + `width:${px(g.iw)};height:${px(g.ih)};`
             + `margin-left:calc(0px - ${px(g.ox)});margin-top:calc(0px - ${px(g.oy)})"></span>`;
     } else if(img){
@@ -2323,6 +2364,38 @@ function paintHandles(){
 }
 
 /* 渲染單一格子（i 可為任一格） */
+/* 重畫一次＝把整格的 innerHTML 換掉，於是每一張 <img> 都是新生的 —— 新的 img
+   身上沒有解好的點陣圖，就算 bytes 還在快取裡也會空掉一格畫面（Storage 那幾張
+   還可能多一趟 revalidate）。而調字級時 renderOne 一趟會重畫到六次
+   （spreadStack→…→stickImage），按住 ＋ 又是每 80ms 一趟、整個版位每一格同時跑 ——
+   看起來就是商品圖和品牌 logo 一直在閃。
+   所以換之前先把還活著（已經載完）的 img 照 src 收起來，換完照 src 認領回去：
+   螢幕上那張已經解好的圖從頭到尾沒有離開過 DOM，也就沒有空白的那一幀。
+   ⚠️ 認領回去的是**節點**，class／style 一律照新那一份重寫：品牌 logo 的裁切
+   靠 inline 的寬高和位移（見 blockHTML 的 bcrop），不抄就會沿用上一輪的大小 ——
+   那正是字級要改的東西，看起來會像「轉盤對 logo 沒有作用」。
+   ⚠️ 一個舊節點只認領一次（認領完就 isConnected 了）：同一張圖在一格裡放兩塊
+   的時候，兩邊搶同一個節點只會有一邊畫得出來。
+   ⚠️ 這裡要問 isConnected，不是 parentNode：innerHTML 換掉的是 el 的直接子節點，
+   而 img 掛在 .blk 底下 —— 那顆 .blk 被拆下來之後 img 的 parentNode 還在（是一顆
+   已經離線的 .blk），照 parentNode 判的話一個都認領不到，整段等於沒作用。 */
+function paintKeepingImgs(el, html){
+  const live = new Map();
+  el.querySelectorAll('img[src]').forEach(im => {
+    if(im.complete && im.naturalWidth) live.set(im.src, im);
+  });
+  el.innerHTML = html;
+  if(!live.size) return;
+  el.querySelectorAll('img[src]').forEach(im => {
+    const prev = live.get(im.src);
+    if(!prev || prev.isConnected) return;
+    prev.className = im.className;
+    const st = im.getAttribute('style');
+    if(st == null) prev.removeAttribute('style'); else prev.setAttribute('style', st);
+    im.replaceWith(prev);
+  });
+}
+
 function renderOne(i, force){
   const el=document.getElementById('cell'+i);
   if(!el) return;
@@ -2358,7 +2431,7 @@ function renderOne(i, force){
   el.className='cell'+(isCur?' cur':'')+row1;
   if(isCur) setTimeout(()=>{ renderProps(); renderRestore(); },0);
   const paint = hidden => {
-    el.innerHTML = '<div class="cstage'+(hidden?' measuring':'')+'">'
+    paintKeepingImgs(el, '<div class="cstage'+(hidden?' measuring':'')+'">'
       /* 開著就一直看得到，關著就一直看不到 —— 這顆是「要不要看到尺」，不是拖曳的一部分。 */
       + ((isCur && SHOW_GRID) ? '<div class="gridlines"></div>' : '')
       + blocks.map(b=>blockHTML(b,isCur)).join('')
@@ -2367,29 +2440,35 @@ function renderOne(i, force){
           : `<div class="guide gh" style="top:${g.pos}px"></div>`).join(''):'')
       + '<div class="marquee" id="marquee'+i+'"></div>'
       + '<div class="safe"></div>'
-      + '</div>';
+      + '</div>');
   };
   /* 剛排好（或字型到齊後強制重排）的那一格：先照內容寬度藏著畫一次、量真正的
      寬高，autoSpace 把價格 SKU 靠右對齊、圖讓開，定位完才顯示。b.w2 是靠右用的
      固定寬度框，量之前先清掉，不然量到的是上一輪的框寬、欄寬會越算越死。 */
+  /* ⚠️ 商標還在量的時候**先藏著**（`.cstage.measuring`）。brandGeom 量到之前回 null，
+     那一疊照暫代的 26 高排 —— 那不是它最後的位置，量到的那一刻整疊會跳一次，
+     看起來就是「挑完貨，格子先閃一下預設位置」。圖是網路來的，所以這一跳一定
+     隔著一幀，同一趟裡多畫幾次是看不到的（那幾趟在同一個 task 裡，只 paint 一次）。
+     藏著等的上限是 LOGO_WAIT，到了就當作量不到 —— 見 measureLogo。 */
+  const waitLogo = blocks.some(b => b.kind==='brand' && logoPending(blockBimg(b)));
   /* 位置是 buildBlocks 算好的，不必量 DOM。唯一的例外是下緣那一下 ——
      「價格貼著下邊界」要的是**畫出來**的高度，而字框、padding、border 的實際高度
      只有瀏覽器知道（量到過比估算多 6 個單位，就凸出邊界了）。所以畫一次、
      對一次下緣、再畫一次。只有重建或強制的時候會走到，不是每次重畫。 */
-  paint(false);
+  paint(waitLogo);
   if((rebuilt||force) && isCur){
     // 先把上面那一疊推開（放大的那塊要先佔到位），再對齊四邊
-    try{ if(spreadStack(blocks)) paint(false); }catch(_){}
+    try{ if(spreadStack(blocks)) paint(waitLogo); }catch(_){}
     /* 攤開那幾組價格要**先夾**到塞得進自己那一欄：夾了字級，寬和高都會變，
        後面兩趟（疊、對齊四邊）量到的才是最後那個大小。 */
-    try{ if(fitSpreadPrices(blocks)) paint(false); }catch(_){}
-    try{ if(packPriceGroups(blocks)) paint(false); }catch(_){}
-    try{ if(nudgeGroupBottom(blocks)) paint(false); }catch(_){}
+    try{ if(fitSpreadPrices(blocks)) paint(waitLogo); }catch(_){}
+    try{ if(packPriceGroups(blocks)) paint(waitLogo); }catch(_){}
+    try{ if(nudgeGroupBottom(blocks)) paint(waitLogo); }catch(_){}
     /* 商品圖**最後**才算，不能跟 spreadStack 一起做：它要讓開右下那一組，
        而那一組真正的位置是上一行的 nudgeGroupBottom 對出來的。
        早一步算的話量到的是還沒對齊前的位置 —— 那時候價格離右邊界還有一段，
        圖就以為左邊只剩那麼點空間，於是縮得莫名其妙的小（量到過該有 78 卻只給 45）。 */
-    try{ if(stickImage(blocks)) paint(false); }catch(_){}
+    try{ if(stickImage(blocks)) paint(waitLogo); }catch(_){}
   }
 }
 
@@ -4193,6 +4272,11 @@ function snapFontCss(){
   return snapFontPromise;
 }
 
+/* 快照畫多大、存多細。
+   ⚠️ 這兩個數字直接乘進**記憶體和 IndexedDB** 裡（一格一張 jpeg × 幾十格 × 十幾塊
+   版位），調高之前先想一下那一份會變多大。 */
+const SNAP_SS = 1.8, SNAP_Q = .86;
+
 async function snapshotStage(req){
   const id = (req && req.id) || '';
   /* 失敗要講得出是哪一種。三種的處理完全不一樣：SVG 解不開是這一頁自己組錯了，
@@ -4204,6 +4288,10 @@ async function snapshotStage(req){
   try{
     const w = Math.max(1, Math.round(innerWidth)), h = Math.max(1, Math.round(innerHeight));
     const clone = document.getElementById('stage').cloneNode(true);
+    /* 商標還在量的時候版面是藏著的（見 renderOne 的 waitLogo）——
+       那是「等一下就會跳一次」的遮擋，不是這一格的樣子。照著拍會拍出一張全白，
+       而那張圖會被當成蓋布和整本預覽貼出去。 */
+    clone.querySelectorAll('.cstage.measuring').forEach(el => el.classList.remove('measuring'));
     await Promise.all([...clone.querySelectorAll('img')].map(async im => {
       const u = im.getAttribute('src') || '';
       if(!u || u.startsWith('data:')) return;
@@ -4230,15 +4318,23 @@ async function snapshotStage(req){
     im.onload = () => {
       let out = '';
       try{
+        /* **畫大一點再存**（SNAP_SS 倍）。SVG 是向量的，畫到多大的畫布就在多大的
+           尺寸上光柵化一次 —— 所以品名、價格這些字是真的變細緻，不是把小圖放大。
+           （裡面那幾張商品照本來就是點陣的，它們到自己的解析度為止。）
+           為什麼要：蓋布現在會一直蓋到使用者動手為止（見上層的 armCoverIntent），
+           它在螢幕上待的時間比以前長得多，糊的就看得出來糊。 */
+        const W = Math.round(w * SNAP_SS), H = Math.round(h * SNAP_SS);
         const cv = document.createElement('canvas');
-        cv.width = w; cv.height = h;
+        cv.width = W; cv.height = H;
         const cx = cv.getContext('2d');
+        cx.imageSmoothingEnabled = true;
+        cx.imageSmoothingQuality = 'high';
         /* 底色由上層那一格在畫（stage 的畫布本來就是透明的），快照要自己補上，
            不然 jpeg 沒有透明、空的地方會變成黑的。 */
         cx.fillStyle = (req && req.bg) || '#fff';
-        cx.fillRect(0, 0, w, h);
-        cx.drawImage(im, 0, 0);
-        out = cv.toDataURL('image/jpeg', .72);
+        cx.fillRect(0, 0, W, H);
+        cx.drawImage(im, 0, 0, W, H);
+        out = cv.toDataURL('image/jpeg', SNAP_Q);
       }catch(e){ why = 'canvas:' + (e && e.name); }
       send(out, why);
     };
@@ -4252,24 +4348,81 @@ async function snapshotStage(req){
    蓋著的那一格要等**這一句**才掀開。
    ⚠️ 以前上層是聽 `ready` 掀的 —— 那一句的意思是「iframe 起來了、可以收東西了」，
    這時候版面上一個字都還沒有：蓋布掀開之後你還是會看著一格空白，然後內容才跳出來。
-   真正該等的是「上次拼的東西已經排回畫面上」，也就是 restoreBoard 收完那一刻。
+   真正該等的是「上次拼的東西已經排回畫面上」，**而且該載的圖也載完了**
+   （見底下的 imagesSettled）—— 只等排版的話，掀開的瞬間商品照會整片消失
+   再一張一張回來，比蓋著的時候還醜。
    ⚠️ 順便等一下字型：價格用的 Anton 是網路字型，它到齊之前那幾個數字是替代字的
    位置，掀開之後會自己跳一次（見底下 fonts.ready 那一段會重排）。但**最多等 600ms** ——
    斷網或字型拉不到的時候，等下去就是一直蓋著一張過期的圖，那比跳一下糟。
    ⚠️ 只報一次：後面挑貨、重排都會再畫，那時候蓋布早就不在了。 */
+/** 這一格該載的圖都到了沒（商品圖、品牌 logo）。
+    ⚠️ **版面排好 ≠ 好了**。restoreBoard 收完的那一刻，那幾張圖多半還在路上 ——
+       它們是 Storage 上的網址，各自要走一趟網路。而蓋布那張點陣圖是**烤好的**
+       （見 snapshotStage：拍之前每一張 <img> 都轉成 data: 了，不然
+       foreignObject 裡什麼外部資源都載不到），所以它永遠是完整的。
+       照「版面排好」掀開，就是在圖還沒到的時候讓開：**剛剛在蓋布上看得到的
+       商品照會整片消失，然後一張一張回來** —— 那正是使用者說的「一個一個冒出來」，
+       而且掀開之後比蓋著的時候還醜。
+    ⚠️ 一定要有上限：一張讀不到的圖不能把整張版扣在蓋布底下。上層另外還有 6 秒的
+       保險（showBoardCover 的 coverTimer），所以這裡收在它前面。 */
+function imagesSettled(cap){
+  const stage = document.getElementById('stage');
+  if(!stage) return Promise.resolve();
+  const pend = [...stage.querySelectorAll('img')]
+    .filter(im => im.getAttribute('src') && !im.complete);
+  if(!pend.length) return Promise.resolve();
+  return new Promise(res => {
+    let n = pend.length, done = false;
+    const fin = () => { if(!done){ done = true; res(); } };
+    const hit = () => { if(--n <= 0) fin(); };
+    pend.forEach(im => {
+      im.addEventListener('load',  hit, { once:true });
+      im.addEventListener('error', hit, { once:true });   // 讀不到也算「到了」
+    });
+    setTimeout(fin, cap);
+  });
+}
+
+/* 「使用者在這一格裡動手了」。
+   上層那張蓋布只有一個掀開的條件：使用者動手（見 armCoverIntent）—— 可是它聽的是
+   **上層那一頁**的 wheel／pointerdown／keydown，而在 拼板 上滑鼠幾乎永遠停在某一格
+   上面，那一下是落進**這個 iframe** 裡的，上層那三個監聽器一個都不會響。
+   於是「滾輪縮放了、點了一格，蓋布還是不動，一路蓋到 12 秒保險」——
+   而那正是「怎麼等都不掀」的真正原因（縮放是自己走 postMessage 轉上去的，
+   見 relayWheel，所以版面明明在動、蓋布卻沒收到任何消息）。
+   所以自己講一句。**節流 300ms**：滾輪一轉就是幾十發，而上層第一發就掀完了。 */
+let actSent = 0;
+function tellAct(){
+  if(!UI_STAGE || window.parent === window) return;
+  const t = Date.now();
+  if(t - actSent < 300) return;
+  actSent = t;
+  try{ parent.postMessage({ boardCell:CELL_ID, stageAct:1 }, '*'); }catch(_){}
+}
+if(UI_STAGE){
+  /* 捕捉階段：底下有好幾條手勢會把事件吃掉（拖零件、切圖層、框選），
+     等冒泡就有一半收不到。 */
+  ['pointerdown','wheel','keydown'].forEach(ev =>
+    addEventListener(ev, tellAct, { capture:true, passive:true }));
+}
+
 let paintedSent = false;
 function tellPainted(){
   if(paintedSent || !UI_STAGE || window.parent === window) return;
   paintedSent = true;
-  const send = () => requestAnimationFrame(() => {
-    try{ parent.postMessage({ boardCell:CELL_ID, stagePainted:true }, '*'); }catch(_){}
-  });
-  const fonts = document.fonts && document.fonts.ready;
-  if(!fonts) return send();
-  let done = false;
-  const once = () => { if(done) return; done = true; send(); };
-  fonts.then(once).catch(once);
-  setTimeout(once, 600);
+  /* 兩件事都要等到，蓋布才掀得開，而兩件都各有上限：
+       字型 600ms  —— Anton 沒到的話價格是替代字，掀開之後會自己跳一次
+       圖   9000ms —— 收在上層那 12 秒保險前面。真的商品圖是 Storage 上的網址，
+              第一次開、快取是冷的時候 4 秒根本不夠 —— 上限一到就等於「還在載
+              就回報好了」，蓋布跟著提早掀開。讀不到的圖走 error、不會拖到上限。
+     等不到就報，寧可跳一下也不要一直蓋著一張過期的圖。 */
+  const cap = (p, ms) => Promise.race([p, new Promise(r => setTimeout(r, ms))]);
+  const fonts = (document.fonts && document.fonts.ready) || Promise.resolve();
+  Promise.all([ cap(Promise.resolve(fonts).catch(() => {}), 600),
+                imagesSettled(9000) ])
+    .then(() => requestAnimationFrame(() => {
+      try{ parent.postMessage({ boardCell:CELL_ID, stagePainted:true }, '*'); }catch(_){}
+    }));
 }
 
 setMargin();     // 紅線先照預設畫上（--pad 只有 setMargin 一個來源）
