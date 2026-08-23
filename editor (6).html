@@ -1,0 +1,2094 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DM 拼版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{ --ink:#000; --muted:#000; --line:#e3e7ef; --bg:#f4f5f8; --accent:#d31f2b; }
+  *{box-sizing:border-box}
+  body{margin:0;height:100vh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;}
+
+  /* 上方分頁 */
+  .topbar{display:flex;gap:8px;padding:10px 16px;background:#fff;border-bottom:1px solid var(--line);flex-shrink:0;align-items:center}
+  .hdr-mid{display:flex;gap:6px;margin:0 auto}
+  .hdr-icon{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:#000;border-radius:9px;
+    padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+  .hdr-icon:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  .hdr-icon:disabled{opacity:.4;cursor:default}
+  .hdr-export{appearance:none;border:none;background:var(--accent);color:#fff;border-radius:9px;
+    padding:8px 18px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  .hdr-export:hover{filter:brightness(1.05)}
+  .tab{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:var(--muted);
+    padding:9px 18px;border-radius:10px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:.15s}
+  .tab:hover{border-color:var(--accent)}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .view{flex:1;min-height:0;display:none}
+  .view.active{display:flex}
+  #view-products.active{display:block;overflow:auto;padding:24px}
+  #view-brands.active{display:block;overflow:auto;padding:24px}
+
+  /* 拼版頁 */
+  aside{width:20%;flex:0 0 20%;background:#fff;border-right:1px solid var(--line);
+    padding:22px 16px;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+  aside .ttl{font-size:13px;font-weight:700;letter-spacing:1px;color:var(--muted);
+    text-transform:uppercase;margin-bottom:6px}
+  aside button{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);
+    border-radius:11px;padding:14px;font:inherit;font-size:15px;font-weight:700;cursor:pointer;
+    text-align:left;transition:.15s}
+  aside button:hover{border-color:var(--accent)}
+  aside button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .custom{display:flex;align-items:center;gap:8px;color:var(--muted);font-weight:700;justify-content:center}
+  .custom input{width:56px;padding:10px 6px;border:1px solid var(--line);border-radius:9px;
+    font:inherit;font-size:15px;text-align:center;color:var(--ink);background:#fbfcfe}
+  .custom input:focus{outline:none;border-color:var(--accent)}
+  .bgpick{width:100%;height:46px;border:1px solid var(--line);border-radius:11px;padding:4px;background:#fff;cursor:pointer}
+  .sliders{display:flex;flex-direction:column;gap:11px}
+  .sliders label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);font-weight:600}
+  .sliders input[type=range]{width:100%;accent-color:var(--accent)}
+
+  main{flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;background:#e9ebf0}
+  .sheet-toolbar{display:flex;align-items:center;gap:8px;padding:8px 16px;flex-shrink:0}
+  .sheet-toolbar .mlabel{font-size:12px;font-weight:700;color:#000}
+  .sheet-toolbar .movemode{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:#000;
+    padding:6px 14px;border-radius:9px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+  .sheet-toolbar .movemode:hover{border-color:var(--accent)}
+  .sheet-toolbar .movemode.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* 縮放舞台：量測可視區，把 dmArea 等比縮到 fit */
+  #dmStage{position:relative;flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:center;overflow:hidden}
+  .sheet{width:100%;height:100%;display:grid;gap:0;
+    border-top:1px solid rgba(0,0,0,.12);border-left:1px solid rgba(0,0,0,.12)}
+  .cell{position:relative;background:transparent;border-right:1px solid rgba(0,0,0,.12);
+    border-bottom:1px solid rgba(0,0,0,.12);border-radius:0;overflow:hidden;
+    display:flex;cursor:pointer;transition:background .1s;container-type:size}
+  /* 可拖移的格內元素：偏移用 cqw/cqh，相對格子大小，各格一致 */
+  .cv-part{transform:translate(calc(var(--dx,0) * 1cqw), calc(var(--dy,0) * 1cqh));cursor:grab;
+    user-select:none;-webkit-user-select:none}
+  .cv-part img,.cv-part svg{-webkit-user-drag:none;user-drag:none;pointer-events:none}
+  .cv-part.dragging{cursor:grabbing;opacity:.85}
+  .cv-part.raised{z-index:40}   /* 被點選/拖移中的部位提到最上層，避免被價格等蓋住 */
+  .cell:hover{background:rgba(0,0,0,.04)}
+  .cell .num{margin:auto;color:#000;font-size:22px;font-weight:700}
+
+  /* 格子內商品卡（仿 DM） */
+  .pcardview{flex:1;min-height:0;display:flex;flex-direction:column;gap:3px;position:relative;
+    padding:calc(var(--cmargin,5) * 1cqh) calc(var(--cmargin,5) * 1cqw);overflow:hidden}
+  .cv-cat{position:absolute;top:0;left:0;background:#1f9d57;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-bottom-right-radius:7px;z-index:2}
+  .cv-head{display:flex;justify-content:space-between;align-items:center;min-height:22px}
+  .cv-logo{max-height:var(--logo-h,20px);max-width:62%;object-fit:contain}
+  .cv-brand{font-weight:900;font-size:var(--logo-h,20px)}
+  .cv-mode{display:flex;gap:3px;flex-shrink:0}
+  .cv-mode span{font-size:10px;font-weight:700;color:#fff;border-radius:4px;padding:1px 6px}
+  .cv-mode .cool{background:#2f8fd6}
+  .cv-mode .warm{background:#e8853a}
+  .cv-name{color:#000;font-weight:800;font-size:var(--name-fs,13px)}
+  .cv-meta{font-size:var(--meta-fs,9.5px);color:#000;line-height:1.45}
+  /* 文字部位貼齊內容寬度：空白處不再算進點擊範圍 */
+  .cv-name,.cv-meta{align-self:flex-start;width:fit-content;max-width:100%}
+  .cv-img{position:absolute;top:38%;left:0;width:100%;height:auto;overflow:visible;
+    transform:translate(calc(var(--dx,0) * 1cqw), calc(var(--dy,0) * 1cqh));z-index:1}
+  .cv-img-inner{position:absolute;top:0;left:0;line-height:0;width:calc(var(--imgw,75) * var(--imgmul,1) * 1%)}
+  .cv-img-inner svg{width:100%;height:auto;display:block}
+  .cv-img-inner img{width:100%;height:auto;object-fit:contain;display:block}
+  /* 商品圖縮放角（無刪除鈕），選取時顯示，貼在圖的右下角 */
+  .cv-img .img-handle{position:absolute;right:0;bottom:0;width:16px;height:16px;background:var(--accent);border:2px solid #fff;
+    border-radius:50%;cursor:nwse-resize;display:none;box-shadow:0 1px 4px rgba(0,0,0,.4);z-index:53;
+    transform:translate(50%,50%) scale(calc(1 / var(--fit,1)));transform-origin:center}
+  .cv-img.img-selected .img-handle{display:block}
+  .cv-img.img-selected .cv-img-inner{outline:1.5px dashed var(--accent);outline-offset:2px}
+  .cv-price{display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding-top:4px;margin-top:auto;position:relative;z-index:2;align-self:flex-end;width:fit-content;max-width:100%}
+  .cv-mkt{font-size:var(--mkt-fs,10px);color:#000}
+  .cv-special{font-family:"Anton",sans-serif;color:#d31f2b;font-size:var(--special-fs,28px);line-height:.9;cursor:pointer;
+    -webkit-text-stroke:2px #fff;paint-order:stroke fill;text-stroke:2px #fff}
+  .cv-special:hover{opacity:.8}
+  .cv-edit{width:5em;max-width:100%;text-align:right;font-family:"Anton",sans-serif;color:#d31f2b;font-size:var(--special-fs,28px);
+    border:1px solid #d31f2b;border-radius:6px;padding:0 5px;background:#fff;line-height:1.2}
+  .cv-edit:focus{outline:none}
+
+  /* 搜尋彈窗 */
+  .modal{position:fixed;inset:0;background:rgba(15,22,40,.45);display:none;
+    align-items:flex-start;justify-content:center;z-index:100}
+  .modal.open{display:flex}
+  .modal-box{background:#fff;width:440px;max-width:92vw;margin-top:12vh;border-radius:14px;
+    padding:18px;box-shadow:0 24px 60px rgba(0,0,0,.25)}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;font-weight:700;margin-bottom:12px}
+  .modal-head button{border:none;background:transparent;font-size:18px;color:#000;cursor:pointer}
+  #search{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:15px}
+  #search:focus{outline:none;border-color:var(--accent)}
+  .results{margin-top:10px;max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .ritem{padding:11px 13px;border-bottom:1px solid #f1f3f7;cursor:pointer;font-size:14px}
+  .ritem:last-child{border-bottom:none}
+  .ritem:hover{background:var(--bg)}
+  .ritem .rb{font-weight:700}
+  .ritem .rs{color:var(--muted);font-size:12px;margin-left:6px}
+  .ritem.picked{background:rgba(211,31,43,.08)}
+  .ritem.picked::after{content:'✓';color:var(--accent);font-weight:900;float:right}
+  .bulk-selected{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;max-height:120px;overflow:auto}
+  .bulk-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);
+    border-radius:16px;padding:4px 6px 4px 10px;font-size:12px;font-weight:700}
+  .bulk-chip .order{background:var(--accent);color:#fff;border-radius:50%;width:18px;height:18px;
+    display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+  .bulk-chip button{border:none;background:#cdd3df;color:#fff;border-radius:50%;width:16px;height:16px;
+    font-size:11px;line-height:1;cursor:pointer}
+  .r-empty{padding:16px;text-align:center;color:var(--muted);font-size:14px}
+  .clearcell{margin-top:12px;width:100%;border:1px solid var(--line);background:#fff;color:var(--muted);
+    border-radius:10px;padding:10px;font:inherit;font-weight:700;cursor:pointer}
+  .clearcell:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* 商品資訊頁 */
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;max-width:1000px}
+  .prow{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+  .pf{display:flex;flex-direction:column;gap:5px}
+  .pf label{font-size:12px;color:var(--muted);font-weight:500}
+  .pf input{padding:9px 11px;border:1px solid var(--line);border-radius:9px;font:inherit;font-size:14px;background:#fbfcfe;width:150px}
+  .pf input:focus{outline:none;border-color:var(--accent);background:#fff}
+  .btn{appearance:none;border:none;border-radius:10px;padding:10px 18px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;height:38px}
+  .btn-primary{background:var(--accent);color:#fff}
+  .csvbtn{display:inline-flex;align-items:center;border:1px solid var(--line);background:#fff;color:var(--ink);
+    border-radius:10px;padding:10px 18px;font-weight:700;font-size:14px;cursor:pointer;height:38px}
+  .csvbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .hint{font-size:12px;color:var(--muted);margin:10px 0 0}
+
+  table{width:100%;border-collapse:collapse;margin-top:18px;max-width:1000px;background:#fff;
+    border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  th,td{text-align:left;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line)}
+  th{background:#f7f8fb;color:var(--muted);font-size:12px;letter-spacing:.5px;font-weight:700}
+  tr:last-child td{border-bottom:none}
+  td .del{border:none;background:transparent;color:#000;cursor:pointer;font-size:15px}
+  td .del:hover{color:var(--accent)}
+  .empty{padding:28px;text-align:center;color:var(--muted);font-size:14px}
+
+  /* 品牌頁 */
+  .bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;max-width:1000px}
+  .bcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;text-align:center}
+  .bcard .bn{font-weight:700;margin-bottom:10px}
+  .blogo{height:84px;display:grid;place-items:center;border:1px dashed var(--line);border-radius:10px;
+    margin-bottom:10px;background:#fbfcfe;overflow:hidden}
+  .blogo img{max-height:76px;max-width:100%;object-fit:contain}
+  .blogo .ph{color:#000;font-size:13px}
+  .uplbl{display:inline-block;border:1px solid var(--line);border-radius:9px;padding:8px 14px;
+    font-size:13px;font-weight:700;cursor:pointer;background:#fff}
+  .uplbl:hover{border-color:var(--accent);color:var(--accent)}
+
+  /* ── 拼版頁改為：中欄(畫布) + 下方貼紙欄 ── */
+  #view-layout.active{flex-direction:row}
+  .layout-main{flex:1;min-width:0;display:flex;flex-direction:column}
+  .layout-main main{flex:1;min-height:0}
+  /* #dmArea 接手原本 sheet 的寬度角色，貼紙以它為座標基準 */
+  #dmArea{position:relative;width:var(--sheet-w,900px);height:var(--sheet-h,600px);flex-shrink:0;
+    transform:scale(var(--fit,1));transform-origin:center center;background:var(--sheet-bg,#f4f5f8)}
+  #view-layout .sheet{max-width:none}   /* sheet 填滿 dmArea */
+  #dmArea.dragover{outline:2px dashed var(--accent);outline-offset:6px}
+
+  /* 貼紙欄 */
+  .stickerbar{flex-shrink:0;border-top:1px solid var(--line);background:#fff;display:flex;flex-direction:column;height:172px}
+  .sb-top{display:flex;align-items:center;gap:8px;padding:7px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .sb-top .sb-label{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--muted);margin-right:2px}
+  .sb-tab{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:var(--muted);
+    padding:4px 13px;border-radius:18px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+  .sb-tab:hover{border-color:var(--accent)}
+  .sb-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .sb-addcat{margin-left:auto;border:1px dashed var(--line);background:#fff;color:var(--accent);
+    border-radius:18px;padding:4px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .sb-items{flex:1;display:flex;align-items:center;gap:12px;padding:10px 16px;overflow-x:auto;overflow-y:hidden}
+  .sb-items.dragover{background:rgba(211,31,43,.05)}
+  .sb-pick{flex:0 0 auto;width:66px;height:66px;border:1.5px dashed var(--line);border-radius:10px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    color:var(--accent);cursor:pointer;font-size:11px;font-weight:700}
+  .sb-pick .plus{font-size:22px;line-height:1}
+  .sb-item{flex:0 0 auto;width:66px;height:66px;background:#fff;border:1px solid var(--line);border-radius:10px;
+    display:flex;align-items:center;justify-content:center;cursor:grab;position:relative;transition:transform .12s}
+  .sb-item:hover{transform:translateY(-3px);border-color:var(--accent)}
+  .sb-item img{max-width:80%;max-height:80%;pointer-events:none;-webkit-user-drag:none}
+  .sb-item .sb-del{position:absolute;top:-7px;right:-7px;width:17px;height:17px;border-radius:50%;
+    background:var(--ink);color:#fff;border:2px solid #fff;font-size:11px;line-height:13px;text-align:center;
+    cursor:pointer;display:none}
+  .sb-item:hover .sb-del{display:block}
+  .sb-empty{color:#000;font-size:13px;font-style:italic;border:1.5px dashed var(--line);
+    padding:14px 24px;border-radius:10px}
+
+  /* 放到格子內的貼紙 */
+  .placed{position:absolute;user-select:none;touch-action:none;z-index:50;cursor:grab}
+  .placed img{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none}
+  .placed.selected{outline:2px dashed var(--accent);outline-offset:2px;z-index:60}
+  /* 縮放角：貼紙右下外角 */
+  .placed .p-handle{position:absolute;width:18px;height:18px;right:0;bottom:0;background:var(--accent);
+    border:2px solid #fff;border-radius:50%;cursor:nwse-resize;display:none;box-shadow:0 1px 4px rgba(0,0,0,.4);
+    transform:translate(50%,50%) scale(calc(1 / var(--fit,1)));transform-origin:center;z-index:52}
+  .placed.selected .p-handle{display:block}
+  /* 刪除：貼紙右上外角 */
+  .placed .p-del{position:absolute;top:0;right:0;width:22px;height:22px;background:var(--ink);color:#fff;
+    border-radius:50%;font-size:14px;line-height:18px;text-align:center;cursor:pointer;display:none;border:2px solid #fff;
+    transform:translate(50%,-50%) scale(calc(1 / var(--fit,1)));transform-origin:center;z-index:52;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+  .placed.selected .p-del{display:block}
+  /* 全部：貼紙正下方外側置中 */
+  .placed .p-all{position:absolute;bottom:0;left:50%;background:var(--accent);color:#fff;border:2px solid #fff;
+    border-radius:6px;font-size:12px;font-weight:700;padding:2px 8px;cursor:pointer;display:none;white-space:nowrap;
+    transform:translate(-50%,140%) scale(calc(1 / var(--fit,1)));transform-origin:center top;z-index:52;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+  .placed.selected .p-all{display:block}
+  .cell.has-sel{overflow:visible;z-index:5}
+
+  /* === 可變貼紙：圖上的可編輯文字層 === */
+  .placed .vr{position:absolute;display:flex;align-items:center;overflow:hidden;line-height:1.15;
+    white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;z-index:51;cursor:text}
+  .placed .vr .vr-t{width:100%;padding:2px 4px;outline:none;user-select:text;-webkit-user-select:text;touch-action:auto}
+  .placed.selected .vr{outline:1px dashed rgba(34,211,238,.7)}
+  .sb-item .sb-badge{position:absolute;left:-6px;top:-6px;background:#0891b2;color:#fff;font-size:9px;font-weight:800;
+    border-radius:5px;padding:1px 4px;border:1.5px solid #fff;letter-spacing:.5px}
+  .sb-pick.var{border-color:#0891b2;color:#0891b2}
+
+  /* === 區域編輯視窗（可變貼紙）— 對齊 editor 淺色設計 === */
+  #vrModal{position:fixed;inset:0;background:rgba(20,22,28,.5);display:none;z-index:200;backdrop-filter:blur(3px)}
+  #vrModal.show{display:flex;flex-direction:column}
+  #vrModal .vm-top{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 16px;background:#fff;color:var(--ink);border-bottom:1px solid var(--line)}
+  #vrModal .vm-top b{font-size:15px;font-weight:800;letter-spacing:.3px}
+  #vrModal .vm-top .sp{flex:1}
+  #vrModal .vm-body{flex:1;min-height:0;display:grid;grid-template-columns:1fr 280px;background:var(--bg)}
+  #vrStage{position:relative;display:flex;align-items:center;justify-content:center;padding:24px;overflow:auto;
+    background:
+      linear-gradient(45deg,#e6e9f0 25%,transparent 25%) -10px 0/22px 22px,
+      linear-gradient(-45deg,#e6e9f0 25%,transparent 25%) -10px 0/22px 22px,
+      linear-gradient(45deg,transparent 75%,#e6e9f0 75%)/22px 22px,
+      linear-gradient(-45deg,transparent 75%,#e6e9f0 75%)/22px 22px,var(--bg)}
+  #vrWrap{position:relative;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.18);line-height:0;max-width:100%}
+  #vrWrap.picking{cursor:crosshair}
+  #vrWrap img{display:block;max-width:100%;max-height:calc(100vh - 220px);width:auto;height:auto;-webkit-user-drag:none;user-select:none}
+  /* ↓↓ 文字區定位基礎（視窗版專用，先前漏掉導致無法拖動） */
+  #vrWrap .vr{position:absolute;display:flex;align-items:center;overflow:hidden;line-height:1.15;
+    white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;cursor:move;
+    outline:1px dashed rgba(211,31,43,.55);user-select:none}
+  #vrWrap .vr .vr-t{width:100%;padding:2px 4px;pointer-events:none}
+  #vrWrap .vr.sel{outline:2px solid var(--accent);box-shadow:0 0 0 2px rgba(211,31,43,.18)}
+  #vrWrap .vr .vh{position:absolute;right:-7px;bottom:-7px;width:15px;height:15px;border-radius:50%;
+    background:var(--accent);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:nwse-resize;display:none}
+  #vrWrap .vr.sel .vh{display:block}
+  #vrSide{border-left:1px solid var(--line);background:#fff;color:var(--ink);padding:14px;overflow:auto;font-size:13px}
+  #vrSide h4{margin:14px 0 8px;font-size:11px;letter-spacing:.5px;color:#6b7280;font-weight:800}
+  #vrSide h4:first-child{margin-top:0}
+  #vrSide textarea,#vrSide .vinp{width:100%;background:#fbfcfe;border:1px solid var(--line);color:var(--ink);border-radius:9px;padding:9px 10px;font:inherit;font-size:14px}
+  #vrSide textarea:focus,#vrSide .vinp:focus{outline:none;border-color:var(--accent)}
+  #vrSide textarea{resize:vertical;min-height:50px}
+  #vrSide .vsz,#vrSide .val{display:flex;gap:6px}
+  #vrSide .vsz button,#vrSide .val button{flex:1;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);border-radius:9px;padding:8px 0;font-weight:800;cursor:pointer;font-size:15px}
+  #vrSide .vsz button:hover,#vrSide .val button:hover{border-color:var(--accent)}
+  #vrSide .vsz button.on,#vrSide .val button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  #vrSide .crow{display:flex;gap:8px;align-items:center;margin-top:6px}
+  #vrSide input[type=color]{width:42px;height:38px;border:1px solid var(--line);border-radius:9px;background:#fbfcfe;cursor:pointer}
+  #vrSide input[type=range]{width:100%;accent-color:var(--accent);margin-top:8px}
+  #vrSide .vchk{display:flex;align-items:center;gap:7px;color:#6b7280;cursor:pointer;margin-top:10px;font-weight:600}
+  #vrSide .vempty{color:#6b7280;line-height:1.8;font-size:13px}
+  .vbtn{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:var(--ink);border-radius:9px;padding:9px 14px;font:inherit;font-weight:700;font-size:13.5px;cursor:pointer}
+  .vbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .vbtn.go{background:var(--accent);border-color:var(--accent);color:#fff}
+  .vbtn.go:hover{filter:brightness(1.05);color:#fff}
+  .vbtn.dz{border-color:var(--line);background:#fff;color:var(--accent)}
+  .vbtn.dz:hover{background:rgba(211,31,43,.06)}
+
+  /* === Canva 式浮動文字工具列 === */
+  #vrTb{position:fixed;z-index:300;display:none;align-items:center;gap:2px;padding:5px;background:#fff;
+    border:1px solid var(--line);border-radius:11px;box-shadow:0 6px 24px rgba(20,22,28,.18);
+    font-family:-apple-system,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;user-select:none}
+  #vrTb.show{display:flex}
+  #vrTb button{appearance:none;border:none;background:transparent;color:var(--ink);border-radius:8px;
+    min-width:32px;height:32px;padding:0 8px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center}
+  #vrTb button:hover{background:#f1f2f6}
+  #vrTb button.on{background:var(--accent);color:#fff}
+  #vrTb .vrtb-sz{display:inline-flex;align-items:center;background:#f4f5f8;border-radius:8px;padding:0 2px}
+  #vrTb .vrtb-sz .num{min-width:34px;text-align:center;font-size:12.5px;font-weight:800;color:#374151}
+  #vrTb .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+  #vrTb label.clr{position:relative;width:32px;height:32px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  #vrTb label.clr:hover{background:#f1f2f6}
+  #vrTb label.clr .bar{width:18px;height:4px;border-radius:2px;border:1px solid rgba(0,0,0,.15)}
+  #vrTb label.clr input{position:absolute;inset:0;opacity:0;cursor:pointer}
+  #vrTb .a-small{font-size:11px}#vrTb .a-big{font-size:17px}
+
+  /* 商品圖：新增區選圖 + 表格內 drag&drop */
+  .pimg-pick{width:88px;height:64px;border:1.5px dashed var(--line);border-radius:9px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fbfcfe;
+    color:var(--muted);font-size:12px;font-weight:600;overflow:hidden;text-align:center}
+  .pimg-pick:hover{border-color:var(--accent);color:var(--accent)}
+  .pimg-pick img{max-width:100%;max-height:100%;object-fit:contain}
+  .timg{width:72px;height:52px;border:1.5px dashed var(--line);border-radius:8px;background:#fbfcfe;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;
+    color:#000;font-size:11px;font-weight:600;text-align:center;transition:.12s}
+  .timg:hover{border-color:var(--accent)}
+  .timg.dragover{border-color:var(--accent);background:rgba(211,31,43,.06);color:var(--accent)}
+  .timg img{max-width:100%;max-height:100%;object-fit:contain}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button class="tab active" data-tab="layout">拼版</button>
+  <button class="tab" data-tab="products">商品資訊</button>
+  <button class="tab" data-tab="brands">品牌</button>
+  <div class="hdr-mid">
+    <button id="undoBtn" class="hdr-icon" title="復原 (Ctrl+Z)" disabled>↶ 復原</button>
+    <button id="redoBtn" class="hdr-icon" title="重做 (Ctrl+Y)" disabled>↷ 重做</button>
+  </div>
+  <button id="clearAll" class="hdr-icon" title="清空整個版面" style="border-color:var(--accent);color:var(--accent)">🗑 清空</button>
+  <button id="saveData" class="hdr-export" style="background:var(--ink)">💾 保存</button>
+  <button id="exportPng" class="hdr-export">⬇ 匯出 PNG</button>
+  <button id="exportProj" class="hdr-icon" title="把整個專案存成檔案（不受瀏覽器容量限制，可備份/搬移）">⬇ 專案檔</button>
+  <button id="importProj" class="hdr-icon" title="從專案檔還原整個版面">⬆ 讀檔</button>
+  <input type="file" id="projFile" accept="application/json,.json" hidden>
+</div>
+
+<!-- 拼版頁 -->
+<section class="view active" id="view-layout">
+  <aside>
+    <button id="bulkFill" style="width:100%;background:var(--ink);color:#fff;border:none;border-radius:10px;padding:12px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px">📋 批量填入</button>
+    <div class="ttl">版面格數</div>
+    <button data-n="6"  data-cols="3">6 格</button>
+    <button data-n="12" data-cols="4">12 格</button>
+    <button data-n="16" data-cols="4">16 格</button>
+
+    <div class="ttl" style="margin-top:14px">自訂（行 × 列）</div>
+    <div class="custom">
+      <input id="rows" type="number" min="1" value="2">
+      <span>×</span>
+      <input id="cols" type="number" min="1" value="3">
+    </div>
+    <button id="applyCustom">套用</button>
+
+    <div class="ttl" style="margin-top:14px">格子邊距 <b id="cellMarginVal">5</b> %</div>
+    <div class="sliders">
+      <label><input type="range" min="0" max="25" step="0.5" value="5" id="cellMargin"></label>
+    </div>
+
+    <div class="ttl" style="margin-top:14px">背景顏色</div>
+    <input id="bg" class="bgpick" type="color" value="#f4f5f8">
+
+    <div class="ttl" style="margin-top:14px">輸出尺寸 (px)</div>
+    <div class="sliders">
+      <label>表格寬度 <b id="sheetWVal">3600</b> px<input type="range" min="400" max="8000" value="3600" id="sheetW"></label>
+      <label>表格高度 <b id="sheetHVal">2400</b> px<input type="range" min="300" max="8000" value="2400" id="sheetH"></label>
+    </div>
+
+    <div class="ttl" style="margin-top:14px">項目大小（基準px，隨輸出尺寸連動）</div>
+    <div class="sliders">
+      <label>品牌 Logo<input type="range" min="12" max="96" value="30" data-var="--logo-h"></label>
+      <label>商品名<input type="range" min="10" max="48" value="26" data-var="--name-fs"></label>
+      <label>型號 / SKU<input type="range" min="2" max="48" step="0.25" value="7.125" data-var="--meta-fs"></label>
+      <label>冷氣圖（整體比例）<input type="range" min="0.2" max="3" step="0.05" value="1" id="imgMul"></label>
+      <label>市價<input type="range" min="8" max="36" step="0.5" value="14" data-var="--mkt-fs"></label>
+      <label>特價<input type="range" min="16" max="104" value="39" data-var="--special-fs"></label>
+    </div>
+  </aside>
+
+  <div class="layout-main">
+    <main>
+      <div class="sheet-toolbar">
+        <span class="mlabel">移動模式</span>
+        <button class="movemode active" data-mode="group">集體移動</button>
+        <button class="movemode" data-mode="single">單獨移動</button>
+      </div>
+      <div id="dmStage">
+        <div id="dmArea">
+          <div class="sheet" id="sheet"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 貼紙欄 -->
+    <div class="stickerbar">
+      <div class="sb-top">
+        <span class="sb-label">貼紙分類</span>
+        <div id="sbTabs"></div>
+        <button class="sb-addcat" id="sbAddCat">＋ 新增分類</button>
+      </div>
+      <div class="sb-items" id="sbItems"></div>
+    </div>
+  </div>
+</section>
+
+<input type="file" id="sbFileInput" accept="image/png,image/*" multiple hidden>
+<input type="file" id="vrFileInput" accept="image/png,image/*" hidden>
+
+<!-- 可變貼紙：區域編輯視窗 -->
+<div id="vrModal">
+  <div class="vm-top">
+    <b>可變貼紙 — 標出可編輯文字區</b>
+    <span class="sp"></span>
+    <button class="vbtn" id="vrAdd">＋ 新增文字區</button>
+    <button class="vbtn" id="vrCancel">取消</button>
+    <button class="vbtn go" id="vrOk">確定</button>
+  </div>
+  <div class="vm-body">
+    <div id="vrStage">
+      <div id="vrWrap"><img id="vrImg" alt="底圖"></div>
+    </div>
+    <div id="vrSide">
+      <div id="vrProps" style="display:none">
+        <h4>文字內容</h4>
+        <textarea id="vrText" placeholder="預設文字（之後可在格子裡改）"></textarea>
+        <h4>文字大小（1～5）</h4>
+        <div class="vsz" id="vrSizes">
+          <button data-lv="1">1</button><button data-lv="2">2</button><button data-lv="3">3</button><button data-lv="4">4</button><button data-lv="5">5</button>
+        </div>
+        <input type="range" id="vrSizeFine" min="3" max="80" step="0.5">
+        <h4>背景色（蓋掉原圖文字）</h4>
+        <div class="crow">
+          <input type="color" id="vrBg" value="#ffffff">
+          <button class="vbtn" id="vrDropper">滴管</button>
+          <label class="vchk"><input type="checkbox" id="vrBgOff"> 透明</label>
+        </div>
+        <h4>文字顏色</h4>
+        <div class="crow"><input type="color" id="vrColor" value="#000000"></div>
+        <h4>對齊 / 樣式</h4>
+        <div class="val" id="vrAlign"><button data-al="left">⬅</button><button data-al="center">⬌</button><button data-al="right">➡</button></div>
+        <label class="vchk"><input type="checkbox" id="vrBold" checked> 粗體</label>
+        <h4>&nbsp;</h4>
+        <button class="vbtn dz" id="vrDel" style="width:100%">刪除此文字區</button>
+      </div>
+      <div id="vrEmpty" class="vempty">
+        按上方「＋ 新增文字區」，<br>把方塊拖到要變動的位置<br>（例如「4-5坪」白格），<br>拖<b>右下角</b>調大小，<br>再設背景色與文字大小。<br><br>用<b>滴管</b>可吸取原圖顏色，<br>完整蓋掉原本文字。<br><br>設定好按右上「確定」，<br>它就變成可調文字的貼紙。
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- 商品資訊頁 -->
+<section class="view" id="view-products">
+  <div class="pcard">
+    <div class="prow">
+      <div class="pf"><label>類別</label><input id="p-cat" placeholder="空調"></div>
+      <div class="pf"><label>品牌</label><input id="p-brand" placeholder="HITACHI"></div>
+      <div class="pf"><label>商品名字</label><input id="p-name" placeholder="變頻冷暖空調"></div>
+      <div class="pf"><label>型號</label><input id="p-model" placeholder="RAS-28NP1"></div>
+      <div class="pf"><label>SKU</label><input id="p-sku" placeholder="2153910"></div>
+      <div class="pf"><label>市價</label><input id="p-price" type="number" placeholder="33900"></div>
+      <div class="pf"><label>商品圖</label>
+        <label class="pimg-pick" id="pImgPick">選擇PNG<input id="p-img" type="file" accept="image/*" hidden></label>
+      </div>
+      <button class="btn btn-primary" id="addProduct">＋ 新增</button>
+      <label class="csvbtn">CSV 導入<input id="csvFile" type="file" accept=".csv" hidden></label>
+    </div>
+    <p class="hint">CSV 欄位順序：類別, 品牌, 商品名字, 型號, SKU, 市價（第一列若為標題會自動略過）</p>
+  </div>
+
+  <table id="ptable"></table>
+</section>
+
+<!-- 品牌頁 -->
+<section class="view" id="view-brands">
+  <div class="bgrid" id="bgrid"></div>
+</section>
+
+<!-- 商品搜尋彈窗 -->
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <div class="modal-head"><span>選擇商品（搜尋品牌或型號）</span><button id="closeModal">✕</button></div>
+    <input id="search" autocomplete="off" placeholder="輸入品牌或型號…">
+    <div class="results" id="results"></div>
+    <button class="clearcell" id="clearCell">清空此格</button>
+  </div>
+</div>
+
+<!-- 批量填入彈窗 -->
+<div class="modal" id="bulkModal">
+  <div class="modal-box" style="width:560px">
+    <div class="modal-head"><span>批量填入（依勾選順序填入，會先清空所有格）</span><button id="closeBulk">✕</button></div>
+    <input id="bulkSearch" autocomplete="off" placeholder="搜尋品牌或型號…">
+    <div class="results" id="bulkResults" style="max-height:240px"></div>
+    <div style="margin-top:12px;font-weight:700;font-size:13px">已選 <span id="bulkCount">0</span> 項（目前 <span id="bulkSlots">0</span> 格）</div>
+    <div id="bulkSelected" class="bulk-selected"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="bulkClear" style="flex:0 0 auto;border:1px solid var(--line);background:#fff;color:#000;border-radius:10px;padding:11px 14px;font:inherit;font-weight:700;cursor:pointer">清除選擇</button>
+      <button id="bulkApply" style="flex:1;border:none;background:var(--accent);color:#fff;border-radius:10px;padding:11px;font:inherit;font-size:15px;font-weight:700;cursor:pointer">填入</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ── 分頁切換（排除移動模式按鈕） ── */
+  const tabs = document.querySelectorAll('.tab[data-tab]');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + t.dataset.tab).classList.add('active');
+    if(t.dataset.tab === 'brands') renderBrands();
+  }));
+
+  /* ── 拼版 ── */
+  const sheet = document.getElementById('sheet');
+  const gbtns = document.querySelectorAll('aside button[data-n]');
+
+  let cells = [];                 // cells[i] = 該格的商品物件
+  let curN = 6, curCols = 3;      // 目前版面
+  let activeCell = null;          // 正在編輯的格子
+  let editingCell = null;         // 正在改價的格子
+
+  const dmAreaEl = document.getElementById('dmArea');
+
+  function render(n, cols){
+    curN = n; curCols = cols;
+    const rows = Math.ceil(n / cols);
+    sheet.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+    sheet.style.gridTemplateRows = 'repeat(' + rows + ', minmax(0, 1fr))';
+    let html = '';
+    for(let i = 0; i < n; i++){
+      const p = cells[i];
+      html += p
+        ? '<div class="cell filled" data-cell="'+i+'" ondblclick="window._cell(' + i + ')">' + cellCard(p, i) + '</div>'
+        : '<div class="cell" data-cell="'+i+'" onclick="window._cell(' + i + ')"><span class="num">' + (i + 1) + '</span></div>';
+    }
+    sheet.innerHTML = html;
+    if(editingCell !== null){
+      const inp = sheet.querySelector('.cv-edit');
+      if(inp){ inp.focus(); inp.select(); }
+    }
+    if(window._renderStickers) window._renderStickers();   // 重繪貼紙
+  }
+
+  function acSVG(){
+    return '<svg viewBox="0 0 200 70" xmlns="http://www.w3.org/2000/svg">'
+      +'<rect x="6" y="12" width="188" height="40" rx="11" fill="#fff" stroke="#cdd6e4" stroke-width="2"/>'
+      +'<rect x="6" y="12" width="188" height="11" rx="11" fill="#eef4fc"/>'
+      +'<rect x="12" y="40" width="176" height="9" rx="4" fill="#e7eefb"/>'
+      +'<circle cx="172" cy="32" r="3" fill="#37a0ff"/></svg>';
+  }
+  // 集體偏移（全格共用）
+  const partOffset = { head:{x:0,y:0}, name:{x:0,y:0}, model:{x:0,y:0}, sku:{x:0,y:0}, img:{x:0,y:0}, price:{x:0,y:0} };
+  // 單獨偏移：cellPartOffset[cellIndex][part] = {x,y}
+  const cellPartOffset = {};
+  const cellImgW = {};   // cellIndex -> 商品圖寬度(佔格子寬%)，比照貼紙 rw，預設75
+  let moveMode = 'group';   // 'group' | 'single'
+  let cellMargin = 5;        // 格子內側安全邊距(%)
+  function getCellOff(i, part){
+    if(!cellPartOffset[i]) cellPartOffset[i] = {};
+    if(!cellPartOffset[i][part]) cellPartOffset[i][part] = {x:0,y:0};
+    return cellPartOffset[i][part];
+  }
+  function totalOff(i, part){
+    const g = partOffset[part], s = getCellOff(i, part);
+    return { x: g.x + s.x, y: g.y + s.y };
+  }
+  function partStyle(part, i){
+    const o = totalOff(i, part);
+    let extra = (part==='img') ? (';--imgw:'+(cellImgW[i]||75)) : '';
+    return ' data-i="'+i+'" style="--dx:'+o.x+';--dy:'+o.y+extra+'"';
+  }
+  function cellCard(p, i){
+    const logo = brandLogos[p.brand];
+    const sp = (p.special != null ? p.special : p.price);
+    return '<div class="pcardview">'
+      + '<div class="cv-head cv-part" data-part="head"'+partStyle('head', i)+'>'
+        + (logo ? '<img class="cv-logo" src="' + logo + '">' : '<span class="cv-brand">' + (p.brand || '') + '</span>')
+      + '</div>'
+      + '<div class="cv-name cv-part" data-part="name"'+partStyle('name', i)+'>' + (p.name || '') + '</div>'
+      + '<div class="cv-meta cv-part" data-part="model"'+partStyle('model', i)+'>機種：' + (p.model || '—') + '</div>'
+      + '<div class="cv-meta cv-part" data-part="sku"'+partStyle('sku', i)+'>SKU：' + (p.sku || '—') + '</div>'
+      + '<div class="cv-img cv-part" data-part="img"'+partStyle('img', i)+'><div class="cv-img-inner">' + (p.img ? '<img src="'+p.img+'">' : acSVG()) + '<div class="img-handle"></div></div></div>'
+      + '<div class="cv-price cv-part" data-part="price"'+partStyle('price', i)+'>'
+        + '<span class="cv-mkt">市價：' + fmt(p.price) + '元</span>'
+        + (editingCell === i
+            ? '<input class="cv-edit" type="text" value="' + sp + '" '
+              + 'onclick="event.stopPropagation()" ondblclick="event.stopPropagation()" '
+              + 'onkeydown="if(event.key===\'Enter\'){this.blur();}" '
+              + 'onblur="window._commitPrice(' + i + ', this.value)">'
+            : '<span class="cv-special" onclick="event.stopPropagation(); window._startEdit(' + i + ')" ondblclick="event.stopPropagation()">' + fmt(sp) + '</span>')
+      + '</div>'
+      + '</div>';
+  }
+
+  /* 點格子 → 開搜尋 */
+  window._cell = i => {
+    activeCell = i;
+    const s = document.getElementById('search');
+    s.value = '';
+    renderResults('');
+    document.getElementById('modal').classList.add('open');
+    s.focus();
+  };
+  function renderResults(q){
+    const ql = q.trim().toLowerCase();
+    const el = document.getElementById('results');
+    const list = products.filter(p => (p.brand + ' ' + p.model + ' ' + (p.name||'') + ' ' + (p.sku||'')).toLowerCase().includes(ql));
+    el.innerHTML = list.length
+      ? list.map(p => '<div class="ritem" onclick="window._pickP(' + products.indexOf(p) + ')">'
+          + '<span class="rb">' + p.brand + '</span><span class="rs">' + p.model + ' · ' + (p.name||'') + '</span></div>').join('')
+      : '<div class="r-empty">查無商品，可到「商品資訊」新增</div>';
+  }
+  /* ── Undo / Redo ── */
+  let history = [], hidx = -1, restoring = false;
+  // 收集左側欄所有可調設定的值
+  function getControls(){
+    const c = {};
+    document.querySelectorAll('.sliders input[type=range][data-var]').forEach(r=>{ c[r.dataset.var]=r.value; });
+    c.sheetW = document.getElementById('sheetW').value;
+    c.sheetH = document.getElementById('sheetH').value;
+    c.cellMargin = document.getElementById('cellMargin').value;
+    c.bg = document.getElementById('bg').value;
+    c.imgMul = document.getElementById('imgMul').value;
+    return c;
+  }
+  function setControls(c){
+    if(!c) return;
+    document.querySelectorAll('.sliders input[type=range][data-var]').forEach(r=>{
+      if(c[r.dataset.var]!=null) r.value = c[r.dataset.var];
+    });
+    if(c.sheetW!=null) document.getElementById('sheetW').value = c.sheetW;
+    if(c.sheetH!=null) document.getElementById('sheetH').value = c.sheetH;
+    if(c.cellMargin!=null) document.getElementById('cellMargin').value = c.cellMargin;
+    if(c.bg!=null) document.getElementById('bg').value = c.bg;
+    if(c.imgMul!=null) document.getElementById('imgMul').value = c.imgMul;
+    // 重新套用
+    if(typeof applySheetSize==='function') applySheetSize();   // 內含 applyItemSizes + fitToStage
+    if(typeof applyItemSizes==='function') applyItemSizes();
+    if(typeof applyImgMul==='function') applyImgMul();
+    if(typeof applyCellMargin==='function') applyCellMargin();
+    if(c.bg!=null) dmAreaEl.style.setProperty('--sheet-bg', c.bg);
+  }
+  function snapshot(){
+    return JSON.stringify({
+      n: curN, cols: curCols,
+      cells,
+      partOffset,
+      cellPartOffset,
+      cellImgW,
+      stickers: (window._getStickerState ? window._getStickerState() : {}),
+      controls: getControls()
+    });
+  }
+  function pushHistory(){
+    if(restoring) return;
+    const snap = snapshot();
+    if(hidx>=0 && history[hidx]===snap) return;     // 沒變化不記
+    history = history.slice(0, hidx+1);
+    history.push(snap);
+    hidx = history.length-1;
+    if(history.length>100){ history.shift(); hidx--; }
+    updateUndoButtons();
+    if(window._persist) window._persist();           // 自動存檔
+  }
+  function applySnap(snap){
+    const o = JSON.parse(snap);
+    restoring = true;
+    if(o.n){ curN = o.n; curCols = o.cols || curCols; }   // 還原版面格數
+    setControls(o.controls);           // 先還原左側欄尺寸/邊距/背景
+    cells.length = 0; o.cells.forEach(c=>cells.push(c));
+    Object.keys(partOffset).forEach(k=>{ partOffset[k]=o.partOffset[k]; });
+    Object.keys(cellPartOffset).forEach(k=>delete cellPartOffset[k]);
+    Object.keys(o.cellPartOffset||{}).forEach(k=>{ cellPartOffset[k]=o.cellPartOffset[k]; });
+    Object.keys(cellImgW).forEach(k=>delete cellImgW[k]);
+    Object.keys(o.cellImgW||{}).forEach(k=>{ cellImgW[k]=o.cellImgW[k]; });
+    if(window._setStickerState) window._setStickerState(o.stickers);
+    render(curN, curCols);
+    restoring = false;
+    updateUndoButtons();
+  }
+  function undo(){ if(hidx>0){ hidx--; applySnap(history[hidx]); } }
+  function redo(){ if(hidx<history.length-1){ hidx++; applySnap(history[hidx]); } }
+  function updateUndoButtons(){
+    document.getElementById('undoBtn').disabled = !(hidx>0);
+    document.getElementById('redoBtn').disabled = !(hidx<history.length-1);
+  }
+  document.getElementById('undoBtn').addEventListener('click', undo);
+  document.getElementById('redoBtn').addEventListener('click', redo);
+  document.addEventListener('keydown', e=>{
+    if((e.ctrlKey||e.metaKey) && !e.shiftKey && e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); }
+    else if((e.ctrlKey||e.metaKey) && (e.key.toLowerCase()==='y' || (e.shiftKey && e.key.toLowerCase()==='z'))){ e.preventDefault(); redo(); }
+  });
+  window._pushHistory = pushHistory;   // 供貼紙 IIFE 呼叫
+
+  /* ── 以型號為單位的參數庫 + localStorage 持久化 ── */
+  const STORAGE_KEY = 'dm_pinban_v1';
+  let modelParams = {};   // model -> { special, offsets:{part:{x,y}}, stickers:[...] }
+
+  // 把目前每一格的參數，依型號收進 modelParams
+  function captureModelParams(){
+    for(let i=0;i<curN;i++){
+      const p = cells[i];
+      if(!p || !p.model) continue;
+      modelParams[p.model] = {
+        special: (p.special!=null ? p.special : p.price),
+        offsets: JSON.parse(JSON.stringify(cellPartOffset[i]||{})),
+        imgW: (cellImgW[i]||75),
+        stickers: (window._getCellStickers ? window._getCellStickers(i) : [])
+      };
+    }
+  }
+  // 帶入商品到某格時，套用該型號存過的參數
+  function applyModelParams(ci, model){
+    const mp = modelParams[model];
+    if(!mp) return;
+    if(mp.special!=null && cells[ci]) cells[ci].special = mp.special;
+    if(mp.offsets) cellPartOffset[ci] = JSON.parse(JSON.stringify(mp.offsets));
+    if(mp.imgW!=null) cellImgW[ci] = mp.imgW;
+    if(window._setCellStickers) window._setCellStickers(ci, mp.stickers||[]);
+  }
+  window._applyModelParams = applyModelParams;
+
+  // 打包完整專案資料（localStorage 與「匯出專案」共用）
+  function buildSaveData(){
+    return {
+      products,
+      brandLogos,
+      controls: getControls(),
+      modelParams,
+      snapshot: (typeof snapshot==='function' ? snapshot() : null),  // 完整版面：含 partOffset、各格位置、貼紙
+      stickerLib: (window._getStickerLib ? window._getStickerLib() : null)
+    };
+  }
+  // 寫入 localStorage（快速暫存，受瀏覽器容量約 5MB 限制）
+  function persist(){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(buildSaveData()));
+      return true;
+    }catch(err){ return false; }   // 容量不足等 → 回報失敗
+  }
+  window._persist = persist;
+
+  // 套用一份完整專案資料（localStorage 載回 與「匯入專案」共用）
+  function applySaveData(data){
+    if(!data) return false;
+    if(Array.isArray(data.products)){ products.length=0; data.products.forEach(p=>products.push(p)); }
+    if(data.brandLogos){ Object.keys(brandLogos).forEach(k=>delete brandLogos[k]); Object.assign(brandLogos, data.brandLogos); }
+    if(data.modelParams) modelParams = data.modelParams;
+    if(data.controls) setControls(data.controls);
+    if(data.stickerLib && window._setStickerLib) window._setStickerLib(data.stickerLib);
+    if(data.snapshot){ try{ applySnap(data.snapshot); }catch(_){} }   // 還原完整版面與所有位置
+    return true;
+  }
+
+  // 「匯出專案」：把整個專案存成 .json 檔（不受容量限制，可備份/搬移）
+  function exportProject(){
+    const blob=new Blob([JSON.stringify(buildSaveData())], {type:'application/json'});
+    const a=document.createElement('a');
+    a.download='DM拼版專案_'+new Date().toISOString().slice(0,10)+'.json';
+    a.href=URL.createObjectURL(blob); a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+  // 「匯入專案」：從 .json 檔還原整個專案
+  function importProject(file){
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        applySaveData(data);
+        renderTable();
+        if(window._pushHistory) window._pushHistory();
+        try{ persist(); }catch(_){}
+      }catch(err){ alert('匯入失敗：檔案格式不正確\n'+(err&&err.message||err)); }
+    };
+    r.readAsText(file);
+  }
+
+  // 從 localStorage 載回
+  function loadPersisted(){
+    let data;
+    try{ data = JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'); }catch(_){ data=null; }
+    if(!data) return false;
+    return applySaveData(data);
+  }
+
+  // 「保存」按鈕：收參數 + 寫入
+  document.getElementById('saveData').addEventListener('click', ()=>{
+    captureModelParams();
+    const ok = persist();
+    const btn=document.getElementById('saveData');
+    const old=btn.textContent; btn.textContent = ok ? '✓ 已保存' : '✗ 容量不足，未保存';
+    setTimeout(()=>btn.textContent=old, ok ? 1200 : 2200);
+  });
+
+  // 「匯出專案 / 讀檔」：檔案式存讀，完整保留所有位置，不受容量限制
+  document.getElementById('exportProj').addEventListener('click', ()=>{ captureModelParams(); exportProject(); });
+  document.getElementById('importProj').addEventListener('click', ()=> document.getElementById('projFile').click());
+  document.getElementById('projFile').addEventListener('change', e=>{
+    const f=e.target.files[0]; if(f) importProject(f); e.target.value='';
+  });
+
+  // 頁內自製確認框（避免原生 confirm 被瀏覽器靜默封鎖）
+  function showConfirm(title, msg, onYes){
+    let ov=document.getElementById('cfmOverlay');
+    if(!ov){
+      ov=document.createElement('div'); ov.id='cfmOverlay';
+      ov.style.cssText='position:fixed;inset:0;background:rgba(15,22,40,.45);display:none;align-items:center;justify-content:center;z-index:400;font-family:inherit';
+      ov.innerHTML='<div style="background:#fff;border-radius:14px;max-width:380px;width:90%;padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.25)">'
+        +'<div id="cfmTitle" style="font-size:17px;font-weight:800;color:#000;margin-bottom:8px"></div>'
+        +'<div id="cfmMsg" style="font-size:13.5px;color:#444;line-height:1.7;margin-bottom:18px"></div>'
+        +'<div style="display:flex;gap:10px;justify-content:flex-end">'
+        +'<button id="cfmNo" style="border:1px solid #e3e7ef;background:#fbfcfe;color:#000;border-radius:9px;padding:9px 16px;font:inherit;font-weight:700;cursor:pointer">取消</button>'
+        +'<button id="cfmYes" style="border:none;background:#d31f2b;color:#fff;border-radius:9px;padding:9px 16px;font:inherit;font-weight:700;cursor:pointer">確定</button></div></div>';
+      document.body.appendChild(ov);
+    }
+    ov.querySelector('#cfmTitle').textContent=title;
+    ov.querySelector('#cfmMsg').textContent=msg;
+    ov.style.display='flex';
+    const yes=ov.querySelector('#cfmYes'), no=ov.querySelector('#cfmNo');
+    const close=()=>{ ov.style.display='none'; };
+    yes.onclick=()=>{ close(); try{ onYes(); }catch(err){ alert('執行時發生錯誤：'+(err&&err.message||err)); } };
+    no.onclick=close;
+    ov.onclick=e=>{ if(e.target===ov) close(); };
+  }
+
+  // 「清空」按鈕：清掉整個版面（商品、貼紙、位移、圖寬），保留版面尺寸與商品庫
+  function doClearAll(){
+    cells.length = 0;                                            // 清空所有格子商品
+    Object.keys(cellPartOffset).forEach(k=>delete cellPartOffset[k]);
+    Object.keys(partOffset).forEach(k=>{ partOffset[k]={x:0,y:0}; });
+    Object.keys(cellImgW).forEach(k=>delete cellImgW[k]);
+    if(window._setStickerState) window._setStickerState({});     // 清掉所有已放置貼紙
+    render(curN, curCols);
+    if(window._pushHistory) window._pushHistory();
+  }
+  document.getElementById('clearAll').addEventListener('click', ()=>{
+    showConfirm('清空整個版面？', '所有格子的商品、貼紙與位置都會被移除（商品庫與版面尺寸保留）。', doClearAll);
+  });
+
+  window._pickP = gi => {
+    const c = Object.assign({}, products[gi]);
+    c.special = products[gi].price;        // 特價預設 = 市價
+    cells[activeCell] = c;
+    if(window._applyModelParams) window._applyModelParams(activeCell, c.model);  // 帶入存過的參數
+    closeModal();
+    render(curN, curCols);
+    pushHistory();
+  };
+  /* 商品圖：點選顯示縮放角，拖角單獨縮放該格（線性手感，比照貼紙） */
+  (function(){
+    let rz=false, hsx=0, baseImgW=75, targetInner=null, ci=null;
+    sheet.addEventListener('pointerdown', e=>{
+      const handle = e.target.closest('.img-handle');
+      if(handle){
+        const cvimg = handle.closest('.cv-img');
+        ci = Number(cvimg.dataset.i);
+        targetInner = cvimg;
+        hsx = e.clientX;
+        baseImgW = cellImgW[ci] || 75;     // 起始寬(佔格子%)
+        rz = true;
+        handle.setPointerCapture(e.pointerId);
+        e.stopPropagation();
+        return;
+      }
+      const cvimg = e.target.closest('.cv-img');
+      sheet.querySelectorAll('.cv-img.img-selected').forEach(x=>{ if(x!==cvimg) x.classList.remove('img-selected'); });
+      if(cvimg) cvimg.classList.add('img-selected');
+    });
+    document.addEventListener('pointermove', e=>{
+      if(!rz || !targetInner) return;
+      // 完全比照貼紙：只看 X 軸位移，換成「佔格子寬的百分比」
+      const cell = targetInner.closest('.cell');
+      const cw = cell.getBoundingClientRect().width;   // 已含 fit 縮放的螢幕寬
+      let nw = baseImgW + (e.clientX - hsx) / cw * 100; // X 位移 → %
+      nw = Math.max(5, Math.min(nw, 100));
+      cellImgW[ci] = nw;
+      targetInner.querySelector('.cv-img-inner').style.setProperty('--imgw', nw);
+    });
+    document.addEventListener('pointerup', ()=>{
+      if(rz){ rz=false; targetInner=null; if(window._pushHistory) window._pushHistory(); }
+    });
+    sheet.addEventListener('pointerdown', e=>{
+      if(!e.target.closest('.cv-img')){
+        sheet.querySelectorAll('.cv-img.img-selected').forEach(x=>x.classList.remove('img-selected'));
+      }
+    });
+  })();
+
+  window._startEdit = i => { editingCell = i; render(curN, curCols); };
+  window._commitPrice = (i, v) => {
+    const n = Number(String(v).replace(/[^0-9.]/g, ''));
+    if(v.trim() !== '' && !isNaN(n)) cells[i].special = n;
+    editingCell = null;
+    render(curN, curCols);
+    pushHistory();
+  };
+
+  /* 格內元素拖移：集體=所有格同元素一起動；單獨=只動被拖的那個 */
+  (function(){
+    let part=null, dragEl=null, dragI=null, startX=0, startY=0, ddx=0, ddy=0,
+        cellW=1, cellH=1, moved=false;
+    // 重新套用某 part 在所有格的總偏移到畫面
+    function refreshPart(p){
+      sheet.querySelectorAll('.cv-part[data-part="'+p+'"]').forEach(el=>{
+        const i = Number(el.dataset.i);
+        const o = totalOff(i, p);
+        el.style.setProperty('--dx', o.x);
+        el.style.setProperty('--dy', o.y);
+      });
+    }
+    let elBaseL=0, elBaseT=0, elW=0, elH=0, pending=false, capturedId=null;
+    sheet.addEventListener('pointerdown', e=>{
+      const el = e.target.closest('.cv-part');
+      if(!el) return;
+      if(e.target.classList.contains('img-handle')) return;   // 抓到縮放角時不啟動拖移（比照貼紙 p-handle）
+      if(e.target.classList.contains('cv-edit')) return;
+      // 先記錄，但「還沒」開始拖移，也不捕獲指標 → 單純點擊可正常觸發(改價)
+      part = el.dataset.part;
+      dragEl = el; dragI = Number(el.dataset.i);
+      const cell = el.closest('.cell');
+      // 把要移動的部位提到最上層（避免被價格等較上層元素蓋住而抓不動）
+      sheet.querySelectorAll('.cv-part.raised').forEach(p=>{ if(p!==el) p.classList.remove('raised'); });
+      el.classList.add('raised');
+      const cr = cell.getBoundingClientRect();
+      const er = el.getBoundingClientRect();
+      cellW = cr.width; cellH = cr.height;
+      elBaseL = er.left - cr.left; elBaseT = er.top - cr.top;
+      elW = er.width; elH = er.height;
+      startX = e.clientX; startY = e.clientY;
+      ddx = 0; ddy = 0; moved = false; pending = true; capturedId = e.pointerId;
+    });
+    // 夾住本次位移(ddx,ddy 為 cqw/cqh%)，使元素邊界不超出格子內縮 margin 的安全框
+    function clampMove(){
+      if(part === 'img') return;                  // 商品圖不受 margin 限制
+      const m = cellMargin;                       // %
+      const marginX = m/100 * cellW, marginY = m/100 * cellH;
+      // 本次位移換成 px
+      let dxPx = ddx/100 * cellW, dyPx = ddy/100 * cellH;
+      // 新位置(相對格子)
+      let newL = elBaseL + dxPx, newT = elBaseT + dyPx;
+      // 夾 X
+      const minL = marginX, maxL = cellW - marginX - elW;
+      if(maxL >= minL){ newL = Math.max(minL, Math.min(maxL, newL)); }
+      else { newL = minL; }                        // 元素比可用區還寬，靠左
+      // 夾 Y
+      const minT = marginY, maxT = cellH - marginY - elH;
+      if(maxT >= minT){ newT = Math.max(minT, Math.min(maxT, newT)); }
+      else { newT = minT; }
+      // 反推回 ddx/ddy
+      ddx = (newL - elBaseL) / cellW * 100;
+      ddy = (newT - elBaseT) / cellH * 100;
+    }
+    sheet.addEventListener('pointermove', e=>{
+      if(part===null) return;
+      const dxPx = e.clientX - startX, dyPx = e.clientY - startY;
+      if(!moved){
+        if(Math.abs(dxPx) <= 3 && Math.abs(dyPx) <= 3) return;  // 還沒算移動
+        moved = true;
+        // 正式開始拖移：此刻才捕獲指標、標記
+        try{ dragEl.setPointerCapture(capturedId); }catch(_){}
+        dragEl.classList.add('dragging');
+      }
+      ddx = dxPx / cellW * 100;   // 本次位移(cqw)
+      ddy = dyPx / cellH * 100;
+      clampMove();                 // 限制在格子內縮 margin 的範圍
+      if(moveMode === 'group'){
+        // 套到所有同 part：各自的單獨偏移 + 集體偏移 + 本次位移
+        sheet.querySelectorAll('.cv-part[data-part="'+part+'"]').forEach(el=>{
+          const i = Number(el.dataset.i);
+          const s = getCellOff(i, part), g = partOffset[part];
+          el.style.setProperty('--dx', g.x + s.x + ddx);
+          el.style.setProperty('--dy', g.y + s.y + ddy);
+        });
+      } else {
+        // 只動被拖的那一個
+        const i = dragI, s = getCellOff(i, part), g = partOffset[part];
+        dragEl.style.setProperty('--dx', g.x + s.x + ddx);
+        dragEl.style.setProperty('--dy', g.y + s.y + ddy);
+      }
+    });
+    function endDrag(e){
+      if(part===null) return;
+      if(!moved){            // 純點擊，沒拖移：放行(改價等)，不做任何位移
+        part=null; dragEl=null; dragI=null; pending=false;
+        return;
+      }
+      if(moveMode === 'group'){
+        partOffset[part].x += ddx;
+        partOffset[part].y += ddy;
+      } else {
+        const s = getCellOff(dragI, part);
+        s.x += ddx; s.y += ddy;
+      }
+      refreshPart(part);
+      sheet.querySelectorAll('.cv-part.dragging').forEach(el=>el.classList.remove('dragging'));
+      part = null; dragEl = null; dragI = null; pending=false;
+      if(window._pushHistory) window._pushHistory();
+      // 拖移後吞掉接下來的 click（避免誤開搜尋/編輯）
+      const swallow = ev=>{ ev.stopPropagation(); ev.preventDefault(); };
+      sheet.addEventListener('click', swallow, {capture:true, once:true});
+      setTimeout(()=>sheet.removeEventListener('click', swallow, {capture:true}), 0);
+    }
+    sheet.addEventListener('pointerup', endDrag);
+    sheet.addEventListener('pointercancel', ()=>{ part=null; dragEl=null;
+      sheet.querySelectorAll('.cv-part.dragging').forEach(el=>el.classList.remove('dragging')); });
+  })();
+
+  /* 移動模式切換 */
+  document.querySelectorAll('.movemode').forEach(b=>b.addEventListener('click', ()=>{
+    document.querySelectorAll('.movemode').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    moveMode = b.dataset.mode;
+  }));
+  function closeModal(){ document.getElementById('modal').classList.remove('open'); }
+  document.getElementById('search').addEventListener('input', e => renderResults(e.target.value));
+  document.getElementById('closeModal').addEventListener('click', closeModal);
+  document.getElementById('clearCell').addEventListener('click', () => { cells[activeCell] = null; closeModal(); render(curN, curCols); pushHistory(); });
+  document.getElementById('modal').addEventListener('click', e => { if(e.target.id === 'modal') closeModal(); });
+
+  /* ── 批量填入 ── */
+  let bulkPicked = [];   // 商品索引陣列（依勾選順序）
+  function openBulk(){
+    bulkPicked = [];
+    document.getElementById('bulkSearch').value = '';
+    renderBulkResults('');
+    renderBulkSelected();
+    document.getElementById('bulkModal').classList.add('open');
+    document.getElementById('bulkSearch').focus();
+  }
+  function closeBulk(){ document.getElementById('bulkModal').classList.remove('open'); }
+  function renderBulkResults(q){
+    const ql = q.trim().toLowerCase();
+    const el = document.getElementById('bulkResults');
+    const list = products.filter(p => (p.brand+' '+p.model+' '+(p.name||'')+' '+(p.sku||'')).toLowerCase().includes(ql));
+    el.innerHTML = list.length
+      ? list.map(p => { const gi = products.indexOf(p);
+          return '<div class="ritem'+(bulkPicked.includes(gi)?' picked':'')+'" onclick="window._bulkToggle('+gi+')">'
+            + '<span class="rb">'+p.brand+'</span><span class="rs">'+p.model+' · '+(p.name||'')+'</span></div>'; }).join('')
+      : '<div class="r-empty" style="padding:14px;color:var(--muted)">查無商品</div>';
+  }
+  function renderBulkSelected(){
+    const el = document.getElementById('bulkSelected');
+    document.getElementById('bulkCount').textContent = bulkPicked.length;
+    document.getElementById('bulkSlots').textContent = curN;
+    el.innerHTML = bulkPicked.map((gi,k)=>{ const p=products[gi];
+      return '<span class="bulk-chip"><span class="order">'+(k+1)+'</span>'
+        + (p.brand||'')+' '+(p.model||'')
+        + '<button onclick="window._bulkRemove('+gi+')">✕</button></span>'; }).join('');
+  }
+  window._bulkToggle = gi => {
+    const i = bulkPicked.indexOf(gi);
+    if(i>=0) bulkPicked.splice(i,1);          // 取消
+    else bulkPicked.push(gi);                  // 加入（同商品只能一次）
+    renderBulkResults(document.getElementById('bulkSearch').value);
+    renderBulkSelected();
+  };
+  window._bulkRemove = gi => {
+    const i = bulkPicked.indexOf(gi); if(i>=0) bulkPicked.splice(i,1);
+    renderBulkResults(document.getElementById('bulkSearch').value);
+    renderBulkSelected();
+  };
+  document.getElementById('bulkFill').addEventListener('click', openBulk);
+  document.getElementById('closeBulk').addEventListener('click', closeBulk);
+  document.getElementById('bulkModal').addEventListener('click', e=>{ if(e.target.id==='bulkModal') closeBulk(); });
+  document.getElementById('bulkSearch').addEventListener('input', e=>renderBulkResults(e.target.value));
+  document.getElementById('bulkClear').addEventListener('click', ()=>{ bulkPicked=[]; renderBulkResults(document.getElementById('bulkSearch').value); renderBulkSelected(); });
+  document.getElementById('bulkApply').addEventListener('click', ()=>{
+    // 先清空所有格（含偏移、貼紙），再依勾選順序填入
+    for(let i=0;i<curN;i++){
+      cells[i] = null;
+      delete cellPartOffset[i];
+      delete cellImgW[i];
+      if(window._setCellStickers) window._setCellStickers(i, []);
+    }
+    bulkPicked.forEach((gi,k)=>{
+      if(k>=curN) return;                       // 超過格數的略過
+      const c = Object.assign({}, products[gi]);
+      c.special = products[gi].price;
+      cells[k] = c;
+      if(window._applyModelParams) window._applyModelParams(k, c.model);  // 帶入存過的參數
+    });
+    closeBulk();
+    render(curN, curCols);
+    pushHistory();
+  });
+
+  const sheetWEl = document.getElementById('sheetW');
+  const sheetHEl = document.getElementById('sheetH');
+  const stageEl  = document.getElementById('dmStage');
+
+  // 把 dmArea(真實尺寸) 等比縮到塞進可視舞台
+  function fitToStage(){
+    const w = Number(sheetWEl.value), h = Number(sheetHEl.value);
+    const aw = stageEl.clientWidth, ah = stageEl.clientHeight;
+    if(!aw || !ah) return;
+    const fit = Math.min(aw / w, ah / h, 1) * 0.96;  // 留一點邊
+    dmAreaEl.style.setProperty('--fit', fit);
+  }
+  function applySheetSize(){
+    dmAreaEl.style.setProperty('--sheet-w', sheetWEl.value + 'px');
+    dmAreaEl.style.setProperty('--sheet-h', sheetHEl.value + 'px');
+    document.getElementById('sheetWVal').textContent = sheetWEl.value;
+    document.getElementById('sheetHVal').textContent = sheetHEl.value;
+    if(typeof applyItemSizes === 'function') applyItemSizes();
+    fitToStage();
+  }
+  // 依目前寬度，把高度設成「格子正方形」對應值，並同步高度滑桿
+  function setSquareHeight(){
+    const rows = Math.ceil(curN / curCols);
+    const cellW = Number(sheetWEl.value) / curCols;
+    let h = Math.round(cellW * rows);
+    h = Math.max(Number(sheetHEl.min), Math.min(Number(sheetHEl.max), h));
+    sheetHEl.value = h;
+    applySheetSize();
+  }
+
+  gbtns.forEach(b => b.addEventListener('click', () => {
+    gbtns.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    render(Number(b.dataset.n), Number(b.dataset.cols));
+    setSquareHeight();
+  }));
+  document.getElementById('applyCustom').addEventListener('click', () => {
+    const rows = Math.max(1, Number(document.getElementById('rows').value) || 1);
+    const cols = Math.max(1, Number(document.getElementById('cols').value) || 1);
+    gbtns.forEach(x => x.classList.remove('active'));
+    render(rows * cols, cols);
+    setSquareHeight();
+  });
+  document.getElementById('bg').addEventListener('input', e => {
+    dmAreaEl.style.setProperty('--sheet-bg', e.target.value);
+  });
+  // 套用初始背景色
+  dmAreaEl.style.setProperty('--sheet-bg', document.getElementById('bg').value);
+  // 輸出尺寸滑桿（改的是真實像素，畫面自動 fit）
+  sheetWEl.addEventListener('input', applySheetSize);
+  sheetHEl.addEventListener('input', applySheetSize);
+  window.addEventListener('resize', fitToStage);
+  // 切到拼版分頁時重新 fit（隱藏時量不到尺寸）
+  document.querySelectorAll('.tab[data-tab]').forEach(t=>t.addEventListener('click',()=>{
+    if(t.dataset.tab==='layout') requestAnimationFrame(fitToStage);
+  }));
+
+  // 項目大小：滑桿為「基準px(以寬900為準)」，實際 = 基準 × (輸出寬/900)
+  const ITEM_BASE_W = 900;
+  const itemSliders = document.querySelectorAll('.sliders input[type=range][data-var]');
+  function applyItemSizes(){
+    const ratio = Number(sheetWEl.value) / ITEM_BASE_W;
+    itemSliders.forEach(r => {
+      sheet.style.setProperty(r.dataset.var, (Number(r.value) * ratio) + 'px');
+    });
+  }
+  itemSliders.forEach(r => r.addEventListener('input', applyItemSizes));
+  applyItemSizes();
+
+  // 冷氣圖整體比例（純倍率）
+  const imgMulEl = document.getElementById('imgMul');
+  function applyImgMul(){ sheet.style.setProperty('--imgmul', imgMulEl.value); }
+  imgMulEl.addEventListener('input', applyImgMul);
+  imgMulEl.addEventListener('change', ()=>{ if(window._pushHistory) window._pushHistory(); });
+  applyImgMul();
+
+  // 格子邊距
+  const cellMarginEl = document.getElementById('cellMargin');
+  function applyCellMargin(){
+    cellMargin = Number(cellMarginEl.value);
+    dmAreaEl.style.setProperty('--cmargin', cellMargin);
+    document.getElementById('cellMarginVal').textContent = cellMargin;
+    if(window._reclampStickers) window._reclampStickers();   // 貼紙重新夾進新邊距
+  }
+  cellMarginEl.addEventListener('input', applyCellMargin);
+  applyCellMargin();
+
+  // 左側欄設定改變（放開滑桿/選色）後記錄一步，供 undo/redo
+  function bindControlHistory(){
+    const onChange = ()=>{ if(!restoring && window._pushHistory) window._pushHistory(); };
+    document.querySelectorAll('.sliders input[type=range][data-var]').forEach(r=>r.addEventListener('change', onChange));
+    sheetWEl.addEventListener('change', onChange);
+    sheetHEl.addEventListener('change', onChange);
+    cellMarginEl.addEventListener('change', onChange);
+    document.getElementById('bg').addEventListener('change', onChange);
+  }
+  bindControlHistory();
+
+  // 匯出 PNG（用真實尺寸渲染，不受畫面縮放影響）
+  document.getElementById('exportPng').addEventListener('click', async ()=>{
+    if(typeof html2canvas==='undefined'){ alert('匯出元件尚未載入，請檢查網路後重試'); return; }
+    const prevFit = dmAreaEl.style.getPropertyValue('--fit');
+    const sel = document.querySelector('.placed.selected');
+    if(sel) sel.classList.remove('selected');   // 匯出時不要選取框
+    dmAreaEl.style.setProperty('--fit','1');      // 用 1:1 真實尺寸渲染
+    try{
+      const bgCol = getComputedStyle(dmAreaEl).backgroundColor || '#ffffff';
+      const canvas = await html2canvas(dmAreaEl, {
+        backgroundColor:bgCol,
+        width:Number(sheetWEl.value), height:Number(sheetHEl.value),
+        scale:1, useCORS:true
+      });
+      const a=document.createElement('a');
+      a.download='DM拼版_'+sheetWEl.value+'x'+sheetHEl.value+'.png';
+      a.href=canvas.toDataURL('image/png');
+      a.click();
+    }catch(err){ alert('匯出失敗：'+err.message); }
+    finally{
+      dmAreaEl.style.setProperty('--fit', prevFit || '1');
+      if(sel) sel.classList.add('selected');
+      fitToStage();
+    }
+  });
+
+  gbtns[0].classList.add('active');
+  render(6, 3);
+  setSquareHeight();
+  window.addEventListener('load', fitToStage);
+  requestAnimationFrame(fitToStage);
+
+  /* ── 商品資訊 ── */
+  let products = [
+    { brand:'HITACHI', name:'變頻冷暖空調', model:'RAS-28NP1', sku:'2153910', price:33900, category:'空調' }
+  ];
+  const fmt = n => Number(n||0).toLocaleString('en-US');
+
+  function renderTable(){
+    const t = document.getElementById('ptable');
+    if(!products.length){ t.innerHTML = '<tr><td class="empty">尚無商品，請新增或用 CSV 導入</td></tr>'; return; }
+    t.innerHTML = '<tr><th>圖</th><th>類別</th><th>品牌</th><th>商品名字</th><th>型號</th><th>SKU</th><th>市價</th><th></th></tr>'
+      + products.map((p,i) =>
+        '<tr><td><div class="timg" data-i="'+i+'" title="拖曳 PNG 進來或點擊更換">'
+          + (p.img ? '<img src="'+p.img+'">' : '拖圖<br>或點擊')
+          + '</div></td>'
+        +'<td>'+(p.category||'')+'</td><td>'+p.brand+'</td><td>'+p.name+'</td><td>'+p.model+'</td><td>'+p.sku+'</td>'
+        +'<td>$'+fmt(p.price)+'</td>'
+        +'<td><button class="del" onclick="window._delP('+i+')" title="刪除">✕</button></td></tr>'
+      ).join('');
+  }
+  window._delP = i => { products.splice(i,1); renderTable(); if(window._persist) window._persist(); };
+
+  /* 自動裁掉 PNG 透明邊緣，讓圖左緣=實際圖案左緣（便於靠左對齊文字） */
+  function autocropImage(dataURL){
+    return new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>{
+        const w=img.naturalWidth, h=img.naturalHeight;
+        if(!w||!h){ resolve(dataURL); return; }
+        const c=document.createElement('canvas'); c.width=w; c.height=h;
+        const ctx=c.getContext('2d');
+        ctx.drawImage(img,0,0);
+        let data;
+        try{ data=ctx.getImageData(0,0,w,h).data; }
+        catch(_){ resolve(dataURL); return; }   // 跨域等失敗就原樣
+        const A=10; // alpha 門檻
+        let minX=w, minY=h, maxX=-1, maxY=-1;
+        for(let y=0;y<h;y++){
+          for(let x=0;x<w;x++){
+            if(data[(y*w+x)*4+3] > A){
+              if(x<minX)minX=x; if(x>maxX)maxX=x;
+              if(y<minY)minY=y; if(y>maxY)maxY=y;
+            }
+          }
+        }
+        if(maxX<minX||maxY<minY){ resolve(dataURL); return; } // 全透明
+        const cw=maxX-minX+1, ch=maxY-minY+1;
+        if(cw===w && ch===h){ resolve(dataURL); return; }      // 無邊可裁
+        const oc=document.createElement('canvas'); oc.width=cw; oc.height=ch;
+        oc.getContext('2d').drawImage(c, minX,minY,cw,ch, 0,0,cw,ch);
+        resolve(oc.toDataURL('image/png'));
+      };
+      img.onerror=()=>resolve(dataURL);
+      img.src=dataURL;
+    });
+  }
+
+  /* 新增區：選圖預覽 + 暫存 */
+  let pendingImg = null;
+  const pImgInput = document.getElementById('p-img');
+  const pImgPick  = document.getElementById('pImgPick');
+  function setPickPreview(src){
+    pImgPick.innerHTML = (src ? '<img src="'+src+'">' : '選擇PNG') ;
+    pImgPick.appendChild(pImgInput);   // 保留 input 在標籤內
+  }
+  pImgInput.addEventListener('change', e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=async ev=>{ pendingImg=await autocropImage(ev.target.result); setPickPreview(pendingImg); };
+    r.readAsDataURL(f); e.target.value='';
+  });
+
+  document.getElementById('addProduct').addEventListener('click', () => {
+    const g = id => document.getElementById(id).value.trim();
+    const brand = g('p-brand'), name = g('p-name'), model = g('p-model');
+    if(!brand && !name && !model){ alert('請至少填入品牌、商品名字或型號'); return; }
+    products.push({ category: g('p-cat'), brand, name, model, sku: g('p-sku'), price: Number(g('p-price'))||0, img: pendingImg });
+    ['p-cat','p-brand','p-name','p-model','p-sku','p-price'].forEach(id => document.getElementById(id).value = '');
+    pendingImg=null; setPickPreview(null);
+    renderTable();
+    if(window._persist) window._persist();
+  });
+
+  /* 表格圖欄：點擊選檔 + 拖曳 PNG（事件委派，綁一次） */
+  const ptableEl = document.getElementById('ptable');
+  const rowImgInput = document.createElement('input');
+  rowImgInput.type='file'; rowImgInput.accept='image/*'; rowImgInput.hidden=true;
+  document.body.appendChild(rowImgInput);
+  let rowImgTarget = null;
+  function readToProduct(file, idx){
+    if(!file || !file.type.startsWith('image/')) return;
+    const r=new FileReader(); r.onload=ev=>{ products[idx].img=ev.target.result; renderTable(); if(window._persist) window._persist(); };
+    r.readAsDataURL(file);
+  }
+  rowImgInput.addEventListener('change', e=>{
+    if(rowImgTarget!=null) readToProduct(e.target.files[0], rowImgTarget);
+    rowImgTarget=null; e.target.value='';
+  });
+  ptableEl.addEventListener('click', e=>{
+    const cell=e.target.closest('.timg'); if(!cell) return;
+    rowImgTarget=Number(cell.dataset.i); rowImgInput.click();
+  });
+  ['dragenter','dragover'].forEach(ev=>ptableEl.addEventListener(ev, e=>{
+    const cell=e.target.closest('.timg');
+    if(cell && e.dataTransfer.types.includes('Files')){ e.preventDefault(); cell.classList.add('dragover'); }
+  }));
+  ptableEl.addEventListener('dragleave', e=>{
+    const cell=e.target.closest('.timg'); if(cell) cell.classList.remove('dragover');
+  });
+  ptableEl.addEventListener('drop', e=>{
+    const cell=e.target.closest('.timg'); if(!cell) return;
+    e.preventDefault(); cell.classList.remove('dragover');
+    if(e.dataTransfer.files.length) readToProduct(e.dataTransfer.files[0], Number(cell.dataset.i));
+  });
+
+  /* CSV 解析（支援雙引號欄位） */
+  function parseLine(line){
+    const out=[]; let cur='', q=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(q){ if(c==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+      else { if(c==='"') q=true; else if(c===','){ out.push(cur); cur=''; } else cur+=c; }
+    }
+    out.push(cur); return out.map(s=>s.trim());
+  }
+  document.getElementById('csvFile').addEventListener('change', e => {
+    const file = e.target.files[0]; if(!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      const lines = r.result.replace(/\r/g,'').split('\n').filter(l => l.trim() !== '');
+      lines.forEach((line, idx) => {
+        const c = parseLine(line);
+        if(idx === 0 && /類別|品牌|型號|SKU|市價|brand|model|category/i.test(line)) return; // 略過標題列
+        if(!c[0] && !c[1] && !c[2]) return;
+        products.push({ category:c[0]||'', brand:c[1]||'', name:c[2]||'', model:c[3]||'', sku:c[4]||'', price:Number(c[5])||0 });
+      });
+      renderTable();
+      e.target.value = '';
+      if(window._persist) window._persist();
+    };
+    r.readAsText(file, 'utf-8');
+  });
+
+  renderTable();
+
+  /* ── 品牌（名稱自商品資訊自動帶入） ── */
+  let brandLogos = {};
+  function renderBrands(){
+    const distinct = [...new Set(products.map(p => p.brand).filter(Boolean))];
+    const el = document.getElementById('bgrid');
+    if(!distinct.length){ el.innerHTML = '<div class="empty">尚無品牌，請先到「商品資訊」新增商品或導入 CSV</div>'; return; }
+    el.innerHTML = distinct.map(b => {
+      const logo = brandLogos[b];
+      const enc = encodeURIComponent(b);
+      return '<div class="bcard"><div class="bn">' + b + '</div>'
+        + '<div class="blogo">' + (logo ? '<img src="' + logo + '">' : '<span class="ph">尚未上傳</span>') + '</div>'
+        + '<label class="uplbl">上傳 PNG<input type="file" accept="image/*" hidden '
+        + 'onchange="window._logo(this, decodeURIComponent(\'' + enc + '\'))"></label></div>';
+    }).join('');
+  }
+  window._logo = (input, brand) => {
+    const f = input.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = () => { brandLogos[brand] = r.result; renderBrands(); if(window._persist) window._persist(); };
+    r.readAsDataURL(f);
+  };
+
+  /* ════════════ 貼紙系統 ════════════ */
+  (function(){
+    const dmArea   = document.getElementById('dmArea');
+    const sbItems  = document.getElementById('sbItems');
+    const sbTabs   = document.getElementById('sbTabs');
+    const fileInput= document.getElementById('sbFileInput');
+    const vrFileInput= document.getElementById('vrFileInput');
+
+    const cats = { '一般':[], '促銷':[], '裝飾':[] };
+    let activeCat = '一般';
+    const typeSize   = {};   // stickerId -> {w,h}  同種共用尺寸
+    const placedByType = {}; // stickerId -> [DOM]
+    let suid = 0;
+
+    /* 分類頁籤 */
+    function renderTabs(){
+      sbTabs.innerHTML = '';
+      Object.keys(cats).forEach(name=>{
+        const b=document.createElement('button');
+        b.className='sb-tab'+(name===activeCat?' active':'');
+        b.textContent=name;
+        b.onclick=()=>{activeCat=name;renderTabs();renderItems();};
+        sbTabs.appendChild(b);
+      });
+    }
+    document.getElementById('sbAddCat').onclick=()=>{
+      const n=prompt('新分類名稱：');
+      if(n&&!cats[n]){cats[n]=[];activeCat=n;renderTabs();renderItems();}
+    };
+
+    /* 貼紙欄內容 */
+    function renderItems(){
+      sbItems.innerHTML='';
+      const pick=document.createElement('div');
+      pick.className='sb-pick';
+      pick.innerHTML='<span class="plus">＋</span><span>加入PNG</span>';
+      pick.onclick=()=>fileInput.click();
+      sbItems.appendChild(pick);
+
+      // 可變貼紙：上傳 PNG → 開區域編輯視窗 → 確定後成為可調文字貼紙
+      const pickVar=document.createElement('div');
+      pickVar.className='sb-pick var';
+      pickVar.innerHTML='<span class="plus">＋T</span><span>可變貼紙</span>';
+      pickVar.onclick=()=>vrFileInput.click();
+      sbItems.appendChild(pickVar);
+
+      const items=cats[activeCat];
+      if(!items.length){
+        const m=document.createElement('div');
+        m.className='sb-empty';
+        m.textContent='把 PNG 拖到這裡，或點左側加入';
+        sbItems.appendChild(m);
+        return;
+      }
+      items.forEach(st=>{
+        const d=document.createElement('div');
+        d.className='sb-item';
+        d.draggable=true;
+        const img=document.createElement('img'); img.src=st.src; d.appendChild(img);
+        if(st.tpl){ const bg=document.createElement('div'); bg.className='sb-badge'; bg.textContent='T'; d.appendChild(bg);
+          d.title='可變貼紙（雙擊可編輯文字區）';
+          d.addEventListener('dblclick',()=>{ window._openRegionEditor(st.src, st.tpl, (tpl)=>{ st.tpl=tpl; renderItems(); }); });
+        }
+        const del=document.createElement('div'); del.className='sb-del'; del.textContent='×';
+        del.onclick=ev=>{ev.stopPropagation();
+          cats[activeCat]=cats[activeCat].filter(s=>s.id!==st.id); renderItems();};
+        d.appendChild(del);
+        d.addEventListener('dragstart',e=>{
+          e.dataTransfer.setData('sticker-id',st.id);
+          e.dataTransfer.effectAllowed='copy';
+        });
+        sbItems.appendChild(d);
+      });
+    }
+
+    // 可變貼紙上傳 → 開編輯視窗 → 確定後加入貼紙庫
+    vrFileInput.onchange=e=>{ const f=e.target.files[0]; vrFileInput.value='';
+      if(!f||!f.type.startsWith('image/'))return;
+      const r=new FileReader();
+      r.onload=ev=>{ const src=ev.target.result;
+        window._openRegionEditor(src, null, (tpl)=>{ addToCat(src, activeCat, tpl); }); };
+      r.readAsDataURL(f);
+    };
+
+    function addToCat(src,cat,tpl){
+      const id='sk'+(suid++);
+      const ent={id,src}; if(tpl) ent.tpl=tpl;
+      cats[cat].push(ent);
+      if(activeCat===cat) renderItems();
+      return id;
+    }
+    function findSticker(id){
+      for(const c in cats){const f=cats[c].find(s=>s.id===id);if(f)return f;}
+      return null;
+    }
+
+    /* 檔案處理 */
+    function handleFiles(files){
+      [...files].forEach(f=>{
+        if(!f.type.startsWith('image/'))return;
+        const r=new FileReader();
+        r.onload=e=>addToCat(e.target.result,activeCat);
+        r.readAsDataURL(f);
+      });
+    }
+    fileInput.onchange=e=>{handleFiles(e.target.files);fileInput.value='';};
+
+    /* 拖外部 PNG 進貼紙欄 */
+    ['dragenter','dragover'].forEach(ev=>sbItems.addEventListener(ev,e=>{
+      if(e.dataTransfer.types.includes('Files')){e.preventDefault();sbItems.classList.add('dragover');}}));
+    ['dragleave','drop'].forEach(ev=>sbItems.addEventListener(ev,e=>{sbItems.classList.remove('dragover');}));
+    sbItems.addEventListener('drop',e=>{
+      if(e.dataTransfer.files.length){e.preventDefault();handleFiles(e.dataTransfer.files);}});
+
+    /* ── 貼紙：屬於某一格，位置/尺寸皆相對該格(0~1) ── */
+    // cellStickers[cellIndex] = [ {type, src, rx, ry, rw} ]  rx,ry=左上相對格子比例; rw=寬相對格子寬比例
+    const cellStickers = {};
+    const naturalRatio = {};   // type -> h/w（保持原圖比例）
+    let selKey = null;         // 目前選取貼紙 {ci, idx}
+    // 供 undo/redo 存取貼紙狀態
+    window._getStickerState = ()=> JSON.parse(JSON.stringify(cellStickers));
+    window._setStickerState = (st)=>{
+      Object.keys(cellStickers).forEach(k=>delete cellStickers[k]);
+      Object.keys(st||{}).forEach(k=>{ cellStickers[k]=st[k]; });
+      selKey=null;
+      if(window._renderStickers) window._renderStickers();
+    };
+    // 供「保存/載入」存取完整貼紙資料（含圖庫、比例）
+    window._getStickerFull = ()=> JSON.parse(JSON.stringify({
+      cellStickers, naturalRatio, cats, activeCat
+    }));
+    // 取/設單一格子的貼紙（以型號為單位保存用）
+    window._getCellStickers = (ci)=> JSON.parse(JSON.stringify(cellStickers[ci]||[]));
+    window._setCellStickers = (ci, arr)=>{
+      cellStickers[ci] = JSON.parse(JSON.stringify(arr||[]));
+      // 確保比例已知
+      cellStickers[ci].forEach(s=>{ if(naturalRatio[s.type]==null) getNatRatio(s.type, s.src, ()=>{ if(window._renderStickers) window._renderStickers(); }); });
+      if(window._renderStickers) window._renderStickers();
+    };
+    // 貼紙圖庫（分類+圖）持久化
+    window._getStickerLib = ()=> JSON.parse(JSON.stringify({ cats, naturalRatio, activeCat }));
+    window._setStickerLib = (d)=>{
+      if(!d) return;
+      Object.keys(cats).forEach(k=>delete cats[k]);
+      Object.keys(d.cats||{'一般':[],'促銷':[],'裝飾':[]}).forEach(k=>{ cats[k]=d.cats[k]; });
+      Object.keys(naturalRatio).forEach(k=>delete naturalRatio[k]);
+      Object.keys(d.naturalRatio||{}).forEach(k=>{ naturalRatio[k]=d.naturalRatio[k]; });
+      activeCat = (d.activeCat && cats[d.activeCat]) ? d.activeCat : Object.keys(cats)[0];
+      renderTabs(); renderItems();
+    };
+    window._setStickerFull = (d)=>{
+      if(!d) return;
+      Object.keys(cellStickers).forEach(k=>delete cellStickers[k]);
+      Object.keys(d.cellStickers||{}).forEach(k=>{ cellStickers[k]=d.cellStickers[k]; });
+      Object.keys(naturalRatio).forEach(k=>delete naturalRatio[k]);
+      Object.keys(d.naturalRatio||{}).forEach(k=>{ naturalRatio[k]=d.naturalRatio[k]; });
+      // 還原圖庫分類
+      Object.keys(cats).forEach(k=>delete cats[k]);
+      Object.keys(d.cats||{'一般':[],'促銷':[],'裝飾':[]}).forEach(k=>{ cats[k]=d.cats[k]; });
+      activeCat = (d.activeCat && cats[d.activeCat]) ? d.activeCat : Object.keys(cats)[0];
+      selKey=null;
+      renderTabs(); renderItems();
+      if(window._renderStickers) window._renderStickers();
+    };
+
+    function getNatRatio(type, src, cb){
+      if(naturalRatio[type]!=null){ cb(naturalRatio[type]); return; }
+      const im=new Image();
+      im.onload=()=>{ naturalRatio[type]=(im.naturalHeight/im.naturalWidth)||1; cb(naturalRatio[type]); };
+      im.onerror=()=>{ naturalRatio[type]=1; cb(1); };
+      im.src=src;
+    }
+    // 夾住相對位置，使貼紙在格子內縮 margin 範圍（rw 為寬比例，高比例 = rw*ratio*(cellW/cellH)）
+    function clampRel(s){
+      const cell = sheet.querySelector('.cell[data-cell]');
+      const cw = cell ? cell.clientWidth : 1, ch = cell ? cell.clientHeight : 1;
+      const m = cellMargin/100;
+      const rh = s.rw * (naturalRatio[s.type]||1) * (cw/ch);  // 高佔格子高的比例
+      const minX=m, maxX=1-m-s.rw, minY=m, maxY=1-m-rh;
+      s.rx = (maxX>=minX) ? Math.min(Math.max(s.rx,minX),maxX) : minX;
+      s.ry = (maxY>=minY) ? Math.min(Math.max(s.ry,minY),maxY) : minY;
+    }
+
+    // 重繪所有格子的貼紙
+    window._renderStickers = function(){
+      sheet.querySelectorAll('.placed').forEach(el=>el.remove());
+      Object.keys(cellStickers).forEach(ciStr=>{
+        const ci=Number(ciStr);
+        const cell=sheet.querySelector('.cell[data-cell="'+ci+'"]');
+        if(!cell) return;
+        cellStickers[ci].forEach((s,idx)=>{
+          const rh = s.rw * (naturalRatio[s.type]||1) * (cell.clientWidth/cell.clientHeight);
+          const el=document.createElement('div');
+          el.className='placed'+(selKey&&selKey.ci===ci&&selKey.idx===idx?' selected':'');
+          el.style.left=(s.rx*100)+'%'; el.style.top=(s.ry*100)+'%';
+          el.style.width=(s.rw*100)+'%'; el.style.height=(rh*100)+'%';
+          el.innerHTML='<img src="'+s.src+'">'
+            +'<div class="p-del">×</div>'
+            +'<div class="p-handle"></div>'
+            +'<div class="p-all">全部</div>';
+          cell.appendChild(el);
+          if(s.tpl){ renderVRegions(el, s); }   // 可變貼紙：疊上可編輯文字層
+          bindSticker(el, ci, idx);
+        });
+      });
+      // 還原選取格的 overflow
+      sheet.querySelectorAll('.cell').forEach(c=>{
+        c.classList.toggle('has-sel', selKey!=null && Number(c.dataset.cell)===selKey.ci);
+      });
+    };
+
+    // 在放置的可變貼紙上建立可編輯文字區
+    function renderVRegions(el, s){
+      s.texts = s.texts || {};
+      s.tpl.regions.forEach(rg=>{
+        if(s.texts[rg.id]==null) s.texts[rg.id]=rg.text;
+        const v=document.createElement('div'); v.className='vr';
+        v.style.left=(rg.x*100)+'%'; v.style.top=(rg.y*100)+'%';
+        v.style.width=(rg.w*100)+'%'; v.style.height=(rg.h*100)+'%';
+        v.style.background=rg.bg?rg.bg:'transparent'; v.style.color=rg.color;
+        v.style.fontWeight=rg.bold?'800':'500';
+        v.style.justifyContent=rg.align==='left'?'flex-start':rg.align==='right'?'flex-end':'center';
+        const t=document.createElement('div'); t.className='vr-t';
+        t.innerHTML=s.texts[rg.id];                  // 支援行內樣式（每字大小/顏色…）
+        t.style.textAlign=rg.align; t.setAttribute('contenteditable','true');
+        // 編輯文字時不要觸發貼紙拖移
+        v.addEventListener('pointerdown',ev=>ev.stopPropagation());
+        const save=()=>{ s.texts[rg.id]=t.innerHTML; };
+        t.addEventListener('input', save);
+        t.addEventListener('blur',()=>{ save(); if(window._pushHistory) window._pushHistory(); });
+        // ── 給浮動工具列用的橋接（跨閉包） ──
+        t._save = save;
+        t._getBaseFrac = ()=> rg.fontFrac;
+        t._applyBaseSize = (frac)=>{ rg.fontFrac=Math.max(0.02,Math.min(2,frac)); sizeVRegions(el,s); };
+        t._setAlign = (al)=>{ rg.align=al; v.style.justifyContent=al==='left'?'flex-start':al==='right'?'flex-end':'center'; t.style.textAlign=al; save(); };
+        v.appendChild(t); el.appendChild(v);
+      });
+      sizeVRegions(el, s);
+    }
+    // 依貼紙目前高度換算各文字區字級（縮放時即時呼叫）
+    function sizeVRegions(el, s){
+      if(!s.tpl) return;
+      const h=el.clientHeight; if(!h) return;
+      const vs=el.querySelectorAll('.vr');
+      s.tpl.regions.forEach((rg,i)=>{ if(vs[i]) vs[i].style.fontSize=(rg.fontFrac*h)+'px'; });
+    }
+
+    function selectSticker(ci, idx){
+      selKey={ci,idx};
+      // 只切換 selected class，不重建 DOM（重建會中斷拖移）
+      sheet.querySelectorAll('.placed').forEach(el=>{
+        const sel = (Number(el.dataset.ci)===ci && Number(el.dataset.idx)===idx);
+        el.classList.toggle('selected', sel);
+      });
+      // 含選取貼紙的格子放開 overflow，讓外側按鈕露出
+      sheet.querySelectorAll('.cell').forEach(c=>{
+        c.classList.toggle('has-sel', Number(c.dataset.cell)===ci);
+      });
+    }
+
+    function bindSticker(el, ci, idx){
+      const s=cellStickers[ci][idx];
+      el.dataset.ci=ci; el.dataset.idx=idx;
+      const cell=el.closest('.cell');
+
+      // 刪除
+      el.querySelector('.p-del').onclick=ev=>{ ev.stopPropagation();
+        cellStickers[ci].splice(idx,1); if(selKey&&selKey.ci===ci) selKey=null; window._renderStickers(); if(window._pushHistory)window._pushHistory(); };
+      // 全部：複製到其他所有格子相同相對位置
+      el.querySelector('.p-all').onclick=ev=>{ ev.stopPropagation();
+        for(let c=0;c<curN;c++){
+          if(c===ci) continue;
+          cellStickers[c]=cellStickers[c]||[];
+          const cp={type:s.type, src:s.src, rx:s.rx, ry:s.ry, rw:s.rw};
+          if(s.tpl){ cp.tpl=JSON.parse(JSON.stringify(s.tpl)); cp.texts=JSON.parse(JSON.stringify(s.texts||{})); }
+          cellStickers[c].push(cp);
+        }
+        window._renderStickers();
+        if(window._pushHistory) window._pushHistory();
+      };
+
+      // 拖移（改 rx,ry）— 集體模式時同種一起平移；過程中只改 style，不重建
+      let drag=false, sx,sy, moved=false, group=[];
+      function sameTypeEls(){
+        // 回傳所有同 type 貼紙的 {s, el, orx, ory}
+        const list=[];
+        sheet.querySelectorAll('.placed').forEach(p=>{
+          const pci=Number(p.dataset.ci), pidx=Number(p.dataset.idx);
+          const ps=cellStickers[pci] && cellStickers[pci][pidx];
+          if(ps && ps.type===s.type){ list.push({s:ps, el:p, orx:ps.rx, ory:ps.ry}); }
+        });
+        return list;
+      }
+      el.addEventListener('pointerdown',e=>{
+        if(e.target.classList.contains('p-handle')||e.target.classList.contains('p-del')||e.target.classList.contains('p-all')) return;
+        if(e.target.closest('.vr')) return;   // 點在可編輯文字區 → 不拖移
+        drag=true; moved=false; el.setPointerCapture(e.pointerId);
+        sx=e.clientX; sy=e.clientY;
+        // 集體模式收集同種；單獨模式只有自己
+        group = (moveMode==='group') ? sameTypeEls() : [{s, el, orx:s.rx, ory:s.ry}];
+        selectSticker(ci, idx);
+        e.stopPropagation();
+      });
+      el.addEventListener('pointermove',e=>{ if(!drag)return;
+        const r=cell.getBoundingClientRect();
+        const drx=(e.clientX-sx)/r.width, dry=(e.clientY-sy)/r.height;
+        group.forEach(g=>{
+          g.s.rx = g.orx + drx;
+          g.s.ry = g.ory + dry;
+          clampRel(g.s);
+          g.el.style.left=(g.s.rx*100)+'%'; g.el.style.top=(g.s.ry*100)+'%';
+        });
+        moved=true;
+      });
+      el.addEventListener('pointerup',e=>{ if(!drag)return; drag=false; group=[];
+        try{el.releasePointerCapture(e.pointerId);}catch(_){}
+        if(moved && window._pushHistory) window._pushHistory(); });
+
+      // 縮放（改 rw，同種一起）— 過程中只改 style，結束才同步重繪
+      const handle=el.querySelector('.p-handle');
+      let rz=false, hsx, brw, lastRw;
+      handle.addEventListener('pointerdown',e=>{
+        e.stopPropagation(); rz=true; handle.setPointerCapture(e.pointerId);
+        hsx=e.clientX; brw=s.rw; lastRw=s.rw;
+      });
+      handle.addEventListener('pointermove',e=>{ if(!rz)return;
+        const r=cell.getBoundingClientRect();
+        let nrw = brw + (e.clientX-hsx)/r.width;
+        const m=cellMargin/100;
+        nrw = Math.max(0.03, Math.min(nrw, 1-2*m));
+        lastRw=nrw;
+        // 即時只更新「這一個」的視覺(寬高)，不重建、不動其他格
+        s.rw=nrw; clampRel(s);
+        const rh = s.rw * (naturalRatio[s.type]||1) * (r.width/r.height);
+        el.style.width=(s.rw*100)+'%'; el.style.height=(rh*100)+'%';
+        el.style.left=(s.rx*100)+'%'; el.style.top=(s.ry*100)+'%';
+        if(s.tpl) sizeVRegions(el, s);   // 文字區字級即時跟著縮放
+      });
+      handle.addEventListener('pointerup',e=>{ if(!rz)return; rz=false;
+        try{handle.releasePointerCapture(e.pointerId);}catch(_){}
+        setTypeWidth(s.type, lastRw);    // 結束時才把同種貼紙統一並重繪
+        if(window._pushHistory) window._pushHistory();
+      });
+    }
+
+    // 同種貼紙尺寸連動：把所有格中同 type 的 rw 設成同值，並夾 margin
+    function setTypeWidth(type, rw){
+      Object.keys(cellStickers).forEach(ciStr=>{
+        cellStickers[ciStr].forEach(s=>{ if(s.type===type){ s.rw=rw; clampRel(s); } });
+      });
+      window._renderStickers();
+    }
+
+    // 取得某 type 目前的 rw（若已存在），否則回傳預設
+    function typeRw(type){
+      let found=null;
+      Object.keys(cellStickers).forEach(ciStr=>cellStickers[ciStr].forEach(s=>{ if(s.type===type&&found==null) found=s.rw; }));
+      return found;
+    }
+
+    /* DM 區域：接收貼紙 → 落在哪格就屬於哪格 */
+    ['dragenter','dragover'].forEach(ev=>dmArea.addEventListener(ev,e=>{
+      if(e.dataTransfer.types.includes('sticker-id')||e.dataTransfer.types.includes('Files')){
+        e.preventDefault();e.dataTransfer.dropEffect='copy';}}));
+
+    function cellFromPoint(clientX, clientY){
+      const els=document.elementsFromPoint(clientX, clientY);
+      for(const el of els){ const c=el.closest && el.closest('.cell[data-cell]'); if(c) return c; }
+      return null;
+    }
+    function addStickerToCell(cell, type, src, clientX, clientY){
+      const ci=Number(cell.dataset.cell);
+      const r=cell.getBoundingClientRect();
+      const lib=findSticker(type);
+      getNatRatio(type, src, ()=>{
+        let rw = typeRw(type);
+        if(rw==null) rw = 0.35;                       // 預設寬 = 格子寬 35%
+        const rh = rw * (naturalRatio[type]||1) * (r.width/r.height);
+        // 以落點為中心
+        const s={ type, src, rx:(clientX-r.left)/r.width - rw/2, ry:(clientY-r.top)/r.height - rh/2, rw };
+        // 可變貼紙：帶上模板(自含)與每個區域的初始文字
+        if(lib && lib.tpl){
+          s.tpl = JSON.parse(JSON.stringify(lib.tpl));
+          s.texts = {}; s.tpl.regions.forEach(rg=>{ s.texts[rg.id]=rg.text; });
+        }
+        clampRel(s);
+        cellStickers[ci]=cellStickers[ci]||[];
+        cellStickers[ci].push(s);
+        selKey={ci, idx:cellStickers[ci].length-1};
+        window._renderStickers();
+        if(window._pushHistory) window._pushHistory();
+      });
+    }
+    dmArea.addEventListener('drop',e=>{
+      const id=e.dataTransfer.getData('sticker-id');
+      const cell=cellFromPoint(e.clientX, e.clientY);
+      if(!cell) return;
+      if(id){
+        e.preventDefault();
+        const st=findSticker(id);
+        if(st) addStickerToCell(cell, st.id, st.src, e.clientX, e.clientY);
+        return;
+      }
+      if(e.dataTransfer.files.length){
+        e.preventDefault();
+        [...e.dataTransfer.files].forEach(f=>{
+          if(!f.type.startsWith('image/'))return;
+          const rd=new FileReader();
+          rd.onload=ev=>{ const newId=addToCat(ev.target.result,activeCat);
+            addStickerToCell(cell, newId, ev.target.result, e.clientX, e.clientY); };
+          rd.readAsDataURL(f);
+        });
+      }
+    });
+    // 點空白處取消選取
+    sheet.addEventListener('pointerdown',e=>{ if(!e.target.closest('.placed')){ if(selKey){ selKey=null; window._renderStickers(); } } });
+    // margin 改變時重新夾所有貼紙
+    window._reclampStickers = function(){
+      Object.keys(cellStickers).forEach(ciStr=>cellStickers[ciStr].forEach(s=>clampRel(s)));
+      window._renderStickers();
+    };
+
+
+    renderTabs(); renderItems();
+  })();
+
+  // 啟動：從 localStorage 載回（含商品、圖、設定、貼紙庫、型號參數），再重繪
+  const _loaded = loadPersisted();
+  if(_loaded){
+    renderTable();
+    render(curN, curCols);
+  }
+  // 全部系統就緒後記錄初始快照
+  if(window._pushHistory) window._pushHistory();
+</script>
+
+<!-- ===== 可變貼紙：區域編輯視窗模組 ===== -->
+<script>
+"use strict";
+(function(){
+  const SIZE_LEVELS = {1:0.10, 2:0.16, 3:0.23, 4:0.32, 5:0.44};
+  const $=s=>document.querySelector(s);
+  const modal=$("#vrModal"), wrap=$("#vrWrap"), img=$("#vrImg");
+  const propsEl=$("#vrProps"), emptyEl=$("#vrEmpty");
+  const elText=$("#vrText"), elSizes=$("#vrSizes"), elFine=$("#vrSizeFine"),
+        elBg=$("#vrBg"), elBgOff=$("#vrBgOff"), elDrop=$("#vrDropper"),
+        elColor=$("#vrColor"), elAlign=$("#vrAlign"), elBold=$("#vrBold"), elDel=$("#vrDel");
+  let regions=[], selId=null, imgW=0, imgH=0, picking=false, sampCtx=null, onConfirm=null;
+  const uid=()=>Math.random().toString(36).slice(2,9);
+
+  window._openRegionEditor = function(src, tpl, cb){
+    onConfirm=cb; selId=null; picking=false; wrap.classList.remove("picking");
+    regions = tpl && tpl.regions ? JSON.parse(JSON.stringify(tpl.regions)) : [];
+    img.onload=()=>{
+      imgW=img.naturalWidth; imgH=img.naturalHeight;
+      const sc=document.createElement("canvas"); sc.width=imgW; sc.height=imgH;
+      sampCtx=sc.getContext("2d"); sampCtx.drawImage(img,0,0,imgW,imgH);
+      render(); sizeFonts(); refreshProps();
+    };
+    img.src=src;
+    modal.classList.add("show");
+  };
+  function close(){ modal.classList.remove("show"); }
+
+  function render(){
+    wrap.querySelectorAll(".vr").forEach(e=>e.remove());
+    regions.forEach(rg=>{
+      const el=document.createElement("div");
+      el.className="vr"+(rg.id===selId?" sel":""); el.dataset.id=rg.id;
+      style(el,rg);
+      const t=document.createElement("div"); t.className="vr-t"; t.textContent=rg.text; el.appendChild(t);
+      const h=document.createElement("div"); h.className="vh"; el.appendChild(h);
+      bind(el,rg,h); wrap.appendChild(el);
+    });
+  }
+  function style(el,rg){
+    el.style.left=(rg.x*100)+"%"; el.style.top=(rg.y*100)+"%";
+    el.style.width=(rg.w*100)+"%"; el.style.height=(rg.h*100)+"%";
+    el.style.background=rg.bg?rg.bg:"transparent"; el.style.color=rg.color;
+    el.style.fontWeight=rg.bold?"800":"500";
+    el.style.justifyContent=rg.align==="left"?"flex-start":rg.align==="right"?"flex-end":"center";
+    const t=el.querySelector(".vr-t"); if(t) t.style.textAlign=rg.align;
+  }
+  function sizeFonts(){
+    const h=wrap.clientHeight||img.clientHeight; if(!h) return;
+    wrap.querySelectorAll(".vr").forEach(el=>{ const rg=regions.find(r=>r.id===el.dataset.id);
+      if(rg) el.style.fontSize=(rg.fontFrac*h)+"px"; });
+  }
+  function bind(el,rg,handle){
+    el.addEventListener("pointerdown",e=>{
+      if(e.target===handle) return; e.preventDefault(); select(rg.id);
+      const R=wrap.getBoundingClientRect(), sx=e.clientX, sy=e.clientY, ox=rg.x, oy=rg.y;
+      el.setPointerCapture(e.pointerId);
+      const mv=ev=>{ let nx=ox+(ev.clientX-sx)/R.width, ny=oy+(ev.clientY-sy)/R.height;
+        nx=Math.max(0,Math.min(nx,1-rg.w)); ny=Math.max(0,Math.min(ny,1-rg.h));
+        rg.x=nx; rg.y=ny; el.style.left=(nx*100)+"%"; el.style.top=(ny*100)+"%"; };
+      const up=()=>{el.removeEventListener("pointermove",mv);el.removeEventListener("pointerup",up);};
+      el.addEventListener("pointermove",mv); el.addEventListener("pointerup",up);
+    });
+    handle.addEventListener("pointerdown",e=>{
+      e.preventDefault(); e.stopPropagation(); select(rg.id);
+      const R=wrap.getBoundingClientRect(), sx=e.clientX, sy=e.clientY, ow=rg.w, oh=rg.h;
+      handle.setPointerCapture(e.pointerId);
+      const mv=ev=>{ let nw=ow+(ev.clientX-sx)/R.width, nh=oh+(ev.clientY-sy)/R.height;
+        nw=Math.max(0.03,Math.min(nw,1-rg.x)); nh=Math.max(0.03,Math.min(nh,1-rg.y));
+        rg.w=nw; rg.h=nh; el.style.width=(nw*100)+"%"; el.style.height=(nh*100)+"%"; };
+      const up=()=>{handle.removeEventListener("pointermove",mv);handle.removeEventListener("pointerup",up);};
+      handle.addEventListener("pointermove",mv); handle.addEventListener("pointerup",up);
+    });
+  }
+  function select(id){ selId=id; wrap.querySelectorAll(".vr").forEach(el=>el.classList.toggle("sel",el.dataset.id===id)); refreshProps(); }
+  function cur(){ return regions.find(r=>r.id===selId); }
+  function elOf(id){ return wrap.querySelector('.vr[data-id="'+id+'"]'); }
+  function styleRefresh(rg){ const el=elOf(rg.id); if(el) style(el,rg); }
+  function refreshProps(){
+    const rg=cur();
+    propsEl.style.display=rg?"block":"none"; emptyEl.style.display=rg?"none":"block";
+    if(!rg) return;
+    elText.value=rg.text; elBgOff.checked=!rg.bg; if(rg.bg) elBg.value=hex(rg.bg);
+    elColor.value=hex(rg.color); elBold.checked=!!rg.bold;
+    elAlign.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.al===rg.align));
+    elFine.value=(rg.fontFrac*100).toFixed(1); markLv(rg.fontFrac);
+  }
+  function markLv(frac){ let lv=null; for(const k in SIZE_LEVELS){ if(Math.abs(SIZE_LEVELS[k]-frac)<0.004){lv=k;break;} }
+    elSizes.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.lv===lv)); }
+
+  $("#vrAdd").onclick=()=>{ const rg={id:uid(),x:0.34,y:0.40,w:0.30,h:0.18,bg:"#ffffff",
+    color:"#000000",bold:true,align:"center",fontFrac:SIZE_LEVELS[2],text:"文字"};
+    regions.push(rg); render(); sizeFonts(); select(rg.id); };
+  elText.addEventListener("input",()=>{const rg=cur();if(!rg)return;rg.text=elText.value;
+    const el=elOf(rg.id); if(el) el.querySelector(".vr-t").textContent=rg.text;});
+  elSizes.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const rg=cur();if(!rg)return;
+    rg.fontFrac=SIZE_LEVELS[b.dataset.lv]; elFine.value=(rg.fontFrac*100).toFixed(1); markLv(rg.fontFrac); sizeFonts();});
+  elFine.addEventListener("input",()=>{const rg=cur();if(!rg)return;rg.fontFrac=Number(elFine.value)/100;markLv(rg.fontFrac);sizeFonts();});
+  elBg.addEventListener("input",()=>{const rg=cur();if(!rg)return;rg.bg=elBg.value;elBgOff.checked=false;styleRefresh(rg);});
+  elBgOff.addEventListener("change",()=>{const rg=cur();if(!rg)return;rg.bg=elBgOff.checked?null:elBg.value;styleRefresh(rg);});
+  elColor.addEventListener("input",()=>{const rg=cur();if(!rg)return;rg.color=elColor.value;styleRefresh(rg);});
+  elAlign.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;const rg=cur();if(!rg)return;
+    rg.align=b.dataset.al;elAlign.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b));styleRefresh(rg);});
+  elBold.addEventListener("change",()=>{const rg=cur();if(!rg)return;rg.bold=elBold.checked;styleRefresh(rg);});
+  elDel.onclick=()=>{const rg=cur();if(!rg)return;regions=regions.filter(r=>r.id!==rg.id);selId=null;render();sizeFonts();refreshProps();};
+
+  elDrop.onclick=()=>{ if(!cur())return; picking=!picking; wrap.classList.toggle("picking",picking); elDrop.classList.toggle("go",picking); };
+  wrap.addEventListener("click",e=>{ if(!picking||!sampCtx)return; const rg=cur(); if(!rg)return;
+    const R=wrap.getBoundingClientRect(); const fx=(e.clientX-R.left)/R.width, fy=(e.clientY-R.top)/R.height;
+    const px=Math.max(0,Math.min(imgW-1,Math.round(fx*imgW))), py=Math.max(0,Math.min(imgH-1,Math.round(fy*imgH)));
+    const d=sampCtx.getImageData(px,py,1,1).data;
+    rg.bg="#"+[d[0],d[1],d[2]].map(v=>v.toString(16).padStart(2,"0")).join(""); elBg.value=rg.bg; elBgOff.checked=false; styleRefresh(rg);
+    picking=false; wrap.classList.remove("picking"); elDrop.classList.remove("go"); });
+  wrap.addEventListener("pointerdown",e=>{ if(e.target===img && !picking){ selId=null;
+    wrap.querySelectorAll(".vr.sel").forEach(x=>x.classList.remove("sel")); refreshProps(); } });
+
+  $("#vrCancel").onclick=close;
+  $("#vrOk").onclick=()=>{ if(onConfirm) onConfirm({regions:JSON.parse(JSON.stringify(regions))}); close(); };
+  new ResizeObserver(()=>sizeFonts()).observe(wrap);
+
+  function hex(c){ if(!c) return "#000000"; if(c[0]==="#") return c.length===4?"#"+c[1]+c[1]+c[2]+c[2]+c[3]+c[3]:c.slice(0,7);
+    const m=c.match(/\d+/g); return m?"#"+m.slice(0,3).map(v=>(+v).toString(16).padStart(2,"0")).join(""):"#000000"; }
+})();
+</script>
+
+<!-- ===== Canva 式浮動文字工具列（編輯可變貼紙文字時） ===== -->
+<script>
+"use strict";
+(function(){
+  let activeT=null, savedRange=null, overTb=false, hideTimer=null, rafPos=0;
+
+  // 建立工具列
+  const tb=document.createElement('div'); tb.id='vrTb';
+  tb.innerHTML=
+    '<button data-act="dec" class="a-small" title="縮小選取文字">A−</button>'+
+    '<span class="vrtb-sz"><span class="num" id="vrtbNum">100%</span></span>'+
+    '<button data-act="inc" class="a-big" title="放大選取文字">A＋</button>'+
+    '<span class="sep"></span>'+
+    '<button data-act="bold" id="vrtbB" title="粗體">B</button>'+
+    '<label class="clr" title="文字顏色"><span class="bar" id="vrtbBar"></span><input type="color" id="vrtbColor" value="#000000"></label>'+
+    '<span class="sep"></span>'+
+    '<button data-act="left" title="靠左">⬅</button>'+
+    '<button data-act="center" title="置中">⬌</button>'+
+    '<button data-act="right" title="靠右">➡</button>';
+  document.body.appendChild(tb);
+  const numEl=tb.querySelector('#vrtbNum'), barEl=tb.querySelector('#vrtbBar'),
+        colorInp=tb.querySelector('#vrtbColor'), bBtn=tb.querySelector('#vrtbB');
+
+  try{ document.execCommand('styleWithCSS',false,true); }catch(_){}
+
+  // 按工具列時不要讓編輯區失焦（保留選取）
+  tb.addEventListener('mousedown',e=>{ if(e.target!==colorInp) e.preventDefault(); });
+  tb.addEventListener('mouseenter',()=>overTb=true);
+  tb.addEventListener('mouseleave',()=>overTb=false);
+
+  // 焦點進入可變貼紙文字 → 顯示工具列
+  document.addEventListener('focusin',e=>{
+    const t=e.target;
+    if(t.classList && t.classList.contains('vr-t') && t.closest('.placed')){
+      activeT=t; show();
+    }
+  });
+  document.addEventListener('focusout',e=>{
+    if(e.target===activeT){ clearTimeout(hideTimer);
+      hideTimer=setTimeout(()=>{ if(!overTb) hide(); },180); }
+  });
+  // 點到工具列與文字區以外 → 收起（.vr 內的點擊已 stopPropagation，不會誤觸）
+  document.addEventListener('pointerdown',e=>{
+    if(tb.contains(e.target)) return;
+    if(e.target.classList && e.target.classList.contains('vr-t')) return;
+    hide();
+  });
+  // 選取變動 → 重新定位 + 更新數值
+  document.addEventListener('selectionchange',()=>{ if(activeT && tb.classList.contains('show')){ schedulePos(); updateNum(); } });
+  window.addEventListener('scroll',()=>{ if(tb.classList.contains('show')) schedulePos(); }, true);
+  window.addEventListener('resize',()=>{ if(tb.classList.contains('show')) schedulePos(); });
+
+  function show(){ tb.classList.add('show'); schedulePos(); updateNum(); }
+  function hide(){ tb.classList.remove('show'); activeT=null; }
+  function schedulePos(){ cancelAnimationFrame(rafPos); rafPos=requestAnimationFrame(position); }
+
+  function caretRect(){
+    const sel=window.getSelection();
+    if(sel && sel.rangeCount){
+      const r=sel.getRangeAt(0).getBoundingClientRect();
+      if(r && (r.width||r.height||r.top)) return r;
+    }
+    return activeT ? activeT.getBoundingClientRect() : null;
+  }
+  function position(){
+    if(!activeT) return;
+    const rect=caretRect(); if(!rect) return;
+    const tw=tb.offsetWidth, th=tb.offsetHeight;
+    let x=rect.left+rect.width/2-tw/2;
+    let y=rect.top-th-8;
+    if(y<6) y=rect.bottom+8;
+    x=Math.max(6, Math.min(x, window.innerWidth-tw-6));
+    y=Math.max(6, Math.min(y, window.innerHeight-th-6));
+    tb.style.left=x+'px'; tb.style.top=y+'px';
+  }
+
+  function selInEditable(){
+    const sel=window.getSelection();
+    if(!activeT || !sel.rangeCount) return null;
+    const r=sel.getRangeAt(0);
+    if(!activeT.contains(r.commonAncestorContainer)) return null;
+    return r;
+  }
+  function pxOf(node){
+    const el = node && node.nodeType===3 ? node.parentElement : node;
+    return el ? parseFloat(getComputedStyle(el).fontSize)||0 : 0;
+  }
+  function updateNum(){
+    if(!activeT) return;
+    const base=parseFloat(getComputedStyle(activeT).fontSize)||1;
+    const sel=window.getSelection();
+    let cur=base;
+    if(sel && sel.rangeCount){ const fn=sel.focusNode; if(fn) cur=pxOf(fn)||base; }
+    numEl.textContent=Math.round(cur/base*100)+'%';
+    // 粗體狀態
+    let bold=false; try{ bold=document.queryCommandState('bold'); }catch(_){}
+    bBtn.classList.toggle('on', bold);
+  }
+
+  // 縮放：有選取 → 只縮選取文字；無選取 → 整個文字框
+  function step(up){
+    if(!activeT) return;
+    const r=selInEditable();
+    if(r && !r.collapsed){
+      const span=document.createElement('span');
+      span.style.fontSize = up ? '1.15em' : '0.87em';
+      try{
+        const frag=r.extractContents(); span.appendChild(frag); r.insertNode(span);
+        const sel=window.getSelection(); sel.removeAllRanges();
+        const nr=document.createRange(); nr.selectNodeContents(span); sel.addRange(nr);
+      }catch(_){}
+    }else if(activeT._applyBaseSize){
+      activeT._applyBaseSize(activeT._getBaseFrac()*(up?1.15:0.87));
+    }
+    activeT._save && activeT._save();
+    schedulePos(); updateNum();
+  }
+
+  tb.addEventListener('click',e=>{
+    const btn=e.target.closest('button'); if(!btn || !activeT) return;
+    const act=btn.dataset.act;
+    if(act==='inc') step(true);
+    else if(act==='dec') step(false);
+    else if(act==='bold'){ try{ document.execCommand('bold'); }catch(_){} activeT._save&&activeT._save(); updateNum(); }
+    else if(act==='left'||act==='center'||act==='right'){ activeT._setAlign&&activeT._setAlign(act); schedulePos(); }
+  });
+
+  // 顏色：原生選色會讓編輯區失焦，故先存選取、套用後還原
+  colorInp.addEventListener('mousedown',()=>{ savedRange=selInEditable(); });
+  colorInp.addEventListener('input',()=>{
+    if(!activeT) return;
+    activeT.focus();
+    const sel=window.getSelection();
+    if(savedRange){ sel.removeAllRanges(); sel.addRange(savedRange); }
+    try{ document.execCommand('styleWithCSS',false,true); document.execCommand('foreColor',false,colorInp.value); }catch(_){}
+    barEl.style.background=colorInp.value;
+    activeT._save && activeT._save();
+    updateNum();
+  });
+})();
+</script>
+</body>
+</html>

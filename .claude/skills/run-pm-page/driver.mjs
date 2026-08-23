@@ -18,6 +18,7 @@
  * Steps (applied left to right):
  *   --file <path>        load a local .html (repeatable; re-navigates)
  *   --wait <ms>          sleep
+ *   --size <WxH>         resize the viewport (窄視窗才看得到的擠壓就靠它)
  *   --waitfor <sel>      poll until the selector exists (5s cap)
  *   --click <sel>        real mouse press+release at the element's centre
  *   --click-text <text>  click the first element whose textContent contains it
@@ -306,13 +307,19 @@ await send('Emulation.setDeviceMetricsOverride',
    在每個 document 開始跑之前先把 window.SUPABASE 釘成唯讀的空設定：config.js
    之後那句 window.SUPABASE = {...} 就會靜靜地失敗（非嚴格模式不報錯），
    PlanSync.ok() 回 false，整支走純 localStorage。
-   真的要測同步再加 --live。 */
+   真的要測同步再加 --live。
+
+   ⚠️ LOGO_SUPABASE 也要釘：品牌 Logo 庫是**另一個** Supabase 專案，PlanSync.ok()
+   管不到它。拖一張圖到版上那張 logo 上就是直接寫進去（uploadLogo），只釘
+   window.SUPABASE 的話那條路在測試裡是活的 —— 已經往正式的 Logo 庫塞過一張
+   8×8 的測試圖了。 */
 if (!argv.includes('--live')) {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
-    Object.defineProperty(window, 'SUPABASE', {
-      value: { url:'', anonKey:'', bucket:'' },
-      writable: false, configurable: false,
-    });
+    for (const k of ['SUPABASE', 'LOGO_SUPABASE'])
+      Object.defineProperty(window, k, {
+        value: { url:'', anonKey:'', bucket:'' },
+        writable: false, configurable: false,
+      });
   `});
 }
 
@@ -321,9 +328,13 @@ try {
     const step = argv[i];
     const arg = () => argv[++i];
     switch (step){
-      case '--headed': case '--live': break;   // 開瀏覽器 / 允許連 Supabase，都在啟動時處理過了
+      case '--headed': case '--live': case '--fonts': break;   // 開瀏覽器 / 允許連 Supabase / 放行網路字型，都在啟動時處理過了
       case '--file':      await load(arg()); break;
       case '--wait':      await sleep(+arg()); break;
+      case '--size':      { const [w, h] = arg().split(/[x,]/).map(Number);
+                            await send('Emulation.setDeviceMetricsOverride',
+                              { width: w, height: h, deviceScaleFactor: 1, mobile: false });
+                            console.log(`size   ${w}x${h}`); break; }
       case '--waitfor':   await waitFor(arg()); break;
       case '--click':     { const s = arg(); await click(s); console.log('click  ' + s); break; }
       case '--click-text':{ const t = arg(); await clickText(t); console.log('click  "' + t + '"'); break; }

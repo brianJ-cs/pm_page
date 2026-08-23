@@ -25,7 +25,6 @@ logo_page/.netlify/
 # （這條註解本來只是註解，檔案其實還被追蹤著：2026-08-11 有一次 git pull 就是
 #   被那份沒 commit 的舊產物擋住的。現在真的忽略了。）
 dm-editor-single.html
-dm-editor-single.html
 
 # 手動備份的資料夾，還有隨手截的圖 —— 歷史本身就是備份
 backup0722/
@@ -40,3 +39,23 @@ timelines/
 
 # Local Netlify folder
 .netlify
+
+# ---------------------------------------------------------------------------
+# 只給人看的東西：示範頁、寫過就沒再回頭的筆記、匯入用的樣本資料。
+# 留在硬碟上，不進版控 —— 沒有任何一支程式讀它們（查過：0 個地方引用），
+# 而 clone 下來的人第一眼分不出「這是程式的一部分」還是「這是某次給人看的」。
+# 要翻的話歷史裡都還在（git log --all -- <檔名>）。
+#
+# ⚠️ 長得像但**不是**這一類的，不要一起收掉：
+#   rule.png / ref.png / DM.jpg  ＝ 驗收標準本人（CLAUDE.md 最高原則指著它們）
+#   2cellOriginal.html           ＝ parity.mjs 真的會載進去量
+#   IT-API-需求.md               ＝ 給資訊部的規格，是交付物不是筆記
+# ---------------------------------------------------------------------------
+button-logos-demo.html
+concurrent-edit-demo.html
+pm-side-demo.html
+cell-demo.html
+DEMO原則 (1).md
+past guides/
+logo_page/RUNNING.txt
+dm_products.csv

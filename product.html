@@ -122,12 +122,16 @@ td.pick input,th.pick input{width:15px;height:15px;accent-color:var(--blue);curs
 /* 商品圖。放在最前面一欄：挑貨面板和版面上，圖就是最先認出「這是哪一支」的東西，
    一整排空框自己會叫人去補 —— 藏在最後一欄的話，沒有人會捲過去看。 */
 td.im,th.im{width:44px;padding-left:4px;padding-right:4px;white-space:nowrap}
+/* 它是**落點**，不是按鈕：放圖只有把那一張拖進來這一種手勢（整支程式都不開
+   檔案視窗），所以不給 cursor:pointer —— 長得像按得下去卻按不動，比沒有更難懂。 */
 .thumb{
+  display:inline-flex;align-items:center;justify-content:center;
   width:34px;height:34px;padding:0;vertical-align:middle;
   border:1.5px dashed var(--line-strong);border-radius:6px;background:var(--surface-2);
-  color:var(--muted);font:inherit;font-size:15px;font-weight:800;cursor:pointer;overflow:hidden;
+  color:var(--muted);font:inherit;font-size:15px;font-weight:800;overflow:hidden;
 }
-.thumb:hover{border-color:var(--blue);color:var(--blue);background:var(--accent-tint)}
+.thumb.dragover{border-color:var(--blue);color:var(--blue);background:var(--accent-tint);border-style:solid}
+.thumb.busy{opacity:.45}
 .thumb.has{border-style:solid;background:var(--surface)}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .imgx{
@@ -231,7 +235,6 @@ tr.bad input.sku{border-color:var(--danger-line);background:var(--danger-tint)}
   <span id="state"></span>
 </div>
 <input id="file" type="file" accept=".csv,.tsv,.txt,text/csv" hidden>
-<input id="imgFile" type="file" accept="image/*" hidden>
 
 <!-- 匯入：選檔 → 看它會改什麼 → 匯入。
      ⚠️ 中間本來還有「這幾欄是什麼」（可以自己改的對照表）和「前幾筆長這樣」，
@@ -679,6 +682,7 @@ const esc = s => String(s == null ? '' : s)
 /* 商品圖的鑰匙。**一定要跟畫布那一頁算出來的一模一樣**（2cell 的 imgKey，
    那邊有完整的理由）。兩邊各算各的話，這裡放的圖版面上看不到，
    而且兩邊都不會有任何錯誤訊息 —— 只是圖沒出現。改一邊就要改另一邊。
+   有一支在盯：`.claude/skills/run-pm-page/imgkey-parity.mjs`（scenario.mjs 每次都會先跑）。
      前三段 `品名|規格|顏色` ＝舊鑰匙，**一個字都不能動**（已上傳的圖對回去靠它）。
      第四段只在前三段分不出來的時候才接（空調那種沒有規格也沒有顏色的），
      用 SKU（這一列的身分），沒有才退回列上的型號。 */
@@ -702,8 +706,8 @@ function rowHTML(r, i){
   const u = imgOf(r);
   return `<tr${cls ? ` class="${cls}"` : ''} data-i="${i}">`
     + `<td class="pick"><input type="checkbox" data-pick="${i}"${sel.has(i) ? ' checked' : ''}></td>`
-    + `<td class="im"><button class="thumb${u ? ' has' : ''}" data-img="${i}" title="${
-        u ? '換一張商品圖' : '放一張商品圖'}">${u ? `<img src="${esc(u)}" alt="">` : '＋'}</button>${
+    + `<td class="im"><span class="thumb${u ? ' has' : ''}" data-img="${i}" title="${
+        u ? '拖一張圖到這裡換掉它' : '拖一張圖到這裡'}">${u ? `<img src="${esc(u)}" alt="">` : '＋'}</span>${
         u ? `<button class="imgx" data-imgdel="${i}" title="拿掉這張圖">✕</button>` : ''}</td>`
     + COLS.map(c => {
     const f = c[0];
@@ -783,6 +787,8 @@ $('#tbody').addEventListener('click', e => {
    的是同一個物件 —— 兩邊放的是同一張圖，不是兩張。 */
 const IMG_MAX_PX = 900;      // 版面上最大也才幾百 px，再大只是白佔頻寬
 
+/* 出 WebP，回傳 Blob —— 跟畫布那一頁同一套（那邊的 shrinkImage 有完整的理由：
+   去背的圖不能轉 JPEG，PNG 存照片又太胖；壓完比原檔大就用原檔）。 */
 function shrinkImage(file){
   return new Promise((ok, no) => {
     const fr = new FileReader();
@@ -792,22 +798,25 @@ function shrinkImage(file){
       im.onerror = () => no(new Error('這個檔案不是看得懂的圖'));
       im.onload = () => {
         const k = Math.min(1, IMG_MAX_PX / Math.max(im.width, im.height));
-        if (k >= 1) return ok(fr.result);            // 本來就夠小，別重壓一次
         const cv = document.createElement('canvas');
-        cv.width = Math.round(im.width * k); cv.height = Math.round(im.height * k);
+        cv.width = Math.max(1, Math.round(im.width * k));
+        cv.height = Math.max(1, Math.round(im.height * k));
         cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
-        ok(cv.toDataURL('image/png'));
+        const take = b => {
+          if (!b) return no(new Error('這個檔案壓不下來'));
+          ok(b.size < file.size ? b : file);
+        };
+        cv.toBlob(b => { b ? take(b) : cv.toBlob(take, 'image/png'); }, 'image/webp', .92);
       };
       im.src = fr.result;
     };
     fr.readAsDataURL(file);
   });
 }
+const imgExt = blob => blob && blob.type === 'image/webp' ? '.webp'
+                     : blob && blob.type === 'image/jpeg' ? '.jpg' : '.png';
 
-let imgFor = -1;             // 正在換哪一列的圖
 $('#tbody').addEventListener('click', e => {
-  const up = e.target.closest('[data-img]');
-  if (up){ imgFor = +up.dataset.img; $('#imgFile').click(); return; }
   const del = e.target.closest('[data-imgdel]');
   if (!del) return;
   const r = CAT.rows[+del.dataset.imgdel];
@@ -822,23 +831,46 @@ $('#tbody').addEventListener('click', e => {
   markDirty(); render();
 });
 
-$('#imgFile').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  const r = CAT.rows[imgFor];
-  if (!file || !r) return;
+/* 把一張圖拖到那一列的縮圖上就換掉它。**沒有「點一下選檔案」這回事**
+   （整支程式都不開檔案視窗）：檔案視窗只講得出「一個檔案」，講不出「哪一列」，
+   手滑一下就換掉隔壁那一支的圖。
+   ⚠️ 一定要 stopPropagation：整頁還掛著一個「放開就讀這份 CSV」的 drop，
+   不擋的話這張圖會被當成一份 CSV 拿去解析。 */
+$('#tbody').addEventListener('dragover', e => {
+  const t = e.target.closest('.thumb');
+  if (!t || !dragHasImage(e.dataTransfer)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  t.classList.add('dragover');
+});
+$('#tbody').addEventListener('dragleave', e => {
+  const t = e.target.closest('.thumb');
+  if (t) t.classList.remove('dragover');
+});
+$('#tbody').addEventListener('drop', async e => {
+  const t = e.target.closest('.thumb');
+  if (!t) return;
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!file) return;
+  e.preventDefault();
+  e.stopPropagation();
+  t.classList.remove('dragover');
+  const r = CAT.rows[+t.dataset.img];
+  if (!r) return;
   if (!/^image\//.test(file.type)){ say('只收圖片檔'); return; }
   if (!r.name){ say('先給這一列一個商品名 —— 圖是照商品名認的'); return; }
   const s = sync();
   if (!s){ say('沒有接後端，圖存不起來'); return; }
+  t.classList.add('busy');
   say('傳圖中…');
   try {
-    const blob = await (await fetch(await shrinkImage(file))).blob();
-    const url = await s.uploadImage('item-' + imgKey(r) + '.png', blob);
+    const blob = await shrinkImage(file);
+    const url = await s.uploadImage('item-' + imgKey(r) + imgExt(blob), blob);
     CAT.img = Object.assign({}, CAT.img, { [imgKey(r)]: url });
     markDirty(); render();
     say('放好了');
   } catch (err){
+    t.classList.remove('busy');
     say(String((err && err.message) || err));
   }
 });
@@ -1080,8 +1112,14 @@ $('#file').addEventListener('change', e => {
 /* 拖檔案進來走同一條路。整頁是落點：來源多半是剛從信裡下載的那一份，
    要人先找到那顆鈕再選檔案是多一步。 */
 let dragDepth = 0;
+/* 拖的是一張圖就別亮「放開就讀這份 CSV」那塊落點：那是拿來換商品圖的，
+   落點在那一列的縮圖上（見 rowHTML 的 .thumb）。整頁蓋一塊「我要吃 CSV」
+   的布，看起來就像那張圖只能餵給匯入。 */
+const dragHasImage = dt => [...(dt && dt.items || [])].some(i => /^image\//.test(i.type));
+
 addEventListener('dragenter', e => {
   if (![...(e.dataTransfer.types || [])].includes('Files')) return;
+  if (dragHasImage(e.dataTransfer)) return;
   e.preventDefault(); dragDepth++; $('#drop').hidden = false;
 });
 addEventListener('dragover', e => {
@@ -1092,6 +1130,9 @@ addEventListener('drop', e => {
   const f = e.dataTransfer.files && e.dataTransfer.files[0];
   if (!f) return;
   e.preventDefault(); dragDepth = 0; $('#drop').hidden = true;
+  /* 圖掉在表格外面：那是「想換商品圖但沒對準」，不是「想匯入一份 CSV」。
+     不講的話它會被當成 CSV 解析，然後說「這份檔案裡沒有資料」—— 對不上人在做的事。 */
+  if (/^image\//.test(f.type)){ say('要換商品圖的話，把圖拖到那一列最前面的小框上'); return; }
   readFile(f);
 });
 
@@ -1160,6 +1201,19 @@ const SEED = [
    自己再拉一次不是不行，但兩個地方各拉一次，遲早出現「這一頁看到的跟版面上的不一樣」。 */
 addEventListener('message', e => {
   const d = e.data || {};
+  /* 版面那邊換了某一個商品的圖（拖進格子、或點那個灰框）。只補那一把鑰匙 ——
+     這一頁的縮圖不跟著換的話，同一份目錄在兩個地方會長得不一樣。
+     清除那一支的規矩跟畫布那邊一樣：自己那張沒有，清的就是舊鑰匙底下那一張共用的。 */
+  if (d.imgPatch){
+    const k = d.imgPatch.key, u = d.imgPatch.url || '';
+    if (!k) return;
+    CAT.img = Object.assign({}, CAT.img);
+    if (u) CAT.img[k] = u;
+    else if (CAT.img[k]) delete CAT.img[k];
+    else delete CAT.img[imgKeyBase(k)];
+    render();
+    return;
+  }
   if (!d.productPage) return;
   if (!('catalogue' in d) && !d.logos) return;
   /* ⚠️ 收到回覆**不等於**讀到了：上層自己可能也還在拉（它開機就是先秒開、

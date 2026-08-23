@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>圖片畫布</title>
+<style>
+  :root{ --bg:#0C0F14; --line:#2A313D; --ink:#E6EAF2; --dim:#8C97A8; --accent:#C6F24E; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;overflow:hidden}
+  body{background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Inter","Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif}
+  #stage{position:absolute;inset:0}
+  #cv{display:block;width:100%;height:100%;touch-action:none}
+
+  #drop{position:absolute;inset:24px;border:1.5px dashed var(--line);border-radius:16px;
+    display:flex;align-items:center;justify-content:center;pointer-events:none;text-align:center;
+    color:var(--dim);opacity:0;transition:opacity .15s ease}
+  #drop.show{opacity:1}
+  #drop.hot{border-color:var(--accent);color:var(--accent);background:rgba(198,242,78,.05)}
+  #drop b{display:block;font-size:16px;color:var(--ink);margin-bottom:6px;letter-spacing:.01em}
+
+  #bar{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);
+    display:flex;gap:4px;align-items:center;padding:5px;
+    background:rgba(23,27,35,.92);border:1px solid var(--line);border-radius:10px;
+    backdrop-filter:blur(8px);box-shadow:0 8px 28px rgba(0,0,0,.45)}
+  #bar button{font:inherit;color:var(--ink);background:transparent;border:0;border-radius:6px;
+    padding:7px 11px;cursor:pointer}
+  #bar button:hover{background:#252B36}
+  #bar button.primary{background:var(--accent);color:#101319;font-weight:600}
+  #bar button.primary:hover{filter:brightness(1.08)}
+  #bar .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+  #zval{min-width:52px;text-align:center;color:var(--dim);
+    font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+  #tips{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);
+    color:var(--dim);font-size:11px;white-space:nowrap;pointer-events:none}
+  #tips kbd{background:#1E232D;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--ink)}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="drop"><div><b>把 PNG 拖進來</b>也可以直接貼上（Ctrl/⌘ + V）</div></div>
+  <div id="tips">拖曳移動 · 角落把手縮放 · 上方圓點旋轉 · 滾輪縮放視圖 · <kbd>空白鍵</kbd>平移 · <kbd>Del</kbd>刪除</div>
+  <div id="bar">
+    <button class="primary" id="addBtn">加入圖片</button>
+    <span class="sep"></span>
+    <button id="zoomOut">−</button><span id="zval">100%</span><button id="zoomIn">＋</button>
+    <button id="zoomFit">符合</button>
+    <span class="sep"></span>
+    <button id="exp">匯出 PNG</button>
+  </div>
+  <input type="file" id="file" accept="image/*" multiple hidden>
+</div>
+
+<script>
+(() => {
+'use strict';
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0, dpr = 1;
+
+const board = { w: 1200, h: 800, bg: '#FFFFFF' };
+const view = { k: 1, x: 0, y: 0 };
+let items = [], selId = null, uid = 1;
+/* 把手畫在螢幕座標上，所以這是「螢幕上永遠這麼大」的 px —— 縮放不影響它。
+   抓得到比畫得漂亮重要：手指／滑鼠都是往圓點中間去的，小圓點會一直抓空。 */
+const HANDLE = 12, ROT_GAP = 36;
+/* 放進來時佔畫板多少。 */
+const FIT = .8;
+/* 補透明邊的上限：一張圖只有正中間一小點有東西時，補到底就是把幾十個像素撐滿
+   整個畫板，那是一團糊。到這裡就停，剩下的自己拖。 */
+const MAX_UP = 4;
+
+const S  = (x, y) => ({ x: x * view.k + view.x, y: y * view.k + view.y });
+const Wd = (x, y) => ({ x: (x - view.x) / view.k, y: (y - view.y) / view.k });
+const rot = (x, y, a) => ({ x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a) });
+const sel = () => items.find(i => i.id === selId) || null;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// 以「不透明像素」的邊界當作外框，再加一點內距（內距固定為螢幕 px，縮放時看起來一致）
+const PAD = 8;
+function box(it) {
+  const b = it.bx;
+  const cw = (b.x1 - b.x0) * it.w, ch = (b.y1 - b.y0) * it.h;
+  const ox = ((b.x0 + b.x1) / 2 - .5) * it.w, oy = ((b.y0 + b.y1) / 2 - .5) * it.h;
+  const r = rot(ox, oy, it.rot), pad = PAD / view.k;
+  return { cx: it.cx + r.x, cy: it.cy + r.y, w: cw + pad * 2, h: ch + pad * 2, cw, ch, ox, oy, pad };
+}
+const corners = it => {
+  const b = box(it), hw = b.w / 2, hh = b.h / 2;
+  return [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(([x,y]) => {
+    const r = rot(x, y, it.rot); return { x: b.cx + r.x, y: b.cy + r.y };
+  });
+};
+
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  dpr = window.devicePixelRatio || 1;
+  W = Math.max(1, r.width); H = Math.max(1, r.height);
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  draw();
+}
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0C0F14'; ctx.fillRect(0, 0, W, H);
+
+  const o = S(0, 0), bw = board.w * view.k, bh = board.h * view.k;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 6;
+  ctx.fillStyle = board.bg; ctx.fillRect(o.x, o.y, bw, bh);
+  ctx.restore();
+
+  for (const it of items) {
+    const c = S(it.cx, it.cy);
+    ctx.save();
+    ctx.translate(c.x, c.y); ctx.rotate(it.rot);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(it.img, -it.w * view.k / 2, -it.h * view.k / 2, it.w * view.k, it.h * view.k);
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1;
+  ctx.strokeRect(o.x + .5, o.y + .5, bw, bh);
+
+  const it = sel();
+  if (it) {
+    const p = corners(it).map(c => S(c.x, c.y));
+    ctx.strokeStyle = '#C6F24E'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y);
+    for (let i = 1; i < 4; i++) ctx.lineTo(p[i].x, p[i].y);
+    ctx.closePath(); ctx.stroke();
+    const mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+    const up = rot(0, -ROT_GAP, it.rot), rh = { x: mid.x + up.x, y: mid.y + up.y };
+    ctx.beginPath(); ctx.moveTo(mid.x, mid.y); ctx.lineTo(rh.x, rh.y); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    for (const c of [...p, rh]) { ctx.beginPath(); ctx.arc(c.x, c.y, HANDLE - 1, 0, 7); ctx.fill(); ctx.stroke(); }
+  }
+}
+
+function handleAt(sx, sy) {
+  const it = sel(); if (!it) return null;
+  const p = corners(it).map(c => S(c.x, c.y));
+  const mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+  const up = rot(0, -ROT_GAP, it.rot), rh = { x: mid.x + up.x, y: mid.y + up.y };
+  if (Math.hypot(sx - rh.x, sy - rh.y) <= HANDLE + 3) return { type: 'rotate' };
+  for (let i = 0; i < 4; i++)
+    if (Math.hypot(sx - p[i].x, sy - p[i].y) <= HANDLE + 3) return { type: 'scale', i };
+  return null;
+}
+function inside(it, wx, wy) {
+  const d = rot(wx - it.cx, wy - it.cy, -it.rot);
+  if (Math.abs(d.x) > it.w / 2 || Math.abs(d.y) > it.h / 2) return false;
+  try {
+    if (it.mask) {
+      const u = (d.x / it.w + .5) * it.mask.width, v = (d.y / it.h + .5) * it.mask.height;
+      return it.mctx.getImageData(clamp(u|0, 0, it.mask.width-1), clamp(v|0, 0, it.mask.height-1), 1, 1).data[3] > 8;
+    }
+  } catch (e) {}
+  return true;
+}
+function itemAt(sx, sy) {
+  const w = Wd(sx, sy);
+  for (let i = items.length - 1; i >= 0; i--) if (inside(items[i], w.x, w.y)) return items[i];
+  return null;
+}
+
+let drag = null, spaceDown = false;
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  if (spaceDown || e.button === 1) { drag = { m:'pan', sx, sy, vx:view.x, vy:view.y }; return; }
+  const h = handleAt(sx, sy);
+  if (h) {
+    const it = sel(), w = Wd(sx, sy);
+    if (h.type === 'rotate') drag = { m:'rotate', it, start: Math.atan2(w.y - it.cy, w.x - it.cx) - it.rot };
+    else {
+      const c = corners(it), b = box(it);
+      drag = { m:'scale', it, anchor: c[(h.i + 2) % 4], i: h.i,
+               w0: it.w, h0: it.h, cw0: b.cw, ch0: b.ch, ox0: b.ox, oy0: b.oy, pad: b.pad };
+    }
+    return;
+  }
+  const hit = itemAt(sx, sy);
+  if (hit) {
+    selId = hit.id;
+    if (items[items.length - 1] !== hit) { items = items.filter(i => i !== hit); items.push(hit); }
+    const w = Wd(sx, sy);
+    drag = { m:'move', it: hit, dx: hit.cx - w.x, dy: hit.cy - w.y };
+  } else { selId = null; drag = { m:'pan', sx, sy, vx:view.x, vy:view.y }; }
+  draw();
+});
+cv.addEventListener('pointermove', e => {
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  if (!drag) {
+    cv.style.cursor = spaceDown ? 'grab' : (handleAt(sx, sy) ? 'crosshair' : (itemAt(sx, sy) ? 'move' : 'default'));
+    return;
+  }
+  if (drag.m === 'pan') {
+    view.x = drag.vx + (sx - drag.sx); view.y = drag.vy + (sy - drag.sy);
+    cv.style.cursor = 'grabbing';
+  } else if (drag.m === 'move') {
+    const w = Wd(sx, sy);
+    let nx = w.x + drag.dx, ny = w.y + drag.dy;
+    if (!e.shiftKey) {
+      const b = box(drag.it), snap = 6 / view.k;
+      const dx = b.cx - drag.it.cx, dy = b.cy - drag.it.cy;              // 內容中心相對圖片中心
+      const hw = Math.abs(drag.it.rot) < 1e-3 ? b.cw / 2 : 0;            // 有旋轉時只對齊中心
+      const hh = Math.abs(drag.it.rot) < 1e-3 ? b.ch / 2 : 0;
+      for (const t of [0, board.w / 2, board.w]) for (const off of [-hw, 0, hw])
+        if (Math.abs(nx + dx + off - t) < snap) nx = t - off - dx;
+      for (const t of [0, board.h / 2, board.h]) for (const off of [-hh, 0, hh])
+        if (Math.abs(ny + dy + off - t) < snap) ny = t - off - dy;
+    }
+    drag.it.cx = nx; drag.it.cy = ny;
+  } else if (drag.m === 'rotate') {
+    const w = Wd(sx, sy);
+    let a = Math.atan2(w.y - drag.it.cy, w.x - drag.it.cx) - drag.start;
+    if (e.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+    drag.it.rot = a;
+  } else if (drag.m === 'scale') {
+    const it = drag.it, w = Wd(sx, sy), pad = drag.pad;
+    const v = rot(w.x - drag.anchor.x, w.y - drag.anchor.y, -it.rot);
+    const sgx = (drag.i === 1 || drag.i === 2) ? 1 : -1;
+    const sgy = (drag.i === 2 || drag.i === 3) ? 1 : -1;
+    let cw = Math.max(4, Math.abs(v.x) - pad * 2), ch = Math.max(4, Math.abs(v.y) - pad * 2);
+    let sx2 = cw / drag.cw0, sy2 = ch / drag.ch0;
+    if (!e.shiftKey) { sx2 = sy2 = Math.max(sx2, sy2); cw = drag.cw0 * sx2; ch = drag.ch0 * sy2; }
+    it.w = drag.w0 * sx2; it.h = drag.h0 * sy2;
+    const half = rot(sgx * (cw + pad * 2) / 2, sgy * (ch + pad * 2) / 2, it.rot);
+    const ccx = drag.anchor.x + half.x, ccy = drag.anchor.y + half.y;   // 內容框中心
+    const off = rot(drag.ox0 * sx2, drag.oy0 * sy2, it.rot);            // 換算回圖片中心
+    it.cx = ccx - off.x; it.cy = ccy - off.y;
+  }
+  draw();
+});
+const endDrag = () => { if (drag) { drag = null; cv.style.cursor = 'default'; } };
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = cv.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top, it = sel();
+  if (e.altKey && it) {
+    const f = Math.pow(0.999, e.deltaY);
+    it.w = Math.max(4, it.w * f); it.h = Math.max(4, it.h * f); draw(); return;
+  }
+  const before = Wd(sx, sy);
+  view.k = clamp(view.k * Math.pow(0.999, e.deltaY), .05, 20);
+  const after = Wd(sx, sy);
+  view.x += (after.x - before.x) * view.k; view.y += (after.y - before.y) * view.k;
+  draw(); zval.textContent = Math.round(view.k * 100) + '%';
+}, { passive: false });
+
+addEventListener('keydown', e => {
+  if (e.code === 'Space') { spaceDown = true; cv.style.cursor = 'grab'; e.preventDefault(); }
+  const it = sel();
+  if ((e.key === 'Delete' || e.key === 'Backspace') && it) {
+    e.preventDefault(); items = items.filter(i => i.id !== it.id); selId = null; toggleDrop(); draw();
+  }
+  if (it && e.key.startsWith('Arrow')) {
+    e.preventDefault(); const d = e.shiftKey ? 10 : 1;
+    if (e.key === 'ArrowLeft') it.cx -= d; if (e.key === 'ArrowRight') it.cx += d;
+    if (e.key === 'ArrowUp') it.cy -= d;   if (e.key === 'ArrowDown') it.cy += d;
+    draw();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd' && it) {
+    e.preventDefault();
+    const c = { ...it, id: uid++, cx: it.cx + 20, cy: it.cy + 20 };
+    items.push(c); selId = c.id; draw();
+  }
+  if (e.key === '0') fit();
+  if (e.key === '1') { view.k = 1; center(); }
+});
+addEventListener('keyup', e => { if (e.code === 'Space') { spaceDown = false; cv.style.cursor = 'default'; } });
+
+function addImage(src) {
+  const img = new Image();
+  img.onload = () => {
+    /* 先照原尺寸建起來，量完不透明的範圍再定大小 —— 大小要照**看得見的那一塊**算，
+       不是照檔案多大。PNG 四周常常掛著一大圈透明：照整張算的話，放進來的東西會
+       小小一顆縮在畫板中間，四周全是空的，而那圈空白根本不存在於畫面上。 */
+    const it = { id: uid++, img, nw: img.naturalWidth, nh: img.naturalHeight,
+      w: img.naturalWidth, h: img.naturalHeight,
+      cx: board.w / 2, cy: board.h / 2, rot: 0 };
+    it.bx = { x0: 0, y0: 0, x1: 1, y1: 1 };
+    try {
+      const m = document.createElement('canvas');
+      const k = Math.min(1, 400 / Math.max(it.nw, it.nh));
+      m.width = Math.max(1, Math.round(it.nw * k)); m.height = Math.max(1, Math.round(it.nh * k));
+      const mc = m.getContext('2d', { willReadFrequently: true });
+      mc.drawImage(img, 0, 0, m.width, m.height);
+      const d = mc.getImageData(0, 0, m.width, m.height).data;
+      let x0 = m.width, y0 = m.height, x1 = -1, y1 = -1;
+      for (let y = 0; y < m.height; y++) for (let x = 0; x < m.width; x++) {
+        if (d[(y * m.width + x) * 4 + 3] > 8) {
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 >= x0 && y1 >= y0) it.bx = {
+        x0: x0 / m.width, y0: y0 / m.height,
+        x1: (x1 + 1) / m.width, y1: (y1 + 1) / m.height
+      };
+      it.mask = m; it.mctx = mc;
+    } catch (e) { it.mask = null; }
+
+    /* 大小：放大**只用來補掉被裁掉的那一圈透明**，不是把圖本身變大。
+       ⚠️ 這裡踩過一次：一開始寫成「不透明的那塊直接佔畫板 FIT」，於是一張本來就
+       整張不透明的小圖也被放大好幾倍 —— 它沒有透明邊可以補，放大的是圖本身，
+       畫面上就多出一塊又大又糊的色塊。整張不透明的圖要跟以前一模一樣。 */
+    const cw0 = (it.bx.x1 - it.bx.x0) * it.nw, ch0 = (it.bx.y1 - it.bx.y0) * it.nh;
+    if (cw0 > 0 && ch0 > 0) {
+      // 這張圖本來會被擺多大：整張放進 FIT，而且絕不放大（原本那條規矩，一個字沒改）
+      const base = Math.min(1, board.w * FIT / it.nw, board.h * FIT / it.nh);
+      /* 四周的透明邊佔掉多少就補回多少：補完之後，看得見的那一塊剛好站滿
+         「整張圖本來會佔的位置」。兩軸取小的 —— 只補得起比較窄的那一邊，
+         不然另一邊會被推出那個位置外面。整張不透明時它就是 1，等於沒補。 */
+      const boost = Math.min(it.nw / cw0, it.nh / ch0);
+      // 補歸補，看得見的那一塊仍然不超過畫板的 FIT
+      const fill = Math.min(board.w * FIT / cw0, board.h * FIT / ch0);
+      const s = Math.min(base * boost, fill, MAX_UP);
+      it.w = it.nw * s; it.h = it.nh * s;
+    }
+    /* 位置：置中的是**看得見的那一塊**，不是圖片的幾何中心。內容偏在一角的 PNG
+       照圖片中心擺會看起來是歪的 —— 而那圈透明的邊畫面上根本看不到。 */
+    const ox = ((it.bx.x0 + it.bx.x1) / 2 - .5) * it.w;
+    const oy = ((it.bx.y0 + it.bx.y1) / 2 - .5) * it.h;
+    it.cx = board.w / 2 - ox; it.cy = board.h / 2 - oy;
+
+    items.push(it); selId = it.id; toggleDrop(); draw();
+  };
+  img.src = src;
+}
+function readFiles(list) {
+  [...list].filter(f => f.type.startsWith('image/')).forEach(f => {
+    const fr = new FileReader(); fr.onload = () => addImage(fr.result); fr.readAsDataURL(f);
+  });
+}
+const dropEl = document.getElementById('drop');
+const toggleDrop = () => dropEl.classList.toggle('show', items.length === 0);
+['dragenter','dragover'].forEach(t => document.addEventListener(t, e => { e.preventDefault(); dropEl.classList.add('show','hot'); }));
+['dragleave','drop'].forEach(t => document.addEventListener(t, e => {
+  e.preventDefault();
+  if (t === 'drop') readFiles(e.dataTransfer.files);
+  dropEl.classList.remove('hot'); toggleDrop();
+}));
+document.addEventListener('paste', e => { const f = [...(e.clipboardData?.files || [])]; if (f.length) readFiles(f); });
+document.getElementById('addBtn').onclick = () => file.click();
+file.onchange = () => { readFiles(file.files); file.value = ''; };
+
+function fit() {
+  view.k = clamp(Math.min((W - 120) / board.w, (H - 160) / board.h), .05, 20);
+  center();
+}
+function center() {
+  view.x = (W - board.w * view.k) / 2; view.y = (H - board.h * view.k) / 2 - 12;
+  draw(); zval.textContent = Math.round(view.k * 100) + '%';
+}
+zoomIn.onclick  = () => { view.k = clamp(view.k * 1.25, .05, 20); center(); };
+zoomOut.onclick = () => { view.k = clamp(view.k / 1.25, .05, 20); center(); };
+zoomFit.onclick = fit;
+
+exp.onclick = () => {
+  const c = document.createElement('canvas');
+  c.width = board.w; c.height = board.h;
+  const x = c.getContext('2d');
+  x.fillStyle = board.bg; x.fillRect(0, 0, board.w, board.h);
+  for (const it of items) {
+    x.save(); x.translate(it.cx, it.cy); x.rotate(it.rot);
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(it.img, -it.w / 2, -it.h / 2, it.w, it.h); x.restore();
+  }
+  c.toBlob(b => {
+    const u = URL.createObjectURL(b), a = document.createElement('a');
+    a.href = u; a.download = `canvas-${board.w}x${board.h}.png`; a.click();
+    setTimeout(() => URL.revokeObjectURL(u), 4000);
+  }, 'image/png');
+};
+
+new ResizeObserver(resize).observe(cv.parentElement);
+resize(); fit(); toggleDrop();
+})();
+</script>
+</body>
+</html>
