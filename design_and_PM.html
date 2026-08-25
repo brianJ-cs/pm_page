@@ -2011,16 +2011,23 @@
   /* 打數字進去的那條路留著（刊頭縮到看不見時，它是唯一回得來的方法），但平常
      安靜一點：真正在調尺寸的時候人是拖版上那條邊、看游標旁邊的讀數，不是看這裡。
      指過來或點進去才長回一個正常輸入框的樣子。 */
+  /* ⚠️ 這幾格**平常就要看起來像可以打字的**（2026-08 改）。以前它是透明底、
+     透明框、灰字，只有滑鼠碰到才長出框來 —— 於是版位的寬高、刊頭的高度、列數
+     四個打得進去的數字，看起來全都只是標題上的灰字，沒有人會去點它。
+     能動的東西要看起來能動（`.mh-fixed` 那條的反面）。 */
   .mh-num{
     font-family:inherit;font-size:14px;font-weight:800;width:60px;text-align:center;
-    border:1px solid transparent;border-radius:6px;padding:4px 6px;
-    background:transparent;color:var(--muted);
-    transition:background .12s,border-color .12s,color .12s;
+    border:1px solid var(--line-strong);border-radius:6px;padding:4px 6px;
+    background:var(--surface);color:var(--ink);cursor:text;
+    transition:background .12s,border-color .12s,color .12s,box-shadow .12s;
   }
-  .mh-num:hover:not(:disabled){background:var(--surface);color:var(--ink);border-color:var(--line-strong)}
+  .mh-num:hover:not(:disabled){border-color:var(--blue);box-shadow:0 0 0 2px var(--accent-tint)}
   .mh-num:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue);
     background:var(--surface);color:var(--ink)}
-  .mh-num:disabled{background:var(--surface-3);color:var(--muted);cursor:not-allowed}
+  /* 改不了的那一格退回原本那個樣子：沒有框、灰字 —— 它跟旁邊那個「寬」
+     （.mh-fixed，本來就是讀的）長得一樣才對。理由寫在 title 裡。 */
+  .mh-num:disabled{background:transparent;border-color:transparent;color:var(--muted);
+    cursor:not-allowed;box-shadow:none}
   .mh-x-sep{font-size:14px;font-weight:800;color:var(--muted)}
   /* 寬度是讀的，不是改的：寫成一般的字就好。以前它有框有底色，看起來比旁邊那個
      真的能打字的高度欄還像輸入框 —— 能動的東西要看起來能動，反過來不行。 */
@@ -2279,6 +2286,45 @@
      更難懂（同 CLAUDE.md 對 PM／行銷 那塊刊頭的處理）。改大小是 落版 的事。 */
   #board.mh-locked .mh-grab{display:none}
   body.mh-resizing,body.mh-resizing *{cursor:ns-resize !important;user-select:none}
+
+  /* ---- 版位自己的兩條邊：拖右邊改寬、拖下面改高 ------------------------
+     跟刊頭那條把手是同一個手勢，改的東西不一樣：刊頭吃掉版位的一部分，
+     這兩條動的是**那一刀的比例**（旁邊那幾塊讓出空間，整張紙不會變大）。
+     顏色比刊頭那條淡一階：刊頭天天在拉，版位的邊是偶爾才動一次的東西。 */
+  /* 把手要**看得見**（2026-08 改）。原本是邊上一條 3px 的細線，跟版面的外框
+     幾乎分不出來 —— 知道它在那裡才找得到，等於沒有。現在整條邊是一條淡藍的線，
+     中間掛一顆寫著現在幾公分的牌子（↔ 39.2cm）：那顆牌子同時說了三件事 ——
+     這裡可以抓、抓了會改什麼、現在是多少。
+     牌子是**固定大小**：它是螢幕上的記號，不是印出去的東西（見 CLAUDE.md 的大小表）。 */
+  .blk-grab{position:absolute;z-index:6}
+  .blk-grab.v{top:0;bottom:0;right:-8px;width:16px;cursor:ew-resize}
+  .blk-grab.h{left:0;right:0;bottom:-8px;height:16px;cursor:ns-resize}
+  /* 整條邊：平常淡淡一條，滑過去就整條亮起來（抓的是整條，不是只有那顆牌子） */
+  .blk-grab::before{content:"";position:absolute;background:rgba(74,111,220,.30);
+    border-radius:2px;transition:background .12s}
+  .blk-grab.v::before{top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%)}
+  .blk-grab.h::before{left:0;right:0;top:50%;height:3px;transform:translateY(-50%)}
+  .blk-grab:hover::before,body.blk-resizing .blk-grab::before{background:var(--blue)}
+  /* 牌子擺在紙的**外面**：壓在最後一欄格子上的話，那顆牌子會蓋掉正在排的東西
+     （而它只是個記號）。紙四周本來就有一大圈捲動用的空地，擺得下。 */
+  .blk-lab{
+    position:absolute;white-space:nowrap;pointer-events:none;  /* 抓的是底下那條邊 */
+    background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;
+    padding:2px 8px;font-size:11.5px;font-weight:800;color:var(--ink-dim);
+    box-shadow:0 1px 3px rgba(30,40,60,.14);transition:border-color .12s,color .12s;
+  }
+  .blk-grab.v .blk-lab{left:100%;top:50%;transform:translate(2px,-50%)}
+  .blk-grab.h .blk-lab{top:100%;left:50%;transform:translate(-50%,2px)}
+  /* 紙外面剛好沒位置（版面塞滿窗口時右邊就是窗口的邊）就翻進來貼著邊站 ——
+     被切掉一半的牌子比壓在一格上面更難懂。 */
+  .blk-grab.v.flip .blk-lab{left:auto;right:100%;transform:translate(-2px,-50%)}
+  .blk-grab.h.flip .blk-lab{top:auto;bottom:100%;transform:translate(-50%,-2px)}
+  .blk-grab:hover .blk-lab,body.blk-resizing .blk-lab{border-color:var(--blue);color:var(--blue)}
+  /* 拼板 不改版位的形狀（跟刊頭把手同一條理由：那是 落版 談好的事） */
+  #boardOverview .blk-grab{display:none}
+  body.blk-resizing,body.blk-resizing *{user-select:none}
+  body.blk-resizing.ew,body.blk-resizing.ew *{cursor:ew-resize !important}
+  body.blk-resizing.ns,body.blk-resizing.ns *{cursor:ns-resize !important}
 
   /* ---- 刊頭擺在卡片旁邊 ----------------------------------------------------
      它不再是一條橫帶，而是一整根柱子：和卡片各佔一邊，兩邊都拉到版位的滿高。
@@ -2765,7 +2811,7 @@
     #board *{visibility:visible !important}
     /* 螢幕上的東西：把手、標籤、便利貼、紅色數字、落點、拖曳線 */
     #board .grip,#board .cmk,#board .cnb,#board .cbadge,
-    #board .mh-grab,#board .mh-move,#board .mh-x,#board .mh-zone,
+    #board .mh-grab,#board .mh-move,#board .mh-x,#board .mh-zone,#board .blk-grab,
     #board .rowbtns,
     #board .drop-line,#board .mh-label{display:none !important}
     /* 格子只是位置，不是印出來的線。選取、hover 的框同理 —— 那些講的是
@@ -3848,7 +3894,7 @@ let layout = null;                      // set when a 檔期 is opened
    球在誰手上：由**時間**決定，整本一起走
    ==========================================================================
    以前是一格一顆棒子（cell.st，0..7），靠人在 拼板 一格一格蓋章往前推。
-   現在整本 DM 就在時間軸上的那一關 —— 檔期表填的 start ＋ durs 排出提品／製作／
+   現在整本 DM 就在時間軸上的那一關 —— 檔期表填的 start ＋ durs 排出提明細／製作／
    一校／…／出稿，今天落在哪一段，這本 DM 就在那一段，沒有人推得動它。
 
    所以「在誰手上」是一個**全域**的答案（planSide），不是一格一個：
@@ -5476,10 +5522,10 @@ function setBlockCm(block, horizontal, cm){
   const own = axisOwner(block, horizontal);
   if (!own) return horizontal ? '這一塊已經是整張版的寬度' : '這一塊已經是整張版的高度';
   const { par, kid } = own;
-  /* fold ＝ 版中間那條摺線。它是紙對折的地方，不是誰切出來的一刀，
-     所以那條線不能拖、也不能用打字的推走。 */
-  if (par.fold) return '這一塊的' + (horizontal ? '寬' : '高')
-    + '就是半張版（中間那條摺線），要改得先在它裡面切一刀';
+  /* fold ＝ 紙對折的那條線。以前這裡整條擋掉（「摺線不能推」），可是多數版面
+     就是「一刀對折、每半邊往下切」—— 那表示**每一塊版位的寬都改不了**，
+     而寬正是排版的人最常要調的一個數字。所以現在推得動：兩半的比例會變，
+     摺線跟著挪到新的位置（印出來就是不對稱的對折）。整張紙的大小照樣不動。 */
 
   const ref = boardPx();
   const k = boardCm().w / ref.w;
@@ -5507,6 +5553,113 @@ function setBlockCm(block, horizontal, cm){
     c.size = i === n - 1 ? null : v;
   });
   return '';
+}
+
+/* ==========================================================================
+   拖版位的兩條邊（右邊＝寬、下面＝高）
+   --------------------------------------------------------------------------
+   手勢照刊頭那條把手抄（同一個讀數、同一個 rAF 重畫、放手才記一步）。
+   ⚠️ 拖的時候尺度要**釘住**（blkScalePin）：平常 gridW ＝ 這塊窗口的寬，
+   版位變寬螢幕上不會變寬（只有高度跟著縮），於是你拉的那條邊完全不動，
+   手上和畫面上是兩件事。釘住之後兩條邊都跟著手走 1:1，放手才回到「符合視窗」。
+   ========================================================================== */
+let blkResize = null, blkFrame = 0, blkScalePin = 0;
+
+/** 讀數借刊頭那個泡泡用（同一個東西：現在正在改的尺寸）。 */
+function showBlkTip(e, w, h){
+  mhTip.innerHTML = `版位 <span class="num">${w} × ${h}</span>cm`;
+  placeTip(e);
+}
+
+function startBlkResize(ev, horizontal){
+  if (ev.button !== 0 || !activeBlock || activeTab !== 'sheet') return;
+  ev.preventDefault();
+  ev.stopPropagation();                 // 這不是拖畫面，也不是搬一列
+  const cm = blockCm(activeBlock);
+  const m = lastMetrics;
+  const pxPerCm = (m && m.pxPerCm > 0) ? m.pxPerCm : 20;
+  blkResize = { horizontal, sx: ev.clientX, sy: ev.clientY,
+                start: horizontal ? cm.w : cm.h, cur: horizontal ? cm.w : cm.h,
+                w0: cm.w, h0: cm.h, pxPerCm, changed: false };
+  blkScalePin = pxPerCm;                // 這一趟畫面用真實比例，不再塞滿窗口
+  document.body.classList.add('blk-resizing', horizontal ? 'ew' : 'ns');
+  showBlkTip(ev, cm.w.toFixed(1), cm.h.toFixed(1));
+  renderGrid(activeBlock);              // 先換成釘住的尺度，不然第一下會跳
+}
+
+document.addEventListener('pointermove', e => {
+  if (!blkResize) return;
+  const d = blkResize.horizontal ? e.clientX - blkResize.sx : e.clientY - blkResize.sy;
+  let v = blkResize.start + d / blkResize.pxPerCm;
+  v = Math.max(1, Math.round(v * 10) / 10);
+  const cm = blockCm(activeBlock);
+  showBlkTip(e, blkResize.horizontal ? v.toFixed(1) : cm.w.toFixed(1),
+                blkResize.horizontal ? cm.h.toFixed(1) : v.toFixed(1));
+  if (v === blkResize.cur) return;
+  blkResize.cur = v;
+  if (blkFrame) return;
+  blkFrame = requestAnimationFrame(() => {
+    blkFrame = 0;
+    if (!blkResize) return;
+    const err = setBlockCm(activeBlock, blkResize.horizontal, blkResize.cur);
+    if (err) return;
+    blkResize.changed = true;
+    syncSheetCm();                      // 版位的公分是底下每一條算式的來源
+    renderGrid(activeBlock);
+    const inp = blockHead.querySelectorAll('.blk-cm .mh-num')[blkResize.horizontal ? 0 : 1];
+    if (inp) inp.value = (blkResize.horizontal ? blockCm(activeBlock).w
+                                               : blockCm(activeBlock).h).toFixed(1);
+  });
+});
+
+function endBlkResize(){
+  if (!blkResize) return;
+  if (blkFrame){ cancelAnimationFrame(blkFrame); blkFrame = 0; }
+  const changed = blkResize.changed;
+  blkResize = null;
+  blkScalePin = 0;                      // 回到「塞滿這塊窗口」
+  document.body.classList.remove('blk-resizing', 'ew', 'ns');
+  if (changed){
+    commitAction();
+    rebuildAll(activeBlock && activeBlock.id);   // 總體、小地圖跟著換形狀
+  } else {
+    renderGrid(activeBlock);
+  }
+}
+document.addEventListener('pointerup', endBlkResize);
+document.addEventListener('pointercancel', endBlkResize);
+
+/** 版位那兩條邊的把手。改不了的那一軸不畫 —— 畫著卻拉不動比沒有更難懂
+    （同 addBlockCmFields 那兩個反灰的欄位）。 */
+function ensureBlkGrabs(){
+  if (!boardEl) return;
+  [true, false].forEach(horizontal => {
+    const sel = horizontal ? '.blk-grab.v' : '.blk-grab.h';
+    let g = boardEl.querySelector(sel);
+    const can = !!(activeBlock && axisOwner(activeBlock, horizontal));
+    if (!can){ if (g) g.remove(); return; }
+    if (!g){
+      g = document.createElement('div');
+      g.className = 'blk-grab ' + (horizontal ? 'v' : 'h');
+      g.title = horizontal ? '拖著改版位的寬（旁邊那幾塊讓出空間）'
+                           : '拖著改版位的高（上下那幾塊讓出空間）';
+      g.appendChild(Object.assign(document.createElement('span'), { className:'blk-lab' }));
+      g.addEventListener('pointerdown', ev => startBlkResize(ev, horizontal));
+      boardEl.appendChild(g);
+    }
+    const lab = g.querySelector('.blk-lab');
+    if (lab){
+      const cm = blockCm(activeBlock);
+      lab.textContent = (horizontal ? '↔ ' : '↕ ')
+                      + (horizontal ? cm.w : cm.h).toFixed(1) + 'cm';
+      /* 量一下牌子有沒有掉出窗口。版面平常是塞滿這塊窗口的，所以「紙的右邊」
+         多半就是「窗口的右邊」—— 不翻的話那顆牌子永遠被切掉一半。 */
+      g.classList.remove('flip');
+      const lr = lab.getBoundingClientRect(), mr = sheetMainEl.getBoundingClientRect();
+      if (horizontal ? lr.right > mr.right - 4 : lr.bottom > mr.bottom - 4)
+        g.classList.add('flip');
+    }
+  });
 }
 
 /* Row counts come from the block's shape; splitEven — lifted verbatim from
@@ -5540,9 +5693,7 @@ function addBlockCmFields(sh){
     const cm = blockCm(activeBlock);
     const cur = Math.round((horizontal ? cm.w : cm.h) * 10) / 10;
     const own = axisOwner(activeBlock, horizontal);
-    const why = !own ? `這一塊就是整張版的${horizontal ? '寬' : '高'}`
-              : own.par.fold ? '這一邊是版中間那條摺線，動不了'
-              : '';
+    const why = !own ? `這一塊就是整張版的${horizontal ? '寬' : '高'}` : '';
 
     const inp = document.createElement('input');
     inp.type = 'number';
@@ -5808,6 +5959,12 @@ function sheetMetrics(block){
   // Fill the pane's width and let the aspect decide the height — a tall block
   // scrolls vertically rather than shrinking to fit the viewport.
   let gridW = availW;
+  /* 正在拖版位的邊：尺度釘在抓起來的那一刻，寬度就照真實公分畫 ——
+     不釘的話版面永遠塞滿窗口，那條邊怎麼拉都不動（見 startBlkResize）。
+     下面那兩條下限這一趟也不套：釘住的意思就是 1cm 永遠是同樣多的 px。 */
+  if (blkScalePin > 0){
+    gridW = Math.max(40, sh.mastheadW * blkScalePin);
+  } else {
   // Guard only the pathological case (a very tall, narrow region), where full
   // width would produce an absurdly long column.
   const maxH = availH * CONFIG.maxGridHeightFactor;
@@ -5815,6 +5972,7 @@ function sheetMetrics(block){
   // never squeeze cards below the legibility floor — if the pane is too
   // narrow for that, the grid overflows and #sheetMain scrolls sideways
   gridW = Math.max(gridW, widestRow * CONFIG.minCellW + 14 + widestRow * ROW_GAP);
+  }
 
   /* 把版位的總高分給 刊頭 和 卡片列。
      ⚠️ 版位的比例是這張版的事實，任何工具都不准改它 —— 尤其是拉刊頭。
@@ -5953,6 +6111,7 @@ function layoutGrid(m){
   boardEl.style.setProperty('--z', sheetZoom);          // card type scales with it
   boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
   syncRowCountField(m);
+  ensureBlkGrabs();
   boardEl.style.width = m.gridW + 'px';
   sizeSideMasthead(m);
   for (const row of boardEl.children){
@@ -6129,6 +6288,7 @@ function renderGrid(block){
   boardEl.style.setProperty('--z', sheetZoom);
   boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
   syncRowCountField(m);
+  ensureBlkGrabs();
   boardEl.style.width = m.gridW + 'px';
   boardEl.classList.toggle('mh-locked', mhLocked());
   sizeSideMasthead(m);
@@ -6262,9 +6422,7 @@ const mhTip = document.getElementById('mhTip');
 
 /* w × h 兩個都寫，跟標題那一行講的是同一件事 —— 拖的時候看的是這裡，
    放手之後看的是上面，兩邊對不起來就等於在說謊。theirs 是交易的另一邊。 */
-function showMhTip(e, w, h, theirs){
-  mhTip.innerHTML = `刊頭 <span class="num">${w} × ${h}</span>cm`
-                  + (theirs ? `<span class="sep">・</span>${theirs}` : '');
+function placeTip(e){
   const pad = 16;
   const r = mhTip.getBoundingClientRect();
   let x = e.clientX + pad, y = e.clientY + pad;
@@ -6272,6 +6430,12 @@ function showMhTip(e, w, h, theirs){
   if (y + r.height + 8 > innerHeight) y = e.clientY - r.height - pad;
   mhTip.style.left = x + 'px';
   mhTip.style.top  = y + 'px';
+}
+
+function showMhTip(e, w, h, theirs){
+  mhTip.innerHTML = `刊頭 <span class="num">${w} × ${h}</span>cm`
+                  + (theirs ? `<span class="sep">・</span>${theirs}` : '');
+  placeTip(e);
 }
 
 /* 一格一格的列現在多高（公分）。pxPerCm 已經含縮放，rowH 也是，所以直接除。 */
@@ -7459,11 +7623,15 @@ function setHandMode(on){
 sheetMainEl.addEventListener('pointerdown', e => {
   // 落版 的工具（縮放／手形）不該管到拼板 —— 那一頁自己有一套平移
   if (activeTab !== 'sheet') return;
-  /* ⋮⋮ 和刊頭是「抓著這個東西」，不是「抓著畫面」。
+  /* 「抓著這個東西」的那幾樣不歸平移：⋮⋮、刊頭的把手和落點、版位那兩條邊。
      版位標題那一行也是：那裡的按鈕和欄位是拿來按的，不是拿來拖畫面的
-     —— 平移在捕獲階段就把事件吃掉了，不放行的話 ＋刊頭 永遠按不到。 */
+     —— 平移在捕獲階段就把事件吃掉了，不放行的話 ＋刊頭 永遠按不到。
+     ⚠️ **刊頭本體不在這一串裡**（2026-08 改）。以前整塊 `.masthead` 都被擋掉，
+     而刊頭常常是一塊版位裡最大的一片 —— 手放在版面正中間拖，畫面完全不動，
+     看起來就是「拖畫面壞了」。現在它跟格子同一條路：手沒動＝點它（開檔案），
+     手一動＝拖畫面。真正要抓的那幾樣（把手、⋮⋮、✕）自己在上面擋。 */
   if (!handMode && e.target.closest
-      && e.target.closest('.grip,.masthead,.mh-zone,#blockHead,button,input,select,textarea')) return;
+      && e.target.closest('.grip,.mh-zone,.mh-grab,.mh-move,.mh-x,.blk-grab,#blockHead,button,input,select,textarea')) return;
 
   /* 移動畫面不是某一個工具的專利：不管手上拿著什麼，拖空白處都是移動畫面。
      差別只在卡片身上 ——
@@ -7472,11 +7640,13 @@ sheetMainEl.addEventListener('pointerdown', e => {
        輸入／複製：先不吃掉，手沒動＝點卡片，手一動＝拖畫面（見 pointermove） */
   const free = handMode || e.button === 1 || activeTool === 'pan';
   const onCell = e.target.closest && e.target.closest('.cell');
+  // 刊頭跟卡片一樣：那一下可能是「點它」，所以先不吃掉，手動了才算拖畫面
+  const onThing = onCell || (e.target.closest && e.target.closest('.masthead'));
   if (!free && onCell && activeTool === 'move') return;
 
   panning = { x: e.clientX, y: e.clientY,
               left: sheetMainEl.scrollLeft, top: sheetMainEl.scrollTop,
-              pending: !free && !!onCell };
+              pending: !free && !!onThing };
   if (panning.pending) return;
   e.preventDefault();
   e.stopPropagation();
@@ -7803,8 +7973,7 @@ submitBtn.addEventListener('click', async () => {
   if (submitBtn.disabled || !isDraft(currentPlan)) return;
   const ok = await modalConfirm({
     title: '提交給設計',
-    body: `「${currentPlan.name}」會出現在設計和 PM 的檔期列表上，他們就可以開始落版。`
-        + '版面之後照樣改得動 —— 這不是一道鎖，只是「可以開始了」。',
+    body: `「${currentPlan.name}」會出現在設計和 PM 的檔期列表上。`,
     ok: '提交', cancel: '再等等'
   });
   if (!ok) return;
@@ -8792,7 +8961,7 @@ const roleOfNote = n => {
 const noteColor = n => ROLE_COLOR[roleOfNote(n)] || ROLE_COLOR.pm;
 const myRole = () => activeMode === 'pm' ? 'pm' : 'design';
 /* 行銷：版面是他開的檔，所以 落版 照樣改得動；拼板 是設計和 PM 在做事的地方，
-   他只能看。他不在那串關裡（提品→製作→…那一串是 PM 和設計在走的），
+   他只能看。他不在那串關裡（提明細→製作→…那一串是 PM 和設計在走的），
    所以也不貼貼紙 —— 那是「在做這件事的人」之間的動作。
    myRole() 對他回 'design'：貼紙顏色那些地方要有一個答案，而他站在
    設計這一邊看版。真正擋住他的是下面幾個 isMkt() 的閘。 */
@@ -10085,8 +10254,7 @@ function renderPmPlans(){
     const sub = document.createElement('span');
     sub.className = 'sub';
     const o = document.createElement('span');
-    // 最後一關的名字直接讀 STAGES —— 寫死「出稿」的那一版在關名改掉之後就對不上了
-    o.textContent = `${STAGES[STAGES.length - 1]} ${fmtMD(out)}`;
+    o.textContent = `出稿 ${fmtMD(out)}`;
     const m = document.createElement('span');
     m.className = 'mine';
     m.textContent = t.laid ? `${t.total} 格` : '還沒落版';
@@ -11714,7 +11882,7 @@ boardEl.addEventListener('pointerdown', e => {
    而「二校過了的一定也過了一校」照關的順序本來就是自明的。要看完整那一份
    ——幾關、誰蓋的、什麼時候——滑上去看 title。
    ========================================================================== */
-const REVIEW_STAGES = ['一校', '二校', '蓋章確認'];
+const REVIEW_STAGES = ['一校', '二校', '審稿'];
 
 /** 這本 DM 現在這一關要不要審；不要就是空字串。 */
 function reviewStage(plan){
@@ -11722,12 +11890,9 @@ function reviewStage(plan){
   const n = STAGES[planStageIndex(plan)];
   return REVIEW_STAGES.includes(n) ? n : '';
 }
-/** 我現在是不是「正在審的那個人」＝ PM，而且這一關要審。
-    ⚠️ 這裡以前寫 myTurn()，理由是「那幾關的 STAGE_SIDE 都是 pm」——
-    關名收成四關之後那句話不成立了：一校、二校是**設計**的回合（設計要交出
-    那一版稿），審的人還是 PM。綁著 myTurn 的話那顆鈕會在三關裡消失兩關，
-    而校對正是那幾天唯一在做的事。所以這裡自己問一次身分。 */
-function reviewing(){ return !!reviewStage(currentPlan) && myRole() === 'pm'; }
+/** 我現在是不是「正在審的那個人」。myTurn() 已經擋掉行銷（他不在那串關裡）
+    和不是這一關的那一邊，所以這裡不必再問一次身分。 */
+function reviewing(){ return !!reviewStage(currentPlan) && myTurn(); }
 
 const passOf = c => (c && c.pass) || null;
 const passedAt = (c, st) => !!(c && c.pass && c.pass[st]);
@@ -12622,29 +12787,13 @@ const WD = ['日','一','二','三','四','五','六'];
    撥時鐘那條要在外面用，所以這裡留一份公用的。 */
 const fmtMDWx = d => fmtMD(d) + '(' + WD[d.getDay()] + ')';
 
-/* 校稿流程就是這四關（2026-08 從十關收成四關）。以前那十關是把「校」和「改」
-   各算一關（一校／一改／二校／二改／蓋章／蓋章修改…），可是排程表上真正在講的
-   日期只有這四個 —— 多出來那六個欄位每一個都要填天數，而它們講的是同一段時間。 */
-const STAGES = ['提明細','一校','二校','蓋章確認'];
+/* 關名照排程表上的講法（2026-08 改名）：提品→提明細、蓋章→蓋章確認。
+   **只有名字換了，關數和誰的回合一步都沒動** —— 排程表填的還是這十段時間。 */
+const STAGES = ['提明細','製作','一校','一改','二校','二改','蓋章確認','蓋章修改','審稿','出稿'];
 /* 每一關是誰的事。這一份就是「球在誰手上」的全部答案（見 planSide）——
-   問的是**這一關該誰交東西**：PM 交明細，設計交一校稿、二校稿，PM 收尾蓋章。
-   行銷不在這裡面：他排的是整本的時程，不是版面本身。
-   ⚠️ 「誰蓋得了審核通過」不再等於「輪到誰」了（一校／二校是設計的回合，
-   而審的是 PM）—— 見 reviewing()。 */
-const STAGE_SIDE = ['pm','design','design','pm'];
-
-/* 舊檔期存的是十關的天數。關名收成四關之後，那一串直接拿來排會多出六支旗子
-   （而欄位只剩四個），所以在**讀的那一刻**併起來：一段的天數＝它吃掉的那幾關加總。
-   併的是天數不是日期，所以整條時間軸的總長一天都不差 —— 舊檔期的出稿日
-   不會因為改了關名就跑掉。存回去的時候自然就是四個（見開檔表的 dursFromFlags）。 */
-const DURS_10_TO_4 = [[0,1], [2,3], [4,5], [6,7,8,9]];
-function dursOf(plan){
-  const d = (plan && plan.durs) || [];
-  if (d.length === STAGES.length) return d;
-  if (d.length === 10) return DURS_10_TO_4.map(g => g.reduce((a, i) => a + (+d[i] || 0), 0));
-  // 認不得的長度：截齊就好，總比整條時間軸算不出來好
-  return STAGES.map((_, i) => +d[i] || 0);
-}
+   審稿和出稿是 PM 收尾，所以最後兩關都算在 PM 那邊。
+   行銷不在這裡面：他排的是整本的時程，不是版面本身。 */
+const STAGE_SIDE = ['pm','design','pm','design','pm','design','pm','design','pm','pm'];
 const DEADLINE_HOUR = 18;
 const LS_KEY = 'catalogue_plans_v1';
 
@@ -12722,7 +12871,7 @@ function bootLogos(){ return refreshLogos(); }
 const SEED_PLANS = [
   { id:'seed-2', name:'7月中檔・全省對開大DM', type:'全省對開大DM', tags:['大DM','促銷'],
     start: (() => { let d = atMid(now()); for (let i = 0; i < 4; i++) d = prevWork(d); return toYMD(d); })(),
-    durs:[4,2,2,5] }
+    durs:[2,2,1,1,1,1,2,1,1,1] }
 ];
 let plans;
 try { plans = JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch (e) { plans = null; }
@@ -12743,7 +12892,7 @@ function planStages(plan){
   const start = parseYMD(plan.start);
   const base = addDays(isWE(start) ? nextWork(start) : start, -1);
   let prev = base;
-  return dursOf(plan).map((dur, i) => {
+  return plan.durs.map((dur, i) => {
     const to = addWork(prev, dur);
     const from = dur === 0 ? to : nextWork(prev);
     prev = to;
@@ -12858,7 +13007,7 @@ function buildPlanCard(plan, now, past){
   }
   const outEl = document.createElement('span');
   outEl.className = 'plan-out';
-  outEl.innerHTML = `${STAGES[STAGES.length - 1]} <b>${fmtMD(out)} 09:00</b>`;
+  outEl.innerHTML = `出稿 <b>${fmtMD(out)} 09:00</b>`;
   head.appendChild(outEl);
 
   /* 「對這一檔做的事」收成一組，站在最右邊：日期是資訊，按鈕是動作，
@@ -13426,7 +13575,7 @@ document.addEventListener('keydown', e => {
    `opts.back === 'editor'` ＝ 從 總體 的「回上一頁」進來的，儲存和返回都回那裡去。
    ========================================================================== */
 const PlanForm = (function(){
-  const DEFAULT_DURS = [4,2,2,5];
+  const DEFAULT_DURS = [2,2,1,1,1,1,2,1,1,1];
   const PRESET_TAGS  = ['大DM','小DM','促銷','新品','節慶','週年慶','母親節','年中慶'];
   const DM_TYPES     = ['全省對開大DM','網路素材','單店制作物','A3'];
   const N = STAGES.length;
@@ -13449,7 +13598,7 @@ const PlanForm = (function(){
   /* ---- 日期算術：旗子插在「那一段的最後一天」 ---- */
   const firstValid = () => isWE(START) ? nextWork(START) : START;
   const baseDay    = () => addDays(firstValid(), -1);
-  // 提品至少要有一天；後面每一段都可以縮成 0 天（＝跟前一段同一天結束，旗子疊起來）
+  // 提明細至少要有一天；後面每一段都可以縮成 0 天（＝跟前一段同一天結束，旗子疊起來）
   const minDur = i => i === 0 ? 1 : 0;
 
   function flagsFromDurs(durs){
@@ -13725,7 +13874,7 @@ const PlanForm = (function(){
   let impLayout = null;             // 帶到的版面：按「下一步」時才用得上
   let imp = null;                   // 這一張的 DOM，第一次開才抓
 
-  const totalDurs = p => dursOf(p).reduce((a,b) => a + (+b || 0), 0);
+  const totalDurs = p => (p.durs || []).reduce((a,b) => a + (+b || 0), 0);
   /* 只列真的有人用過的標籤 —— 用一個沒人用的標籤去篩，篩出來一定是空的。
      內建的排前面，常用的就在你以為的位置。 */
   function allTags(){
@@ -13907,7 +14056,7 @@ const PlanForm = (function(){
       card.appendChild(r1);
       const d = document.createElement('div');
       d.className = 'durs';
-      d.textContent = STAGES.map((st,i) => st + (dursOf(p)[i] || 0)).join('・');
+      d.textContent = STAGES.map((st,i) => st + ((p.durs || [])[i] == null ? 0 : p.durs[i])).join('・');
       card.appendChild(d);
       card.addEventListener('click', () => importSettings(p));
       imp.results.appendChild(card);
@@ -13928,7 +14077,7 @@ const PlanForm = (function(){
     btns.forEach(b => b.classList.toggle('on', b.textContent === p.type));
     if (!btns.some(b => b.classList.contains('on'))) btns[0].classList.add('on');
     tags = (p.tags || []).slice(); renderTags();
-    if (Array.isArray(p.durs)) flagsFromDurs(dursOf(p));
+    if (Array.isArray(p.durs)) flagsFromDurs(p.durs);
     fitTotalToFlags(); buildGrid(); render();   // 帶進來的時程自己算一次軸長
     const L = p.layout;
     impLayout = L ? { front: cloneSkeleton(treeOf(L.front)), back: cloneSkeleton(treeOf(L.back)) } : null;
@@ -13936,7 +14085,10 @@ const PlanForm = (function(){
     const segs = planSegCount(p);
     closeImport();
     toast('已帶入「' + (p.name || '檔案') + '」的設定'
-          + (impLayout && segs ? ('，版位和品類（' + segs + ' 塊）在下一步') : ''), 'ok', 3000);
+          + (impLayout && segs
+              ? ('，版位和品類（' + segs + ' 塊）'
+                 + (editingPlan ? '按儲存就蓋掉現在這一版' : '在下一步'))
+              : ''), 'ok', 3000);
   }
 
   const closeImport = () => { imp.mask.classList.remove('on'); imp.tagMenu.hidden = true; };
@@ -14111,8 +14263,10 @@ const PlanForm = (function(){
   function syncMode(){
     els.title.textContent = editingPlan ? '改時程' : '開一個新檔期';
     els.next.textContent  = editingPlan ? '儲存' : '下一步：切版';
-    // 帶入是「照上一次的抄一份」—— 那是開新檔期才有的動作
-    $('impOpenBtn').hidden = !!editingPlan;
+    /* 帶入是「照上一次的抄一份」。改時程時收起來（那一檔早就在跑了），
+       但**從 切版 按「回上一頁」回來的草稿要留著** —— 那一段人還在決定版怎麼切，
+       「照上一次那本抄」正是這時候會想起來的事，而唯一的入口就在這張表上。 */
+    $('impOpenBtn').hidden = !!editingPlan && !backToEditor;
   }
 
   /* 新開的檔期給一張**空白**的版：一面兩半，什麼都還沒填。
@@ -14148,6 +14302,14 @@ const PlanForm = (function(){
       editingPlan.tags  = tags.slice();
       editingPlan.start = toYMD(START);
       editingPlan.durs  = dursFromFlags();
+      /* 草稿在 切版 途中回來帶入的：版位和品類**整份蓋掉**現在這一版。
+         那是刻意的 —— 帶入問的就是「照上一次那本開」，留著現在切到一半的
+         反而是兩本混在一起。只有草稿走得到這裡（回上一頁那顆鈕只有草稿有）。 */
+      if (impLayout && (impLayout.front || impLayout.back)){
+        editingPlan.layout = { front: impLayout.front || blankSide(),
+                               back:  impLayout.back  || blankSide() };
+        impLayout = null;
+      }
       savePlans();
       const s = sync(); if (s) s.queueUpsert(editingPlan);
       const done = editingPlan;
@@ -14189,7 +14351,7 @@ const PlanForm = (function(){
     if (!btns.some(b => b.classList.contains('on'))) btns[0].classList.add('on');
     START = plan ? parseYMD(plan.start) : atMid(now());
     els.start.value = toYMD(START);
-    flagsFromDurs(plan && Array.isArray(plan.durs) ? dursOf(plan) : DEFAULT_DURS.slice());
+    flagsFromDurs(((plan && plan.durs) || DEFAULT_DURS).slice());
     selected = 0;
     syncMode();
     fitTotalToFlags();
