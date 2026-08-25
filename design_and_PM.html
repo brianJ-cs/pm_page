@@ -102,7 +102,10 @@
   .bar .right{margin-left:auto;display:flex;align-items:center;gap:16px;min-width:0}
 
   /* ---- 復原 / 重做 (步驟記錄) ---- */
-  .hist{display:flex;gap:6px;margin-left:6px}
+  .hist{display:flex;align-items:center;gap:6px;margin-left:6px}
+  /* 固定大小：它是一個標記，不是版面上的東西 */
+  .hist-n{font-size:12px;font-weight:800;color:var(--ink-dim);min-width:14px}
+  .hist-n:empty{display:none}
   .btn.icon{
     position:relative;padding:7px 13px 11px;font-size:17px;line-height:1;
     color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint);
@@ -1516,6 +1519,12 @@
      圖案跟開檔那支同一個（寫著「直」／「橫」的那兩顆，見 --cursor-v/h）。 */
   #totalScroll.t-cut.dir-v .window-node{cursor:var(--cursor-v)}
   #totalScroll.t-cut.dir-h .window-node{cursor:var(--cursor-h)}
+  /* 手上拿著刪除的時候，指到哪一塊就把那一塊整個框紅 —— 這一下是拿掉一整塊版位，
+     按下去之前要看得出來拿掉的是誰（跟 切分 的紅框同一個紅、同一個意思）。 */
+  #totalScroll.t-del .window-node{cursor:pointer}
+  #totalScroll.t-del .window-node:hover{
+    outline:2px solid var(--danger);outline-offset:-2px;background:var(--danger-tint);
+  }
   #totalScroll.t-swap .window-node{cursor:grab}
   #totalScroll.t-swap .window-node:active{cursor:grabbing}
   /* 拿起來的那一塊淡掉、要換過去的那一塊亮起來：一眼看得出「誰跟誰換」 */
@@ -1994,6 +2003,8 @@
     background:var(--bg);border-radius:8px;padding:3px 12px 5px;
   }
   #blockHead .title{font-size:19px;font-weight:800}
+  /* 「版位 24.5 × 18.2 cm」是一組東西，內部靠得比它跟旁邊那幾組近 */
+  #blockHead .blk-cm{display:flex;align-items:center;gap:2px}
   #blockHead .sub{font-size:13.5px;color:var(--muted);font-weight:800}
   /* 這裡曾經有一顆 .pm-of 下拉（「這個版位交給哪位 PM」）。指派改成一格一格之後
      它就沒有位置了 —— 標題旁邊現在只寫「PM：甲、乙」，是一行字不是一個選擇。 */
@@ -2875,6 +2886,9 @@
     <div class="hist">
       <button class="btn icon" id="undoBtn" data-key="⌘Z" title="復原 (⌘/Ctrl+Z)" disabled>↶</button>
       <button class="btn icon" id="redoBtn" data-key="⇧⌘Z" title="重做 (⌘/Ctrl+Shift+Z)" disabled>↷</button>
+      <!-- 還退得回幾步。以前這個數字只寫在 title 裡（要把滑鼠停上去才看得到），
+           於是「還剩幾步」變成一件要試出來的事 —— 按到沒反應才知道到底了。 -->
+      <span class="hist-n" id="histN" title="還可以復原幾步"></span>
     </div>
     <!-- 切在幾公分：填了就照數字切，空著就照點下去的位置切。跟開檔那支同一條規矩，
          擺的位置也一樣（最上面那條），只有 總體 拿起 切分 時才出現。 -->
@@ -3013,6 +3027,10 @@
       <button class="tool" data-ttool="items" title="品類：點一塊，填它要放哪些品類、各幾支">✏️</button>
       <button class="tool" data-ttool="cut" title="切分：點一塊，就從你點下去的那條線切成兩塊">✂</button>
       <button class="tool" data-ttool="swap" title="移動：把一塊拖到另一塊上，兩塊對調（品類、格子、刊頭一起走）">⇄</button>
+      <!-- 切錯一刀的反面。切分 一直都有，刪除卻沒有 —— 於是切多的那一塊只能留在
+           版上當一塊「未命名 0 支」，或者一路 Ctrl+Z 退回去（連帶把後面對的那幾刀
+           一起退掉）。刪掉＝旁邊那一塊補上它的位置，也就是那一刀沒有切過。 -->
+      <button class="tool" data-ttool="del" title="刪除：點一塊，把它從版上拿掉 —— 旁邊那一塊補上它的位置">🗑</button>
       <!-- 方向只有兩個，就給兩個落點讓人指，不要叫人用滾輪去猜現在是哪一種 -->
       <div id="cutDirs">
         <button class="tool sub on" data-cutdir="v" title="直切：切成左右兩塊">⇔</button>
@@ -3647,14 +3665,20 @@ function flushSave(){
    step in the stack.
    ========================================================================== */
 
-const HISTORY_MAX = 50;
-let histStack = [], histAt = -1, histLock = false;
+/* 一份快照就是整個 plan 的 JSON —— 一個排滿的檔期大約 143KB，所以「留幾步」
+   真正的成本是記憶體，不是步數。兩個上限一起夾：步數給得大方（切版那一段
+   一個下午切幾十刀是常態，50 步不夠），總量夾住免得一份大檔期把分頁撐爆。
+   ⚠️ 兩個都要在 push 之後檢查：先超過哪一個都要從最舊的那一頭丟。 */
+const HISTORY_MAX = 300;
+const HISTORY_MAX_BYTES = 24e6;
+let histStack = [], histAt = -1, histLock = false, histBytes = 0;
 /* 復原之後，格子裡的畫布會重新載入、再自己回報一次內容 —— 那不是你做的一步。
    剛復原完的那一下子，回報一律不記帳，否則重做那一疊會被它清掉。 */
 let histQuiet = 0;
 
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
+const histN   = document.getElementById('histN');
 
 /** Grey the arrows out when there is nowhere to go, so the stack is visible. */
 function syncHistoryBtns(){
@@ -3666,6 +3690,9 @@ function syncHistoryBtns(){
   redoBtn.title = canRedo
     ? `重做 (⌘/Ctrl+Shift+Z)　剩 ${histStack.length - 1 - histAt} 步`
     : '沒有可重做的步驟';
+  /* 直接寫在鈕旁邊。只寫「還能退幾步」一個數字 —— 能重做幾步是按了復原之後
+     才有的事，兩個數字並排會變成一組要先讀懂的東西。 */
+  histN.textContent = canUndo ? String(histAt) : '';
 }
 
 undoBtn.addEventListener('click', () => undo());
@@ -3693,7 +3720,13 @@ function pushHistory(){
   if (histStack[histAt] === s) return;         // nothing actually moved
   histStack.length = histAt + 1;               // a new branch drops the redos
   histStack.push(s);
-  if (histStack.length > HISTORY_MAX) histStack.shift();
+  /* 丟掉的是最舊的那幾步。長度和總量兩個上限都要顧，但**永遠留兩份** ——
+     只剩一份的話就等於「沒有可復原的步驟」，而剛剛才做了一個動作。 */
+  histBytes = histStack.reduce((a, x) => a + x.length, 0);
+  while (histStack.length > 2 &&
+         (histStack.length > HISTORY_MAX || histBytes > HISTORY_MAX_BYTES)){
+    histBytes -= histStack.shift().length;
+  }
   histAt = histStack.length - 1;
   syncHistoryBtns();
 }
@@ -5369,6 +5402,113 @@ function blockAspect(block){
   return 1;
 }
 
+/* ==========================================================================
+   版位真正的公分
+   --------------------------------------------------------------------------
+   `sh.mastheadW` 一直被當成「版位寬度」在用（刊頭寬＝版位寬，版位高＝它除以
+   aspect），可是它從來只是建版位時寫死的 36.6 —— 於是 落版 上每一塊版位都
+   自稱 36.6cm 寬，那個數字跟你在 總體 切出來的形狀完全沒有關係，
+   刊頭那一欄的公分也跟著錯。
+   版子本來就是照真實公分比畫的（見 boardPx），所以 px 換 cm 只是一個比例。
+   ========================================================================== */
+
+/** 這一塊版位在真的那張紙上多大（cm）。 */
+function blockCm(block){
+  const ref = boardPx(), cm = boardCm();
+  const k = cm.w / ref.w;                       // px → cm
+  for (const side of ['front','back']){
+    const r = regionSize(layout[side], block, ref.w, ref.h);
+    if (r && r.h > 0) return { w: r.w * k, h: r.h * k };
+  }
+  return { w: cm.w, h: cm.h };
+}
+
+/** 每次重建版面就把真正的寬度寫回 sh.mastheadW，讓底下所有算式自動變成對的。
+    ⚠️ 第一次遇到一個舊檔期時，刊頭高度要**等比換算**（plan.cmV2 這個章）：
+    那些高度是照假的 36.6 訂出來的，直接留著會讓別人排好的刊頭當場變高或變矮。
+    寬和高同乘一個比例，刊頭佔版位的那個比例就一步都不動。 */
+function syncSheetCm(){
+  if (!currentPlan) return;
+  const first = !currentPlan.cmV2;
+  allBlocks().forEach(b => {
+    const sh = sheetOf(b);
+    const w = Math.round(blockCm(b).w * 10) / 10;
+    if (!(w > 0)) return;
+    if (first && sh.mastheadW > 0 && sh.mastheadH > 0)
+      sh.mastheadH = Math.round(sh.mastheadH * (w / sh.mastheadW) * 10) / 10;
+    sh.mastheadW = w;
+  });
+  if (first){ currentPlan.cmV2 = 1; markDirty(); }
+}
+
+/** 從樹根走到這一塊，路上經過的每一個節點（含頭尾）。 */
+function pathToNode(root, target, out){
+  if (root === target) return out.concat([root]);
+  if (isLeaf(root)) return null;
+  for (const k of root.children){
+    const hit = pathToNode(k, target, out.concat([root]));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** 決定這一塊「寬」（或「高」）的是哪一刀：從它往上找，第一個沿著這條軸分的容器。
+    中間那幾層分的是另一條軸，所以那一段每一層的寬度都一樣 —— 改那個容器裡的
+    比例，就是改這一塊的寬。找不到＝這一塊在這條軸上就是整張版，改不了。 */
+function axisOwner(block, horizontal){
+  const dir = horizontal ? 'row' : 'col';
+  for (const side of ['front','back']){
+    const path = pathToNode(layout[side], block, []);
+    if (!path) continue;
+    for (let i = path.length - 2; i >= 0; i--){
+      if (path[i].dir === dir && path[i].children.length > 1)
+        return { par: path[i], kid: path[i + 1] };
+    }
+    return null;
+  }
+  return null;
+}
+
+/** 把這一塊改成 cm 公分寬（或高）。動的是那一刀的比例，旁邊那幾塊照原來的比例
+    分掉剩下的 —— 整張版的大小是紙的事實，不會因為誰變寬就跟著長大。
+    回傳沒改成的理由（空字串＝改好了）。 */
+function setBlockCm(block, horizontal, cm){
+  const own = axisOwner(block, horizontal);
+  if (!own) return horizontal ? '這一塊已經是整張版的寬度' : '這一塊已經是整張版的高度';
+  const { par, kid } = own;
+  /* fold ＝ 版中間那條摺線。它是紙對折的地方，不是誰切出來的一刀，
+     所以那條線不能拖、也不能用打字的推走。 */
+  if (par.fold) return '這一塊的' + (horizontal ? '寬' : '高')
+    + '就是半張版（中間那條摺線），要改得先在它裡面切一刀';
+
+  const ref = boardPx();
+  const k = boardCm().w / ref.w;
+  let rp = null;
+  for (const s of ['front','back']){
+    rp = regionSize(layout[s], par, ref.w, ref.h);
+    if (rp) break;
+  }
+  if (!rp) return '找不到這一塊在哪一張版上';
+
+  const n = par.children.length;
+  const divPx = par.fold ? FOLD_PX : RESIZE_PX;
+  const avail = (horizontal ? rp.w : rp.h) - divPx * (n - 1);
+  if (!(avail > 0)) return '';
+
+  const sizes = effSizes(par);
+  const idx = par.children.indexOf(kid);
+  const lo = CONFIG.minPercent, hi = 100 - CONFIG.minPercent * (n - 1);
+  const want = Math.max(lo, Math.min(hi, (cm / k) / avail * 100));
+
+  // 剩下的照原來的比例分掉 100 - want
+  const restNow = 100 - sizes[idx] || 1;
+  par.children.forEach((c, i) => {
+    const v = i === idx ? want : sizes[i] / restNow * (100 - want);
+    c.size = i === n - 1 ? null : v;
+  });
+  return '';
+}
+
 /* Row counts come from the block's shape; splitEven — lifted verbatim from
    grid-reorder.html — then spreads the cells across those rows as evenly as
    possible. Combined with flex:1 cards this guarantees a full rectangle for
@@ -5379,6 +5519,107 @@ function splitEven(total, nRows){
   return Array.from({length:nRows}, (_, i) => base + (i < extra ? 1 : 0));
 }
 
+/** 版位的「寬 × 高 cm」那一組。兩個都是可以打字的欄位；改不了的那一軸
+    （整張版那麼寬、或那一邊就是中間那條摺線）欄位反灰，title 裡寫為什麼 ——
+    寫著卻按不動比沒有更難懂，所以理由一定要講得出來。 */
+function addBlockCmFields(sh){
+  const box = document.createElement('span');
+  box.className = 'blk-cm';
+  const lbl = document.createElement('span');
+  lbl.className = 'sub';
+  lbl.textContent = '版位';
+  box.appendChild(lbl);
+
+  [true, false].forEach((horizontal, i) => {
+    if (i) {
+      const x = document.createElement('span');
+      x.className = 'mh-x-sep';
+      x.textContent = '×';
+      box.appendChild(x);
+    }
+    const cm = blockCm(activeBlock);
+    const cur = Math.round((horizontal ? cm.w : cm.h) * 10) / 10;
+    const own = axisOwner(activeBlock, horizontal);
+    const why = !own ? `這一塊就是整張版的${horizontal ? '寬' : '高'}`
+              : own.par.fold ? '這一邊是版中間那條摺線，動不了'
+              : '';
+
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'mh-num';
+    inp.min = '1'; inp.step = '0.1';
+    inp.value = cur;
+    inp.disabled = !!why;
+    inp.title = why || `這一塊${horizontal ? '寬' : '高'}幾公分。改了旁邊那幾塊會照原來的比例讓出空間。`;
+    inp.addEventListener('change', () => {
+      const v = parseFloat(inp.value);
+      if (!isFinite(v) || v <= 0){ inp.value = cur; return; }
+      const err = setBlockCm(activeBlock, horizontal, v);
+      if (err){ inp.value = cur; toast(err, 'info', 2600); return; }
+      commitAction();
+      rebuildAll(activeBlock.id);       // 整張版的比例都動了，兩張版一起重畫
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+    box.appendChild(inp);
+  });
+
+  const unit = document.createElement('span');
+  unit.className = 'sub';
+  unit.textContent = 'cm';
+  box.appendChild(unit);
+  blockHead.appendChild(box);
+}
+
+/** 版面畫完才知道真的排成幾列（列數是從版位的形狀推出來的），所以那個欄位的
+    數字由 renderGrid 兩條路各回填一次 —— renderHead 先畫欄位、renderGrid 才知道
+    答案，只在 renderHead 裡填會永遠慢一步。焦點在裡面時不動（人正在打字）。 */
+function syncRowCountField(m){
+  const inp = document.getElementById('rowCountN');
+  if (!inp || document.activeElement === inp) return;
+  inp.value = m.counts.length;
+}
+
+/** 這一塊排幾列。格數不動，只是重新分 —— 40 格從 4 列 ×10 改成 5 列 ×8。
+    打進去就釘住（寫進 sh.rows），跟拖 ⋮⋮ 搬列是同一個欄位：那個欄位的意思
+    本來就是「這個人要的排法」。清空欄位＝放掉，回去跟著版面的形狀自己排。 */
+function addRowCountField(sh){
+  const n = (sh.cells || []).length;
+  if (!n) return;
+  const m = lastMetrics && lastMetrics.sh === sh ? lastMetrics : sheetMetrics(activeBlock);
+  const now = m.counts.length;
+
+  const lbl = document.createElement('span');
+  lbl.className = 'sub';
+  lbl.textContent = '列數';
+  blockHead.appendChild(lbl);
+
+  const inp = document.createElement('input');
+  inp.id = 'rowCountN';
+  inp.type = 'number';
+  inp.className = 'mh-num';
+  inp.min = '1'; inp.max = String(n); inp.step = '1';
+  inp.value = now;
+  inp.title = sh.rows
+    ? `${n} 格排成幾列（現在是釘住的：${sh.rows.join('／')}）。清空＝放掉，跟著版位的形狀自己排。`
+    : `${n} 格排成幾列。打一個數字就釘住，清空＝跟著版位的形狀自己排。`;
+  const apply = () => {
+    const raw = inp.value.trim();
+    if (!raw){                        // 清空＝放掉釘住的那一份
+      if (!sh.rows){ inp.value = now; return; }
+      sh.rows = null;
+      renderHead(); renderGrid(activeBlock); commitAction();
+      return;
+    }
+    const v = Math.max(1, Math.min(n, Math.round(parseFloat(raw))));
+    if (!isFinite(v)){ inp.value = now; return; }
+    sh.rows = splitEven(n, v);
+    renderHead(); renderGrid(activeBlock); commitAction();
+  };
+  inp.addEventListener('change', apply);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+  blockHead.appendChild(inp);
+}
+
 function renderHead(){
   blockHead.innerHTML = '';
   if (!activeBlock) return;
@@ -5386,12 +5627,20 @@ function renderHead(){
 
   const title = document.createElement('span');
   title.className = 'title';
-  title.textContent = sh.masthead
-    ? `${activeBlock.name}刊頭：`
-    : `${activeBlock.name}（無刊頭）`;
+  title.textContent = activeBlock.name;
   blockHead.appendChild(title);
 
+  /* ---- 這一塊版位本身有多大（cm），可以直接打數字改 ----
+     以前這一列上唯一能改的是刊頭，版位的形狀只有 總體 拖切割線改得動 ——
+     而那條線是「兩塊怎麼分」，要的卻常常是「這一塊要 24 公分寬」。
+     改的是那一刀的比例：整張紙的大小是事實，旁邊那幾塊照原比例讓出空間。 */
+  addBlockCmFields(sh);
+
   if (sh.masthead){
+    const mhLbl = document.createElement('span');
+    mhLbl.className = 'sub';
+    mhLbl.textContent = '刊頭';
+    blockHead.appendChild(mhLbl);
     /* 寬和高兩個都寫出來，躺著站著都一樣。刊頭是要發出去做的一塊實體印刷品，
        它的規格就是「寬 × 高」—— 即使躺著的時候寬度永遠等於版位寬、不會變，
        那也是這塊東西的尺寸，不是可以省略的常數。
@@ -5446,6 +5695,8 @@ function renderHead(){
   sub.className = 'sub';
   sub.textContent = `${totalCount(activeBlock)} 支`;
   blockHead.appendChild(sub);
+
+  addRowCountField(sh);
 
 
   if (!sh.masthead){
@@ -5701,6 +5952,7 @@ function layoutGrid(m){
   boardEl.classList.toggle('mh-locked', mhLocked());
   boardEl.style.setProperty('--z', sheetZoom);          // card type scales with it
   boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
+  syncRowCountField(m);
   boardEl.style.width = m.gridW + 'px';
   sizeSideMasthead(m);
   for (const row of boardEl.children){
@@ -5876,6 +6128,7 @@ function renderGrid(block){
 
   boardEl.style.setProperty('--z', sheetZoom);
   boardEl.style.setProperty('--rowh', m.rowH + 'px');   // 格子上的字跟著列高走
+  syncRowCountField(m);
   boardEl.style.width = m.gridW + 'px';
   boardEl.classList.toggle('mh-locked', mhLocked());
   sizeSideMasthead(m);
@@ -9832,7 +10085,8 @@ function renderPmPlans(){
     const sub = document.createElement('span');
     sub.className = 'sub';
     const o = document.createElement('span');
-    o.textContent = `出稿 ${fmtMD(out)}`;
+    // 最後一關的名字直接讀 STAGES —— 寫死「出稿」的那一版在關名改掉之後就對不上了
+    o.textContent = `${STAGES[STAGES.length - 1]} ${fmtMD(out)}`;
     const m = document.createElement('span');
     m.className = 'mine';
     m.textContent = t.laid ? `${t.total} 格` : '還沒落版';
@@ -11460,7 +11714,7 @@ boardEl.addEventListener('pointerdown', e => {
    而「二校過了的一定也過了一校」照關的順序本來就是自明的。要看完整那一份
    ——幾關、誰蓋的、什麼時候——滑上去看 title。
    ========================================================================== */
-const REVIEW_STAGES = ['一校', '二校', '審稿'];
+const REVIEW_STAGES = ['一校', '二校', '蓋章確認'];
 
 /** 這本 DM 現在這一關要不要審；不要就是空字串。 */
 function reviewStage(plan){
@@ -11468,9 +11722,12 @@ function reviewStage(plan){
   const n = STAGES[planStageIndex(plan)];
   return REVIEW_STAGES.includes(n) ? n : '';
 }
-/** 我現在是不是「正在審的那個人」。myTurn() 已經擋掉行銷（他不在那串關裡）
-    和不是這一關的那一邊，所以這裡不必再問一次身分。 */
-function reviewing(){ return !!reviewStage(currentPlan) && myTurn(); }
+/** 我現在是不是「正在審的那個人」＝ PM，而且這一關要審。
+    ⚠️ 這裡以前寫 myTurn()，理由是「那幾關的 STAGE_SIDE 都是 pm」——
+    關名收成四關之後那句話不成立了：一校、二校是**設計**的回合（設計要交出
+    那一版稿），審的人還是 PM。綁著 myTurn 的話那顆鈕會在三關裡消失兩關，
+    而校對正是那幾天唯一在做的事。所以這裡自己問一次身分。 */
+function reviewing(){ return !!reviewStage(currentPlan) && myRole() === 'pm'; }
 
 const passOf = c => (c && c.pass) || null;
 const passedAt = (c, st) => !!(c && c.pass && c.pass[st]);
@@ -11656,6 +11913,7 @@ function setTotalTool(name){
   document.getElementById('cutBar').classList.toggle('on', name === 'cut');
   totalHost.classList.toggle('t-cut',  name === 'cut');
   totalHost.classList.toggle('t-swap', name === 'swap');
+  totalHost.classList.toggle('t-del',  name === 'del');
   aimAt(null);
   endSwapDrag();
   if (name !== 'items') closeItemPop();
@@ -12021,6 +12279,73 @@ document.addEventListener('pointerdown', e => {
 
 /* 兩塊對調：換的是**內容**（品類、格子、刊頭），不是位置和大小 —— 版位的大小和
    比例是落版談好的，工具不准動它（跟行銷那支 swap 同一個約定）。 */
+/* 拿掉一塊版位。切分 的反面：那一塊沒了，**旁邊那一塊補上它的位置** ——
+   也就是回到「那一刀沒有切過」的樣子，而不是留一個洞（一張 DM 上沒有洞這種東西）。
+   ⚠️ 爸爸只剩一個小孩時要把爸爸整個換成那個小孩，不能留一個只有一個小孩的容器：
+   effSizes 會把它算成 100%，畫出來一樣，但下一刀切在它身上就多包一層，
+   而且那條切割線是拖不動的（只有兩個小孩之間才有 resizer）。
+   ⚠️ 換上去的那個小孩要**接收爸爸的 size**：它現在佔的是爸爸原來的位置。
+   最後一個小孩的 size 是 null（flex:1），所以順手照那個約定重寫一遍。 */
+function deleteBlock(node){
+  const side = ['front', 'back'].find(s =>
+    layout[s] === node || parentOfNode(layout[s], node));
+  if (!side) return false;
+  const par = parentOfNode(layout[side], node);
+  // 整張版就這麼一塊：拿掉它等於這一面不存在，那不是一個版面的狀態
+  if (!par) return false;
+
+  /* 比例要在**拿掉之前**量：拿掉之後 effSizes 會把空出來的百分比全部算給
+     size 是 null 的那一個小孩（它是 flex:1），於是空間全歸最後一塊，
+     而不是剩下那幾塊照原來的比例分。 */
+  const idx = par.children.indexOf(node);
+  const sizes = effSizes(par);
+  sizes.splice(idx, 1);
+  par.children.splice(idx, 1);
+
+  if (par.children.length === 1){
+    const only = par.children[0];
+    only.size = par.size;
+    const gp = parentOfNode(layout[side], par);
+    if (gp) gp.children[gp.children.indexOf(par)] = only;
+    else { only.size = null; layout[side] = only; }
+    return true;
+  }
+  /* 剩下的那幾塊重新分掉 100%。最後一個照約定回到 null，
+     不然一塊一塊加起來會因為四捨五入慢慢漂掉。 */
+  const rest = sizes.reduce((a, b) => a + b, 0) || 1;
+  par.children.forEach((k, i) => {
+    k.size = i === par.children.length - 1 ? null : (sizes[i] / rest) * 100;
+  });
+  return true;
+}
+
+/** 點下去那一下：有東西的版位先問一句 —— 拿掉的是別人排過的一塊版。 */
+async function askDeleteBlock(node){
+  const sh = sheetOf(node);
+  const picked = (sh.cells || []).filter(cellPicked).length;
+  const cells = (sh.cells || []).length;
+  const what = picked ? `已經挑好 ${picked} 格`
+             : cells  ? `有 ${cells} 格還沒挑貨`
+             : realGroups(node).length ? '已經填了品類'
+             : '';
+  if (what){
+    const ok = await modalConfirm({
+      title: `刪掉「${node.name}」？`,
+      body: `這一塊${what}。拿掉之後旁邊那一塊會補上它的位置，⌘/Ctrl+Z 可以復原。`,
+      ok: '刪掉', danger: true
+    });
+    if (!ok) return;
+  }
+  if (!deleteBlock(node)){
+    toast('這一面只剩這一塊，拿掉就沒有版面了', 'info', 2600);
+    return;
+  }
+  selectTotalBlock(null);
+  commitAction();
+  rebuildAll(activeBlock && activeBlock.id);
+  toast(`已刪掉「${node.name}」　⌘/Ctrl+Z 可復原`, 'ok', 2600);
+}
+
 function swapBlocks(a, b){
   if (!a || !b || a === b) return;
   ['name', 'groups', 'sheet', 'noMasthead'].forEach(k => {
@@ -12241,6 +12566,7 @@ totalHost.addEventListener('click', e => {
     if (itemNode === node) closeItemPop(); else openItemPop(node, el);
     return;
   }
+  if (totalTool === 'del'){ askDeleteBlock(node); return; }
   if (totalTool === 'cut'){
     cutHoverXY = { x: e.clientX, y: e.clientY };
     cutHoverEl = el;                 // 點下去的那一塊就是要切的那一塊
@@ -12296,11 +12622,29 @@ const WD = ['日','一','二','三','四','五','六'];
    撥時鐘那條要在外面用，所以這裡留一份公用的。 */
 const fmtMDWx = d => fmtMD(d) + '(' + WD[d.getDay()] + ')';
 
-const STAGES = ['提品','製作','一校','一改','二校','二改','蓋章','蓋章修改','審稿','出稿'];
+/* 校稿流程就是這四關（2026-08 從十關收成四關）。以前那十關是把「校」和「改」
+   各算一關（一校／一改／二校／二改／蓋章／蓋章修改…），可是排程表上真正在講的
+   日期只有這四個 —— 多出來那六個欄位每一個都要填天數，而它們講的是同一段時間。 */
+const STAGES = ['提明細','一校','二校','蓋章確認'];
 /* 每一關是誰的事。這一份就是「球在誰手上」的全部答案（見 planSide）——
-   審稿和出稿是 PM 收尾，所以最後兩關都算在 PM 那邊。
-   行銷不在這裡面：他排的是整本的時程，不是版面本身。 */
-const STAGE_SIDE = ['pm','design','pm','design','pm','design','pm','design','pm','pm'];
+   問的是**這一關該誰交東西**：PM 交明細，設計交一校稿、二校稿，PM 收尾蓋章。
+   行銷不在這裡面：他排的是整本的時程，不是版面本身。
+   ⚠️ 「誰蓋得了審核通過」不再等於「輪到誰」了（一校／二校是設計的回合，
+   而審的是 PM）—— 見 reviewing()。 */
+const STAGE_SIDE = ['pm','design','design','pm'];
+
+/* 舊檔期存的是十關的天數。關名收成四關之後，那一串直接拿來排會多出六支旗子
+   （而欄位只剩四個），所以在**讀的那一刻**併起來：一段的天數＝它吃掉的那幾關加總。
+   併的是天數不是日期，所以整條時間軸的總長一天都不差 —— 舊檔期的出稿日
+   不會因為改了關名就跑掉。存回去的時候自然就是四個（見開檔表的 dursFromFlags）。 */
+const DURS_10_TO_4 = [[0,1], [2,3], [4,5], [6,7,8,9]];
+function dursOf(plan){
+  const d = (plan && plan.durs) || [];
+  if (d.length === STAGES.length) return d;
+  if (d.length === 10) return DURS_10_TO_4.map(g => g.reduce((a, i) => a + (+d[i] || 0), 0));
+  // 認不得的長度：截齊就好，總比整條時間軸算不出來好
+  return STAGES.map((_, i) => +d[i] || 0);
+}
 const DEADLINE_HOUR = 18;
 const LS_KEY = 'catalogue_plans_v1';
 
@@ -12378,7 +12722,7 @@ function bootLogos(){ return refreshLogos(); }
 const SEED_PLANS = [
   { id:'seed-2', name:'7月中檔・全省對開大DM', type:'全省對開大DM', tags:['大DM','促銷'],
     start: (() => { let d = atMid(now()); for (let i = 0; i < 4; i++) d = prevWork(d); return toYMD(d); })(),
-    durs:[2,2,1,1,1,1,2,1,1,1] }
+    durs:[4,2,2,5] }
 ];
 let plans;
 try { plans = JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch (e) { plans = null; }
@@ -12399,7 +12743,7 @@ function planStages(plan){
   const start = parseYMD(plan.start);
   const base = addDays(isWE(start) ? nextWork(start) : start, -1);
   let prev = base;
-  return plan.durs.map((dur, i) => {
+  return dursOf(plan).map((dur, i) => {
     const to = addWork(prev, dur);
     const from = dur === 0 ? to : nextWork(prev);
     prev = to;
@@ -12514,7 +12858,7 @@ function buildPlanCard(plan, now, past){
   }
   const outEl = document.createElement('span');
   outEl.className = 'plan-out';
-  outEl.innerHTML = `出稿 <b>${fmtMD(out)} 09:00</b>`;
+  outEl.innerHTML = `${STAGES[STAGES.length - 1]} <b>${fmtMD(out)} 09:00</b>`;
   head.appendChild(outEl);
 
   /* 「對這一檔做的事」收成一組，站在最右邊：日期是資訊，按鈕是動作，
@@ -13082,7 +13426,7 @@ document.addEventListener('keydown', e => {
    `opts.back === 'editor'` ＝ 從 總體 的「回上一頁」進來的，儲存和返回都回那裡去。
    ========================================================================== */
 const PlanForm = (function(){
-  const DEFAULT_DURS = [2,2,1,1,1,1,2,1,1,1];
+  const DEFAULT_DURS = [4,2,2,5];
   const PRESET_TAGS  = ['大DM','小DM','促銷','新品','節慶','週年慶','母親節','年中慶'];
   const DM_TYPES     = ['全省對開大DM','網路素材','單店制作物','A3'];
   const N = STAGES.length;
@@ -13381,7 +13725,7 @@ const PlanForm = (function(){
   let impLayout = null;             // 帶到的版面：按「下一步」時才用得上
   let imp = null;                   // 這一張的 DOM，第一次開才抓
 
-  const totalDurs = p => (p.durs || []).reduce((a,b) => a + (+b || 0), 0);
+  const totalDurs = p => dursOf(p).reduce((a,b) => a + (+b || 0), 0);
   /* 只列真的有人用過的標籤 —— 用一個沒人用的標籤去篩，篩出來一定是空的。
      內建的排前面，常用的就在你以為的位置。 */
   function allTags(){
@@ -13563,7 +13907,7 @@ const PlanForm = (function(){
       card.appendChild(r1);
       const d = document.createElement('div');
       d.className = 'durs';
-      d.textContent = STAGES.map((st,i) => st + ((p.durs || [])[i] == null ? 0 : p.durs[i])).join('・');
+      d.textContent = STAGES.map((st,i) => st + (dursOf(p)[i] || 0)).join('・');
       card.appendChild(d);
       card.addEventListener('click', () => importSettings(p));
       imp.results.appendChild(card);
@@ -13584,7 +13928,7 @@ const PlanForm = (function(){
     btns.forEach(b => b.classList.toggle('on', b.textContent === p.type));
     if (!btns.some(b => b.classList.contains('on'))) btns[0].classList.add('on');
     tags = (p.tags || []).slice(); renderTags();
-    if (Array.isArray(p.durs)) flagsFromDurs(p.durs);
+    if (Array.isArray(p.durs)) flagsFromDurs(dursOf(p));
     fitTotalToFlags(); buildGrid(); render();   // 帶進來的時程自己算一次軸長
     const L = p.layout;
     impLayout = L ? { front: cloneSkeleton(treeOf(L.front)), back: cloneSkeleton(treeOf(L.back)) } : null;
@@ -13845,7 +14189,7 @@ const PlanForm = (function(){
     if (!btns.some(b => b.classList.contains('on'))) btns[0].classList.add('on');
     START = plan ? parseYMD(plan.start) : atMid(now());
     els.start.value = toYMD(START);
-    flagsFromDurs(((plan && plan.durs) || DEFAULT_DURS).slice());
+    flagsFromDurs(plan && Array.isArray(plan.durs) ? dursOf(plan) : DEFAULT_DURS.slice());
     selected = 0;
     syncMode();
     fitTotalToFlags();
@@ -14255,6 +14599,9 @@ function showPlanForm(){
    block the user was working on inside the new tree. */
 function rebuildAll(keepId){
   layout = currentPlan.layout;
+  /* 版位的形狀變了（切一刀、刪一塊、對調、Ctrl+Z），它的公分就變了 ——
+     落版 上那兩個數字讀的是 sh.mastheadW，這裡不寫回去它就停在上一個形狀。 */
+  syncSheetCm();
   boards = {};
   clearBoards();
   editorHost.appendChild(buildBoard('front', '正面'));
@@ -14327,6 +14674,7 @@ function openPlan(plan){
   migrateGuidesToCm(plan);           // 舊檔期的對齊線是「尺」那套 20×10 的格
   layout = plan.layout;
   migratePaperToCells(plan);         // 舊檔期的「整本一個紙色」塗到每一格上
+  syncSheetCm();                     // 版位的公分照樹上量一次（舊檔期的刊頭跟著換算）
 
   // reset editor state for the newly opened plan
   activeBlock = null;
@@ -14356,7 +14704,7 @@ function openPlan(plan){
   setSaveState('done');              // nothing changed yet, so it is saved
 
   // the baseline every undo eventually walks back to
-  histStack = []; histAt = -1;
+  histStack = []; histAt = -1; histBytes = 0;
   pushHistory();
 
   /* 上次開這一檔時拍的點陣圖撈回來 —— **沒有這一步，重整之後第一次進 拼板
