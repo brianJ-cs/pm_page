@@ -1972,6 +1972,49 @@
     font-size:10.5px;color:var(--ink-dim);line-height:1.5;
   }
 
+  /* 貼圖面板：跟取色盤同一種做法（工具的一部分，貼在工具列左邊，見 placeStickerPop）。
+     縮圖統一是正方形，裡面的圖 object-fit:contain —— 貼紙本身長寬比不一，
+     容器大小一致才排得整齊。 */
+  #stickerPop{
+    position:fixed;z-index:520;display:none;width:216px;
+    max-height:calc(100vh - 16px);overflow:auto;
+    background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);
+    border-radius:10px;padding:11px 12px 12px;
+    box-shadow:0 12px 34px rgba(0,0,0,.22);
+    font-size:11.5px;user-select:none;
+  }
+  #stickerPop.on{display:block}
+  #stickerPop .pp-head{
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:12px;font-weight:800;margin-bottom:8px;
+  }
+  #stickerPop .pp-x{
+    border:0;background:transparent;color:var(--ink-dim);font-size:15px;
+    cursor:pointer;line-height:1;padding:0 2px;font-family:inherit;
+  }
+  #stickerPop .pp-row{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
+  .stk-th{
+    position:relative;width:60px;height:60px;padding:2px;border-radius:6px;cursor:pointer;
+    border:1.5px solid var(--line-strong);background:var(--bg);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .stk-th img{max-width:100%;max-height:100%;object-fit:contain}
+  .stk-th:hover{border-color:var(--ink-dim)}
+  /* 現在拿著的就是這一張：藍框（藍＝你正在點的東西），跟色盤挑色同一條規矩 */
+  .stk-th.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--accent-tint)}
+  .stk-th .nm{
+    position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:700;
+    color:#fff;background:rgba(0,0,0,.55);padding:1px 3px;line-height:1.3;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  #stickerPop .pp-empty{font-size:10.5px;color:var(--ink-dim);line-height:1.5}
+  #stickerPop .pp-note{
+    margin-top:9px;padding-top:8px;border-top:1px solid var(--line);
+    font-size:10.5px;color:var(--ink-dim);line-height:1.5;
+  }
+  /* 拿著 貼圖 的時候游標也換掉，跟上色同一條理由：手上拿著哪一件事要看得出來 */
+  #sheetMain.tool-sticker,#sheetMain.tool-sticker .cell{cursor:crosshair}
+
   /* 拉框：框到的都上色。框子本身是 .sel-box（本來跟蓋章共用，同一個手勢就該長同一個
      樣子，Alt＝清除也照樣換成紅的）。被框到的格子先亮起來 —— 放手之前就看得到
      會上到哪幾格。 */
@@ -2876,6 +2919,11 @@
          那是版面上的素材，跟刊頭圖同一類 —— PM 管的是格子裡的貨。
          跟商品目錄一樣不進 syncListButtons（那一排是行銷的）。 -->
     <button class="btn" id="logoBtn" hidden>🏷 品牌 Logo</button>
+    <!-- 貼紙庫（sticker_editor.html，獨立一支）。跟品牌 Logo 同一類：版面上可以貼的
+         素材，只有設計放得上去，所以只有設計看得到，也不進 syncListButtons。
+         這裡只是「管理／測試貼紙」的入口；真正貼到格子上是 拼板 工具列那顆「貼圖」
+         （見 #toolRail），兩邊各管各的，這顆鈕不碰版面。 -->
+    <button class="btn" id="stickerLibBtn" hidden>🏷➕ 貼紙庫</button>
     <!-- 這一整排都是行銷的（見 syncListButtons）：講的都是「這本 DM 存不存在、
          什麼時候做」。一開始全部 hidden，登入之後才知道要不要給。 -->
     <button class="btn danger" id="wipeBtn" hidden
@@ -3231,6 +3279,14 @@
            整個不出現（syncPaintPop），不是灰掉 —— 那一頁根本沒有這件事。 -->
       <button class="tool" data-tool="paint" data-key="C"
               title="上色 (C)：點一格上色、拉一個框整批上色。Alt＝清掉底色">🎨<span class="swatch"></span></button>
+      <!-- 貼圖：從貼紙庫（sticker_editor.html）挑一張，點一格貼上去。跟 上色 同一種
+           「工具＋盤子」做法——只是這裡盤子裡放的是縮圖，不是顏色。
+           ⚠️ 這裡的「貼紙」跟意見欄那疊便利貼是兩回事（那邊也叫貼紙，是留言用的），
+           按鈕故意不寫「貼紙」，寫「貼圖」，免得兩件事看起來像同一件。
+           跟 上色 一樣只在 拼板 才有意義（配色／配圖都要看著真正的貨），
+           而且只有設計動得了——這兩條規矩都在 syncStickerTool() 裡一次講完。 -->
+      <button class="tool" data-tool="sticker" data-key="T"
+              title="貼圖 (T)：從貼紙庫挑一張，點一格貼上去">🏷️</button>
       <!-- ⚠️ 審核通過那一顆**不在這裡**：它站在意見欄、貼紙那一疊底下（#passBtn）——
            校對那幾關那是整頁要做的那一件事，而 PM 在 拼板 連這條工具列都沒有。 -->
       <div class="zoom-val" id="zoomVal">100%</div>
@@ -3299,6 +3355,16 @@
   <div class="pp-lbl">最常用</div>
   <div class="pp-row" id="paintTop"></div>
   <div class="pp-note" id="paintNote"></div>
+</div>
+<!-- 貼圖面板。貼在工具列左邊，拿起 貼圖 才出現——跟取色盤同一種「工具的一部分」做法。
+     ⚠️ 這裡的「貼紙庫」是名詞（sticker_editor.html 存的那份模板清單），
+     跟意見欄那疊「貼紙」（便利貼）沒有關係，見 #toolRail 那顆按鈕旁邊的註解。 -->
+<div id="stickerPop">
+  <div class="pp-head"><span>貼紙庫</span>
+    <button class="pp-x" id="stickerClose" title="收起來（工具還拿在手上）">✕</button></div>
+  <div class="pp-row" id="stickerGrid"></div>
+  <div class="pp-empty" id="stickerEmpty">還沒有貼紙 —— 先去「🏷➕ 貼紙庫」做幾張</div>
+  <div class="pp-note" id="stickerNote">點一張，再點版上一格貼上去</div>
 </div>
 <div id="toastHost"></div>
 <!-- 進度：左邊版位交出了幾成，右邊每位 PM 拼完幾格 -->
@@ -7402,11 +7468,14 @@ function setTool(name){
   sheetMainEl.classList.toggle('tool-paint', name === 'paint');
   sheetMainEl.classList.toggle('tool-dropper', name === 'dropper');
   sheetMainEl.classList.toggle('tool-pass', name === 'pass');
+  sheetMainEl.classList.toggle('tool-sticker', name === 'sticker');
   /* 重新拿起 上色 就把盤子開回來：✕ 收起來的是「這一次不用看」，
      不是「以後都別出現」—— 收掉之後再也叫不回來的東西就等於沒有那個功能。
      取色也算：取到的顏色就是落在盤子上那一格，看不到的話等於沒有發生。 */
   if (name === 'paint' || name === 'dropper') paintPopShut = false;
+  if (name === 'sticker') stickerPopShut = false;   // 貼圖同一條規矩
   syncPaintPop();
+  syncStickerTool();
   syncPassTool();          // 意見欄那顆大的要跟著亮／暗（它是一個模式）
   /* 拼板 那一層平常關著滑鼠（只留格子當入口）。拿起會動到版面的工具就把整張版
      還給滑鼠。用 getElementById 不用上面那個 const boardOv —— 那個宣告在這個
@@ -7816,6 +7885,8 @@ document.addEventListener('keydown', e => {
   /* A＝審核通過。只有正在審的那個人有這個工具（見 reviewing），別人按下去
      不換工具 —— 換了會拿著一個工具列上根本沒有的東西。 */
   else if (k === 'a' && activeTab === 'board' && reviewing()){ e.preventDefault(); setTool('pass'); }
+  /* T＝貼圖。跟 上色 同一條規矩：只有 拼板、只有設計。 */
+  else if (k === 't' && activeTab === 'board' && activeMode === 'design'){ e.preventDefault(); setTool('sticker'); }
 });
 
 document.addEventListener('keyup', e => {
@@ -8642,13 +8713,21 @@ document.getElementById('catBtn').addEventListener('click', () =>
 document.getElementById('logoBtn').addEventListener('click', () =>
   openApp('logo_page/index.html', '品牌 Logo',
           '各家品牌的 logo 都放在這裡 —— 排版要用哪一張就從這裡找'));
+/* 貼紙庫自己一支獨立的檔案（sticker_editor.html），只存這台瀏覽器（localStorage，
+   跟主程式同一個網站、同一個瀏覽器就讀得到，不用另外接一條同步的路）。
+   拼板 那顆「貼圖」工具開起來的面板是直接讀同一份 localStorage，不是讀這個
+   iframe 裡的東西，所以這裡開／關不用像 logo 那樣特地重拉一次。 */
+document.getElementById('stickerLibBtn').addEventListener('click', () =>
+  openApp('sticker_editor.html', '貼紙庫',
+          '做促銷、規格、贈品這幾種可重複貼的小圖——這裡管理貼紙，貼到格子上請到 拼板 按「貼圖」'));
 document.getElementById('catClose').addEventListener('click', closeApp);
 catMask.addEventListener('click', e => { if (e.target === catMask) closeApp(); });
-/* 合成單檔（--bundle）裡沒有這兩頁的檔案 —— 那一版是「寄一支檔案給別人看」，
+/* 合成單檔（--bundle）裡沒有這幾頁的檔案 —— 那一版是「寄一支檔案給別人看」，
    點下去只會得到一頁 404。與其給會壞的鈕，不如不給。 */
 if (window.__PICK_HTML){
   document.getElementById('catBtn').hidden = true;
   document.getElementById('logoBtn').hidden = true;
+  document.getElementById('stickerLibBtn').hidden = true;
 }
 
 /* pushType 會讓每一塊畫布重排，所以不要一報就跑一次。 */
@@ -10317,10 +10396,12 @@ function setTab(id){
   /* 離開 拼板 就把刷子放下。工具列是兩頁共用的同一顆 DOM，不放的話 落版 會停在
      一個手上拿著看不到的東西的狀態（🎨 在那一頁是藏起來的）—— 於是點格子沒反應，
      而畫面上沒有任何東西解釋為什麼。 */
-  if (id !== 'board' && (activeTool === 'paint' || activeTool === 'dropper')) setTool('edit');
+  if (id !== 'board' &&
+      (activeTool === 'paint' || activeTool === 'dropper' || activeTool === 'sticker')) setTool('edit');
   /* 取色盤同理：它是 拼板 那顆工具的一部分（position:fixed，浮在畫面上），
-     切走不收的話會停在 落版 的畫面中間。 */
+     切走不收的話會停在 落版 的畫面中間。貼圖面板同一條規矩。 */
   syncPaintPop();
+  syncStickerTool();
   syncPassTool();                  // ✓ 也只有 拼板 有，切走要跟著收、跟著放下
 }
 function switchTab(id){ if (id !== activeTab) setTab(id); }
@@ -11844,6 +11925,118 @@ document.addEventListener('pointermove', e => {
 });
 document.addEventListener('pointerup', () => endPaintDrag(false));
 document.addEventListener('pointercancel', () => endPaintDrag(true));
+
+/* ==========================================================================
+   貼圖：拼板 那顆「貼圖」工具。跟 上色 同一種做法（工具＋盤子），只是盤子裡放的
+   是貼紙庫的縮圖，點一格是「貼上去」不是「上色」，而且不支援拖框——貼紙是單一
+   物件，一次貼一張，不是批次動作。
+   ⚠️ 這裡的「貼紙庫」是 sticker_editor.html 存的那份模板清單，跟意見欄那疊
+   「貼紙」（便利貼）是兩回事——這一段的按鈕、提示故意都寫「貼圖」不寫「貼紙」。
+   貼紙庫這次先只存這台瀏覽器的 localStorage：跟主程式同一個網站、同一個瀏覽器
+   就讀得到，不用另外接一條同步的路（CLAUDE.md「資料」那段講的兩層架構，這次
+   只做第一層；要不要接 Supabase 共用是之後的事）。 */
+const STK_LSK = 'stk.db';                 // sticker_editor.html 存檔用的那把鑰匙
+let stickerLib = [];                      // 每次要用才重讀——貼紙庫可能剛被改過
+let stickerArmed = null;                  // 手上拿著哪一張（stickerLib 裡的一列），null＝空手
+let stickerPopShut = false;
+
+function readStickerLib(){
+  try {
+    const raw = localStorage.getItem(STK_LSK);
+    if (!raw) return [];
+    const o = JSON.parse(raw);
+    return Array.isArray(o && o.sticker_lib) ? o.sticker_lib : [];
+  } catch (e){ return []; }
+}
+/* previewSVG 存的是原始 SVG 字串（sticker_editor.html 存檔時烤的），要轉成
+   data: URL 才能當 <img src> 或送進畫布那邊的 <img src>。轉一次就整包帶著走——
+   貼上去之後這個字串會整包存進那一格的資料裡，跟商品圖存網址是兩回事：
+   貼紙庫是本機的，沒有網址可以存。 */
+function svgToDataUrl(svg){
+  try { return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))); }
+  catch (e){ return ''; }
+}
+
+const stickerPop = document.getElementById('stickerPop');
+
+/** 拿著 貼圖、而且人在 拼板、而且是設計，才看得到它。照 syncPaintPop 那一套規矩：
+    工具列是兩頁共用的，落版 沒有貼圖這件事；PM／行銷在 拼板 也看不到（貼圖是
+    版面素材，只有設計放得上去，跟刊頭圖同一條理由）。 */
+function syncStickerTool(){
+  const btn = document.querySelector('.tool[data-tool="sticker"]');
+  if (btn) btn.style.display = (activeTab === 'board' && activeMode === 'design') ? '' : 'none';
+  const show = activeTool === 'sticker' && activeTab === 'board'
+            && activeMode === 'design' && !stickerPopShut;
+  stickerPop.classList.toggle('on', show);
+  if (show){ renderStickerPop(); placeStickerPop(); }
+}
+
+/** 貼在工具列左邊，跟那顆工具齊高；下面塞不下就往上推——照 placePaintPop 抄的。 */
+function placeStickerPop(){
+  const btn = document.querySelector('.tool[data-tool="sticker"]');
+  if (!btn) return;
+  const r = btn.getBoundingClientRect();
+  const w = stickerPop.offsetWidth || 216;
+  const left = r.left - 10 - w;
+  stickerPop.style.left = Math.round(
+    left >= 8 ? left : Math.max(8, Math.min(r.right + 10, window.innerWidth - w - 8))) + 'px';
+  const h = stickerPop.offsetHeight || 300;
+  stickerPop.style.top = Math.round(
+    Math.max(8, Math.min(r.top - 6, window.innerHeight - h - 8))) + 'px';
+}
+
+function renderStickerPop(){
+  stickerLib = readStickerLib();
+  const grid = document.getElementById('stickerGrid');
+  document.getElementById('stickerEmpty').style.display = stickerLib.length ? 'none' : '';
+  grid.innerHTML = stickerLib.map(r => `
+    <button class="stk-th${stickerArmed && stickerArmed.id === r.id ? ' on' : ''}"
+            data-stk="${r.id}" title="${String(r.name || '').replace(/"/g, '&quot;')}">
+      ${r.preview ? `<img src="${svgToDataUrl(r.preview)}" alt="">` : ''}
+      <span class="nm">${r.name || ''}</span>
+    </button>`).join('');
+  // 手上那張如果被刪掉了（貼紙庫剛好被改過），就放掉——不要繼續拿著一張不存在的貼紙
+  if (stickerArmed && !stickerLib.some(r => r.id === stickerArmed.id)) stickerArmed = null;
+}
+
+document.getElementById('stickerGrid').addEventListener('click', e => {
+  const btn = e.target.closest('[data-stk]');
+  if (!btn) return;
+  const row = stickerLib.find(r => r.id === btn.dataset.stk);
+  if (!row) return;
+  stickerArmed = row;
+  renderStickerPop();
+});
+
+document.getElementById('stickerClose').addEventListener('click', () => {
+  stickerPopShut = true;         // 工具還拿在手上，只是盤子收起來（跟 上色 同一條規矩）
+  syncStickerTool();
+});
+
+/* 貼圖的手勢：拿著 貼圖 的時候，點一格＝把手上那張貼紙放進那一格。
+   ⚠️ 沒有拖框那一步——貼紙是單一物件，一次貼一張，不是批次動作，所以點在格子
+   以外什麼都不發生（不像 上色 還要接住從空地起手的框選）。 */
+boardEl.addEventListener('pointerdown', e => {
+  if (activeTool !== 'sticker' || activeTab !== 'board' || e.button !== 0) return;
+  if (handMode) return;                      // 空白鍵 pan 先拿到指標
+  if (e.target.closest('.grip, .rowbtns, .masthead, #boardStage')) return;
+  const cel = e.target.closest('.cell[data-cell-id]');
+  if (!cel) return;
+  if (activeMode !== 'design'){ toast('貼圖由設計決定', 'info', 1800); return; }
+  if (!stickerArmed){ toast('先在貼紙庫挑一張', 'info', 1800); return; }
+  e.preventDefault();
+  e.stopPropagation();
+  const cell = cellById(cel.dataset.cellId);
+  if (!cell) return;
+  const f = canvasFrame(cell.id);
+  if (!f || !f.contentWindow) return;
+  try {
+    f.contentWindow.postMessage({ addSticker: {
+      svg: svgToDataUrl(stickerArmed.preview), name: stickerArmed.name || ''
+    } }, '*');
+    toast('貼上了', 'ok', 1200);
+  } catch (_){}
+});
 
 /* ---- 取色 ----
    取的是那一格存著的色碼（cell.bg），不是螢幕上那幾顆像素：格子上蓋著壓暗、hover、
@@ -13432,6 +13625,9 @@ function syncListButtons(){
      它不在下面那一排行銷專屬的按鈕裡，所以自己判一次。 */
   const lb = document.getElementById('logoBtn');
   if (lb && !window.__PICK_HTML) lb.hidden = activeMode !== 'design';
+  /* 貼紙庫同一條理由：版面素材，只有設計放得上去。 */
+  const sb = document.getElementById('stickerLibBtn');
+  if (sb && !window.__PICK_HTML) sb.hidden = activeMode !== 'design';
   ['wipeBtn','importBtn','newPlanBtn'].forEach(id => {
     const b = document.getElementById(id);
     if (b) b.hidden = !mkt;
@@ -14596,8 +14792,10 @@ function applyMode(){
      applyMode() 是登入、換人、重載唯一的匯流點，掛在別處遲早會漏一條路。 */
   document.body.dataset.role = activeMode;
   /* 取色盤按不按得動跟著身分走（只有設計上得了色）。放在這裡是因為
-     applyMode() 就是「換了一個人在看」那條路。 */
+     applyMode() 就是「換了一個人在看」那條路。貼圖同一條理由——貼圖鈕
+     整個藏不藏也是跟著身分走的（見 syncStickerTool）。 */
   syncPaintPop();
+  syncStickerTool();
   syncTabs();
   /* 復原／重做動的是 落版 那棵樹 —— PM 現在也看得到那一頁（見 tabAllowed），
      所以三個身分都給。以前收起來是因為 PM 只有 拼板，按了會退掉一個他看不到的東西。 */
@@ -14800,6 +14998,7 @@ function rebuildAll(keepId){
   paintCellBgs();
   paintCellPasses();                // 退掉的也可能是一次「通過」，同一個理由
   syncPaintPop();                   // 退掉的也可能是「存進色盤」那一步
+  syncStickerTool();
   syncPassTool();
 }
 

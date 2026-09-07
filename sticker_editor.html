@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>貼紙系統 v3 · 圖層編輯器 × SQL 記錄台</title>
+<style>
+:root{
+  --ink:#14171d;--muted:#6b7480;--line:#e2e6ec;--bg:#f2f4f7;--panel:#fff;
+  --accent:#d31f2b;--accent-soft:rgba(211,31,43,.08);--blue:#2f80ed;
+  --cons-bg:#12151c;--cons-line:#242a35;--cons-txt:#c9d3e0;
+  --ins:#5ed39b;--upd:#ffc861;--del:#ff7b7b;--sel:#7ec9ff;
+  --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);overflow:hidden;
+  font:14px/1.5 -apple-system,'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif;
+  display:flex;flex-direction:column}
+header{flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding:8px 14px;flex-wrap:wrap}
+header h1{font-size:15px;margin:0;font-weight:800}
+header h1 small{color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:1px;margin-left:6px}
+.hgroup{display:flex;align-items:center;gap:6px;padding-left:12px;border-left:1px solid var(--line)}
+.hgroup label{font-size:12px;color:var(--muted);font-weight:700}
+input[type=number]{width:50px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:13px}
+.btn{appearance:none;border:1px solid var(--line);background:#fbfcfe;border-radius:7px;padding:5px 11px;
+  font:inherit;font-size:12.5px;font-weight:700;color:var(--ink);cursor:pointer;transition:.13s}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.solid{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.solid:hover{filter:brightness(1.1);color:#fff}
+.btn.sm{padding:3px 8px;font-size:11.5px}
+.sw{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none}
+.sw input{accent-color:var(--accent);width:14px;height:14px}
+.body{flex:1;min-height:0;display:flex}
+.left{flex:1;min-width:0;display:flex;flex-direction:column}
+.stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+#canvas{position:relative;background:#fff;border:1px solid var(--line);box-shadow:0 6px 26px rgba(20,23,29,.09);
+  display:grid;flex-shrink:0}
+.cell{position:relative;border:1px dashed transparent}
+#canvas.grid-on .cell{border-color:#dfe4ea}
+.cell::after{content:attr(data-label);position:absolute;left:3px;top:2px;font:600 9px/1 var(--mono);
+  color:#c3cad3;pointer-events:none;display:none}
+#canvas.grid-on .cell::after{display:block}
+.cell.dropping{background:var(--accent-soft);border-color:var(--accent)!important}
+.placed{position:absolute;touch-action:none;user-select:none;cursor:grab;z-index:10}
+.placed.dragging{cursor:grabbing;z-index:80}
+.lyr{position:absolute;pointer-events:none}
+.lyr svg{width:100%;height:100%;display:block;overflow:visible}
+.lyr img{width:100%;height:100%;display:block;object-fit:fill;-webkit-user-drag:none}
+.lyr.tx{display:flex;overflow:visible}
+.lyr.sh{display:flex}
+.lyr .lbl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;overflow:visible;z-index:1}
+.lyr .lbl .ft{width:100%;outline:none;white-space:pre-wrap;word-break:break-word}
+.placed.selected .lyr .lbl{pointer-events:auto;cursor:text}
+.lyr .lbl.editing{box-shadow:inset 0 0 0 1.5px var(--accent)}
+#art .lyr .lbl{pointer-events:none}
+.lyr.tx .ft{width:100%;outline:none;white-space:pre-wrap;word-break:break-word}
+.placed.selected{outline:2px solid var(--accent);outline-offset:3px;z-index:70}
+.placed.selected .lyr.tx{pointer-events:auto;cursor:text}
+.placed.selected .lyr.tx:hover{box-shadow:inset 0 0 0 1px rgba(211,31,43,.5)}
+.lyr.tx.editing{box-shadow:inset 0 0 0 1.5px var(--accent)!important}
+.h-resize,.h-rot,.h-del{position:absolute;display:none;z-index:9}
+.placed.selected .h-resize,.placed.selected .h-rot,.placed.selected .h-del{display:block}
+.h-resize{right:0;bottom:0;width:14px;height:14px;border-radius:50%;background:var(--accent);
+  border:2px solid #fff;transform:translate(50%,50%);cursor:nwse-resize}
+.h-rot{left:50%;top:0;width:14px;height:14px;border-radius:50%;background:var(--blue);border:2px solid #fff;
+  transform:translate(-50%,-170%);cursor:grab}
+.h-del{right:0;top:0;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;
+  font:700 12px/14px sans-serif;text-align:center;border:2px solid #fff;transform:translate(50%,-50%);cursor:pointer}
+.dtag{position:absolute;left:0;bottom:0;transform:translateY(118%);white-space:nowrap;
+  font:600 9.5px/1.35 var(--mono);color:#fff;background:rgba(20,23,29,.85);padding:2px 5px;border-radius:4px;
+  pointer-events:none;display:none;z-index:8}
+.dtag b{color:var(--sel)}.dtag i{font-style:normal;color:var(--upd)}.dtag u{text-decoration:none;color:#ff9ec7}
+body.debug-on .dtag{display:block}
+.lib{flex-shrink:0;border-top:1px solid var(--line);background:var(--panel);height:150px;display:flex;flex-direction:column}
+.lib-top{display:flex;align-items:center;gap:8px;padding:6px 13px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.lib-top .tag{font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--muted)}
+.cat{appearance:none;border:1px solid var(--line);background:#fbfcfe;color:var(--muted);border-radius:16px;
+  padding:3px 11px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer}
+.cat.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.lib-items{flex:1;display:flex;align-items:center;gap:9px;padding:9px 13px;overflow-x:auto}
+.lib-items.dragover{background:var(--accent-soft);outline:2px dashed var(--accent);outline-offset:-6px}
+.lib.dropzip{background:rgba(15,157,88,.08)}
+.lib.dropzip .lib-items{outline:2px dashed #0f9d58;outline-offset:-6px}
+.dropnote{position:fixed;left:50%;bottom:270px;transform:translateX(-50%);z-index:940;
+  background:var(--ink);color:#fff;padding:7px 15px;border-radius:20px;font-size:12.5px;font-weight:700;
+  box-shadow:0 6px 22px rgba(0,0,0,.28);pointer-events:none;display:none}
+.dropnote.on{display:block}
+.lib-item{flex:0 0 auto;height:66px;min-width:72px;max-width:150px;border:1px solid var(--line);border-radius:9px;
+  background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  cursor:grab;position:relative;padding:5px 7px;transition:.12s}
+.lib-item:hover{border-color:var(--accent);transform:translateY(-3px)}
+.lib-item .thumb{height:34px;display:flex;align-items:center;justify-content:center}
+.lib-item .nm{font-size:9px;font-weight:700;color:var(--muted);max-width:136px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.lib-item .edit,.lib-item .kill{position:absolute;top:-6px;width:19px;height:19px;border-radius:50%;color:#fff;
+  font-size:10px;line-height:17px;text-align:center;border:2px solid #fff;cursor:pointer;display:none}
+.lib-item .edit{right:-6px;background:var(--blue)}
+.lib-item .dl{position:absolute;left:-6px;bottom:-6px;width:19px;height:19px;border-radius:50%;
+  background:#0f9d58;color:#fff;font-size:11px;line-height:17px;text-align:center;border:2px solid #fff;
+  cursor:pointer;opacity:.55;transition:.12s}
+.lib-item .dl:hover{opacity:1;transform:scale(1.15)}
+.lib-item:hover .dl{opacity:1}
+.lib-item .dl.busy{background:var(--muted);cursor:default}
+.lib-item .kill{left:-6px;background:var(--ink);font-size:11px}
+.lib-item:hover .edit,.lib-item:hover .kill{display:block}
+.lib-add{flex:0 0 auto;width:70px;height:66px;border:1.5px dashed var(--line);border-radius:9px;background:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--accent);
+  font-size:10px;font-weight:800;cursor:pointer;text-align:center;line-height:1.25}
+.lib-add:hover{border-color:var(--accent);background:var(--accent-soft)}
+.lib-add .p{font-size:19px;line-height:1}
+.props{width:266px;flex-shrink:0;background:var(--panel);border-left:1px solid var(--line);display:flex;
+  flex-direction:column;overflow-y:auto}
+.props h2{margin:0;padding:10px 13px;font-size:11px;letter-spacing:1.5px;color:var(--muted);
+  border-bottom:1px solid var(--line);font-weight:800;position:sticky;top:0;background:var(--panel);z-index:2}
+.pbody{padding:11px 13px;display:flex;flex-direction:column;gap:10px}
+.empty{color:var(--muted);font-size:12.5px;line-height:1.75;padding:15px 13px}
+.row{display:flex;flex-direction:column;gap:4px}
+.row .lab{display:flex;justify-content:space-between;font-size:11px;font-weight:800;color:var(--muted)}
+.row .lab span:last-child{font-family:var(--mono);color:var(--ink);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.pk{font-family:var(--mono);font-size:10.5px;background:#f6f8fa;border:1px solid var(--line);border-radius:6px;
+  padding:7px 9px;color:var(--muted);line-height:1.65;word-break:break-all}
+.pk b{color:var(--accent)}
+.prow2{display:flex;gap:7px}.prow2>*{flex:1}
+input[type=text],select,textarea{width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:6px;
+  font:inherit;font-size:13px;background:#fff;color:var(--ink)}
+textarea{resize:vertical;min-height:74px;line-height:1.5}
+.numin{width:64px;padding:1px 5px;font:600 11px var(--mono);text-align:right;
+  border:1px solid var(--line);border-radius:4px;background:#fff;color:var(--ink)}
+.numin:focus{outline:none;border-color:var(--accent)}
+.row .lab{align-items:center}
+.inspect textarea{min-height:96px;font-size:14px}
+.imp{position:fixed;inset:0;background:rgba(12,15,20,.6);display:none;align-items:center;justify-content:center;z-index:950}
+.imp.open{display:flex}
+.impbox{background:#fff;border-radius:12px;width:min(560px,94vw);max-height:86vh;display:flex;flex-direction:column;overflow:hidden}
+.impbox .ih{padding:12px 16px;border-bottom:1px solid var(--line);font-weight:800}
+.impbox .ib{padding:14px 16px;overflow-y:auto;font-size:13px;line-height:1.8}
+.impbox .if{padding:11px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.impbox ul{margin:5px 0 10px;padding-left:20px}
+.impbox .warn{color:var(--accent);font-weight:700}
+.impbox code{font:600 11.5px var(--mono);background:#f2f4f7;padding:1px 5px;border-radius:4px}
+input[type=color]{width:100%;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+.fcard{border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;background:#fbfcfe}
+.fcard .fh{display:flex;justify-content:space-between;align-items:center;font:800 10.5px var(--mono);color:var(--muted)}
+.fcard .fh b{color:var(--accent)}
+.mini3{display:flex;gap:6px}.mini3>*{flex:1;min-width:0}
+.sect{font-size:10.5px;font-weight:800;letter-spacing:1.3px;color:var(--muted)}
+
+/* ══ 圖層編輯器 ══ */
+.ov{position:fixed;inset:0;background:rgba(12,15,20,.58);display:none;align-items:center;justify-content:center;z-index:900}
+.ov.open{display:flex}
+.dlg{background:var(--panel);border-radius:13px;width:min(1180px,97vw);height:min(720px,94vh);display:flex;
+  flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}
+.dh{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.dh b{font-size:14px}
+.dh .sp{margin-left:auto;display:flex;gap:7px}
+.dbody{flex:1;min-height:0;display:flex}
+.rail{width:150px;flex-shrink:0;border-right:1px solid var(--line);overflow-y:auto;padding:10px;display:flex;
+  flex-direction:column;gap:9px}
+.shapes{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.shp{border:1px solid var(--line);border-radius:7px;background:#fff;cursor:grab;padding:4px 2px 2px;display:flex;
+  flex-direction:column;align-items:center;gap:1px}
+.shp:hover{border-color:var(--accent);background:var(--accent-soft)}
+.shp svg{width:100%;height:22px}
+.shp span{font-size:8.5px;font-weight:700;color:var(--muted)}
+.artwrap{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:repeating-conic-gradient(#eef1f5 0 25%,#fff 0 50%) 0 0/18px 18px;padding:14px;overflow:auto;position:relative}
+#art{position:relative;background:transparent;flex-shrink:0}
+.gd{position:absolute;background:#ff2e93;pointer-events:none;z-index:40}
+.gd.v{width:1px;top:-18px;bottom:-18px}
+.gd.h{height:1px;left:-18px;right:-18px}
+.gd::after{content:attr(data-t);position:absolute;font:700 8.5px var(--mono);color:#fff;
+  background:#ff2e93;padding:0 3px;border-radius:2px;white-space:nowrap}
+.gd.v::after{top:-14px;left:1px}
+.gd.h::after{left:-14px;top:1px}
+.rotbadge{position:absolute;left:50%;top:-26px;transform:translateX(-50%);z-index:45;
+  background:#ff2e93;color:#fff;font:700 10px var(--mono);padding:2px 7px;border-radius:10px;pointer-events:none}
+#art::before{content:'';position:absolute;inset:0;z-index:-1;
+  background:repeating-conic-gradient(#e9edf2 0 25%,#fff 0 50%) 0 0/14px 14px}
+#art.dragover{outline:3px dashed var(--accent);outline-offset:4px}
+#art .lyr{pointer-events:auto;cursor:move}
+#art .lyr.hidden{display:none}
+#art .lyr.lock{cursor:not-allowed}
+#art .lyr.sel{box-shadow:0 0 0 1.5px var(--blue)}
+.hd{position:absolute;width:11px;height:11px;background:#fff;border:1.5px solid var(--blue);border-radius:2px;
+  display:none;z-index:20}
+#art .lyr.sel .hd{display:block}
+.hd.rot{border-radius:50%;background:var(--blue);width:12px;height:12px;border-color:#fff;cursor:grab}
+.artbar{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);font-weight:700;flex-wrap:wrap;justify-content:center}
+.side{width:296px;flex-shrink:0;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.layers{flex-shrink:0;max-height:210px;overflow-y:auto;border-bottom:1px solid var(--line)}
+.lrow{display:flex;align-items:center;gap:6px;padding:5px 9px;border-bottom:1px solid #f1f3f6;cursor:pointer;font-size:12px}
+.lrow:hover{background:#f7f9fc}
+.lrow.sel{background:var(--accent-soft)}
+.lrow .ic{width:19px;height:19px;border-radius:4px;background:#eef1f5;display:flex;align-items:center;
+  justify-content:center;font-size:10px;flex-shrink:0}
+.lrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.lrow .k{font:700 9px var(--mono);color:#aeb6c0}
+.lrow i{font-style:normal;cursor:pointer;opacity:.45;font-size:12px;padding:0 2px}
+.lrow i:hover{opacity:1}
+.inspect{flex:1;min-height:0;overflow-y:auto;padding:11px;display:flex;flex-direction:column;gap:10px}
+.swatches{display:flex;gap:5px;flex-wrap:wrap}
+.swatches i{width:18px;height:18px;border-radius:4px;cursor:pointer;border:1px solid rgba(0,0,0,.12)}
+.tools{display:flex;gap:4px;flex-wrap:wrap}
+.tools button{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 7px;
+  font:700 11px inherit;cursor:pointer;color:var(--muted)}
+.tools button:hover{border-color:var(--accent);color:var(--accent)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#c3cad3;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+@media(max-width:980px){.props{display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>貼紙系統 <small>v3 · LAYERED EDITOR</small></h1>
+  <div class="hgroup">
+    <label>欄</label><input type="number" id="cols" value="3" min="1" max="8">
+    <label>列</label><input type="number" id="rows" value="2" min="1" max="8">
+    <button class="btn" id="applyGrid">套用</button>
+  </div>
+  <div class="hgroup">
+    <label class="sw"><input type="checkbox" id="swGrid" checked>格線</label>
+    <label class="sw"><input type="checkbox" id="swDebug">Debug 標籤</label>
+    <label class="sw"><input type="checkbox" id="swLock">鎖在格內</label>
+    <label class="sw"><input type="checkbox" id="swLive">拖曳即時寫入</label>
+  </div>
+  <div class="hgroup">
+    <button class="btn" id="btnPack">📦 匯出貼紙 .zip</button>
+    <button class="btn" id="btnImport">📥 匯入貼紙</button>
+    <button class="btn" id="btnJson">JSON</button>
+    <button class="btn" id="btnWipe" title="清掉瀏覽器存檔，回到預設貼紙">🗑 清除存檔</button>
+    <button class="btn solid" id="btnClear">清空版面</button>
+    <input type="file" id="packIn" accept=".zip,.stkpack,.json" multiple hidden>
+  </div>
+</header>
+
+<div class="body">
+  <div class="left">
+    <div class="stage"><div id="canvas" class="grid-on"></div></div>
+    <div class="lib">
+      <div class="lib-top">
+        <span class="tag">貼紙庫</span><div id="cats" style="display:flex;gap:6px"></div>
+        <button class="btn sm" id="addCat">＋ 分類</button>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">PNG 直接拖到這裡＝以圖為底新建 · 卡片「✎」進編輯器</span>
+      </div>
+      <div class="lib-items" id="libItems"></div>
+      <input type="file" id="fileIn" accept="image/*" hidden>
+    </div>
+  </div>
+  <aside class="props"><h2>選取的貼紙</h2><div id="propBody"></div></aside>
+</div>
+
+<!-- ══ 圖層編輯器 ══ -->
+<div class="ov" id="ov"><div class="dlg">
+  <div class="dh">
+    <b id="dTitle">貼紙編輯器</b>
+    <input type="text" id="dName" placeholder="貼紙名稱" style="width:150px">
+    <select id="dCat" style="width:110px"></select>
+
+    <div class="sp">
+      <button class="btn" id="dCancel">取消</button>
+      <button class="btn solid" id="dSave">儲存到貼紙庫</button>
+    </div>
+  </div>
+  <div class="dbody">
+    <div class="rail">
+      <div class="sect">形狀（拖到畫板或點一下）</div>
+      <div class="shapes" id="dShapes"></div>
+      <button class="btn" id="dAddText">＋ 文字圖層</button>
+      <div class="sect">配色</div>
+      <div class="swatches" id="dSw2"></div>
+    </div>
+    <div class="artwrap">
+      <div id="art"></div>
+
+    </div>
+    <div class="side">
+      <div style="padding:7px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px">
+        <span class="sect" style="flex:1">圖層</span>
+        <div class="tools">
+          <button data-t="up" title="上移一層">▲</button><button data-t="down" title="下移一層">▼</button>
+          <button data-t="dup" title="複製">⧉</button><button data-t="del" title="刪除">✕</button>
+        </div>
+      </div>
+      <div class="layers" id="dLayers"></div>
+
+      <div class="inspect" id="dInspect"></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="dropnote" id="dropnote"></div>
+<div class="imp" id="imp"><div class="impbox">
+  <div class="ih">匯入預覽</div>
+  <div class="ib" id="impBody"></div>
+  <div class="if">
+    <label class="sw" style="margin-right:auto"><input type="checkbox" id="impOver">覆蓋已存在的貼紙（預設略過）</label>
+    <button class="btn" id="impCancel">取消</button>
+    <button class="btn solid" id="impGo">確認匯入</button>
+  </div>
+</div></div>
+
+
+
+<script>
+/* ════════ 0. SQL 引擎 ════════ */
+const DB={
+  schema:{
+    sticker_lib:['id','name','category','ratio','layer_count','text_layers','template','preview','created_at'],
+    stickers:['id','cell_index','lib_uuid','name','rx','ry','rw','rot','opacity','z','created_at','updated_at'],
+    sticker_fields:['id','sticker_id','layer_id','field_key','content','font_size','color','weight','align','created_at','updated_at']
+  },
+  sticker_lib:[],stickers:[],sticker_fields:[]
+};
+/* 三張表的 id 一律是 uuid：不再有自增序號，所以刪除、匯入別人的貼紙、
+   兩邊同時新增……都不可能撞號。顯示時只取前 8 碼。 */
+const shortId=id=>String(id).slice(0,8);
+const LOG=[];const LOGCAP=300;
+const LSK={db:'stk.db',assets:'stk.assets'};
+let saveTimer=null,lsBroken=false,booting=true;   // 開機灌預設資料時不要一直寫檔
+let restoreFailed=false;                          // 讀檔失敗過就不准自動覆蓋原始存檔
+const SCHEMA_VERSION=4;
+const uuid=()=>(crypto.randomUUID?crypto.randomUUID():'x'+Math.random().toString(36).slice(2)+Date.now().toString(36));
+const now=()=>new Date();
+const tstr=d=>d.toTimeString().slice(0,8)+'.'+String(d.getMilliseconds()).padStart(3,'0');
+const iso=d=>d.toISOString().slice(0,19).replace('T',' ');
+const r4=v=>Math.round(v*10000)/10000;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const $=id=>document.getElementById(id);
+function lit(v){if(v==null)return 'NULL';if(typeof v==='number')return String(r4(v));return "'"+String(v).replace(/'/g,"''")+"'";}
+/* 有些執行環境（沙箱、被代理過的 console）沒有 debug / warn，
+   而且記錄本身絕對不該讓呼叫端爆掉 —— 整包用 try 包起來。 */
+const _out=(()=>{
+  const c=(typeof console==='object'&&console)||{};
+  const pick=(...names)=>{
+    for(const n of names)if(typeof c[n]==='function')return c[n].bind(c);
+    return ()=>{};
+  };
+  return {info:pick('debug','log','info'),warn:pick('warn','error','log')};
+})();
+function pushLog(op,stmt,meta){
+  try{
+    LOG.push({t:now(),op,stmt,meta:meta||''});
+    if(LOG.length>LOGCAP)LOG.shift();
+    if(op==='ERROR')_out.warn('[sticker]',stmt,meta||'');
+    else _out.info('[sticker]',op,String(stmt).split('\n')[0],meta||'');
+  }catch(e){}
+}
+const note=t=>pushLog('NOTE',t,'');
+function shortV(c,v){return (c==='template'&&typeof v==='string'&&v.length>80)?v.slice(0,77)+'…':v;}
+function dbInsert(table,obj){
+  const t0=performance.now(),row=Object.assign({},obj);
+  if(!row.id)row.id=uuid();
+  const d=now();row.created_at=iso(d);
+  if(DB.schema[table].includes('updated_at'))row.updated_at=iso(d);
+  DB[table].push(row);
+  const cols=DB.schema[table];
+  pushLog('INSERT',`INSERT INTO ${table} (${cols.join(', ')})\n  VALUES (${cols.map(c=>lit(shortV(c,row[c]))).join(', ')});`,
+    `1 row · ${(performance.now()-t0).toFixed(2)}ms`);
+  syncViews();persist('INSERT');return row;
+}
+function dbUpdate(table,id,patch,tag){
+  const t0=performance.now(),row=DB[table].find(r=>r.id===id);
+  if(!row){pushLog('ERROR',`-- UPDATE ${table}: id=${id} not found`,'0 row');return null;}
+  const ch={};
+  for(const k in patch){const nv=typeof patch[k]==='number'?r4(patch[k]):patch[k];if(row[k]!==nv){ch[k]=nv;row[k]=nv;}}
+  if(!Object.keys(ch).length)return row;
+  row.updated_at=iso(now());
+  pushLog('UPDATE',`UPDATE ${table} SET ${Object.keys(ch).map(k=>k+' = '+lit(shortV(k,ch[k]))).join(', ')}, updated_at = ${lit(row.updated_at)}\n  WHERE id = ${id};`,
+    `1 row · ${(performance.now()-t0).toFixed(2)}ms${tag?' · '+tag:''}`);
+  syncViews();persist('UPDATE');return row;
+}
+function dbDelete(table,id){
+  const i=DB[table].findIndex(r=>r.id===id);if(i<0)return;
+  DB[table].splice(i,1);pushLog('DELETE',`DELETE FROM ${table} WHERE id = ${id};`,'1 row');syncViews();persist('DELETE');
+}
+function deleteSticker(id){
+  const f=DB.sticker_fields.filter(x=>x.sticker_id===id);
+  if(f.length){DB.sticker_fields=DB.sticker_fields.filter(x=>x.sticker_id!==id);
+    pushLog('DELETE',`DELETE FROM sticker_fields WHERE sticker_id = ${id};`,`${f.length} row(s) · ON DELETE CASCADE`);}
+  dbDelete('stickers',id);
+}
+/* ════════ 1. 形狀 ════════ */
+function rr(x,y,w,h,r){r=Math.max(0,Math.min(r,w/2,h/2));
+  return `M${x+r},${y}H${x+w-r}A${r},${r} 0 0 1 ${x+w},${y+r}V${y+h-r}A${r},${r} 0 0 1 ${x+w-r},${y+h}H${x+r}A${r},${r} 0 0 1 ${x},${y+h-r}V${y+r}A${r},${r} 0 0 1 ${x+r},${y}Z`;}
+function starPath(cx,cy,rx,ry,n,inner){
+  const p=[];for(let i=0;i<n*2;i++){const a=Math.PI*i/n-Math.PI/2,k=i%2?inner:1;
+    p.push((cx+Math.cos(a)*rx*k).toFixed(2)+','+(cy+Math.sin(a)*ry*k).toFixed(2));}
+  return 'M'+p.join('L')+'Z';}
+const SHAPES={
+  rect:{n:'方框',r:.5},pill:{n:'膠囊',r:.3},circle:{n:'橢圓',r:1},
+  triangle:{n:'三角',r:.9},diamond:{n:'菱形',r:1},hex:{n:'六角',r:.9},
+  chevron:{n:'箭頭>',r:.9},arrow:{n:'箭頭條',r:.4},ribbon:{n:'緞帶',r:.35},
+  tag:{n:'吊牌',r:.5},burst:{n:'爆炸星',r:1},star:{n:'星形',r:1},seal:{n:'圓齒章',r:1},
+  speech:{n:'對話框',r:.8},shield:{n:'盾牌',r:1.05},bar:{n:'色條',r:.18},custom:{n:'自訂',r:1}
+};
+/* 回傳 svg 內部標記；W/H 為該圖層的實際 px 尺寸 */
+function shapeInner(l,W,H){
+  const p=l.params||{},sw=l.strokeW||0,s=sw/2,iw=W-sw,ih=H-sw;
+  const fill=l.fill==='none'?'none':l.fill;
+  const sa=sw?` stroke="${l.stroke}" stroke-width="${sw}" stroke-linejoin="round"`:'';
+  const P=d=>`<path d="${d}" fill="${fill}"${sa}/>`;
+  const rad=(p.radius!=null?p.radius:.18)*Math.min(iw,ih)/2;
+  switch(l.shape){
+    case 'rect':return P(rr(s,s,iw,ih,rad*2));
+    case 'bar':return P(rr(s,s,iw,ih,rad));
+    case 'pill':return P(rr(s,s,iw,ih,Math.min(iw,ih)/2));
+    case 'circle':return `<ellipse cx="${W/2}" cy="${H/2}" rx="${iw/2}" ry="${ih/2}" fill="${fill}"${sa}/>`;
+    case 'triangle':return P(`M${W/2},${s}L${W-s},${H-s}H${s}Z`);
+    case 'diamond':return P(`M${W/2},${s}L${W-s},${H/2}L${W/2},${H-s}L${s},${H/2}Z`);
+    case 'hex':return P(`M${W*.25},${s}H${W*.75}L${W-s},${H/2}L${W*.75},${H-s}H${W*.25}L${s},${H/2}Z`);
+    case 'chevron':{const t=(p.thick!=null?p.thick:.45)*W;
+      return P(`M${s},${s}L${W-s},${H/2}L${s},${H-s}L${s+t},${H-s}L${Math.max(W-s-t,s+t+1)},${H/2}L${s+t},${s}Z`);}
+    case 'arrow':{const hd=(p.head!=null?p.head:.4)*W,tw=(p.tail!=null?p.tail:.55);
+      return P(`M${s},${H*(.5-tw/2)}H${W-hd}V${s}L${W-s},${H/2}L${W-hd},${H-s}V${H*(.5+tw/2)}H${s}Z`);}
+    case 'ribbon':{const n=(p.notch!=null?p.notch:.3)*H;
+      return P(`M${s},${s}H${W-s}L${W-s-n},${H/2}L${W-s},${H-s}H${s}L${s+n},${H/2}Z`);}
+    case 'tag':{const n=(p.notch!=null?p.notch:.34)*H,r=Math.min(ih*.18,iw*.3);
+      return P(`M${n+s},${s}H${W-s-r}A${r},${r} 0 0 1 ${W-s},${s+r}V${H-s-r}A${r},${r} 0 0 1 ${W-s-r},${H-s}H${n+s}L${s},${H/2}Z`)
+        +`<circle cx="${n+H*.22}" cy="${H/2}" r="${H*.09}" fill="#fff" opacity=".9"/>`;}
+    case 'burst':return P(starPath(W/2,H/2,iw/2,ih/2,p.spikes||16,p.inner||.74));
+    case 'star':return P(starPath(W/2,H*.52,iw/2,ih/2,p.spikes||5,p.inner||.42));
+    case 'seal':return P(starPath(W/2,H/2,iw/2,ih/2,p.spikes||22,p.inner||.9));
+    case 'speech':{const bh=H*.8;
+      return P(rr(s,s,iw,bh-sw,bh*.22)+`M${W*.24},${bh-1}L${W*.2},${H-s}L${W*.44},${bh-1}Z`);}
+    case 'shield':return P(`M${W/2},${s}L${W-s},${H*.2}V${H*.55}Q${W-s},${H*.85} ${W/2},${H-s}Q${s},${H*.85} ${s},${H*.55}V${H*.2}Z`);
+    case 'custom':return `<g transform="scale(${W/100},${H/100})"><path d="${p.path||'M10,10H90V90H10Z'}" fill="${fill}" stroke="${sw?l.stroke:'none'}" stroke-width="${sw?sw:0}" vector-effect="non-scaling-stroke"/></g>`;
+  }
+  return '';
+}
+/* ════════ 2. 圖層模型 ════════ */
+const FONTS={
+  sans:{n:'黑體',css:"-apple-system,'Noto Sans TC','PingFang TC','Microsoft JhengHei',sans-serif"},
+  serif:{n:'明體',css:"'Noto Serif TC','Songti TC','PMingLiU','Times New Roman',serif"},
+  round:{n:'圓體',css:"'Yuanti TC','Yuanti SC','Noto Sans TC','Microsoft JhengHei',sans-serif"},
+  kai:{n:'楷體',css:"'Kaiti TC','DFKai-SB','BiauKai',serif"},
+  mono:{n:'等寬',css:"ui-monospace,Menlo,Consolas,'Noto Sans Mono CJK TC',monospace"}
+};
+let ASSETS={};
+/* 二進位工具：dataURL ↔ bytes，以及內容雜湊 */
+function dataURLBytes(d){const b=atob(d.split(',')[1]||'');const u=new Uint8Array(b.length);
+  for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u;}
+function bytesDataURL(u,mime){let s='';const CH=0x8000;
+  for(let i=0;i<u.length;i+=CH)s+=String.fromCharCode.apply(null,u.subarray(i,i+CH));
+  return 'data:'+(mime||'image/png')+';base64,'+btoa(s);}
+async function hashBytes(u){
+  if(crypto&&crypto.subtle&&crypto.subtle.digest){
+    try{const d=await crypto.subtle.digest('SHA-256',u);
+      return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');}catch(e){}
+  }
+  let h1=0x811c9dc5,h2=0x01000193;                       // crypto.subtle 不可用時的退路
+  for(let i=0;i<u.length;i++){h1=(h1^u[i])*16777619>>>0;h2=(h2+u[i]*(i%7+1))>>>0;}
+  return (h1.toString(16)+h2.toString(16)).padStart(16,'0').repeat(4).slice(0,64);
+}
+function extOf(mime){return ({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/svg+xml':'svg'})[mime]||'png';}
+function newId(pre){return pre+Math.random().toString(36).slice(2,7);}
+function newShapeLayer(kind,x,y,w,h){
+  const sp=kind==='star'?5:kind==='seal'?22:16, inr=kind==='star'?.42:kind==='seal'?.9:.74;
+  return {id:newId('s_'),type:'shape',name:SHAPES[kind].n,shape:kind,
+    x:x!=null?x:.28,y:y!=null?y:.2,w:w!=null?w:.44,h:h!=null?h:.6,rot:0,opacity:1,visible:true,locked:false,
+    fill:'#e8112d',stroke:'#ffffff',strokeW:0,
+    params:{radius:.18,spikes:sp,inner:inr,notch:.3,thick:.45,head:.4,tail:.55}};
+}
+function newLabel(){
+  return {content:'文字',size:.28,color:'#ffffff',weight:900,align:'center',font:'sans',
+    lh:1.15,ls:0,outline:0,outlineColor:'#ffffff',
+    wrap:0,          // 0 = 不自動換行；>0 = 每幾個字換一行
+    padX:.5,padY:.35,// 內距，單位是「字高的幾倍」
+    grow:'w'};       // w=寬度跟著字長；wh=寬高都跟；none=不動
+}
+/* 每 n 個字插一次換行；已經手動換行的地方各自獨立計算 */
+function wrapByCount(txt,n){
+  if(!n||n<1)return txt;
+  return String(txt).split('\n').map(line=>{
+    const out=[];for(let i=0;i<line.length;i+=n)out.push(line.slice(i,i+n));
+    return out.join('\n');
+  }).join('\n');
+}
+/* 有 label 的形狀也算「可變文字」，一樣進 sticker_fields */
+const hasLabel=l=>l.type==='shape'&&!!l.label;
+const contentOf=l=>hasLabel(l)?l.label.content:l.content;
+const styleOf=l=>hasLabel(l)?l.label:l;
+function newTextLayer(txt){
+  return {id:newId('t_'),type:'text',name:'文字',content:txt||'文字',
+    x:.15,y:.3,w:.7,h:.4,rot:0,opacity:1,visible:true,locked:false,
+    size:.3,color:'#ffffff',weight:900,align:'center',valign:'center',
+    font:'sans',lh:1.05,ls:0,italic:false,underline:false,vertical:false,
+    bg:'none',bgPad:0,radius:0,outline:0,outlineColor:'#ffffff',
+    shadow:0,shadowX:.04,shadowY:.04,shadowColor:'#00000066',autoFit:false};
+}
+function newImageLayer(asset,x,y,w,h,ar){
+  return {id:newId('i_'),type:'image',name:'圖片',asset,x:x||0,y:y||0,w:w||1,h:h||1,
+    ar:ar||null,           // 原始 高/寬，縮放時用來鎖比例
+    keepAR:true,           // 預設鎖住，按 Shift 或關掉這個開關就能自由變形
+    rot:0,opacity:1,visible:true,locked:false};
+}
+/* 圖層 → HTML；AW/AH 是整張貼紙的 px 尺寸 */
+function layerHTML(l,AW,AH,val,editable){
+  if(l.visible===false)return '';
+  const W=Math.max(1,l.w*AW),H=Math.max(1,l.h*AH);
+  const base=`left:${(l.x*100).toFixed(3)}%;top:${(l.y*100).toFixed(3)}%;width:${(l.w*100).toFixed(3)}%;height:${(l.h*100).toFixed(3)}%;`+
+    (l.rot?`transform:rotate(${l.rot}deg);`:'')+(l.opacity!=null&&l.opacity!==1?`opacity:${l.opacity};`:'');
+  if(l.type==='shape'){
+    const svg=`<svg viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${shapeInner(l,W,H)}</svg>`;
+    let lbl='';
+    if(l.label){
+      const b=l.label,v2=val||{};
+      const fsz=(v2.font_size!=null?v2.font_size:b.size)*AH;
+      const col2=v2.color||b.color,wt2=Math.max(1,Number(v2.weight||b.weight)||400);
+      const al2=v2.align||b.align;
+      const fx=(wt2>900&&!b.outline)?((wt2-900)/2100*0.06*fsz):0;
+      const txt=wrapByCount(v2.content!=null?v2.content:b.content,b.wrap);
+      const ls=[`font-size:${fsz.toFixed(2)}px`,`color:${col2}`,`font-weight:${Math.min(1000,wt2)}`,
+        `font-family:${(FONTS[b.font||'sans']||FONTS.sans).css}`,
+        `line-height:${b.lh||1.15}`,`letter-spacing:${((b.ls||0)*fsz).toFixed(2)}px`,
+        `text-align:${al2}`,
+        `justify-content:${al2==='left'?'flex-start':al2==='right'?'flex-end':'center'}`,
+        fx?`-webkit-text-stroke:${fx.toFixed(2)}px ${col2};paint-order:stroke fill`:'',
+        b.outline?`-webkit-text-stroke:${(b.outline*fsz).toFixed(2)}px ${b.outlineColor||'#fff'};paint-order:stroke fill`:''
+      ].filter(Boolean).join(';');
+      lbl=`<div class="lbl" data-lid="${l.id}" style="${ls}"><div class="ft"${editable?' contenteditable="true" spellcheck="false"':''}>${esc(txt)}</div></div>`;
+    }
+    return `<div class="lyr sh" data-lid="${l.id}" style="${base}">${svg}${lbl}</div>`;
+  }
+  if(l.type==='image')
+    return `<div class="lyr im" data-lid="${l.id}" style="${base}"><img src="${ASSETS[l.asset]||''}" alt=""></div>`;
+  const v=val||{},size=(v.font_size!=null?v.font_size:l.size)*AH;
+  const col=v.color||l.color,wt=v.weight||l.weight,al=v.align||l.align;
+  const va=l.valign||'center';
+  const flexMain=l.vertical
+    ? (va==='top'?'flex-start':va==='bottom'?'flex-end':'center')
+    : (al==='left'?'flex-start':al==='right'?'flex-end':'center');
+  const flexCross=l.vertical
+    ? (al==='left'?'flex-start':al==='right'?'flex-end':'center')
+    : (va==='top'?'flex-start':va==='bottom'?'flex-end':'center');
+  const wtN=Math.max(1,Number(wt)||400);
+  const wtCss=Math.min(1000,wtN);
+  // CSS font-weight 上限是 1000，而且多數中文字型只有幾個實體字重；
+  // 超過的部分用同色描邊模擬（faux bold），有設描邊時則以描邊優先
+  const faux=(wtN>900&&!l.outline)?((wtN-900)/2100*0.06*size):0;
+  const st=base+[`font-size:${size.toFixed(2)}px`,`color:${col}`,`font-weight:${wtCss}`,
+    faux?`-webkit-text-stroke:${faux.toFixed(2)}px ${col};paint-order:stroke fill`:'',
+    `font-family:${(FONTS[l.font||'sans']||FONTS.sans).css}`,
+    `align-items:${flexCross}`,`justify-content:${flexMain}`,
+    `text-align:${al}`,`line-height:${l.lh||1.05}`,`letter-spacing:${((l.ls||0)*size).toFixed(2)}px`,
+    l.vertical?'writing-mode:vertical-rl;text-orientation:upright':'',
+    l.italic?'font-style:italic':'',
+    l.underline?'text-decoration:underline;text-underline-offset:.14em':'',
+    l.bg&&l.bg!=='none'?`background:${l.bg}`:'',
+    l.bgPad?`padding:${(l.bgPad*size).toFixed(1)}px`:'',
+    l.radius?`border-radius:${(l.radius*Math.min(W,H)).toFixed(1)}px`:'',
+    l.shadow?`text-shadow:${((l.shadowX||0)*size).toFixed(2)}px ${((l.shadowY||0)*size).toFixed(2)}px ${((l.shadow||0)*size).toFixed(2)}px ${l.shadowColor||'#00000066'}`:'',
+    l.outline?`-webkit-text-stroke:${(l.outline*size).toFixed(2)}px ${l.outlineColor||'#fff'};paint-order:stroke fill`:''
+  ].filter(Boolean).join(';');
+  return `<div class="lyr tx" data-lid="${l.id}"${l.autoFit?' data-fit="1"':''} style="${st}"><div class="ft"${editable?' contenteditable="true" spellcheck="false"':''}>${esc(v.content!=null?v.content:l.content)}</div></div>`;
+}
+function renderTemplate(tpl,AW,AH,valsByLayer,editable){
+  return tpl.layers.map(l=>layerHTML(l,AW,AH,valsByLayer?valsByLayer[l.id]:null,editable)).join('');
+}
+const textLayers=tpl=>tpl.layers.filter(l=>l.type==='text'||hasLabel(l));
+/* 每條滑桿都配一個可直接輸入的數字框；nmn/nmx 讓數字框可以超出滑桿範圍 */
+function numRow(dp,k,lab,v,mn,mx,st,nmn,nmx){
+  const a=`${dp}="${k}" min="${nmn!=null?nmn:mn}" max="${nmx!=null?nmx:mx}" step="${st}"`;
+  return `<div class="row"><div class="lab"><span>${lab}</span>`+
+    `<input class="numin" type="number" ${a} value="${v}"></div>`+
+    `<input type="range" ${dp}="${k}" min="${mn}" max="${mx}" step="${st}" value="${v}"></div>`;
+}
+/* 量一段文字在指定樣式下的實際 px 尺寸（離螢幕量，不會閃） */
+let _rule=null;
+function measureText(txt,styleCss){
+  if(!_rule){_rule=document.createElement('div');
+    _rule.style.cssText='position:fixed;left:-9999px;top:-9999px;visibility:hidden;'+
+      'white-space:pre;display:inline-block;pointer-events:none';
+    document.body.appendChild(_rule);}
+  _rule.style.cssText=_rule.style.cssText.split(';').slice(0,6).join(';')+';'+styleCss;
+  _rule.textContent=txt||' ';
+  const r=_rule.getBoundingClientRect();
+  return {w:r.width,h:r.height};
+}
+/* 形狀跟著字長變大：回傳 true 表示有改動 */
+function growShapes(tpl,AW,AH){
+  let changed=false;
+  tpl.layers.forEach(l=>{
+    if(!hasLabel(l))return;
+    const b=l.label;
+    if(!b.grow||b.grow==='none')return;
+    const fsz=b.size*AH;
+    if(fsz<1)return;
+    const wt=Math.min(1000,Number(b.weight)||400);
+    const css=`font-size:${fsz}px;font-weight:${wt};`+
+      `font-family:${(FONTS[b.font||'sans']||FONTS.sans).css};`+
+      `line-height:${b.lh||1.15};letter-spacing:${((b.ls||0)*fsz).toFixed(3)}px`;
+    const txt=wrapByCount(b.content,b.wrap);
+    const lines=String(txt).split('\n');
+    let mw=0;lines.forEach(ln=>{mw=Math.max(mw,measureText(ln,css).w);});
+    const lineH=fsz*(b.lh||1.15);
+    const needW=mw+2*(b.padX||0)*fsz;
+    const needH=lines.length*lineH+2*(b.padY||0)*fsz;
+    const cx=l.x+l.w/2,cy=l.y+l.h/2;                 // 以中心為錨點長大，不會往右飄
+    const nw=r4(needW/AW);
+    if(Math.abs(nw-l.w)>0.0015){l.w=nw;l.x=r4(cx-nw/2);changed=true;}
+    if(b.grow==='wh'){
+      const nh=r4(needH/AH);
+      if(Math.abs(nh-l.h)>0.0015){l.h=nh;l.y=r4(cy-nh/2);changed=true;}
+    }
+  });
+  return changed;
+}
+/* 自動縮小以塞進文字框 */
+function fitTexts(root){
+  root.querySelectorAll('.lyr.tx[data-fit="1"]').forEach(el=>{
+    const ft=el.querySelector('.ft');if(!ft)return;
+    let size=parseFloat(el.style.fontSize)||12,g=0;
+    while(g++<50&&size>2&&(ft.scrollWidth>el.clientWidth+1||ft.scrollHeight>el.clientHeight+1)){
+      size*=.94;el.style.fontSize=size.toFixed(2)+'px';
+    }
+  });
+}
+/* 所有可見圖層的實際外框（含旋轉），單位 px */
+function contentBounds(tpl,AW,AH){
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  tpl.layers.filter(l=>l.visible!==false).forEach(l=>{
+    const W=l.w*AW,H=l.h*AH,cx=(l.x+l.w/2)*AW,cy=(l.y+l.h/2)*AH,a=(l.rot||0)*Math.PI/180;
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{
+      const lx=sx*W/2,ly=sy*H/2;
+      const px=cx+lx*Math.cos(a)-ly*Math.sin(a),py=cy+lx*Math.sin(a)+ly*Math.cos(a);
+      x0=Math.min(x0,px);x1=Math.max(x1,px);y0=Math.min(y0,py);y1=Math.max(y1,py);
+    });
+  });
+  return isFinite(x0)?{x0,y0,x1,y1,w:x1-x0,h:y1-y0}:null;
+}
+/* 把畫板重新裁到內容外框：像素尺寸與旋轉全部不變，只換參考框 */
+function cropToContent(tpl,AW,AH){
+  const b=contentBounds(tpl,AW,AH);
+  if(!b||b.w<2||b.h<2)return false;
+  tpl.layers.forEach(l=>{
+    const W=l.w*AW,H=l.h*AH,X=l.x*AW,Y=l.y*AH;
+    l.x=r4((X-b.x0)/b.w);l.y=r4((Y-b.y0)/b.h);
+    l.w=r4(W/b.w);l.h=r4(H/b.h);
+    if(l.type==='text')l.size=r4(l.size*AH/b.h);
+  });
+  tpl.ratio=r4(b.h/b.w);
+  return true;
+}
+
+/* ════════ 3. 預設貼紙（照範例做的多圖層版） ════════ */
+const CATS=['家電規格','促銷','贈品','自訂'];
+let activeCat='家電規格';
+function S(kind,o){return Object.assign(newShapeLayer(kind),o);}
+function T(o){return Object.assign(newTextLayer(),o);}
+const PRESETS=[
+{name:'坪數／冷房能力',cat:'家電規格',ratio:.27,layers:[
+  S('rect',{name:'白底',x:0,y:0,w:.72,h:1,fill:'#ffffff',stroke:'#1b3f8f',strokeW:6,params:{radius:.2}}),
+  S('chevron',{name:'箭頭淡',x:.735,y:.1,w:.12,h:.8,fill:'#a9c6e8',strokeW:0,params:{thick:.5}}),
+  S('chevron',{name:'箭頭深',x:.855,y:.1,w:.12,h:.8,fill:'#1b52c4',strokeW:0,params:{thick:.5}}),
+  T({name:'坪數',content:'4-5',x:.03,y:.14,w:.21,h:.72,size:.46,color:'#111418',ls:-.03}),
+  T({name:'坪',content:'坪',x:.235,y:.42,w:.08,h:.42,size:.2,color:'#111418'}),
+  T({name:'雪花',content:'❄',x:.315,y:.24,w:.1,h:.52,size:.36,color:'#1b6fd6',weight:700}),
+  T({name:'標題',content:'冷房能力',x:.42,y:.14,w:.27,h:.34,size:.19,color:'#1b3f8f',weight:800}),
+  T({name:'數值',content:'2.9kW',x:.42,y:.47,w:.27,h:.42,size:.28,color:'#1b3f8f'})]},
+{name:'圓形下殺折扣',cat:'促銷',ratio:1,layers:[
+  S('circle',{name:'紅圓',x:0,y:0,w:1,h:1,fill:'#e8112d',stroke:'#ffffff',strokeW:7}),
+  T({name:'下殺',content:'下殺',x:.2,y:.16,w:.6,h:.22,size:.19,color:'#ffe600'}),
+  T({name:'數字',content:'48',x:.16,y:.36,w:.5,h:.42,size:.4,color:'#ffffff',ls:-.03}),
+  T({name:'折',content:'折',x:.6,y:.46,w:.24,h:.3,size:.21,color:'#ffffff'})]},
+{name:'爆炸狂降',cat:'促銷',ratio:.95,layers:[
+  S('burst',{name:'藍爆炸',x:0,y:0,w:1,h:1,fill:'#1b52c4',stroke:'#ffffff',strokeW:6,params:{spikes:16,inner:.74}}),
+  T({name:'狂降',content:'狂降',x:.26,y:.27,w:.48,h:.2,size:.18,color:'#ffe600'}),
+  T({name:'金額',content:'4260',x:.17,y:.46,w:.66,h:.26,size:.25,color:'#ffffff',ls:-.02})]},
+{name:'延長保固加購',cat:'贈品',ratio:.3,layers:[
+  S('pill',{name:'米底',x:0,y:0,w:1,h:1,fill:'#f4ece2',stroke:'#8a6a4f',strokeW:5}),
+  S('pill',{name:'棕塊',x:.01,y:.04,w:.42,h:.92,fill:'#8a6a4f',strokeW:0}),
+  T({name:'保固',content:'延長\n保固',x:.03,y:.1,w:.38,h:.8,size:.29,color:'#ffffff',lh:1.02}),
+  T({name:'加購價',content:'加購價',x:.44,y:.13,w:.52,h:.32,size:.23,color:'#8a6a4f',weight:800}),
+  T({name:'金額',content:'$270起',x:.44,y:.45,w:.52,h:.42,size:.32,color:'#e07b1f'})]},
+{name:'原廠好禮膠囊',cat:'贈品',ratio:.24,layers:[
+  S('pill',{name:'深藍底',x:0,y:0,w:1,h:1,fill:'#123f7b',stroke:'#eef2f7',strokeW:6}),
+  T({name:'文案',content:'享原廠好禮3選1',x:.05,y:.16,w:.9,h:.68,size:.46,color:'#ffffff',weight:800,ls:.02})]},
+{name:'吊牌價格',cat:'促銷',ratio:.44,layers:[
+  S('tag',{name:'紅吊牌',x:0,y:0,w:1,h:1,fill:'#e8112d',stroke:'#a80c20',strokeW:5,params:{notch:.34}}),
+  T({name:'標題',content:'限時價',x:.3,y:.14,w:.6,h:.28,size:.2,color:'#ffe600'}),
+  T({name:'價格',content:'$12,900',x:.26,y:.44,w:.66,h:.4,size:.28,color:'#ffffff'})]},
+{name:'緞帶標語',cat:'促銷',ratio:.28,layers:[
+  S('ribbon',{name:'綠緞帶',x:0,y:0,w:1,h:1,fill:'#0f9d58',stroke:'#0a7a43',strokeW:5,params:{notch:.3}}),
+  T({name:'文案',content:'全館免運',x:.16,y:.18,w:.68,h:.64,size:.44,color:'#ffffff'})]}
+];
+
+/* ════════ 4. 貼紙庫 ════════ */
+const libItems=$('libItems'),catsEl=$('cats'),fileIn=$('fileIn');
+const tplOf=row=>JSON.parse(row.template);
+function renderCats(){
+  catsEl.innerHTML='';
+  CATS.forEach(c=>{const b=document.createElement('button');
+    b.className='cat'+(c===activeCat?' active':'');b.textContent=c;
+    b.onclick=()=>{activeCat=c;renderCats();renderLib();};catsEl.appendChild(b);});
+}
+$('addCat').onclick=()=>{const n=prompt('新分類名稱：');if(!n||CATS.includes(n))return;
+  CATS.push(n);activeCat=n;renderCats();renderLib();fillCatSel();};
+function renderLib(){
+  libItems.innerHTML='';
+  const add=document.createElement('div');
+  add.className='lib-add';
+  add.innerHTML='<span class="p">＋</span><span>新貼紙</span><span style="font-size:8px;opacity:.7">圖層編輯器</span>';
+  add.onclick=()=>openEditor(null,null);
+  libItems.appendChild(add);
+
+  DB.sticker_lib.filter(s=>s.category===activeCat).forEach(row=>{
+    const tpl=tplOf(row),h=34,w=Math.min(Math.round(h/tpl.ratio),138);
+    const d=document.createElement('div');
+    d.className='lib-item';d.draggable=true;d.title='uuid '+row.id;
+    d.innerHTML=`<div class="thumb"><div style="position:relative;width:${w}px;height:${h}px">${renderTemplate(tpl,w,h,null,false)}</div></div>
+      <span class="nm">${esc(row.name)}</span>
+      <div class="edit" title="編輯">✎</div><div class="kill" title="刪除">×</div>
+      <div class="dl" title="下載這張貼紙（.zip）">⤓</div>`;
+    d.addEventListener('dragstart',e=>{e.dataTransfer.setData('text/lib-id',String(row.id));e.dataTransfer.effectAllowed='copy';});
+    d.addEventListener('click',e=>{
+      if(e.target.classList.contains('edit')){openEditor(row);return;}
+      if(e.target.classList.contains('kill')){dbDelete('sticker_lib',row.id);renderLib();return;}
+      if(e.target.classList.contains('dl')){
+        const b=e.target;if(b.classList.contains('busy'))return;
+        b.classList.add('busy');b.textContent='…';
+        exportOne(row).catch(err=>alert('下載失敗：'+err.message))
+          .finally(()=>{b.classList.remove('busy');b.textContent='⤓';});
+        return;}
+      placeAuto(row.id);});
+    libItems.appendChild(d);
+  });
+}
+function addAsset(file,cb){
+  if(!file||!file.type.startsWith('image/'))return;
+  const fr=new FileReader();
+  fr.onload=e=>{
+    const dataURL=e.target.result;
+    hashBytes(dataURLBytes(dataURL)).then(h=>{
+      const key='sha256-'+h.slice(0,40)+'.'+extOf(file.type);
+      const dup=!!ASSETS[key];
+      if(!dup)ASSETS[key]=dataURL;
+      note(dup?`asset 已存在，直接重用 ${key}`:`asset 入庫 ${key}（內容雜湊當 key，同一張圖不會存第二份）`);
+      const img=new Image();
+      img.onload=()=>cb(key,r4(img.height/img.width));
+      img.src=dataURL;
+    });
+  };
+  fr.readAsDataURL(file);
+}
+fileIn.onchange=e=>{const f=e.target.files[0];fileIn.value='';addAsset(f,(key,ratio)=>openEditor(null,{key,ratio}));};
+const isPack=f=>/\.(zip|stkpack|json)$/i.test(f.name);
+const lib=document.querySelector('.lib'),dropnote=$('dropnote');
+/* 拖進來的東西分兩種：圖片 → 開編輯器當底圖；zip/json → 走匯入 */
+function handleDrop(files){
+  const arr=[...files];
+  const packs=arr.filter(isPack);
+  if(packs.length){importFiles(packs);return;}
+  const img=arr.find(f=>f.type.startsWith('image/'));
+  if(img){addAsset(img,(key,ratio)=>openEditor(null,{key,ratio}));return;}
+  alert('看不懂這個檔。可以拖圖片（開新貼紙）或貼紙包 .zip（匯入）。');
+}
+let dragDepth=0;
+['dragenter','dragover'].forEach(ev=>lib.addEventListener(ev,e=>{
+  if(!e.dataTransfer.types.includes('Files'))return;
+  e.preventDefault();
+  if(ev==='dragenter')dragDepth++;
+  // dragover 時拿不到檔名，只能靠 items 的 type 粗略判斷是不是壓縮檔
+  const it=[...(e.dataTransfer.items||[])];
+  const zipish=it.length&&it.every(i=>i.kind==='file'&&!/^image\//.test(i.type));
+  lib.classList.toggle('dropzip',zipish);
+  libItems.classList.toggle('dragover',!zipish);
+  dropnote.textContent=zipish?'放開＝匯入貼紙包':'放開＝以這張圖開新貼紙';
+  dropnote.classList.add('on');
+}));
+lib.addEventListener('dragleave',()=>{
+  if(--dragDepth<=0){dragDepth=0;
+    lib.classList.remove('dropzip');libItems.classList.remove('dragover');dropnote.classList.remove('on');}
+});
+lib.addEventListener('drop',e=>{
+  if(!e.dataTransfer.files.length)return;
+  e.preventDefault();dragDepth=0;
+  lib.classList.remove('dropzip');libItems.classList.remove('dragover');dropnote.classList.remove('on');
+  handleDrop(e.dataTransfer.files);
+});
+/* 丟到視窗任何地方也接得住，並且擋掉瀏覽器直接開檔的預設行為 */
+window.addEventListener('dragover',e=>{if(e.dataTransfer&&e.dataTransfer.types.includes('Files'))e.preventDefault();});
+window.addEventListener('drop',e=>{
+  if(!e.dataTransfer||!e.dataTransfer.files.length)return;
+  e.preventDefault();
+  if(e.target.closest('.lib')||e.target.closest('#art'))return;   // 這兩區有自己的處理
+  handleDrop(e.dataTransfer.files);
+});
+
+/* ════════ 5. 圖層編輯器 ════════ */
+const ov=$('ov'),art=$('art');
+let E=null;                 // {libId,tpl,name,cat,sel}
+const ART_W=380;
+const selLayer=()=>E&&E.tpl.layers.find(l=>l.id===E.sel);
+function fillCatSel(){$('dCat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');}
+function openEditor(row,img){
+  if(row){
+    E={libId:row.id,tpl:tplOf(row),name:row.name,cat:row.category,sel:null};
+    $('dTitle').textContent='編輯 · '+row.name+'（'+shortId(row.id)+'）';
+  }else{
+    const tpl={ratio:img?img.ratio:.4,layers:[]};
+    if(img){tpl.layers.push(newImageLayer(img.key,0,0,1,1,img.ratio));
+      note(`PNG 成為底圖層 · asset=${img.key}（二進位進 storage，表裡只留 key）`);}
+    E={libId:null,tpl,name:img?'可變貼紙':'新貼紙',cat:activeCat,sel:tpl.layers.length?tpl.layers[0].id:null};
+    $('dTitle').textContent=img?'以 PNG 為底 · 疊上可變文字':'新貼紙';
+  }
+  fillCatSel();$('dName').value=E.name;$('dCat').value=E.cat;
+  renderShapeRail();drawArt();renderLayerList();renderInspect();
+  ov.classList.add('open');
+}
+const PICK=['rect','pill','circle','triangle','diamond','hex','arrow','burst','star','seal'];
+function renderShapeRail(){
+  const box=$('dShapes');box.innerHTML='';
+  PICK.forEach(k=>{
+    const demo=Object.assign(newShapeLayer(k),{fill:'#8894a6',stroke:'#5c6672',strokeW:2});
+    const b=document.createElement('div');
+    b.className='shp';b.draggable=true;
+    b.innerHTML=`<svg viewBox="0 0 60 34" preserveAspectRatio="none">${shapeInner(demo,60,34)}</svg><span>${SHAPES[k].n}</span>`;
+    b.addEventListener('dragstart',e=>e.dataTransfer.setData('text/shape',k));
+    b.onclick=()=>addLayer(newShapeLayer(k));
+    box.appendChild(b);
+  });
+}
+function addLayer(l){E.tpl.layers.push(l);E.sel=l.id;drawArt();renderLayerList();renderInspect();}
+$('dAddText').onclick=()=>addLayer(newTextLayer('新文字'));
+
+
+const SWATCH=['#e8112d','#1b52c4','#0f9d58','#f0932b','#123f7b','#8a6a4f','#111418','#ffffff','#ffe600','#a9c6e8'];
+$('dSw2').innerHTML=SWATCH.map(c=>`<i data-c="${c}" style="background:${c}"></i>`).join('');
+$('dSw2').onclick=e=>{const c=e.target.dataset.c;if(!c)return;const l=selLayer();if(!l)return;
+  if(l.type==='text')l.color=c;else if(l.type==='shape')l.fill=c;drawArt();renderInspect();};
+
+function artH(){return Math.round(ART_W*E.tpl.ratio);}
+function drawArt(){
+  const H=artH();
+  art.style.width=ART_W+'px';art.style.height=H+'px';
+  growShapes(E.tpl,ART_W,H);
+  art.innerHTML=renderTemplate(E.tpl,ART_W,H,null,false);
+  fitTexts(art);
+  art.querySelectorAll('.lyr').forEach(el=>{
+    const l=E.tpl.layers.find(x=>x.id===el.dataset.lid);
+    if(!l)return;
+    if(l.visible===false)el.classList.add('hidden');
+    if(l.locked)el.classList.add('lock');
+    if(l.id===E.sel){
+      el.classList.add('sel');
+      const H8=[['nw',0,0],['n',.5,0],['ne',1,0],['e',1,.5],['se',1,1],['s',.5,1],['sw',0,1],['w',0,.5]];
+      el.insertAdjacentHTML('beforeend',
+        H8.map(([k,px,py])=>`<div class="hd" data-h="${k}" style="left:${px*100}%;top:${py*100}%;transform:translate(-50%,-50%)"></div>`).join('')+
+        `<div class="hd rot" data-h="rot" style="left:50%;top:0;transform:translate(-50%,-190%)"></div>`);
+    }
+  });
+}
+/* 從側欄拖形狀進畫板 */
+['dragenter','dragover'].forEach(ev=>art.addEventListener(ev,e=>{e.preventDefault();art.classList.add('dragover');}));
+art.addEventListener('dragleave',()=>art.classList.remove('dragover'));
+art.addEventListener('drop',e=>{
+  e.preventDefault();art.classList.remove('dragover');
+  const r=art.getBoundingClientRect();
+  const rx=clamp((e.clientX-r.left)/r.width,0,1),ry=clamp((e.clientY-r.top)/r.height,0,1);
+  if(e.dataTransfer.files.length){
+    addAsset(e.dataTransfer.files[0],(key,ratio)=>{
+      const w=.6,h=w*ratio/E.tpl.ratio;
+      addLayer(newImageLayer(key,clamp(rx-w/2,0,1-w),clamp(ry-h/2,-.5,1.5),w,h,ratio));
+      note(`PNG 以圖層加入畫板 · asset=${key} · 原始比例 ${ratio.toFixed(3)} 已鎖定`);});
+    return;
+  }
+  const kind=e.dataTransfer.getData('text/shape');
+  if(kind&&SHAPES[kind]){
+    const w=.34,h=clamp(.34*SHAPES[kind].r/E.tpl.ratio*.5,.1,1);
+    addLayer(newShapeLayer(kind,clamp(rx-w/2,0,1-w),clamp(ry-h/2,0,1-h),w,h));
+  }
+});
+/* 選取 / 變形 */
+/* ══ 對齊磁吸 ══
+   吸附目標＝畫板的左/中/右、上/中/下，加上其他每個可見圖層的三條垂直線與三條水平線。
+   比對用的是「旋轉後的實際外框」，所以斜放的圖層也吸得準。按住 Alt 暫時關掉。 */
+const SNAP_PX=6,SNAP_DEG=7;   // 位置吸附 6px；旋轉吸附 ±7° 內就跳到 45 的倍數
+let GUIDES=[];
+function bboxOf(l,AW,AH){
+  const W=l.w*AW,H=l.h*AH,cx=(l.x+l.w/2)*AW,cy=(l.y+l.h/2)*AH,a=(l.rot||0)*Math.PI/180;
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx,sy])=>{
+    const lx=sx*W/2,ly=sy*H/2;
+    const px=cx+lx*Math.cos(a)-ly*Math.sin(a),py=cy+lx*Math.sin(a)+ly*Math.cos(a);
+    x0=Math.min(x0,px);x1=Math.max(x1,px);y0=Math.min(y0,py);y1=Math.max(y1,py);});
+  return {x0,y0,x1,y1,cx:(x0+x1)/2,cy:(y0+y1)/2,w:x1-x0,h:y1-y0};
+}
+function snapTargets(exceptId,AW,AH){
+  const xs=[{v:0,t:'畫板左'},{v:AW/2,t:'畫板中'},{v:AW,t:'畫板右'}];
+  const ys=[{v:0,t:'畫板上'},{v:AH/2,t:'畫板中'},{v:AH,t:'畫板下'}];
+  E.tpl.layers.forEach(l=>{
+    if(l.id===exceptId||l.visible===false)return;
+    const b=bboxOf(l,AW,AH),n=l.type==='text'?(l.content||'文字').slice(0,4):l.name;
+    xs.push({v:b.x0,t:n+' 左'},{v:b.cx,t:n+' 中'},{v:b.x1,t:n+' 右'});
+    ys.push({v:b.y0,t:n+' 上'},{v:b.cy,t:n+' 中'},{v:b.y1,t:n+' 下'});
+  });
+  return {xs,ys};
+}
+/* 從三個自身錨點（頭/中/尾）找最近的吸附目標，回傳要位移多少 px */
+function bestSnap(anchors,targets){
+  let best=null;
+  anchors.forEach(a=>targets.forEach(t=>{
+    const d=t.v-a;
+    if(Math.abs(d)<=SNAP_PX&&(!best||Math.abs(d)<Math.abs(best.d)))best={d,v:t.v,t:t.t};
+  }));
+  return best;
+}
+function drawGuides(){
+  art.querySelectorAll('.gd,.rotbadge').forEach(n=>n.remove());
+  GUIDES.forEach(g=>{
+    if(g.axis==='rot'){
+      const b=document.createElement('div');
+      b.className='rotbadge';b.textContent=g.deg+'°';
+      art.appendChild(b);return;
+    }
+    const d=document.createElement('div');
+    d.className='gd '+(g.axis==='x'?'v':'h');
+    d.dataset.t=g.t;
+    if(g.axis==='x')d.style.left=g.v+'px';else d.style.top=g.v+'px';
+    art.appendChild(d);
+  });
+}
+let T2=null;
+document.querySelector('.artwrap').addEventListener('pointerdown',e=>{
+  if(e.target.closest('.lyr')||e.target.closest('.hd'))return;
+  if(E&&E.sel!==null){E.sel=null;drawArt();renderLayerList();renderInspect();}
+});
+art.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('.lyr');
+  if(!el){if(E.sel!==null){E.sel=null;drawArt();renderLayerList();renderInspect();}return;}
+  const l=E.tpl.layers.find(x=>x.id===el.dataset.lid);
+  if(!l||l.locked)return;
+  if(E.sel!==l.id){E.sel=l.id;drawArt();renderLayerList();renderInspect();return;}
+  const hd=e.target.closest('.hd'),r=art.getBoundingClientRect(),H=artH();
+  T2={l,mode:hd?(hd.dataset.h==='rot'?'rot':'size'):'move',h:hd?hd.dataset.h:null,
+      x0:e.clientX,y0:e.clientY,L:Object.assign({},l),AW:r.width,AH:r.height,
+      cx:r.left+(l.x+l.w/2)*r.width,cy:r.top+(l.y+l.h/2)*r.height};
+  art.setPointerCapture(e.pointerId);e.preventDefault();
+});
+art.addEventListener('pointermove',e=>{
+  if(!T2)return;
+  const{l,L,AW,AH}=T2,q=r4;
+  GUIDES=[];
+  if(T2.mode==='move'){
+    l.x=q(L.x+(e.clientX-T2.x0)/AW);l.y=q(L.y+(e.clientY-T2.y0)/AH);
+    if(!e.altKey){
+      const tg=snapTargets(l.id,AW,AH),b=bboxOf(l,AW,AH);
+      const sx=bestSnap([b.cx,b.x0,b.x1],tg.xs);   // 中線優先，平手時偏好置中對齊
+      if(sx){l.x=r4(l.x+sx.d/AW);GUIDES.push({axis:'x',v:sx.v,t:sx.t});}
+      const sy=bestSnap([b.cy,b.y0,b.y1],tg.ys);
+      if(sy){l.y=r4(l.y+sy.d/AH);GUIDES.push({axis:'y',v:sy.v,t:sy.t});}
+    }
+  }else if(T2.mode==='rot'){
+    let a=Math.atan2(e.clientY-T2.cy,e.clientX-T2.cx)*180/Math.PI+90;
+    a=((a+180)%360+360)%360-180;                 // 收斂到 -180..180
+    if(e.shiftKey)a=Math.round(a/15)*15;         // Shift = 15° 一格
+    else if(!e.altKey){                          // 預設吸 45°，Alt 可暫時解除
+      const near=Math.round(a/45)*45;
+      if(Math.abs(a-near)<=SNAP_DEG){a=near;GUIDES.push({axis:'rot',deg:near});}
+    }
+    l.rot=Math.round(a);
+  }else{
+    // 旋轉座標系內的縮放：把滑鼠位移轉回圖層本地方向
+    const rad=-(L.rot||0)*Math.PI/180,dxs=e.clientX-T2.x0,dys=e.clientY-T2.y0;
+    const dx=(dxs*Math.cos(rad)-dys*Math.sin(rad))/AW, dy=(dxs*Math.sin(rad)+dys*Math.cos(rad))/AH;
+    const h=T2.h,sx=h.includes('e')?1:h.includes('w')?-1:0,sy=h.includes('s')?1:h.includes('n')?-1:0;
+    let nw=Math.max(.02,L.w+sx*dx),nh=Math.max(.02,L.h+sy*dy);
+    // 圖片預設鎖原始比例（Shift 暫時解除）；一般圖層則是 Shift 才等比
+    const lockAR=l.type==='image'&&l.keepAR!==false&&l.ar&&!e.shiftKey;
+    if(lockAR){
+      const pxAR=l.ar*AW/AH;                     // 換算成「相對座標」下的 h/w
+      if(sx&&sy){                                // 角落：取位移大的那軸當主導
+        if(Math.abs(dx*AW)>=Math.abs(dy*AH))nh=nw*pxAR; else nw=nh/pxAR;
+      }else if(sx){nh=nw*pxAR;}                  // 拉左右邊 → 高度跟著算
+      else if(sy){nw=nh/pxAR;}                   // 拉上下邊 → 寬度跟著算
+      nw=Math.max(.02,nw);nh=Math.max(.02,nh);
+    }else if(e.shiftKey&&sx&&sy&&l.type!=='image'){
+      const k=Math.max(nw/L.w,nh/L.h);nw=L.w*k;nh=L.h*k;
+    }
+    // 對角固定：中心位移 = R(rot)·(Δw/2·sx, Δh/2·sy)
+    // 鎖比例時，沒有被拖的那一軸以中心對稱長大，才不會整塊往一邊偏
+    const asx=lockAR&&!sx?0:sx, asy=lockAR&&!sy?0:sy;
+    const rr2=(L.rot||0)*Math.PI/180,ddx=(nw-L.w)/2*asx*AW,ddy=(nh-L.h)/2*asy*AH;
+    const mx=(ddx*Math.cos(rr2)-ddy*Math.sin(rr2))/AW,my=(ddx*Math.sin(rr2)+ddy*Math.cos(rr2))/AH;
+    const ncx=L.x+L.w/2+mx,ncy=L.y+L.h/2+my;
+    l.w=q(nw);l.h=q(nh);l.x=q(ncx-nw/2);l.y=q(ncy-nh/2);
+    if(l.type==='text'&&sx&&sy&&L.h>0)l.size=r4(clamp(L.size*(nh/L.h),.02,2));  // 角落拉＝字級跟著縮放
+    if(!e.altKey&&!L.rot&&!lockAR){              // 旋轉中或鎖比例時不做縮放磁吸（磁吸只改一軸，會破壞比例）
+      const tg=snapTargets(l.id,AW,AH),b=bboxOf(l,AW,AH);
+      if(sx>0){const g=bestSnap([b.x1],tg.xs);if(g){l.w=r4(l.w+g.d/AW);GUIDES.push({axis:'x',v:g.v,t:g.t});}}
+      if(sx<0){const g=bestSnap([b.x0],tg.xs);if(g){l.x=r4(l.x+g.d/AW);l.w=r4(l.w-g.d/AW);GUIDES.push({axis:'x',v:g.v,t:g.t});}}
+      if(sy>0){const g=bestSnap([b.y1],tg.ys);if(g){l.h=r4(l.h+g.d/AH);GUIDES.push({axis:'y',v:g.v,t:g.t});}}
+      if(sy<0){const g=bestSnap([b.y0],tg.ys);if(g){l.y=r4(l.y+g.d/AH);l.h=r4(l.h-g.d/AH);GUIDES.push({axis:'y',v:g.v,t:g.t});}}
+    }
+  }
+  drawArt();drawGuides();
+});
+art.addEventListener('pointerup',()=>{if(T2){T2=null;GUIDES=[];drawGuides();renderInspect();renderLayerList();}});
+art.addEventListener('dblclick',e=>{
+  const el=e.target.closest('.lyr.tx')||e.target.closest('.lyr.sh');if(!el)return;
+  const l=E.tpl.layers.find(x=>x.id===el.dataset.lid);if(!l||l.locked)return;
+  if(l.type==='shape'&&!l.label){          // 雙擊沒有文字的形狀 → 直接加一個
+    l.label=newLabel();drawArt();renderInspect();renderLayerList();return;}
+  const host=l.type==='shape'?el.querySelector('.lbl'):el;
+  const ft=host.querySelector('.ft');
+  host.style.pointerEvents='auto';
+  ft.setAttribute('contenteditable','true');ft.style.cursor='text';
+  host.classList.add('editing');ft.focus();
+  document.execCommand&&document.execCommand('selectAll',false,null);
+  const done=()=>{
+    const txt=ft.innerText.replace(/\u00a0/g,' ');
+    if(l.type==='shape')l.label.content=txt;else l.content=txt;
+    ft.removeAttribute('contenteditable');host.classList.remove('editing');
+    drawArt();renderLayerList();renderInspect();
+  };
+  ft.addEventListener('blur',done,{once:true});
+  ft.addEventListener('keydown',ev=>{if(ev.key==='Escape'||(ev.key==='Enter'&&!ev.shiftKey)){ev.preventDefault();ft.blur();}});
+});
+document.addEventListener('keydown',e=>{
+  if(!ov.classList.contains('open')||!E)return;
+  if(e.target.matches('input,textarea,select'))return;
+  const l=selLayer();if(!l)return;
+  const st=e.shiftKey?.05:.005;
+  const m={ArrowLeft:['x',-st],ArrowRight:['x',st],ArrowUp:['y',-st],ArrowDown:['y',st]};
+  if(m[e.key]){e.preventDefault();l[m[e.key][0]]=r4(l[m[e.key][0]]+m[e.key][1]);drawArt();renderInspect();}
+  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();layerTool('del');}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'){e.preventDefault();layerTool('dup');}
+});
+/* 圖層清單 */
+function renderLayerList(){
+  const box=$('dLayers');
+  box.innerHTML=E.tpl.layers.slice().reverse().map(l=>{
+    const ic=l.type==='text'?'T':l.type==='image'?'🖼':(hasLabel(l)?'◈':'◆');
+    const label=l.type==='text'?(l.content||'').replace(/\n/g,' ').slice(0,12)
+      :hasLabel(l)?l.name+'「'+(l.label.content||'').replace(/\n/g,' ').slice(0,6)+'」':l.name;
+    return `<div class="lrow${l.id===E.sel?' sel':''}" data-lid="${l.id}">
+      <span class="ic">${ic}</span><span class="nm">${esc(label)}</span>
+      <span class="k">${l.id}</span>
+      <i data-x="vis" title="顯示/隱藏">${l.visible===false?'🚫':'👁'}</i>
+      <i data-x="lock" title="鎖定">${l.locked?'🔒':'🔓'}</i></div>`;
+  }).join('')||'<div style="padding:12px;color:var(--muted);font-size:12px">還沒有圖層。左側點形狀或拖進畫板。</div>';
+  box.querySelectorAll('.lrow').forEach(r=>{
+    const l=E.tpl.layers.find(x=>x.id===r.dataset.lid);
+    r.onclick=e=>{
+      const x=e.target.dataset.x;
+      if(x==='vis'){l.visible=l.visible===false;drawArt();renderLayerList();return;}
+      if(x==='lock'){l.locked=!l.locked;drawArt();renderLayerList();return;}
+      E.sel=l.id;drawArt();renderLayerList();renderInspect();};
+  });
+}
+function layerTool(t){
+  const i=E.tpl.layers.findIndex(l=>l.id===E.sel);if(i<0)return;
+  const L=E.tpl.layers;
+  if(t==='up'&&i<L.length-1){[L[i],L[i+1]]=[L[i+1],L[i]];}
+  if(t==='down'&&i>0){[L[i],L[i-1]]=[L[i-1],L[i]];}
+  if(t==='dup'){const c=JSON.parse(JSON.stringify(L[i]));c.id=newId(L[i].type[0]+'_');
+    c.x=r4(c.x+.04);c.y=r4(c.y+.04);L.splice(i+1,0,c);E.sel=c.id;}
+  if(t==='del'){L.splice(i,1);E.sel=L.length?L[Math.min(i,L.length-1)].id:null;}
+  drawArt();renderLayerList();renderInspect();
+}
+document.querySelectorAll('.tools [data-t]').forEach(b=>b.onclick=()=>layerTool(b.dataset.t));
+
+/* 屬性檢視（形狀＝填充/邊框；文字＝完整排版） */
+function renderInspect(){
+  const box=$('dInspect'),l=selLayer();
+  if(!l){box.innerHTML='<div class="empty" style="padding:8px 2px">沒選圖層。<br><br>左邊點形狀或拖進畫板；上傳的 PNG 也是一個圖層，可以再疊文字。</div>';return;}
+  const geo=[['x','X',-.5,1.5,.005],['y','Y',-.5,1.5,.005],
+             ['rot','旋轉',-180,180,1],['opacity','透明度',.05,1,.05]];
+  let html=`<div class="pk">${l.type} · <b>${l.id}</b>${(l.type==='text'||hasLabel(l))?'<br>這個圖層的文字，每張貼紙可以不一樣':''}</div>
+   <div class="row"><div class="lab"><span>圖層名稱</span></div><input type="text" data-p="name" value="${esc(l.name)}"></div>`;
+  html+=geo.map(([k,lab,mn,mx,st])=>{
+    const nb=k==='rot'?[-360,360]:k==='opacity'?[0,1]:[-5,5];   // 數字框可超出滑桿範圍，但仍要合理
+    return numRow('data-p',k,lab,l[k],mn,mx,st,nb[0],nb[1]);}).join('');
+  if(l.type==='shape'){
+    html+=`<div class="sect">填充與邊框</div>
+      <div class="mini3">
+        <div class="row"><div class="lab"><span>填充</span></div><input type="color" data-p="fill" value="${l.fill==='none'?'#ffffff':l.fill}"></div>
+        <div class="row"><div class="lab"><span>&nbsp;</span></div><label class="sw" style="height:26px"><input type="checkbox" data-p="fillon" ${l.fill!=='none'?'checked':''}>有填充</label></div>
+      </div>
+      <div class="row"><div class="lab"><span>邊框色</span></div><input type="color" data-p="stroke" value="${l.stroke}"></div>
+      ${numRow('data-p','strokeW','邊框粗細',l.strokeW,0,20,1,0,60)}`;
+    const P=l.params||{};
+    const pm=[];
+    if(['rect','bar'].includes(l.shape))pm.push(['radius','圓角',0,1,.02]);
+    if(['burst','star','seal'].includes(l.shape)){pm.push(['spikes','角數',3,40,1]);pm.push(['inner','內徑',.2,.95,.01]);}
+    if(['ribbon','tag'].includes(l.shape))pm.push(['notch','缺口',.05,.6,.01]);
+    if(l.shape==='chevron')pm.push(['thick','厚度',.1,.9,.02]);
+    if(l.shape==='arrow'){pm.push(['head','箭頭長',.1,.8,.02]);pm.push(['tail','桿寬',.1,1,.02]);}
+    if(pm.length)html+='<div class="sect">形狀參數</div>'+pm.map(([k,lab,mn,mx,st])=>
+      numRow('data-pp',k,lab,P[k],mn,mx,st)).join('');
+    if(!l.label){
+      html+=`<button class="btn" id="addLbl" style="margin-top:4px">＋ 在形狀中加文字</button>`;
+
+    }else{
+      const b=l.label;
+      html+=`<div class="sect">形狀內文字</div>
+      <textarea data-b="content" rows="3">${esc(b.content)}</textarea>
+      ${numRow('data-b','wrap','幾個字換行（0＝不自動換）',b.wrap||0,0,24,1,0,200)}
+      <div class="row"><div class="lab"><span>形狀跟著字變大</span></div>
+        <select data-b="grow">
+          <option value="w"${b.grow==='w'?' selected':''}>只變寬</option>
+          <option value="wh"${b.grow==='wh'?' selected':''}>寬高都變</option>
+          <option value="none"${b.grow==='none'?' selected':''}>不變（字可能溢出）</option>
+        </select></div>
+      <select data-b="font">${Object.keys(FONTS).map(k=>`<option value="${k}"${(b.font||'sans')===k?' selected':''}>${FONTS[k].n}</option>`).join('')}</select>
+      ${numRow('data-b','size','字級',b.size,0.02,0.6,0.01,0.01,2)}
+      ${numRow('data-b','weight','粗細',b.weight,100,3000,10,100,3000)}
+      <div class="row"><div class="lab"><span>字色</span></div><input type="color" data-b="color" value="${b.color}"></div>
+      <div class="row"><div class="lab"><span>對齊</span></div>
+        <select data-b="align">${[['left','靠左'],['center','置中'],['right','靠右']].map(([v,t])=>`<option value="${v}"${b.align===v?' selected':''}>${t}</option>`).join('')}</select></div>
+      ${numRow('data-b','lh','行高',b.lh,0.7,2.4,0.05)}
+      ${numRow('data-b','ls','字距',b.ls,-0.15,0.6,0.01)}
+      ${numRow('data-b','padX','左右內距（字高倍數）',b.padX,0,3,0.05)}
+      ${numRow('data-b','padY','上下內距（字高倍數）',b.padY,0,3,0.05)}
+      ${numRow('data-b','outline','描邊',b.outline,0,0.2,0.01)}
+      <div class="row"><div class="lab"><span>描邊色</span></div><input type="color" data-b="outlineColor" value="${b.outlineColor}"></div>
+      <button class="btn" id="delLbl">移除形狀內文字</button>`;
+    }
+  }else if(l.type==='image'){
+    const arTxt=l.ar?`原圖 ${(1/l.ar).toFixed(3)} : 1（寬:高）`:'（這張圖沒記到原始比例）';
+    html+=`<div class="sect">圖片</div>
+      <div class="pk">${arTxt}</div>
+      <label class="sw"><input type="checkbox" data-p="keepAR" ${l.keepAR!==false?'checked':''}>鎖定原始比例（拖曳時按 Shift 可暫時解除）</label>
+      ${l.ar?`<button class="btn" id="fitAR">依原始比例校正目前尺寸</button>`:''}`;
+  }else if(l.type==='text'){
+    html+=`<div class="sect">內容</div>
+      <textarea data-p="content" rows="4" placeholder="可多行；下面的框可以往下拉高">${esc(l.content)}</textarea>
+      <div class="sect">字體</div>
+      <select data-p="font">${Object.keys(FONTS).map(k=>`<option value="${k}"${(l.font||'sans')===k?' selected':''}>${FONTS[k].n}</option>`).join('')}</select>
+      ${numRow('data-p','weight','粗細',l.weight,100,3000,10,100,3000)}
+      ${numRow('data-p','size','字級（佔貼紙高度的比例）',l.size,0.02,0.6,0.01,0.01,2)}
+      <div class="row"><div class="lab"><span>字色</span></div><input type="color" data-p="color" value="${l.color}"></div>
+      <div class="mini3">
+        <label class="sw"><input type="checkbox" data-p="italic" ${l.italic?'checked':''}>斜體</label>
+        <label class="sw"><input type="checkbox" data-p="underline" ${l.underline?'checked':''}>底線</label>
+        <label class="sw"><input type="checkbox" data-p="vertical" ${l.vertical?'checked':''}>直書</label>
+      </div>
+      <div class="sect">排版</div>
+      <div class="mini3">
+        <select data-p="align">${[['left','水平靠左'],['center','水平置中'],['right','水平靠右']].map(([v,t])=>`<option value="${v}"${l.align===v?' selected':''}>${t}</option>`).join('')}</select>
+        <select data-p="valign">${[['top','垂直靠上'],['center','垂直置中'],['bottom','垂直靠下']].map(([v,t])=>`<option value="${v}"${(l.valign||'center')===v?' selected':''}>${t}</option>`).join('')}</select>
+      </div>
+      ${numRow('data-p','lh','行高',l.lh,0.7,2.4,0.05)}
+      ${numRow('data-p','ls','字距',l.ls,-0.15,0.6,0.01)}
+      <label class="sw"><input type="checkbox" data-p="autoFit" ${l.autoFit?'checked':''}>字太長時自動縮小以塞進框內</label>
+      <div class="sect">描邊</div>
+      ${numRow('data-p','outline','粗細',l.outline,0,0.2,0.01)}
+      <div class="row"><div class="lab"><span>顏色</span></div><input type="color" data-p="outlineColor" value="${l.outlineColor}"></div>
+      <div class="sect">底色（用來蓋掉 PNG 上的原字）</div>
+      <div class="mini3">
+        <div class="row"><div class="lab"><span>顏色</span></div>
+          <input type="color" data-p="bg" value="${l.bg&&l.bg!=='none'?l.bg:'#ffffff'}"></div>
+        <div class="row"><div class="lab"><span>&nbsp;</span></div>
+          <label class="sw" style="height:26px"><input type="checkbox" data-p="bgon" ${l.bg&&l.bg!=='none'?'checked':''}>啟用</label></div>
+      </div>
+      ${numRow('data-p','radius','底色圓角',l.radius,0,0.5,0.01)}`;
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('[data-p]').forEach(inp=>{
+    const p=inp.dataset.p;
+    const go=()=>{
+      if(p==='fillon')l.fill=inp.checked?(box.querySelector('[data-p="fill"]').value):'none';
+      else if(p==='fill'){if(l.fill!=='none')l.fill=inp.value;else{l.fill=inp.value;box.querySelector('[data-p="fillon"]').checked=true;}}
+      else if(p==='bgon')l.bg=inp.checked?box.querySelector('[data-p="bg"]').value:'none';
+      else if(p==='bg'){if(l.bg&&l.bg!=='none')l.bg=inp.value;}
+      else if(inp.type==='checkbox')l[p]=inp.checked;
+      else if(inp.type==='range'||inp.type==='number')l[p]=Number(inp.value);
+      else l[p]=inp.value;
+      box.querySelectorAll(`[data-p="${p}"]`).forEach(o=>{
+        if(o!==inp&&(o.type==='range'||o.type==='number'))o.value=l[p];});
+      drawArt();if(p==='content'||p==='name')renderLayerList();
+    };
+    inp.addEventListener('input',go);inp.addEventListener('change',go);
+  });
+  const fitB=box.querySelector('#fitAR');
+  if(fitB)fitB.onclick=()=>{
+    const AH2=artH(),cx=l.x+l.w/2,cy=l.y+l.h/2;
+    const pxAR=l.ar*ART_W/AH2;
+    l.h=r4(l.w*pxAR);l.x=r4(cx-l.w/2);l.y=r4(cy-l.h/2);
+    drawArt();renderInspect();
+  };
+  const addB=box.querySelector('#addLbl');
+  if(addB)addB.onclick=()=>{l.label=newLabel();
+    if(l.fill&&l.fill!=='none')l.label.color='#ffffff';
+    drawArt();renderInspect();renderLayerList();};
+  const delB=box.querySelector('#delLbl');
+  if(delB)delB.onclick=()=>{delete l.label;drawArt();renderInspect();renderLayerList();};
+  box.querySelectorAll('[data-b]').forEach(inp=>{
+    const p=inp.dataset.b;
+    const go=()=>{
+      if(inp.type==='range'||inp.type==='number')l.label[p]=Number(inp.value);
+      else l.label[p]=inp.value;
+      box.querySelectorAll(`[data-b="${p}"]`).forEach(o=>{
+        if(o!==inp&&(o.type==='range'||o.type==='number'))o.value=l.label[p];});
+      drawArt();if(p==='content')renderLayerList();
+    };
+    inp.addEventListener('input',go);inp.addEventListener('change',go);
+  });
+  box.querySelectorAll('[data-pp]').forEach(inp=>{
+    const p=inp.dataset.pp;
+    const go=()=>{l.params[p]=Number(inp.value);
+      box.querySelectorAll(`[data-pp="${p}"]`).forEach(o=>{if(o!==inp)o.value=l.params[p];});
+      drawArt();};
+    inp.addEventListener('input',go);inp.addEventListener('change',go);
+  });
+}
+$('dCancel').onclick=()=>ov.classList.remove('open');
+ov.addEventListener('pointerdown',e=>{if(e.target===ov)ov.classList.remove('open');});
+$('dSave').onclick=()=>{
+  if(!E.tpl.layers.length){alert('這張貼紙還沒有任何圖層。左邊點一個形狀，或按「＋ 文字圖層」。');return;}
+  const name=$('dName').value.trim()||'未命名貼紙',cat=$('dCat').value;
+  cropToContent(E.tpl,ART_W,artH());   // 貼紙邊界 = 所有圖層的實際外框
+  const tplStr=JSON.stringify(E.tpl),tl=textLayers(E.tpl);
+  /* 存檔時順手烤一張「畫好的圖」（previewSVG 已經把用到的圖片轉成 data: 內嵌進去，
+     自己一份完整的東西）——放到版上的貼紙用的是這一張，不是活的 template。
+     這樣拿去外面用的人（design_and_PM.html）不必知道貼紙內部的圖層長什麼樣。 */
+  const preview=previewSVG(E.tpl,600);
+  if(E.libId){
+    dbUpdate('sticker_lib',E.libId,{name,category:cat,ratio:E.tpl.ratio,layer_count:E.tpl.layers.length,
+      text_layers:tl.length,template:tplStr,preview},'editor');
+    const keys=tl.map(l=>l.id);
+    DB.stickers.filter(s=>s.lib_uuid===E.libId).forEach(s=>{
+      tl.forEach(l=>{if(!DB.sticker_fields.some(f=>f.sticker_id===s.id&&f.layer_id===l.id)){
+        const st=styleOf(l);
+        dbInsert('sticker_fields',{sticker_id:s.id,layer_id:l.id,field_key:l.name,content:contentOf(l),
+          font_size:st.size,color:st.color,weight:st.weight,align:st.align});}});
+      DB.sticker_fields.filter(f=>f.sticker_id===s.id&&!keys.includes(f.layer_id)).forEach(o=>dbDelete('sticker_fields',o.id));
+    });
+    note(`模板 ${shortId(E.libId)} 已更新 · 已放置的貼紙換造型但保留各自文字`);
+  }else{
+    dbInsert('sticker_lib',{name,category:cat,ratio:E.tpl.ratio,layer_count:E.tpl.layers.length,
+      text_layers:tl.length,template:tplStr,preview});
+    activeCat=cat;renderCats();
+  }
+  renderLib();renderStickers();ov.classList.remove('open');
+};
+
+/* ════════ 6. 主畫布 ════════ */
+const canvas=$('canvas');
+let COLS=3,ROWS=2;const CELL_W=220,CELL_H=200;
+let selId=null,drag=null;
+const lockMode=()=>$('swLock').checked,liveMode=()=>$('swLive').checked;
+function buildGrid(){
+  canvas.style.gridTemplateColumns=`repeat(${COLS},${CELL_W}px)`;
+  canvas.style.gridTemplateRows=`repeat(${ROWS},${CELL_H}px)`;
+  canvas.innerHTML='';
+  for(let i=0;i<COLS*ROWS;i++){const c=document.createElement('div');
+    c.className='cell';c.dataset.ci=i;c.dataset.label='cell_index '+i;canvas.appendChild(c);}
+  note(`grid rebuilt → ${COLS} × ${ROWS}`);renderStickers();
+}
+$('applyGrid').onclick=()=>{
+  COLS=clamp(+$('cols').value||3,1,8);ROWS=clamp(+$('rows').value||2,1,8);
+  DB.stickers.filter(s=>s.cell_index>=COLS*ROWS).forEach(s=>dbUpdate('stickers',s.id,{cell_index:0},'grid resize'));
+  buildGrid();
+};
+$('swGrid').onchange=e=>canvas.classList.toggle('grid-on',e.target.checked);
+$('swDebug').onchange=e=>document.body.classList.toggle('debug-on',e.target.checked);
+canvas.addEventListener('dragover',e=>{
+  if(!e.dataTransfer.types.includes('text/lib-id'))return;e.preventDefault();
+  canvas.querySelectorAll('.cell.dropping').forEach(c=>c.classList.remove('dropping'));
+  const c=e.target.closest('.cell');if(c)c.classList.add('dropping');});
+canvas.addEventListener('dragleave',()=>canvas.querySelectorAll('.cell.dropping').forEach(c=>c.classList.remove('dropping')));
+canvas.addEventListener('drop',e=>{
+  const id=e.dataTransfer.getData('text/lib-id');if(!id)return;e.preventDefault();
+  canvas.querySelectorAll('.cell.dropping').forEach(c=>c.classList.remove('dropping'));
+  const cell=e.target.closest('.cell');if(!cell)return;
+  const r=cell.getBoundingClientRect(),rw=.6;
+  createSticker(id,+cell.dataset.ci,clamp((e.clientX-r.left)/r.width-rw/2,0,1-rw),clamp((e.clientY-r.top)/r.height-.1,0,.9));});
+function placeAuto(libId){
+  const used=new Set(DB.stickers.map(s=>s.cell_index));
+  let ci=0;for(let i=0;i<COLS*ROWS;i++)if(!used.has(i)){ci=i;break;}
+  createSticker(libId,ci,.18,.34);
+}
+function createSticker(libId,ci,rx,ry){
+  const lb=DB.sticker_lib.find(s=>s.id===libId);if(!lb)return;
+  const tpl=tplOf(lb),tl=textLayers(tpl);
+  note(`放置「${lb.name}」→ 1 筆 stickers + ${tl.length} 筆 sticker_fields（只有文字圖層入表，形狀留在模板）`);
+  const row=dbInsert('stickers',{cell_index:ci,lib_uuid:lb.id,name:lb.name,rx:r4(rx),ry:r4(ry),rw:.6,rot:0,opacity:1,
+    z:DB.stickers.reduce((m,s)=>Math.max(m,s.z),0)+1});
+  tl.forEach(l=>{const st=styleOf(l);
+    dbInsert('sticker_fields',{sticker_id:row.id,layer_id:l.id,field_key:l.name,content:contentOf(l),
+      font_size:st.size,color:st.color,weight:st.weight,align:st.align});});
+  selId=row.id;renderStickers();
+}
+const fieldsOf=sid=>DB.sticker_fields.filter(f=>f.sticker_id===sid);
+/* growShapes 要看實際文字才知道要多寬，這裡把 sticker_fields 的內容暫時套進模板物件。
+   tpl 是每次 tplOf() 產生的新物件，改它不會動到 sticker_lib。 */
+function applyVals(tpl,vals){
+  tpl.layers.forEach(l=>{
+    const v=vals[l.id];if(!v)return;
+    if(hasLabel(l)){
+      if(v.content!=null)l.label.content=v.content;
+      if(v.font_size!=null)l.label.size=Number(v.font_size);
+      if(v.weight!=null)l.label.weight=Number(v.weight);
+    }
+  });
+  return tpl;
+}
+function renderStickers(){
+  canvas.querySelectorAll('.placed').forEach(e=>e.remove());
+  DB.stickers.forEach(row=>{
+    const cell=canvas.querySelector(`.cell[data-ci="${row.cell_index}"]`);if(!cell)return;
+    const lb=DB.sticker_lib.find(s=>s.id===row.lib_uuid);
+    const tpl=lb?tplOf(lb):{ratio:.4,layers:[]};
+    const el=document.createElement('div');
+    el.className='placed'+(row.id===selId?' selected':'');
+    el.dataset.id=row.id;
+    el.style.left=(row.rx*100)+'%';el.style.top=(row.ry*100)+'%';
+    el.style.width=(row.rw*100)+'%';el.style.aspectRatio=`1 / ${tpl.ratio}`;
+    el.style.transform=`rotate(${row.rot}deg)`;el.style.opacity=row.opacity;el.style.zIndex=10+row.z;
+    el.innerHTML=`<div class="h-resize"></div><div class="h-rot"></div><div class="h-del">×</div>
+      <div class="dtag"><b>${shortId(row.id)}</b> cell=<i>${row.cell_index}</i> rx=<i>${row.rx.toFixed(3)}</i> ry=<i>${row.ry.toFixed(3)}</i> rw=<i>${row.rw.toFixed(3)}</i> · layers=<i>${tpl.layers.length}</i> fields=<i>${fieldsOf(row.id).length}</i></div>`;
+    cell.appendChild(el);
+    const AW=el.clientWidth||1,AH=el.clientHeight||1,vals={};
+    fieldsOf(row.id).forEach(f=>vals[f.layer_id]=f);
+    growShapes(applyVals(tpl,vals),AW,AH);   // 每張實體按自己的字算寬度
+    el.insertAdjacentHTML('afterbegin',renderTemplate(tpl,AW,AH,vals,true));
+    fitTexts(el);
+  });
+  renderProps();syncViews();
+}
+canvas.addEventListener('focusin',e=>{
+  const ft=e.target.closest('.ft');if(!ft)return;
+  (ft.closest('.lbl')||ft.closest('.lyr')).classList.add('editing');ft.dataset.before=ft.innerText;
+  note(`BEGIN edit · stickers#${ft.closest('.placed').dataset.id} layer ${ft.closest('.lyr').dataset.lid} · 未 commit`);
+});
+canvas.addEventListener('focusout',e=>{
+  const ft=e.target.closest('.ft');if(!ft)return;
+  const host=ft.closest('.lbl')||ft.closest('.lyr');host.classList.remove('editing');
+  const sid=ft.closest('.placed').dataset.id,lid=host.dataset.lid;
+  const txt=ft.innerText.replace(/\u00a0/g,' ');
+  if(txt===ft.dataset.before)return;
+  const row=DB.sticker_fields.find(f=>f.sticker_id===sid&&f.layer_id===lid);
+  if(row)dbUpdate('sticker_fields',row.id,{content:txt},'inline edit');
+});
+canvas.addEventListener('keydown',e=>{if(e.target.closest('.ft')&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();e.target.blur();}});
+canvas.addEventListener('pointerdown',e=>{
+  const el=e.target.closest('.placed');
+  if(!el){if(selId!==null){selId=null;renderStickers();}return;}
+  if(e.target.closest('.ft')&&el.classList.contains('selected'))return;
+  const id=el.dataset.id,row=DB.stickers.find(r=>r.id===id);if(!row)return;
+  if(selId!==id){selId=id;renderStickers();return;}
+  if(e.target.classList.contains('h-del')){deleteSticker(id);selId=null;renderStickers();return;}
+  const cr=el.parentElement.getBoundingClientRect();
+  const mode=e.target.classList.contains('h-resize')?'resize':e.target.classList.contains('h-rot')?'rot':'move';
+  drag={id,row,mode,cr,el,x0:e.clientX,y0:e.clientY,rx0:row.rx,ry0:row.ry,rw0:row.rw,moved:false,
+    cx:cr.left+(row.rx+row.rw/2)*cr.width,cy:cr.top+(row.ry+row.rw/2)*cr.height};
+  el.classList.add('dragging');el.setPointerCapture(e.pointerId);
+  note(`BEGIN drag · stickers#${id} · ${mode}${liveMode()?' · live':' · commit on release'}`);e.preventDefault();
+});
+let liveTick=0;
+canvas.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const{cr,row}=drag;
+  if(drag.mode==='move'){
+    let rx=drag.rx0+(e.clientX-drag.x0)/cr.width,ry=drag.ry0+(e.clientY-drag.y0)/cr.height;
+    if(lockMode()){rx=clamp(rx,0,1-row.rw);ry=clamp(ry,0,.98);}
+    row.rx=r4(rx);row.ry=r4(ry);
+  }else if(drag.mode==='resize')row.rw=r4(clamp(drag.rw0+(e.clientX-drag.x0)/cr.width,.08,1.6));
+  else row.rot=Math.round((Math.atan2(e.clientY-drag.cy,e.clientX-drag.cx)*180/Math.PI+90)/5)*5;
+  drag.moved=true;
+  const el=drag.el;
+  el.style.left=(row.rx*100)+'%';el.style.top=(row.ry*100)+'%';
+  el.style.width=(row.rw*100)+'%';el.style.transform=`rotate(${row.rot}deg)`;
+  el.querySelector('.dtag').innerHTML=`<b>${shortId(row.id)}</b> cell=<i>${row.cell_index}</i> rx=<i>${row.rx.toFixed(3)}</i> ry=<i>${row.ry.toFixed(3)}</i> rw=<i>${row.rw.toFixed(3)}</i> <u>UNCOMMITTED</u>`;
+  if(drag.mode==='resize'){
+    const lb=DB.sticker_lib.find(s=>s.id===row.lib_uuid);
+    if(lb){const tpl=tplOf(lb),AW=el.clientWidth||1,AH=el.clientHeight||1,vals={};
+      fieldsOf(row.id).forEach(f=>vals[f.layer_id]=f);
+      el.querySelectorAll('.lyr').forEach(n=>n.remove());
+      el.insertAdjacentHTML('afterbegin',renderTemplate(tpl,AW,AH,vals,true));fitTexts(el);}
+  }
+  renderProps(true);
+  if(liveMode()&&performance.now()-liveTick>140){liveTick=performance.now();
+    dbUpdate('stickers',row.id,{rx:row.rx,ry:row.ry,rw:row.rw,rot:row.rot},'live');}
+});
+canvas.addEventListener('pointerup',()=>{
+  if(!drag)return;
+  const{row,id,mode}=drag;drag.el.classList.remove('dragging');
+  if(drag.moved){
+    if(mode==='move'&&!lockMode()){
+      const cx=drag.cr.left+(row.rx+row.rw/2)*drag.cr.width,cy=drag.cr.top+(row.ry+row.rw/2)*drag.cr.height;
+      const t=document.elementsFromPoint(cx,cy).find(n=>n.classList&&n.classList.contains('cell'));
+      if(t&&+t.dataset.ci!==row.cell_index){
+        const tr=t.getBoundingClientRect();
+        note(`sticker#${id} 中心跨到 cell ${t.dataset.ci} → 重算相對座標`);
+        row.rx=r4((cx-tr.left)/tr.width-row.rw/2);row.ry=r4((cy-tr.top)/tr.height-row.rw/2);
+        row.cell_index=+t.dataset.ci;}
+    }
+    dbUpdate('stickers',id,{cell_index:row.cell_index,rx:row.rx,ry:row.ry,rw:row.rw,rot:row.rot},'drag commit');
+  }
+  drag=null;renderStickers();
+});
+document.addEventListener('keydown',e=>{
+  if(ov.classList.contains('open'))return;
+  if(selId===null||e.target.matches('input,textarea')||e.target.isContentEditable)return;
+  const row=DB.stickers.find(r=>r.id===selId);if(!row)return;
+  const st=e.shiftKey?.05:.01;
+  const m={ArrowLeft:['rx',-st],ArrowRight:['rx',st],ArrowUp:['ry',-st],ArrowDown:['ry',st]};
+  if(m[e.key]){e.preventDefault();dbUpdate('stickers',selId,{[m[e.key][0]]:clamp(row[m[e.key][0]]+m[e.key][1],-.2,1.2)},'keyboard');renderStickers();}
+  if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSticker(selId);selId=null;renderStickers();}
+});
+
+/* ════════ 7. 屬性面板 ════════ */
+const propBody=$('propBody');
+function renderProps(liveOnly){
+  const row=DB.stickers.find(r=>r.id===selId);
+  if(!row){propBody.innerHTML='<div class="empty">還沒選貼紙。<br><br>「＋新貼紙」開圖層編輯器；PNG 直接拖到貼紙庫就以那張圖為底、再疊文字圖層。<br><br>放到格子後選取，直接點文字就能改，每次都寫進 sticker_fields。</div>';return;}
+  if(liveOnly&&propBody.dataset.id==String(row.id)){
+    propBody.querySelectorAll('[data-live]').forEach(el=>{
+      const k=el.dataset.live;
+      if(el.tagName==='INPUT')el.value=row[k];else el.textContent=row[k];});
+    return;}
+  propBody.dataset.id=row.id;
+  const lb=DB.sticker_lib.find(s=>s.id===row.lib_uuid),tpl=lb?tplOf(lb):null,fl=fieldsOf(row.id);
+  const sl=[['rx','X 位置',-.2,1.2,.005],['ry','Y 位置',-.2,1.2,.005],['rw','寬度',.08,1.6,.005],
+            ['rot','旋轉',-180,180,5],['opacity','透明度',.1,1,.05]];
+  propBody.innerHTML=`<div class="pbody">
+    <div class="pk">貼紙實體 <b>${shortId(row.id)}</b><br>來自版型 ${shortId(row.lib_uuid)}（${esc(row.name)}）<br>圖層 ${tpl?tpl.layers.length:0} · 可變文字 ${fl.length}</div>
+    ${sl.map(([k,lab,mn,mx,st])=>`<div class="row"><div class="lab"><span>${lab}</span>`+
+      `<input class="numin" type="number" data-k="${k}" data-live="${k}" min="${k==='rot'?-360:k==='opacity'?0:-5}" max="${k==='rot'?360:k==='opacity'?1:5}" step="${st}" value="${row[k]}"></div>`+
+      `<input type="range" data-k="${k}" data-live="${k}" min="${mn}" max="${mx}" step="${st}" value="${row[k]}"></div>`).join('')}
+    <div class="row"><div class="lab"><span>所屬格子</span></div>
+      <select id="pCell">${Array.from({length:COLS*ROWS},(_,i)=>`<option value="${i}"${i===row.cell_index?' selected':''}>cell ${i}</option>`).join('')}</select></div>
+    <div class="prow2"><button class="btn" id="pFront">移到最上</button><button class="btn" id="pCenter">置中</button></div>
+    <div class="prow2"><button class="btn" id="pDup">複製</button><button class="btn" id="pEdit">改造型</button></div>
+    <div class="sect">可變文字（sticker_fields）</div>
+    ${fl.map(f=>`<div class="fcard" data-fid="${f.id}">
+      <div class="fh"><span>${esc(f.field_key)}</span><span>${f.layer_id}</span></div>
+      <textarea data-fp="content" rows="2">${esc(f.content)}</textarea>
+      ${numRow('data-fp','font_size','字級',f.font_size,0.02,0.6,0.01,0.01,2)}
+      ${numRow('data-fp','weight','粗細',f.weight,100,3000,10,100,3000)}
+      <div class="mini3">
+        <div class="row"><div class="lab"><span>顏色</span></div><input type="color" data-fp="color" value="${f.color}"></div>
+        <select data-fp="align">${[['left','靠左'],['center','置中'],['right','靠右']].map(([v,t])=>`<option value="${v}"${f.align===v?' selected':''}>${t}</option>`).join('')}</select>
+      </div></div>`).join('')}
+    <button class="btn solid" id="pDel">刪除貼紙（含欄位）</button></div>`;
+  propBody.querySelectorAll('[data-k]').forEach(inp=>{
+    let t=null;
+    inp.oninput=()=>{const k=inp.dataset.k,v=Number(inp.value);row[k]=k==='rot'?Math.round(v):r4(v);
+      propBody.querySelectorAll(`[data-k="${k}"]`).forEach(o=>{if(o!==inp)o.value=row[k];});
+      applyLive(row);clearTimeout(t);t=setTimeout(()=>dbUpdate('stickers',row.id,{[k]:row[k]},'panel'),250);};
+    inp.onchange=()=>{dbUpdate('stickers',row.id,{[inp.dataset.k]:row[inp.dataset.k]},'panel');renderStickers();};
+  });
+  $('pCell').onchange=e=>{dbUpdate('stickers',row.id,{cell_index:+e.target.value},'panel');renderStickers();};
+  $('pFront').onclick=()=>{dbUpdate('stickers',row.id,{z:DB.stickers.reduce((m,s)=>Math.max(m,s.z),0)+1},'panel');renderStickers();};
+  $('pCenter').onclick=()=>{dbUpdate('stickers',row.id,{rx:r4((1-row.rw)/2),ry:r4(.5-row.rw*(tpl?tpl.ratio:.4)/2)},'panel');renderStickers();};
+  $('pDup').onclick=()=>{
+    const n=dbInsert('stickers',{cell_index:row.cell_index,lib_uuid:row.lib_uuid,name:row.name,
+      rx:r4(clamp(row.rx+.06,0,.9)),ry:r4(clamp(row.ry+.06,0,.9)),rw:row.rw,rot:row.rot,opacity:row.opacity,
+      z:DB.stickers.reduce((m,s)=>Math.max(m,s.z),0)+1});
+    fl.forEach(f=>dbInsert('sticker_fields',{sticker_id:n.id,layer_id:f.layer_id,field_key:f.field_key,
+      content:f.content,font_size:f.font_size,color:f.color,weight:f.weight,align:f.align}));
+    selId=n.id;renderStickers();};
+  $('pEdit').onclick=()=>{if(lb)openEditor(lb);};
+  $('pDel').onclick=()=>{deleteSticker(row.id);selId=null;renderStickers();};
+  propBody.querySelectorAll('.fcard[data-fid]').forEach(card=>{
+    const fid=card.dataset.fid;
+    card.querySelectorAll('[data-fp]').forEach(inp=>{
+      let t=null;
+      const isNum=inp.type==='range'||inp.type==='number';
+      const commit=()=>{const p=inp.dataset.fp,v=isNum?Number(inp.value):inp.value;
+        dbUpdate('sticker_fields',fid,{[p]:p==='weight'?Number(v):v},'panel');renderStickers();};
+      if(isNum){
+        inp.oninput=()=>{const p=inp.dataset.fp;
+          card.querySelectorAll(`[data-fp="${p}"]`).forEach(o=>{if(o!==inp)o.value=inp.value;});
+          const f=DB.sticker_fields.find(x=>x.id===fid);if(f&&p==='font_size')f.font_size=Number(inp.value);
+          applyFieldLive(fid);clearTimeout(t);t=setTimeout(commit,250);};
+      }else inp.onchange=commit;
+    });
+  });
+}
+function applyLive(row){
+  const el=canvas.querySelector(`.placed[data-id="${row.id}"]`);if(!el)return;
+  el.style.left=(row.rx*100)+'%';el.style.top=(row.ry*100)+'%';el.style.width=(row.rw*100)+'%';
+  el.style.transform=`rotate(${row.rot}deg)`;el.style.opacity=row.opacity;
+}
+function applyFieldLive(fid){
+  const f=DB.sticker_fields.find(x=>x.id===fid);if(!f)return;
+  const el=canvas.querySelector(`.placed[data-id="${f.sticker_id}"] .lyr[data-lid="${f.layer_id}"]`);
+  if(!el)return;
+  el.style.fontSize=(f.font_size*(el.closest('.placed').clientHeight||1)).toFixed(2)+'px';
+}
+
+/* ════════ 8. 記錄（畫面上的主控台已移除） ════════
+   pushLog / note / syncViews 散落在各處，保留成極輕量的實作：
+   只寫進瀏覽器 console，開 DevTools 仍能追資料流動，畫面上不佔位置。 */
+function syncViews(){}
+function download(n,t,ty){const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([t],{type:ty||'text/plain'}));a.download=n;a.click();URL.revokeObjectURL(a.href);}
+$('btnJson').onclick=()=>{
+  const used=allUsedAssets(),assets={};
+  used.forEach(k=>{if(ASSETS[k])assets[k]=ASSETS[k];});          // 這次把圖真的內嵌進去
+  const body={format:'sticker-pack-single',schema_version:SCHEMA_VERSION,exported_at:iso(now()),
+    sticker_lib:DB.sticker_lib,assets};
+  const txt=JSON.stringify(body,null,2);
+  if(txt.length>4*1024*1024&&!confirm('這份 JSON 已經超過 4MB（圖片用 base64 內嵌會膨脹約 33%）。\n建議改用「匯出備份 .zip」。仍要繼續嗎？'))return;
+  download('sticker_system_v4.json',txt,'application/json');
+  note(`JSON exported · 內嵌 ${Object.keys(assets).length} 張圖 · ${(txt.length/1024).toFixed(0)} KB`);};
+$('btnClear').onclick=()=>{
+  if(!DB.stickers.length)return;
+  const nf=DB.sticker_fields.length,n=DB.stickers.length;
+  DB.sticker_fields=[];DB.stickers=[];
+  pushLog('DELETE','DELETE FROM sticker_fields;\nDELETE FROM stickers;',`${nf} + ${n} row(s)`);
+  selId=null;renderStickers();persist('clear');};
+
+
+/* ════════ 8.5 備份：ZIP 打包 / 解包 ════════
+   自己寫的極簡 ZIP，不依賴任何外部套件。
+   .json 用 deflate-raw 壓（瀏覽器原生 CompressionStream），.png 已經壓過所以直接 STORE。 */
+const CRCT=(()=>{const t=new Uint32Array(256);
+  for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRCT[(c^u[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+async function deflateRaw(u){
+  if(typeof CompressionStream==='undefined')return null;
+  try{const ab=await new Response(new Blob([u]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+    return new Uint8Array(ab);}catch(e){return null;}
+}
+async function inflateRaw(u){
+  if(typeof DecompressionStream==='undefined')throw new Error('這個瀏覽器不支援解壓縮（需要較新的 Chrome / Edge / Firefox）');
+  const ab=await new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+  return new Uint8Array(ab);
+}
+async function zipWrite(files){
+  const enc=new TextEncoder(),parts=[],central=[];let off=0,n=0;
+  for(const f of files){
+    const name=enc.encode(f.name),raw=f.data;
+    let data=raw,method=0;
+    if(f.compress!==false){const d=await deflateRaw(raw);if(d&&d.length<raw.length){data=d;method=8;}}
+    const crc=crc32(raw);
+    const lh=new Uint8Array(30+name.length),dv=new DataView(lh.buffer);
+    dv.setUint32(0,0x04034b50,true);dv.setUint16(4,20,true);dv.setUint16(6,0x800,true);
+    dv.setUint16(8,method,true);dv.setUint16(10,0,true);dv.setUint16(12,0x2821,true);
+    dv.setUint32(14,crc,true);dv.setUint32(18,data.length,true);dv.setUint32(22,raw.length,true);
+    dv.setUint16(26,name.length,true);dv.setUint16(28,0,true);
+    lh.set(name,30);parts.push(lh,data);
+    const ch=new Uint8Array(46+name.length),cv=new DataView(ch.buffer);
+    cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x800,true);
+    cv.setUint16(10,method,true);cv.setUint16(12,0,true);cv.setUint16(14,0x2821,true);
+    cv.setUint32(16,crc,true);cv.setUint32(20,data.length,true);cv.setUint32(24,raw.length,true);
+    cv.setUint16(28,name.length,true);cv.setUint32(42,off,true);
+    ch.set(name,46);central.push(ch);
+    off+=lh.length+data.length;n++;
+  }
+  const cdSize=central.reduce((a,c)=>a+c.length,0);
+  const eo=new Uint8Array(22),ev=new DataView(eo.buffer);
+  ev.setUint32(0,0x06054b50,true);ev.setUint16(8,n,true);ev.setUint16(10,n,true);
+  ev.setUint32(12,cdSize,true);ev.setUint32(16,off,true);
+  return new Blob([...parts,...central,eo],{type:'application/zip'});
+}
+async function zipRead(buf){
+  const u=new Uint8Array(buf),dv=new DataView(u.buffer);
+  let eo=-1;
+  for(let i=u.length-22;i>=Math.max(0,u.length-66000);i--){if(dv.getUint32(i,true)===0x06054b50){eo=i;break;}}
+  if(eo<0)throw new Error('這不是有效的 zip（找不到中央目錄）');
+  const total=dv.getUint16(eo+10,true);let pos=dv.getUint32(eo+16,true);
+  const dec=new TextDecoder(),out={};
+  for(let i=0;i<total;i++){
+    if(dv.getUint32(pos,true)!==0x02014b50)throw new Error('中央目錄損壞');
+    const method=dv.getUint16(pos+10,true),csize=dv.getUint32(pos+20,true);
+    const nlen=dv.getUint16(pos+28,true),elen=dv.getUint16(pos+30,true),clen=dv.getUint16(pos+32,true);
+    const lo=dv.getUint32(pos+42,true);
+    const name=dec.decode(u.subarray(pos+46,pos+46+nlen));
+    const lnlen=dv.getUint16(lo+26,true),lelen=dv.getUint16(lo+28,true);
+    const start=lo+30+lnlen+lelen;
+    let data=u.subarray(start,start+csize);
+    if(method===8)data=await inflateRaw(data);
+    else if(method!==0)throw new Error('不支援的壓縮方式：'+method+'（'+name+'）');
+    out[name]=data;
+    pos+=46+nlen+elen+clen;
+  }
+  return out;
+}
+
+/* ── 從模板撈出用到的 asset key ── */
+function assetKeysOf(tplStr){
+  const out=new Set();
+  try{JSON.parse(tplStr).layers.forEach(l=>{if(l.type==='image'&&l.asset)out.add(l.asset);});}catch(e){}
+  return out;
+}
+function allUsedAssets(rows){
+  const set=new Set();
+  (rows||DB.sticker_lib).forEach(r=>assetKeysOf(r.template).forEach(k=>set.add(k)));
+  return set;
+}
+/* ── 產生預覽 SVG（形狀精準；文字靠系統字型，僅供辨識） ── */
+function previewSVG(tpl,W){
+  const H=Math.max(1,Math.round(W*tpl.ratio));
+  let out=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  tpl.layers.filter(l=>l.visible!==false).forEach(l=>{
+    const w=l.w*W,h=l.h*H,x=l.x*W,y=l.y*H;
+    const g=l.rot?`<g transform="rotate(${l.rot} ${x+w/2} ${y+h/2})">`:'<g>';
+    if(l.type==='shape')
+      out+=g+`<svg x="${x}" y="${y}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" overflow="visible">${shapeInner(l,w,h)}</svg></g>`;
+    else if(l.type==='image')
+      out+=g+`<image x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none" href="${ASSETS[l.asset]||''}"/></g>`;
+    else{
+      const fs=l.size*H,lines=String(l.content).split('\n'),lh=(l.lh||1.05)*fs;
+      const an=l.align==='left'?'start':l.align==='right'?'end':'middle';
+      const tx=l.align==='left'?x:l.align==='right'?x+w:x+w/2;
+      const top=y+h/2-(lines.length*lh)/2;
+      out+=g+lines.map((ln,i)=>`<text x="${tx}" y="${(top+lh*(i+.5)+fs*.34).toFixed(1)}" font-size="${fs.toFixed(1)}" fill="${l.color}" font-weight="${l.weight}" text-anchor="${an}" font-family="${(FONTS[l.font||'sans']||FONTS.sans).css.replace(/"/g,'')}" letter-spacing="${((l.ls||0)*fs).toFixed(2)}">${esc(ln)}</text>`).join('')+'</g>';
+    }
+  });
+  return out+'</svg>';
+}
+/* ── 匯出：每張貼紙自己一包 zip ── */
+function safeName(n){return String(n).replace(/[\\/:*?"<>|\s]+/g,'_').slice(0,40)||'sticker';}
+async function buildStickerZip(row){
+  const enc=new TextEncoder(),files=[];
+  const keys=[...assetKeysOf(row.template)];
+  const missing=keys.filter(k=>!ASSETS[k]);
+  // 沒有 manifest：單張包＝有 db/sticker_lib.json；整包＝底下有 stickers/*.zip
+  files.push({name:'db/sticker_lib.json',data:enc.encode(JSON.stringify([row],null,2))});
+  keys.forEach(k=>{if(ASSETS[k])files.push({name:'assets/'+k,data:dataURLBytes(ASSETS[k]),compress:false});});
+  try{files.push({name:'previews/'+row.id+'.svg',data:enc.encode(previewSVG(tplOf(row),320))});}catch(e){}
+  return {blob:await zipWrite(files),missing};
+}
+async function exportOne(row){
+  const {blob,missing}=await buildStickerZip(row);
+  const nm=safeName(row.name)+'_'+shortId(row.id)+'.zip';
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nm;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  note(`匯出單張「${row.name}」· ${(blob.size/1024).toFixed(1)} KB`+(missing.length?` · ⚠ 缺 ${missing.length} 張圖`:''));
+}
+/* 全部匯出：外層 zip 裡面裝的是一張一個的 zip */
+async function exportPack(){
+  if(!DB.sticker_lib.length){alert('貼紙庫是空的');return;}
+  const enc=new TextEncoder(),files=[],index=[];let missTotal=0;
+  for(const row of DB.sticker_lib){
+    const {blob,missing}=await buildStickerZip(row);
+    missTotal+=missing.length;
+    const fn='stickers/'+safeName(row.name)+'_'+shortId(row.id)+'.zip';
+    files.push({name:fn,data:new Uint8Array(await blob.arrayBuffer()),compress:false});
+    index.push({file:fn,id:row.id,name:row.name});
+  }
+  const blob=await zipWrite(files);
+  const nm='sticker_backup_'+iso(now()).replace(/[-: ]/g,'').slice(0,13)+'.zip';
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nm;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  note(`匯出 ${index.length} 張貼紙 · 每張一個獨立 zip · 共 ${(blob.size/1024).toFixed(1)} KB`+(missTotal?` · ⚠ 缺圖 ${missTotal}`:''));
+}
+/* ── 讀入 pack（zip 或單檔 json）── */
+function assetsFromZip(z,out){
+  Object.keys(z).filter(n=>n.startsWith('assets/')).forEach(n=>{
+    const key=n.slice(7),ext=(key.split('.').pop()||'png').toLowerCase();
+    const mime=ext==='jpg'?'image/jpeg':ext==='svg'?'image/svg+xml':'image/'+ext;
+    if(!out[key])out[key]=bytesDataURL(z[n],mime);
+  });
+}
+/* 沒有 manifest，靠結構判斷：
+     底下有 stickers/*.zip → 整包，逐一拆開
+     有 db/sticker_lib.json → 單張貼紙包 */
+async function parseZipObj(z){
+  const dec=new TextDecoder(),J=n=>z[n]?JSON.parse(dec.decode(z[n])):null;
+  const inner=Object.keys(z).filter(n=>/^.*stickers\/[^/]+\.zip$/i.test(n));
+  const assets={};let lib=J('db/sticker_lib.json')||[];
+  assetsFromZip(z,assets);
+  let kind=inner.length?'bundle':(lib.length?'single':null);
+  for(const n of inner){
+    const u=z[n];
+    let iz;
+    try{iz=await zipRead(u.buffer.slice(u.byteOffset,u.byteOffset+u.byteLength));}
+    catch(e){throw new Error(`「${n}」不是有效的貼紙包：${e.message}`);}
+    const ilib=iz['db/sticker_lib.json']?JSON.parse(dec.decode(iz['db/sticker_lib.json'])):[];
+    if(!ilib.length)throw new Error(`「${n}」裡沒有 db/sticker_lib.json`);
+    ilib.forEach(r=>{if(!r.id)r.id=r.uuid||uuid();      // 相容舊檔：以前是 uuid 欄位
+      if(!lib.some(x=>x.id===r.id))lib.push(r);});
+    assetsFromZip(iz,assets);
+  }
+  if(!kind)throw new Error('這個 zip 裡找不到 db/sticker_lib.json，也沒有 stickers/*.zip —— 不是貼紙包');
+  return {kind,count:inner.length,sticker_lib:lib,assets};
+}
+async function parsePack(file){
+  if(/\.(zip|stkpack)$/i.test(file.name))return parseZipObj(await zipRead(await file.arrayBuffer()));
+  const o=JSON.parse(await file.text());
+  if(!o.sticker_lib)throw new Error('JSON 裡沒有 sticker_lib');
+  return {kind:'json',count:o.sticker_lib.length,sticker_lib:o.sticker_lib,assets:o.assets||{}};
+}
+/* ── 匯入前的完整性檢查 ── */
+function inspectPack(pk){
+  const add=[],over=[],miss=new Set();
+  pk.sticker_lib.forEach(r=>{
+    if(!r.id)r.id=r.uuid||uuid();
+    (DB.sticker_lib.some(x=>x.id===r.id)?over:add).push(r);
+    assetKeysOf(r.template).forEach(k=>{if(!pk.assets[k]&&!ASSETS[k])miss.add(k);});
+  });
+  const orphan=Object.keys(pk.assets).filter(k=>!pk.sticker_lib.some(r=>assetKeysOf(r.template).has(k)));
+  return {add,over,missing:[...miss],orphan,
+    newAssets:Object.keys(pk.assets).filter(k=>!ASSETS[k]).length};
+}
+let PENDING=null;
+$('btnImport').onclick=()=>$('packIn').click();
+$('packIn').onchange=e=>{const fs=[...e.target.files];$('packIn').value='';if(fs.length)importFiles(fs);};
+/* 多個檔一起丟進來時，合併成一次預覽再匯入 */
+async function importFiles(files){
+  try{
+    const merged={kind:null,count:0,sticker_lib:[],assets:{}},names=[];let bytes=0;
+    for(const f of files){
+      const pk=await parsePack(f);
+      names.push(f.name);bytes+=f.size;
+      merged.count+=pk.count||0;
+      merged.kind=merged.kind&&merged.kind!==pk.kind?'mixed':pk.kind;
+      pk.sticker_lib.forEach(r=>{const rid=r.id||r.uuid;
+        if(rid&&!merged.sticker_lib.some(x=>(x.id||x.uuid)===rid))merged.sticker_lib.push(r);});
+      Object.entries(pk.assets).forEach(([k,v])=>{if(!merged.assets[k])merged.assets[k]=v;});
+    }
+    if(!merged.sticker_lib.length)throw new Error('這些檔案裡沒有任何貼紙');
+    const rep=inspectPack(merged);
+    PENDING={pk:merged,rep};
+    const kindTxt={bundle:`整包（${merged.count} 個獨立貼紙 zip）`,single:'單張貼紙包',
+      json:'單檔 JSON',mixed:'多種格式'}[merged.kind]||'未知';
+    const title=names.length===1?esc(names[0]):`${names.length} 個檔案`;
+    $('impBody').innerHTML=`
+      <div><code>${title}</code> · ${(bytes/1024).toFixed(1)} KB · ${kindTxt}</div>
+      ${names.length>1?`<div style="color:var(--muted);font-size:12px">${names.map(esc).join('、')}</div>`:''}
+      <hr style="border:none;border-top:1px solid var(--line);margin:10px 0">
+      <b>貼紙</b>
+      <ul><li>新增 <b>${rep.add.length}</b> 張${rep.add.length?'：'+rep.add.slice(0,6).map(r=>esc(r.name)).join('、')+(rep.add.length>6?' …':''):''}</li>
+      <li>已經有了、預設<b>略過</b> <b>${rep.over.length}</b> 張${rep.over.length?'：'+rep.over.slice(0,6).map(r=>esc(r.name)).join('、')+(rep.over.length>6?' …':''):''}</li></ul>
+      <b>圖片</b>
+      <ul><li>會新增 <b>${rep.newAssets}</b> 個 asset（已存在的靠 sha256 自動略過）</li>
+      ${rep.orphan.length?`<li>孤兒圖 ${rep.orphan.length} 個（沒有貼紙引用，不會匯入）</li>`:''}
+      ${rep.missing.length?`<li class="warn">缺圖 ${rep.missing.length} 個：${rep.missing.slice(0,3).map(esc).join('、')}${rep.missing.length>3?' …':''}<br>這些圖層匯入後會是空白</li>`:''}</ul>
+      <div style="color:var(--muted)">只會動貼紙庫，格子上現有的擺放不受影響。</div>`;
+    $('impOver').checked=false;
+    $('impGo').textContent=rep.add.length?`確認匯入（新增 ${rep.add.length} 張）`:'確認匯入';
+    $('imp').classList.add('open');
+  }catch(err){alert('讀取失敗：'+err.message);pushLog('ERROR','-- import: '+err.message,'0 row');}
+}
+$('impCancel').onclick=()=>{$('imp').classList.remove('open');PENDING=null;};
+$('impGo').onclick=()=>{
+  if(!PENDING)return;
+  const {pk,rep}=PENDING;$('imp').classList.remove('open');
+  note(`開始匯入 · ${pk.kind} · 順序：assets → sticker_lib（照 FK 依賴）`);
+  let na=0;
+  Object.entries(pk.assets).forEach(([k,d])=>{if(!ASSETS[k]){ASSETS[k]=d;na++;}});
+  if(na)note(`${na} 個 asset 入庫（其餘靠內容雜湊判定重複，直接略過）`);
+  const map={},ovw=$('impOver').checked;let skipped=0;
+  pk.sticker_lib.forEach(r=>{
+    if(r.category&&!CATS.includes(r.category))CATS.push(r.category);
+    const ex=DB.sticker_lib.find(x=>x.id===r.id);
+    const body={name:r.name,category:r.category,ratio:Number(r.ratio)||.4,
+      layer_count:r.layer_count!=null?r.layer_count:(JSON.parse(r.template).layers||[]).length,
+      text_layers:r.text_layers!=null?r.text_layers:(JSON.parse(r.template).layers||[]).filter(l=>l.type==='text').length,
+      template:r.template};
+    if(ex){
+      if(ovw){dbUpdate('sticker_lib',ex.id,body,'import overwrite');}
+      else{skipped++;}
+      map[r.id]=ex.id;
+    }else map[r.id]=dbInsert('sticker_lib',Object.assign({id:r.id},body)).id;
+  });
+  PENDING=null;selId=null;
+  renderCats();fillCatSel();renderLib();renderStickers();
+  note(`匯入完成 · 新增 ${rep.add.length} 張`+(skipped?`、略過已存在 ${skipped} 張`:'')+
+    (ovw&&rep.over.length?`、覆蓋 ${rep.over.length} 張`:'')+(rep.missing.length?` · ⚠ 缺圖 ${rep.missing.length} 個`:''));
+};
+$('btnWipe').onclick=wipeStorage;
+$('btnPack').onclick=()=>exportPack().catch(err=>{alert('匯出失敗：'+err.message);pushLog('ERROR','-- export: '+err.message,'');});
+
+
+/* ════════ 10. 持久化：localStorage（模擬 SQL 的實際落地） ════════
+   分兩把 key：
+     stk.db      三張表（純文字，很小）
+     stk.assets  圖片 dataURL（大，單獨存，這樣改一次貼紙不用重寫整包圖）
+   localStorage 通常只有 5MB 左右，圖片 base64 會膨脹 33%，所以超額時
+   只保住 db、把 assets 丟掉，並明確告訴使用者，而不是靜靜地整包存不進去。 */
+/* 狀態變數宣告在最前面（見 §0），這裡只放行為 */
+function lsSize(v){return (v.length/1024).toFixed(0)+' KB';}
+function persist(reason){
+  if(lsBroken||booting)return;
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>doPersist(reason),400);   // 連續操作時合併成一次寫入
+}
+function doPersist(reason){
+  const t0=performance.now();
+  if(restoreFailed){
+    // 原本的存檔讀不出來。這次先把它另存一份再繼續，不然使用者的舊資料
+    // 會被這一輪的預設貼紙直接洗掉，救都救不回來。
+    try{
+      const bad=localStorage.getItem(LSK.db);
+      if(bad&&!localStorage.getItem(LSK.db+'.bak')){
+        localStorage.setItem(LSK.db+'.bak',bad);
+        pushLog('NOTE','-- 讀不出來的舊存檔已另存為 '+LSK.db+'.bak（可在 DevTools 的 Application → Local Storage 取出）','');
+      }
+    }catch(e){}
+    restoreFailed=false;
+  }
+  const db=JSON.stringify({v:SCHEMA_VERSION,cats:CATS,
+    sticker_lib:DB.sticker_lib,stickers:DB.stickers,sticker_fields:DB.sticker_fields});
+  const used=allUsedAssets(),keep={};
+  used.forEach(k=>{if(ASSETS[k])keep[k]=ASSETS[k];});   // 只留還有人引用的圖
+  const assets=JSON.stringify(keep);
+  try{
+    localStorage.setItem(LSK.db,db);
+    try{localStorage.setItem(LSK.assets,assets);}
+    catch(e2){
+      localStorage.removeItem(LSK.assets);
+      pushLog('ERROR',`-- COMMIT 圖片失敗：localStorage 空間不足（圖片約 ${lsSize(assets)}）\n-- 貼紙定義已存檔，但圖片這次沒存進去。請用「📦 匯出貼紙」做真正的備份。`,'assets skipped');
+      note('圖片太大存不進 localStorage → 只存了貼紙定義。關掉分頁圖片會遺失，請先匯出 zip。');
+      syncViews();return;
+    }
+    pushLog('NOTE',`-- COMMIT → localStorage · db ${lsSize(db)} · assets ${lsSize(assets)} · ${(performance.now()-t0).toFixed(1)}ms${reason?' · '+reason:''}`,'','note');
+  }catch(e){
+    lsBroken=true;
+    pushLog('ERROR','-- 無法寫入 localStorage：'+e.message+'\n-- 之後的修改只存在記憶體，關掉分頁就沒了。','');
+    alert('無法存進 localStorage（'+e.message+'）。\n之後的修改不會自動保存，請用「📦 匯出貼紙」手動備份。');
+  }
+  syncViews();
+}
+function restore(){
+  let raw;
+  try{raw=localStorage.getItem(LSK.db);}catch(e){
+    pushLog('ERROR','-- 讀不到 localStorage（可能是無痕模式或被瀏覽器擋住）：'+e.message,'');
+    lsBroken=true;return false;}
+  if(!raw)return false;
+  let o;
+  try{
+    o=JSON.parse(raw);
+    if(!o||!Array.isArray(o.sticker_lib))throw new Error('資料格式不對');
+  }catch(e){
+    restoreFailed=true;
+    pushLog('ERROR','-- 存檔讀不出來：'+e.message,'');
+    return false;
+  }
+  try{
+    if(o.v!==SCHEMA_VERSION)note(`存檔是 v${o.v}，本程式是 v${SCHEMA_VERSION} —— 缺少的欄位會用預設值補上`);
+    DB.sticker_lib=o.sticker_lib||[];DB.stickers=o.stickers||[];DB.sticker_fields=o.sticker_fields||[];
+    // 相容舊存檔：以前 id 是流水號、uuid 另存一欄、stickers 用 lib_id
+    const idOf={};
+    DB.sticker_lib.forEach(r=>{const old=r.id;
+      if(r.uuid){idOf[old]=r.uuid;r.id=r.uuid;delete r.uuid;}else idOf[old]=r.id;});
+    DB.stickers.forEach(r=>{
+      if(r.lib_uuid===undefined&&r.lib_id!==undefined){r.lib_uuid=idOf[r.lib_id]||null;delete r.lib_id;}
+      if(typeof r.id==='number'){const nid=uuid();
+        DB.sticker_fields.forEach(f=>{if(f.sticker_id===r.id)f.sticker_id=nid;});r.id=nid;}
+    });
+    DB.sticker_fields.forEach(f=>{if(typeof f.id==='number')f.id=uuid();});
+    (o.cats||[]).forEach(c=>{if(!CATS.includes(c))CATS.push(c);});
+    let ac=0;
+    try{const a=localStorage.getItem(LSK.assets);
+      if(a){const obj=JSON.parse(a);Object.entries(obj).forEach(([k,v])=>{ASSETS[k]=v;ac++;});}
+    }catch(e){note('圖片讀取失敗，圖層可能是空白：'+e.message);}
+    /* 相容舊存檔：這個功能加進來之前存的貼紙沒有 preview（烤好的那張圖），
+       這裡補一次——要在 ASSETS 讀完之後做，不然圖層裡的圖片會烤成空白。 */
+    let baked=0;
+    DB.sticker_lib.forEach(r=>{
+      if(r.preview)return;
+      try{r.preview=previewSVG(tplOf(r),600);baked++;}catch(e){}
+    });
+    if(baked)doPersist('backfill preview');   // 直接寫，不透過 persist()——開機時 booting 還是 true，debounce 版本會被吞掉
+    const miss=[...allUsedAssets()].filter(k=>!ASSETS[k]);
+    pushLog('NOTE',`-- 從 localStorage 復原 · ${DB.sticker_lib.length} 張貼紙 · ${DB.stickers.length} 個擺放 · ${DB.sticker_fields.length} 筆文字 · ${ac} 張圖`+
+      (miss.length?` · ⚠ ${miss.length} 張圖遺失`:''),'','note');
+    if(miss.length)note('有圖片沒存進來（多半是之前超過 localStorage 容量），那些圖層會是空白');
+    return true;
+  }catch(e){
+    restoreFailed=true;
+    pushLog('ERROR','-- 存檔可以讀，但套用時出錯：'+e.message,'');
+    // 已經塞了一半的資料要清掉，免得半殘狀態被當成正常內容存回去
+    DB.sticker_lib=[];DB.stickers=[];DB.sticker_fields=[];
+    return false;
+  }
+}
+function wipeStorage(){
+  if(!confirm('清掉瀏覽器裡的存檔，回到出廠的預設貼紙。\n目前的貼紙如果還沒匯出就會消失，確定嗎？'))return;
+  try{localStorage.removeItem(LSK.db);localStorage.removeItem(LSK.assets);}catch(e){}
+  location.reload();
+}
+window.addEventListener('beforeunload',()=>{if(saveTimer){clearTimeout(saveTimer);doPersist('unload');}});
+
+/* ════════ 11. 開機 ════════ */
+if(restore()){
+  note('已載入瀏覽器裡的存檔 · 每次改動會自動存回 localStorage');
+}else{
+  note('第一次開啟 · seeding 預設貼紙 …');
+  PRESETS.forEach(p=>{
+    const tpl={ratio:p.ratio,layers:p.layers};
+    dbInsert('sticker_lib',{name:p.name,category:p.cat,ratio:p.ratio,layer_count:tpl.layers.length,
+      text_layers:tpl.layers.filter(l=>l.type==='text').length,template:JSON.stringify(tpl),
+      preview:previewSVG(tpl,600)});
+  });
+}
+booting=false;
+renderCats();fillCatSel();renderLib();buildGrid();
+if(!localStorage.getItem(LSK.db))doPersist('first boot');
+note('ready · 「＋新貼紙」開圖層編輯器；貼紙拖進貼紙庫＝匯入，圖片＝開新貼紙');
+</script>
+</body>
+</html>

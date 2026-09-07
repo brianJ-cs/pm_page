@@ -131,6 +131,12 @@ body.padding .cell.cur .safe{display:block}
 .bph i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
 .blk.img img,.blk.img .ph{width:100%;display:block;pointer-events:none}
+/* 貼圖：一張烤好的圖（previewSVG 出來的 data: URL），跟商品圖同一種擺法——
+   寬是 b.w，高跟著寬自動（intrinsic aspect ratio 就在 SVG 自己身上，不用另外算）。 */
+.blk.sticker{overflow:visible}
+.blk.sticker img{width:100%;display:block;pointer-events:none}
+.blk.sticker:hover .tobtn{display:block}
+.blk.sticker.sel .tobtn{display:none}
 /* 版面上的零件 margin 一律 0，而且用兩個 class 的選擇器蓋過單一 class 的規則。
    CSS 的 top/left 定位的是 **margin 邊**：只要有哪一條規則給了 margin，
    這一塊畫出來就會離我們寫的座標差那麼多。
@@ -1487,6 +1493,7 @@ addEventListener('message',e=>{
     if(g !== SHOW_GRID){ SHOW_GRID = g; setTimeout(()=>{ try{ renderCell(); }catch(_){} },0); }
   }
   if(d.type) applyType(d.type);          // 這個版位的字級設定（SKU、價格）
+  if(d.addSticker) addStickerBlock(d.addSticker);   // 拼板 那顆「貼圖」工具點了這一格
   /* 共用的商品目錄要在 restoreBoard 之前收：picked 存的是 SKU，目錄還是內建的
      那份時對不上，畫布會整格空掉。 */
   if(d.catalogue) applyCatalogue(d.catalogue);
@@ -2248,6 +2255,16 @@ function blockHTML(b,isCur=true){
     return `<div class="blk img${on}${noimg}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
       style="${pos};top:${b.y}px;width:${iw}px;z-index:${b.z};opacity:${dim}">
       ${imgHTML(b.key, b.row)}
+      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
+  }
+  /* 貼圖：b.svg 是設計那邊在 貼紙庫 存檔時就烤好的一張完整的圖（data: URL，
+     圖層、文字、形狀都攤平了），這裡只是把它當一張圖片貼上去——不用知道
+     它裡面長什麼樣。寬是 b.w，高跟著圖片自己的比例（height 沒寫＝auto）。 */
+  if(b.kind==='sticker'){
+    const dim = isCur?xrayDim(b):1;
+    return `<div class="blk sticker${on}${pk(b)}" data-b="${b.id}"
+      style="${pos};top:${b.y}px;width:${(+b.w||0).toFixed(1)}px;z-index:${b.z};opacity:${dim}">
+      <img src="${b.svg}" alt="${String(b.name||'').replace(/"/g,'&quot;')}" draggable="false">
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
   /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的），所以查不到
@@ -3292,15 +3309,38 @@ function openPanels(on){
   $('#panel').classList.toggle('on', on && ROLE!=='design');
   $('#lay').classList.toggle('on',   on && ROLE!=='pm');
 }
+/* 商品圖和貼圖共用同一疊 z：兩者都是「蓋在版上的一張圖」，最上層講的是
+   同一件事。文字／價格那些不在這疊裡——它們從來沒有「最上面」這顆鈕。 */
+const stackable = b => b.kind==='img' || b.kind==='sticker';
 function bringTop(id){
   const b=BLOCKS.find(x=>x.id===id); if(!b) return;
-  const maxZ=Math.max(...BLOCKS.filter(x=>x.kind==='img').map(x=>x.z));
+  const maxZ=Math.max(...BLOCKS.filter(stackable).map(x=>x.z));
   if(b.z!==maxZ){ b.z=maxZ+1; normalizeZ(); }
-  activeImg=id; renderCell(); renderLayers();
+  /* 圖層面板只認商品圖（見 renderLayers）——貼圖沒有那個面板可以開。 */
+  if(b.kind==='img') activeImg=id;
+  renderCell(); renderLayers();
 }
 function normalizeZ(){
-  BLOCKS.filter(b=>b.kind==='img').sort((a,b)=>a.z-b.z)
+  BLOCKS.filter(stackable).sort((a,b)=>a.z-b.z)
     .forEach((b,i)=>b.z=i+1);
+}
+
+/* 拿著 貼圖 工具在版上點這一格：上層送下來「放哪一張」，這裡負責放進去。
+   s.svg 是主程式從 貼紙庫（localStorage）讀出來、已經轉成 data: URL 的那張圖 ——
+   這一格不用知道貼紙內部長什麼樣，當成一張圖片貼上去就好。
+   id 不能借 buildBlocks 那個流水號（那個只在整批重建時存在），
+   隨手一個不會撞號的字串就夠，貼圖從來不用靠 id 對到別處的資料。 */
+function addStickerBlock(s){
+  if(ROLE==='pm' || !s || !s.svg) return;
+  const maxZ=BLOCKS.filter(stackable).reduce((m,x)=>Math.max(m,x.z||0),0);
+  const w=Math.round(Math.min(CW,CH)*0.32);
+  const b={ id:'bs'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+            kind:'sticker', svg:s.svg, name:s.name||'', w,
+            x:Math.round((CW-w)/2), y:Math.round((CH-w)/2), z:maxZ+1 };
+  holdPlace(b);           // 手動放的，自動排版（雖然現在是關的）不該碰它
+  BLOCKS.push(b);
+  selected.clear(); selected.add(b.id); activeImg=null;
+  renderCell();
 }
 
 /* ====== 右側圖層面板：顯示這個格子的圖層 ====== */
@@ -3393,8 +3433,11 @@ const SC_STEP=1.08, SC_MIN=.4, SC_MAX=3;
 const clampSc=v=>Math.min(SC_MAX,Math.max(SC_MIN,v));
 
 /* 這一塊現在是幾倍大（1＝沒調過）。給工具列顯示，也給 ＋／− 當起點。 */
+/* 貼圖跟商品圖同一套縮放（b.w0／b.w 那一組）：寬度直接改，高度自己跟著圖片的
+   比例走（height:auto），不是靠 CSS transform（跟 name／brand 那些用 b.sc 的
+   不一樣）——理由跟商品圖一樣，它本來就是一張圖，寬高本來就該是實際的 px。 */
 function scaleOfBlock(b){
-  if(b.kind==='img')   return b.w0 ? b.w/b.w0 : 1;
+  if(b.kind==='img'||b.kind==='sticker')   return b.w0 ? b.w/b.w0 : 1;
   if(b.kind==='price') return b.fsFix || 1;      // 1＝沒調過（fsFix 現在是倍率）
   return b.sc || 1;
 }
@@ -3402,7 +3445,7 @@ function scaleOfBlock(b){
     拉大小要的是「從按下去那一刻的倍率算到現在」，所以這裡收絕對值。 */
 function setBlockScale(b, s){
   const v = clampSc(s);
-  if(b.kind==='img'){ if(!b.w0) b.w0=b.w; b.w=+(b.w0*v).toFixed(1); return; }
+  if(b.kind==='img'||b.kind==='sticker'){ if(!b.w0) b.w0=b.w; b.w=+(b.w0*v).toFixed(1); return; }
   if(b.kind==='price'){ b.fsFix=+v.toFixed(3); return; }
   b.sc=+v.toFixed(3);
 }
@@ -3410,7 +3453,7 @@ function setBlockScale(b, s){
 function scaleBase(b){ return scaleOfBlock(b) || 1; }
 
 function scaleBlock(b, mul){
-  if(b.kind==='img'){
+  if(b.kind==='img'||b.kind==='sticker'){
     if(!b.w0) b.w0=b.w;                          // 第一次調就記下原本多寬，才回得去
     b.w = +(b.w0 * clampSc((b.w/b.w0) * mul)).toFixed(1);
     return;
@@ -3424,7 +3467,7 @@ function scaleBlock(b, mul){
   b.sc = +clampSc((b.sc||1) * mul).toFixed(3);
 }
 function resetBlock(b){
-  if(b.kind==='img'){ if(b.w0){ b.w=b.w0; delete b.w0; } return; }
+  if(b.kind==='img'||b.kind==='sticker'){ if(b.w0){ b.w=b.w0; delete b.w0; } return; }
   if(b.kind==='price'){ delete b.fsFix; return; }
   delete b.sc;
 }
@@ -3465,12 +3508,21 @@ function labelOf(b){
   if(b.kind==='model') return '機型　'+(b.text||'');
   if(b.kind==='spec')  return '規格　'+(b.spec||'');
   if(b.kind==='price') return '價格　'+(b.price!=null?'$'+b.price:'');
+  if(b.kind==='sticker') return '貼圖　'+(b.name||'');
   return 'SKU　'+((b.vs&&b.vs.length)?b.vs.map(v=>v.sku).join(' / '):'');
 }
+/* 貼圖沒有「找回來」這件事（那是照 picked 重選商品時，靠 uid 認出來要復原哪一塊——
+   貼圖不是挑出來的，本來就沒有 uid，也沒有「重選」這個動作），刪掉就是真的從
+   BLOCKS 拿掉，不進 off 名冊。跟商品圖／文字混選時，商品圖那幾塊照舊走 off。 */
 function hideSelected(){
   const sel=selBlocks(); if(!sel.length) return;
   const off=offMap();
-  sel.forEach(b=>{ if(b.uid) off[b.uid]=labelOf(b); });
+  const stickers=new Set();
+  sel.forEach(b=>{
+    if(b.kind==='sticker'){ stickers.add(b.id); return; }
+    if(b.uid) off[b.uid]=labelOf(b);
+  });
+  if(stickers.size) BLOCKS=BLOCKS.filter(b=>!stickers.has(b.id));
   selected.clear(); activeImg=null;
   /* 少了一塊，右下那一疊要重新靠齊、圖要重新讓開 —— 強制重排一次。 */
   renderOne(curCell,true); renderLayers(); reportBoard();
