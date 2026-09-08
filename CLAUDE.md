@@ -44,6 +44,13 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=
 
 跑完會印 `ok — no console errors, no exceptions`，有錯就列出來並 exit 1。`--eval` 可以順便量 computed style —— 改顏色時就是這樣證明「什麼都沒變」的。
 
+⚠️ **動手之前先叫 `edit-fast` 這支技能，不必等人開口。** 那裡面是這個專案怎麼改才不
+浪費時間：怎麼動檔案（一律寫一支 `.mjs` 用錨點改，**不要在 shell 裡寫 JS**；這個 repo
+CRLF 和 LF 混著；`python` 是假殼；`| cat -n` 會卡住）、驗一次而不是每改一行都驗、
+以及 driver 點不到東西時的那幾個坑（`--eval` 看不到頂層的 `let`、點過輸入框之後
+快捷鍵就失效、工具列會捲出畫面）。2026-09 那一輪量過：一個四檔案的改動，
+**約十次工具呼叫是在跟引號打架**，不是在改東西。
+
 ## 顏色
 
 - **新顏色一律在 `:root` 取個名字**，不要往下面塞 hex。名字照「做什麼用」取（`--surface`、`--ink-dim`、`--accent-tint`、`--danger-ink`），不照「是什麼顏色」。
