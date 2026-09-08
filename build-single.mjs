@@ -8,6 +8,7 @@
  *   public/2cell-product-pick.html  ← 名字不能改：主程式是用這個相對網址載它的
  *   public/product.html             ← 商品目錄（全公司一份，跟檔期無關）
  *   public/sticker_editor.html      ← 貼紙庫（?embed=1 是被主程式請進浮層的那一種穿法）
+ *   public/sticker-render.js        ← 貼紙怎麼畫出來（貼紙庫和格子裡的畫布共用同一份）
  *   public/logo_page/               ← 品牌 Logo 庫（本來是獨立的一站）
  *   public/config.js, supabase-sync.js, _redirects
  *
@@ -42,7 +43,7 @@ await copyFile(PICK, join(PUB, '2cell-product-pick.html'));
 /* ⚠️ 主程式是用相對網址開這幾支的（浮層裡的 iframe），漏掉哪一支，站上那顆鈕
    就是一頁 404 —— 而本機直接開檔案完全看不出來（檔案就在旁邊）。
    貼紙庫就是這樣漏過一次。 */
-for (const f of ['product.html', 'sticker_editor.html', 'config.js',
+for (const f of ['product.html', 'sticker_editor.html', 'sticker-render.js', 'config.js',
                  'supabase-sync.js', '_redirects'])
   await copyFile(join(here, f), join(PUB, f));
 
@@ -64,7 +65,20 @@ if (!process.argv.includes('--bundle')) {
 
 /* ---- --bundle：合成一支寄得出去的單檔 ------------------------------------ */
 const OUT = join(here, 'dm-editor-single.html');
-const [main, pick] = await Promise.all([readFile(MAIN, 'utf8'), readFile(PICK, 'utf8')]);
+const [main0, pick0, srender] = await Promise.all([
+  readFile(MAIN, 'utf8'), readFile(PICK, 'utf8'),
+  readFile(join(here, 'sticker-render.js'), 'utf8')]);
+
+/* 貼紙的畫法是**另一支檔案**（貼紙庫和格子裡的畫布共用同一份），而單檔版旁邊
+   不會有它 —— 不內嵌的話，寄出去的那一份一打開就是 StickerRender is not defined，
+   而那一行在整支程式的最上面：整頁是死的（正是 CLAUDE.md 那條「語法檢查擋不住」）。
+   ⚠️ 用 split／join 換，不要 replace()：那個字串裡有 $ 的話會被當成替換樣式，
+   跟下面那一段同一個坑。內容裡的 </script 也要跳脫，不然外層的 script 會被關掉。 */
+const RENDER_TAG = '<script src="sticker-render.js"></script>';
+const RENDER_INLINE = '<script>/* sticker-render.js（單檔版內嵌一份） */\n'
+  + srender.replace(/<\/script/gi, '<\\/script') + '\n</script>';
+const main = main0.split(RENDER_TAG).join(RENDER_INLINE);
+const pick = pick0.split(RENDER_TAG).join(RENDER_INLINE);
 
 if (!main.includes('window.__PICK_HTML')) {
   console.error('design_and_PM.html 裡沒有 setPickFrame()／window.__PICK_HTML —— ' +

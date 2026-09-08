@@ -131,12 +131,34 @@ body.padding .cell.cur .safe{display:block}
 .bph i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
 .blk.img img,.blk.img .ph{width:100%;display:block;pointer-events:none}
-/* 貼圖：一張烤好的圖（previewSVG 出來的 data: URL），跟商品圖同一種擺法——
-   寬是 b.w，高跟著寬自動（intrinsic aspect ratio 就在 SVG 自己身上，不用另外算）。 */
+/* 貼圖：照模板現場排出來的一疊圖層（sticker-render.js），跟商品圖同一種擺法——
+   寬是 b.w，高是寬乘這張貼紙自己的長寬比。
+   ⚠️ 舊資料裡的貼圖只有一張烤好的圖（b.svg），那一種還是照原樣當圖片貼，
+   只是改不了字 —— 見 stickerArt。 */
 .blk.sticker{overflow:visible}
-.blk.sticker img{width:100%;display:block;pointer-events:none}
+.blk.sticker > img{width:100%;display:block;pointer-events:none}
 .blk.sticker:hover .tobtn{display:block}
 .blk.sticker.sel .tobtn{display:none}
+/* 下面這幾條是那支渲染器畫出來的節點要的定位規則。貼紙庫那一頁的 stylesheet 裡
+   有同樣一份（那邊還多了選取框和把手）—— 幾行定位改壞了自己那一頁一眼看得到，
+   真正會悄悄走鐘的是那幾百行怎麼排，所以共用的是程式不是這幾條。 */
+.stk-art{position:relative;width:100%;height:100%}
+.stk-art .lyr{position:absolute;pointer-events:none}
+.stk-art .lyr svg{width:100%;height:100%;display:block;overflow:visible}
+.stk-art .lyr img{width:100%;height:100%;display:block;object-fit:fill;-webkit-user-drag:none}
+.stk-art .lyr.tx{display:flex;overflow:visible}
+.stk-art .lyr.sh{display:flex}
+.stk-art .lyr .lbl{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;pointer-events:none;overflow:visible;z-index:1}
+.stk-art .lyr .lbl .ft,.stk-art .lyr.tx .ft{width:100%;outline:none;
+  white-space:pre-wrap;word-break:break-word}
+/* 第一下選這張貼紙，選起來之後文字才點得到（第二下才進去改字）——
+   照貼紙庫那一頁的手感。沒選起來時整張貼紙就是一塊可以搬的東西。 */
+.blk.sticker.sel .stk-art .lyr.tx,
+.blk.sticker.sel .stk-art .lyr .lbl{pointer-events:auto;cursor:text}
+/* 正在改的那一塊框起來：游標在字裡面的時候，看不出改的是哪一塊很容易打錯格 */
+.stk-art .lyr .lbl.editing,.stk-art .lyr.tx.editing{
+  box-shadow:inset 0 0 0 1.5px var(--picked,#e33)}
 /* 版面上的零件 margin 一律 0，而且用兩個 class 的選擇器蓋過單一 class 的規則。
    CSS 的 top/left 定位的是 **margin 邊**：只要有哪一條規則給了 margin，
    這一塊畫出來就會離我們寫的座標差那麼多。
@@ -542,6 +564,10 @@ try{
 
 <div id="tip"></div>
 <div id="imgsay"></div>
+
+<!-- 貼紙怎麼畫出來：跟貼紙庫（sticker_editor.html）共用同一份。貼到格子上的貼紙
+     要照模板現場排，一格一格的字才改得動 —— 攤平成一張圖的話每一格永遠一樣。 -->
+<script src="sticker-render.js"></script>
 
 <script>
 /* ====== 資料：商品 = name + cat + variants(spec,sku,price) ====== */
@@ -2257,14 +2283,20 @@ function blockHTML(b,isCur=true){
       ${imgHTML(b.key, b.row)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
-  /* 貼圖：b.svg 是設計那邊在 貼紙庫 存檔時就烤好的一張完整的圖（data: URL，
-     圖層、文字、形狀都攤平了），這裡只是把它當一張圖片貼上去——不用知道
-     它裡面長什麼樣。寬是 b.w，高跟著圖片自己的比例（height 沒寫＝auto）。 */
+  /* 貼圖：b.tpl 是這張貼紙的模板（貼上去那一刻從貼紙庫抄一份跟著走），
+     b.vals 是**這一格自己**改過的那幾個字。所以同一張貼紙貼十格，十格可以寫
+     十種價格 —— 那正是貼紙庫「可變文字」的用處，而攤平成一張圖就沒有了。
+     為什麼模板要整份抄一份：貼紙庫只活在這台瀏覽器的 localStorage，
+     別台電腦打開這本 DM 的時候，庫裡沒有那一張，只剩這一份畫得出來。 */
   if(b.kind==='sticker'){
     const dim = isCur?xrayDim(b):1;
+    const W = +b.w||0;
+    /* 高度只有照模板排的時候才寫死（圖層是絕對定位的，沒有高度就疊在一起）。
+       舊資料那種一張烤好的圖不寫 —— 高度跟著圖片自己的比例走就對了。 */
+    const H = b.tpl ? `height:${(W*stickerRatio(b)).toFixed(1)}px;` : '';
     return `<div class="blk sticker${on}${pk(b)}" data-b="${b.id}"
-      style="${pos};top:${b.y}px;width:${(+b.w||0).toFixed(1)}px;z-index:${b.z};opacity:${dim}">
-      <img src="${b.svg}" alt="${String(b.name||'').replace(/"/g,'&quot;')}" draggable="false">
+      style="${pos};top:${b.y}px;width:${W.toFixed(1)}px;${H}z-index:${b.z};opacity:${dim}">
+      ${stickerArt(b, W, W*stickerRatio(b))}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
   /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的），所以查不到
@@ -2458,6 +2490,9 @@ function renderOne(i, force){
       + '<div class="marquee" id="marquee'+i+'"></div>'
       + '<div class="safe"></div>'
       + '</div>');
+    /* 貼圖裡設了「自動縮小塞進框」的那幾層要等畫出來才量得到 —— 每一次 paint
+       都要再縮一次（上面那幾趟對齊會重畫好幾遍）。 */
+    try{ if(blocks.some(b=>b.kind==='sticker')) StickerRender.fitTexts(el); }catch(_){}
   };
   /* 剛排好（或字型到齊後強制重排）的那一格：先照內容寬度藏著畫一次、量真正的
      寬高，autoSpace 把價格 SKU 靠右對齊、圖讓開，定位完才顯示。b.w2 是靠右用的
@@ -3035,6 +3070,9 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   openPanels(true); renderLayers();
   if(!picked.size) return;
   if(e.target.closest('.tobtn')) return;   // 按鈕不觸發拖曳
+  /* 已經選起來的那張貼圖，按在它的字上＝進去改字。不放行的話這一下會被當成
+     「抓著它搬」：整格當場重畫，按住的那個節點被換掉，游標永遠進不到字裡面。 */
+  if(e.target.closest('.blk.sticker.sel') && e.target.closest('.ft')) return;
   /* 拖角落＝改大小，不是搬位置。要在找 .blk 之前攔下來，不然它也算按在那一塊上，
      會同時開始搬移，變成一邊拉大一邊亂跑。 */
   const hz=e.target.closest('.rz');
@@ -3325,18 +3363,90 @@ function normalizeZ(){
     .forEach((b,i)=>b.z=i+1);
 }
 
+/* ====== 貼圖：照模板現場排 ==================================================
+   一張貼紙身上帶三樣東西：它是庫裡哪一張（b.libId）、它當下長什麼樣（b.tpl，
+   整份模板抄一份）、以及**這一格自己**改過的那幾個字（b.vals）。
+   為什麼模板要抄一份而不是只記編號：貼紙庫只活在這台瀏覽器的 localStorage，
+   別台電腦打開這本 DM 的時候庫裡沒有那一張，只剩這一份畫得出來。
+   （代價是庫裡那一張之後被改了，已經貼出去的不跟著變 —— 跟品牌圖那條同一個
+   道理：有人特地擺上去的，那就是他要的那一張。） */
+function stickerTpl(b){
+  try{ return b && b.tpl ? JSON.parse(b.tpl) : null; }catch(e){ return null; }
+}
+function stickerRatio(b){
+  if(+b.ratio) return +b.ratio;
+  const t=stickerTpl(b);
+  return (t && +t.ratio) || .4;
+}
+/* 模板在就照模板排（字改得動），不在就退回那張烤好的圖 —— 這個功能加進來之前
+   貼上去的那些就是只有圖，照樣要看得到，只是改不了字。 */
+function stickerArt(b, W, H){
+  const tpl=stickerTpl(b);
+  if(!tpl){
+    return b.svg ? `<img src="${b.svg}" alt="${String(b.name||'').replace(/"/g,'&quot;')}" draggable="false">` : '';
+  }
+  const vals=b.vals||{};
+  const AW=Math.max(1,W), AH=Math.max(1,H);
+  /* 先把這一格自己的字套進模板，形狀才知道要撐多寬（貼紙庫那邊是同一個順序）。
+     tpl 是剛剛 parse 出來的新物件，改它不會動到 b.tpl 那個字串。 */
+  StickerRender.applyVals(tpl, vals);
+  StickerRender.growShapes(tpl, AW, AH);
+  /* 只有設計改得動（PM／行銷那邊 ROLE 就是 'pm'）：貼圖是印出去的素材，
+     跟刊頭圖同一條理由。 */
+  const html=StickerRender.renderTemplate(tpl, AW, AH, vals, ROLE!=='pm', b.assets||null);
+  return `<div class="stk-art">${html}</div>`;
+}
+
+/* 就地改字：點一下選起來（第一下），再點文字才進得去（第二下）。
+   打完離開就寫進 b.vals 並重排一次 —— 形狀是跟著字長的，不重排的話
+   「省$500」改成「省$1,200」會撐出框外。
+   ⚠️ 不在每一次 input 就重排：重排等於整格重畫，游標當場不見，打第二個字就
+   打不下去了。 */
+const stkFt = t => (t && t.closest) ? t.closest('.blk.sticker .ft') : null;
+document.addEventListener('focusin', e=>{
+  const ft=stkFt(e.target); if(!ft) return;
+  ft.dataset.before=ft.innerText;
+  const host=ft.closest('.lbl')||ft.closest('.lyr');
+  if(host) host.classList.add('editing');
+});
+document.addEventListener('focusout', e=>{
+  const ft=stkFt(e.target); if(!ft) return;
+  const host=ft.closest('.lbl')||ft.closest('.lyr');
+  if(host) host.classList.remove('editing');
+  const el=ft.closest('.blk.sticker'); if(!el || ROLE==='pm') return;
+  const b=BLOCKS.find(x=>x.id===el.dataset.b); if(!b || !host) return;
+  const lid=host.dataset.lid; if(!lid) return;
+  const txt=ft.innerText.replace(/\u00a0/g,' ');
+  if(txt===ft.dataset.before) return;
+  b.vals=Object.assign({}, b.vals);
+  b.vals[lid]=Object.assign({}, b.vals[lid], {content:txt});
+  renderCell();          // 形狀跟著字長，改完要重排一次（順便報給上層存檔）
+});
+/* Enter ＝打完了（Shift+Enter 才是換行）：貼紙上的字多半是一行，
+   而按 Enter 之後看不出有沒有存到是最容易被當成壞掉的一種。 */
+document.addEventListener('keydown', e=>{
+  const ft=stkFt(e.target);
+  if(ft && e.key==='Enter' && !e.shiftKey){ e.preventDefault(); ft.blur(); }
+});
+
 /* 拿著 貼圖 工具在版上點這一格：上層送下來「放哪一張」，這裡負責放進去。
    s.svg 是主程式從 貼紙庫（localStorage）讀出來、已經轉成 data: URL 的那張圖 ——
    這一格不用知道貼紙內部長什麼樣，當成一張圖片貼上去就好。
    id 不能借 buildBlocks 那個流水號（那個只在整批重建時存在），
    隨手一個不會撞號的字串就夠，貼圖從來不用靠 id 對到別處的資料。 */
 function addStickerBlock(s){
-  if(ROLE==='pm' || !s || !s.svg) return;
+  if(ROLE==='pm' || !s || !(s.tpl||s.svg)) return;
   const maxZ=BLOCKS.filter(stackable).reduce((m,x)=>Math.max(m,x.z||0),0);
   const w=Math.round(Math.min(CW,CH)*0.32);
+  /* 高度照這張貼紙自己的長寬比算 —— 用寬當高的話，扁的貼紙一放進來就掉到格子外面。 */
+  const ratio=+s.ratio || .4;
   const b={ id:'bs'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-            kind:'sticker', svg:s.svg, name:s.name||'', w,
-            x:Math.round((CW-w)/2), y:Math.round((CH-w)/2), z:maxZ+1 };
+            kind:'sticker', libId:s.libId||'', name:s.name||'',
+            tpl:s.tpl||'',            // 模板整份（字串，跟貼紙庫存的同一份）
+            vals:{},                  // 這一格自己改過的字；空的＝照模板
+            assets:s.assets||null,    // 這張貼紙用到的圖片，只帶用得到的那幾張
+            ratio, svg:s.svg||'', w,
+            x:Math.round((CW-w)/2), y:Math.round((CH-w*ratio)/2), z:maxZ+1 };
   holdPlace(b);           // 手動放的，自動排版（雖然現在是關的）不該碰它
   BLOCKS.push(b);
   selected.clear(); selected.add(b.id); activeImg=null;

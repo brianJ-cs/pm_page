@@ -1972,29 +1972,44 @@
     font-size:10.5px;color:var(--ink-dim);line-height:1.5;
   }
 
-  /* 貼圖面板：跟取色盤同一種做法（工具的一部分，貼在工具列左邊，見 placeStickerPop）。
-     縮圖統一是正方形，裡面的圖 object-fit:contain —— 貼紙本身長寬比不一，
-     容器大小一致才排得整齊。 */
-  #stickerPop{
-    position:fixed;z-index:520;display:none;width:216px;
-    max-height:calc(100vh - 16px);overflow:auto;
-    background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);
-    border-radius:10px;padding:11px 12px 12px;
-    box-shadow:0 12px 34px rgba(0,0,0,.22);
-    font-size:11.5px;user-select:none;
+  /* ---- 貼紙面板：拿起 貼圖 的時候，左邊那一欄整欄換成它 -------------------
+     照 Canva 那種排法：最左邊一排圖示（在這裡就是 拼板 的工具直條），旁邊
+     一整片素材，上面一條搜尋、底下分類。為什麼是接管這一欄、不另外開一片浮層：
+     右邊就是版面本人，浮在上面的盤子蓋住的正是你要貼的那幾格（取色盤當初站到
+     工具列左邊就是這個理由），而這一欄講的本來就是「先挑一樣東西，再回版上動手」。
+     縮圖統一是正方形、裡面的圖 object-fit:contain —— 貼紙本身長寬比不一，
+     容器一樣大才排得整齊。 */
+  #pmStack.at-stk #secPlans,#pmStack.at-stk #secMini{display:none}
+  #pmStack:not(.at-stk) #secStk{display:none}
+  #secStk{display:flex;flex-direction:column;min-height:0;padding-bottom:12px}
+  .stk-head{
+    display:flex;align-items:center;gap:7px;padding:9px 6px 8px;
+    font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--muted);
   }
-  #stickerPop.on{display:block}
-  #stickerPop .pp-head{
-    display:flex;align-items:center;justify-content:space-between;
-    font-size:12px;font-weight:800;margin-bottom:8px;
+  .stk-head .stk-x{
+    margin-left:auto;border:0;background:transparent;color:var(--ink-dim);
+    font-size:15px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;
   }
-  #stickerPop .pp-x{
-    border:0;background:transparent;color:var(--ink-dim);font-size:15px;
-    cursor:pointer;line-height:1;padding:0 2px;font-family:inherit;
+  .stk-search{
+    width:100%;padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;
+    background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;
   }
-  #stickerPop .pp-row{display:flex;flex-wrap:wrap;gap:6px;min-height:24px}
+  .stk-search:focus{outline:none;border-color:var(--blue)}
+  /* 分類是一排藥丸：挑中的那一顆是藍的（藍＝你正在點的東西）。 */
+  .stk-cats{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .stk-cat{
+    border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-dim);
+    border-radius:999px;padding:3px 9px;font:inherit;font-size:11px;font-weight:700;
+    cursor:pointer;
+  }
+  .stk-cat:hover{border-color:var(--ink-dim);color:var(--ink)}
+  .stk-cat.on{border-color:var(--blue);color:var(--blue);background:var(--accent-tint)}
+  .stk-lbl{
+    margin:12px 0 6px;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);
+  }
+  .stk-grid{display:flex;flex-wrap:wrap;gap:6px}
   .stk-th{
-    position:relative;width:60px;height:60px;padding:2px;border-radius:6px;cursor:pointer;
+    position:relative;width:82px;height:82px;padding:3px;border-radius:8px;cursor:pointer;
     border:1.5px solid var(--line-strong);background:var(--bg);
     display:flex;align-items:center;justify-content:center;overflow:hidden;
   }
@@ -2003,22 +2018,17 @@
   /* 現在拿著的就是這一張：藍框（藍＝你正在點的東西），跟色盤挑色同一條規矩 */
   .stk-th.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--accent-tint)}
   .stk-th .nm{
-    position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:700;
+    position:absolute;left:0;right:0;bottom:0;font-size:8.5px;font-weight:700;
     color:#fff;background:rgba(0,0,0,.55);padding:1px 3px;line-height:1.3;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  #stickerPop .pp-empty{font-size:10.5px;color:var(--ink-dim);line-height:1.5}
-  /* 「開貼紙庫」：滿寬、字小，長得像盤子的一部分而不是另一顆工具 ——
-     它做的事跟上面那排縮圖是同一件（挑貼紙），只是要去更遠的地方拿。 */
-  #stickerPop .pp-more{
-    display:block;width:100%;margin-top:9px;padding:6px 8px;
-    border:1px solid var(--line-strong);border-radius:7px;background:var(--bg);
-    color:var(--ink);font:inherit;font-size:11px;font-weight:700;cursor:pointer;
-  }
-  #stickerPop .pp-more:hover{border-color:var(--blue);color:var(--blue)}
-  #stickerPop .pp-note{
+  .stk-empty{font-size:11px;color:var(--ink-dim);line-height:1.6;padding:2px}
+  /* 「開貼紙庫」：滿寬，長得像這一片的一部分而不是另一顆工具 —— 它做的事跟
+     上面那些縮圖是同一件（挑貼紙），只是要去更遠的地方拿。 */
+  .stk-more{display:block;width:100%;margin-top:14px;font-size:11.5px}
+  .stk-note{
     margin-top:9px;padding-top:8px;border-top:1px solid var(--line);
-    font-size:10.5px;color:var(--ink-dim);line-height:1.5;
+    font-size:10.5px;color:var(--ink-dim);line-height:1.55;
   }
   /* 拿著 貼圖 的時候游標也換掉，跟上色同一條理由：手上拿著哪一件事要看得出來 */
   #sheetMain.tool-sticker,#sheetMain.tool-sticker .cell{cursor:crosshair}
@@ -3173,6 +3183,28 @@
           <div class="sec-head" data-sec="mini"><span>整本落版</span><span class="n"></span></div>
           <aside id="sheetSide"></aside>
         </div>
+        <!-- 貼紙：拿起 拼板 那支「貼圖」筆的時候，整欄換成這一片。
+             為什麼接管這一欄、不另外開一片浮層：右邊就是版面本人，浮層蓋住的
+             正是你要貼的那幾格（取色盤當初站到工具列左邊就是這個理由）；
+             而這一欄講的本來就是「先挑一樣東西，再回版上動手」。 -->
+        <div class="pm-sec" id="secStk">
+          <div class="stk-head"><span>貼紙</span>
+            <button class="stk-x" id="stickerClose"
+                    title="收起來（貼圖筆還拿在手上），這一欄換回檔期／整本落版">✕</button></div>
+          <input id="stkSearch" class="stk-search" type="search" placeholder="找貼紙…"
+                 spellcheck="false" autocomplete="off">
+          <div class="stk-cats" id="stkCats"></div>
+          <div class="stk-lbl" id="stkRecentLbl">最近用過</div>
+          <div class="stk-grid" id="stkRecent"></div>
+          <div class="stk-lbl" id="stkAllLbl">全部貼紙</div>
+          <div class="stk-grid" id="stkGrid"></div>
+          <div class="stk-empty" id="stkEmpty"></div>
+          <!-- 缺貼紙的時候不必先走出這本 DM：這顆開的就是檔期列表上那顆「貼紙庫」
+               開的同一張浮層。關掉之後這一片會重讀一次（見 closeApp）。 -->
+          <button class="btn stk-more" id="stickerMore">🏷➕ 開貼紙庫（新增／修改）</button>
+          <div class="stk-note">點一張拿在手上，再點版上一格貼上去。<br>
+            貼上去之後，點那張貼紙再點它的字就能改成這一格自己的字。</div>
+        </div>
       </div>
     </div>
     <!-- 字級：跟 落版 的工具列同一個位置、同一個樣子。它跟工具一樣是「對這個版位
@@ -3364,20 +3396,8 @@
   <div class="pp-row" id="paintTop"></div>
   <div class="pp-note" id="paintNote"></div>
 </div>
-<!-- 貼圖面板。貼在工具列左邊，拿起 貼圖 才出現——跟取色盤同一種「工具的一部分」做法。
-     ⚠️ 這裡的「貼紙庫」是名詞（sticker_editor.html 存的那份模板清單），
-     跟意見欄那疊「貼紙」（便利貼）沒有關係，見 #toolRail 那顆按鈕旁邊的註解。 -->
-<div id="stickerPop">
-  <div class="pp-head"><span>貼紙庫</span>
-    <button class="pp-x" id="stickerClose" title="收起來（工具還拿在手上）">✕</button></div>
-  <div class="pp-row" id="stickerGrid"></div>
-  <div class="pp-empty" id="stickerEmpty">還沒有貼紙 —— 按下面那顆做幾張</div>
-  <!-- 缺貼紙的時候不必先走出這本 DM：這顆開的就是檔期列表上那顆「貼紙庫」開的
-       同一張浮層（跟版上點一個空框會把商品目錄開起來是同一條路）。
-       關掉之後盤子會重讀一次（見 closeApp），剛做好的那張當場就在。 -->
-  <button class="pp-more" id="stickerMore">🏷➕ 開貼紙庫（新增／修改）</button>
-  <div class="pp-note" id="stickerNote">點一張，再點版上一格貼上去</div>
-</div>
+<!-- ⚠️ 貼圖那一片素材牆現在站在左邊那一欄裡（#secStk），不是浮在版面上的盤子：
+     216px 的浮層蓋住的正是你要貼的那幾格。 -->
 <div id="toastHost"></div>
 <!-- 進度：左邊版位交出了幾成，右邊每位 PM 拼完幾格 -->
 <div id="progMask">
@@ -3486,6 +3506,9 @@
 <!-- 共用資料層。這兩支是選配的：檔案不在（或 config.js 還是佔位符）時 PlanSync.ok()
      回 false，整支程式就走原本純 localStorage 的路徑，跟沒接後端一模一樣。 -->
 <script src="config.js"></script>
+<!-- 貼紙怎麼畫出來：貼紙庫和格子裡的畫布共用的那一份。主程式只用它的
+     assetKeysOf（一張貼紙用到哪幾張圖）—— 面板上的縮圖用的是烤好的那張。 -->
+<script src="sticker-render.js"></script>
 <script src="supabase-sync.js"></script>
 
 <script>
@@ -3833,6 +3856,7 @@ function snapshot(){
        在資料上不是同一件事（前者看得到 PAINT_SEED 那一組）。 */
     palette: currentPlan.palette || null,
     bgUse: currentPlan.bgUse || null,
+    stkUse: currentPlan.stkUse || null,      // 貼紙的「最近用過」，跟上面那兩個同一種
     active: activeBlock ? activeBlock.id : null
   });
 }
@@ -3884,6 +3908,7 @@ function applySnapshot(json){
   currentPlan.guides = snap.guides || { front: [], back: [] };
   if (snap.palette) currentPlan.palette = snap.palette; else delete currentPlan.palette;
   if (snap.bgUse)   currentPlan.bgUse   = snap.bgUse;   else delete currentPlan.bgUse;
+  if (snap.stkUse)  currentPlan.stkUse  = snap.stkUse;  else delete currentPlan.stkUse;
   histLock = true;                          // rebuilding must not re-record
   histQuiet = Date.now() + 700;                // 連帶擋掉畫布晚一步的回報
   try { rebuildAll(snap.active); } finally { histLock = false; }
@@ -11971,58 +11996,134 @@ function svgToDataUrl(svg){
   catch (e){ return ''; }
 }
 
-const stickerPop = document.getElementById('stickerPop');
+/* 面板站在左邊那一欄裡（#secStk）：拿起 貼圖 的時候整欄換成它。 */
+let stkQuery = '';                 // 搜尋框打的字
+let stkCat   = '';                 // 挑了哪一類，'' ＝全部
 
-/** 拿著 貼圖、而且人在 拼板、而且是設計，才看得到它。照 syncPaintPop 那一套規矩：
+/** 面板開不開著：拿著 貼圖、人在 拼板、而且是設計。照 syncPaintPop 那一套規矩 ——
     工具列是兩頁共用的，落版 沒有貼圖這件事；PM／行銷在 拼板 也看不到（貼圖是
     版面素材，只有設計放得上去，跟刊頭圖同一條理由）。 */
+function stickerPanelOn(){
+  return activeTool === 'sticker' && activeTab === 'board'
+      && activeMode === 'design' && !stickerPopShut;
+}
+
 function syncStickerTool(){
   const btn = document.querySelector('.tool[data-tool="sticker"]');
   if (btn) btn.style.display = (activeTab === 'board' && activeMode === 'design') ? '' : 'none';
-  const show = activeTool === 'sticker' && activeTab === 'board'
-            && activeMode === 'design' && !stickerPopShut;
-  stickerPop.classList.toggle('on', show);
-  if (show){ renderStickerPop(); placeStickerPop(); }
+  const st = document.getElementById('pmStack');
+  /* ⚠️ 開關寫在這裡、不寫進 paintSideMode()：那一支在整支程式很早就會被叫到
+     （hostSide／setSideMode），而 activeTool 是底下才宣告的 let —— 在它上面讀
+     就是 ReferenceError，整支程式停在那一行。 */
+  if (st) st.classList.toggle('at-stk', stickerPanelOn());
+  paintSideMode();                 // 那一欄一次只看得到一段，換段的規矩在它那裡
+  if (stickerPanelOn()) renderStickerPanel();
 }
 
-/** 貼在工具列左邊，跟那顆工具齊高；下面塞不下就往上推——照 placePaintPop 抄的。 */
-function placeStickerPop(){
-  const btn = document.querySelector('.tool[data-tool="sticker"]');
-  if (!btn) return;
-  const r = btn.getBoundingClientRect();
-  const w = stickerPop.offsetWidth || 216;
-  const left = r.left - 10 - w;
-  stickerPop.style.left = Math.round(
-    left >= 8 ? left : Math.max(8, Math.min(r.right + 10, window.innerWidth - w - 8))) + 'px';
-  const h = stickerPop.offsetHeight || 300;
-  stickerPop.style.top = Math.round(
-    Math.max(8, Math.min(r.top - 6, window.innerHeight - h - 8))) + 'px';
-}
+/** 這一檔用過哪幾張貼紙、各幾次。跟色盤那個「最常用」同一種東西：只會加。 */
+const stkUseOf = p => (p && p.stkUse && typeof p.stkUse === 'object') ? p.stkUse : {};
 
-function renderStickerPop(){
-  stickerLib = readStickerLib();
-  const grid = document.getElementById('stickerGrid');
-  document.getElementById('stickerEmpty').style.display = stickerLib.length ? 'none' : '';
-  grid.innerHTML = stickerLib.map(r => `
-    <button class="stk-th${stickerArmed && stickerArmed.id === r.id ? ' on' : ''}"
-            data-stk="${r.id}" title="${String(r.name || '').replace(/"/g, '&quot;')}">
+function stkThumb(r){
+  return `<button class="stk-th${stickerArmed && stickerArmed.id === r.id ? ' on' : ''}"
+      data-stk="${r.id}" title="${escapeHtml(r.name || '')}">
       ${r.preview ? `<img src="${svgToDataUrl(r.preview)}" alt="">` : ''}
-      <span class="nm">${r.name || ''}</span>
-    </button>`).join('');
+      <span class="nm">${escapeHtml(r.name || '')}</span></button>`;
+}
+
+function renderStickerPanel(){
+  stickerLib = readStickerLib();
   // 手上那張如果被刪掉了（貼紙庫剛好被改過），就放掉——不要繼續拿著一張不存在的貼紙
   if (stickerArmed && !stickerLib.some(r => r.id === stickerArmed.id)) stickerArmed = null;
+
+  /* 分類只列**真的有貼紙**的那幾類：空的分類點進去什麼都沒有，
+     而那跟「這一類我還沒做」長得一模一樣。 */
+  const cats = [];
+  stickerLib.forEach(r => {
+    const c = r.category || '';
+    if (c && cats.indexOf(c) < 0) cats.push(c);
+  });
+  if (stkCat && cats.indexOf(stkCat) < 0) stkCat = '';
+  document.getElementById('stkCats').innerHTML =
+    [''].concat(cats).map(c =>
+      `<button class="stk-cat${stkCat === c ? ' on' : ''}" data-cat="${escapeHtml(c)}">${escapeHtml(c || '全部')}</button>`).join('');
+
+  const q = stkQuery.trim().toLowerCase();
+  const rows = stickerLib.filter(r =>
+    (!stkCat || (r.category || '') === stkCat) &&
+    (!q || String(r.name || '').toLowerCase().indexOf(q) >= 0));
+
+  /* 最近用過＝這一檔貼過幾次，多的排前面。只在沒搜尋、沒挑分類的時候出現：
+     篩過之後它跟下面那一片講的是同一批東西，兩排一樣的縮圖只會讓人以為重複了。 */
+  const use = stkUseOf(currentPlan);
+  const recent = (q || stkCat) ? []
+    : stickerLib.filter(r => use[r.id]).sort((a, b) => use[b.id] - use[a.id]).slice(0, 6);
+  const rEl = document.getElementById('stkRecent');
+  rEl.innerHTML = recent.map(stkThumb).join('');
+  rEl.style.display = recent.length ? '' : 'none';
+  document.getElementById('stkRecentLbl').style.display = recent.length ? '' : 'none';
+
+  document.getElementById('stkGrid').innerHTML = rows.map(stkThumb).join('');
+  // 上面沒有「最近用過」的時候，「全部貼紙」那一行字沒有在區分什麼，收起來
+  document.getElementById('stkAllLbl').style.display = (recent.length && rows.length) ? '' : 'none';
+  const em = document.getElementById('stkEmpty');
+  em.textContent = stickerLib.length
+    ? (rows.length ? '' : '找不到符合的貼紙')
+    : '還沒有貼紙 —— 按下面那顆做幾張';
+  em.style.display = em.textContent ? '' : 'none';
 }
 
-document.getElementById('stickerGrid').addEventListener('click', e => {
+document.getElementById('stkSearch').addEventListener('input', e => {
+  stkQuery = e.target.value || '';
+  renderStickerPanel();
+});
+document.getElementById('stkCats').addEventListener('click', e => {
+  const b = e.target.closest('[data-cat]');
+  if (!b) return;
+  stkCat = b.dataset.cat || '';
+  renderStickerPanel();
+});
+/* 縮圖那兩片（最近用過／全部）都在這一段裡面，所以聽整段就好 */
+document.getElementById('secStk').addEventListener('click', e => {
   const btn = e.target.closest('[data-stk]');
   if (!btn) return;
   const row = stickerLib.find(r => r.id === btn.dataset.stk);
   if (!row) return;
   stickerArmed = row;
-  renderStickerPop();
+  renderStickerPanel();
 });
 
-/* 兩個入口共用這一支：檔期列表上那顆「🏷➕ 貼紙庫」，和貼圖盤底下那顆。
+/* 貼上去的時候要送給那一格的一整包。**不是只送一張烤好的圖**：
+   ・tpl ＝這張貼紙的模板整份（字串，跟貼紙庫存的同一份）—— 格子那邊照它現場排，
+     所以貼上去之後那幾個字還改得動（一格一格自己的字）。
+   ・assets ＝這張貼紙用到的圖片，只帶用得到的那幾張（整包 stk.assets 可能是幾 MB）。
+   ・svg ＝烤好的那一張，當備胎：模板哪天解不開，格子裡至少還看得到東西。
+   為什麼整份跟著走、不是只記一個編號：貼紙庫只活在這台瀏覽器的 localStorage，
+   別台電腦打開這本 DM 的時候庫裡沒有那一張。 */
+const STK_ASSET_LSK = 'stk.assets';       // 貼紙庫存圖片的那把鑰匙
+function readStickerAssets(){
+  try {
+    const raw = localStorage.getItem(STK_ASSET_LSK);
+    return raw ? (JSON.parse(raw) || {}) : {};
+  } catch (e){ return {}; }
+}
+function stickerPayload(row){
+  const tpl = String(row.template || '');
+  let assets = null;
+  try {
+    const keys = StickerRender.assetKeysOf(tpl);
+    if (keys.size){
+      const all = readStickerAssets();
+      assets = {};
+      keys.forEach(k => { if (all[k]) assets[k] = all[k]; });
+    }
+  } catch (e){}
+  let ratio = +row.ratio || 0;
+  if (!ratio){ try { ratio = +JSON.parse(tpl).ratio || 0; } catch (e){} }
+  return { libId: row.id, name: row.name || '', tpl, assets,
+           ratio: ratio || .4, svg: svgToDataUrl(row.preview || '') };
+}
+
+/* 兩個入口共用這一支：檔期列表上那顆「🏷➕ 貼紙庫」，和貼紙面板底下那顆。
    ?embed=1 ＝請它換一種穿法：練習版面、清除存檔那些收起來，整個畫面就是那一櫃貼紙
    （見那一支的 stylesheet 最後一段）。單獨打開那一支完全不受影響。 */
 function openStickerLib(){
@@ -12052,12 +12153,18 @@ boardEl.addEventListener('pointerdown', e => {
   const cell = cellById(cel.dataset.cellId);
   if (!cell) return;
   const f = canvasFrame(cell.id);
-  if (!f || !f.contentWindow) return;
+  /* 還沒挑貨的格子沒有畫布（見 paintOneCanvas：有貨才生），貼紙沒有地方站。
+     安靜地什麼都不做的話，看起來就是「貼圖壞了」—— 講一句。 */
+  if (!f || !f.contentWindow){ toast('這一格還沒挑貨，貼紙沒有地方站', 'info', 2200); return; }
   try {
-    f.contentWindow.postMessage({ addSticker: {
-      svg: svgToDataUrl(stickerArmed.preview), name: stickerArmed.name || ''
-    } }, '*');
-    toast('貼上了', 'ok', 1200);
+    f.contentWindow.postMessage({ addSticker: stickerPayload(stickerArmed) }, '*');
+    /* 最近用過數的是「貼了幾次」。存進這一檔，跟色盤的「最常用」同一種東西
+       （只會加，所以合併時取兩邊的增量，見 mergePaintInto）。 */
+    const use = Object.assign({}, stkUseOf(currentPlan));
+    use[stickerArmed.id] = (use[stickerArmed.id] || 0) + 1;
+    currentPlan.stkUse = use;
+    renderStickerPanel();
+    toast('貼上了 —— 點那張貼紙再點它的字就能改', 'ok', 2000);
   } catch (_){}
 });
 
@@ -15412,7 +15519,7 @@ const jclone = v => JSON.parse(JSON.stringify(v));
    說了算），舊檔期上那個欄位留著沒人讀。 */
 const META_KEYS = ['name','type','tags','start','durs','submitted',
                    'guides','guidesCm'];
-/* palette／bgUse 刻意不在上面那一串裡：它們是**加東西的東西**（存一個顏色、
+/* palette／bgUse／stkUse 刻意不在上面那一串裡：它們是**加東西的東西**（存一個顏色、
    多塗幾格），逐欄比的話兩個人各存一個顏色就會報一個假衝突，然後其中一顆消失。
    合併規則見 mergePaintInto。 */
 /** 一格扣掉便利貼和審核章之後長什麼樣 —— 拿來判斷「除了那兩樣以外，還有東西撞到嗎」。
@@ -15681,6 +15788,17 @@ function mergePaintInto(mine, base, theirs){
     if (n > 0) use[c] = n;
   });
   if (Object.keys(use).length) mine.bgUse = use;
+
+  /* 貼紙的「最近用過」跟 bgUse 是同一種東西（一個計數），所以合法一模一樣：
+     兩個人各自貼了幾張，兩邊的增量都要算進去。 */
+  const bs = stkUseOf(base), ms = stkUseOf(mine), ts = stkUseOf(theirs);
+  const su = {};
+  new Set(Object.keys(ms).concat(Object.keys(ts))).forEach(k => {
+    const b = bs[k] || 0;
+    const n = b + Math.max(0, (ms[k] || 0) - b) + Math.max(0, (ts[k] || 0) - b);
+    if (n > 0) su[k] = n;
+  });
+  if (Object.keys(su).length) mine.stkUse = su;
 }
 
 /* 合併完要讓畫面跟上。骨架換過就整棵重建（rebuildAll 本來就是為這件事寫的，
