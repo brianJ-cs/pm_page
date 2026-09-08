@@ -2008,6 +2008,14 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   #stickerPop .pp-empty{font-size:10.5px;color:var(--ink-dim);line-height:1.5}
+  /* 「開貼紙庫」：滿寬、字小，長得像盤子的一部分而不是另一顆工具 ——
+     它做的事跟上面那排縮圖是同一件（挑貼紙），只是要去更遠的地方拿。 */
+  #stickerPop .pp-more{
+    display:block;width:100%;margin-top:9px;padding:6px 8px;
+    border:1px solid var(--line-strong);border-radius:7px;background:var(--bg);
+    color:var(--ink);font:inherit;font-size:11px;font-weight:700;cursor:pointer;
+  }
+  #stickerPop .pp-more:hover{border-color:var(--blue);color:var(--blue)}
   #stickerPop .pp-note{
     margin-top:9px;padding-top:8px;border-top:1px solid var(--line);
     font-size:10.5px;color:var(--ink-dim);line-height:1.5;
@@ -3363,7 +3371,11 @@
   <div class="pp-head"><span>貼紙庫</span>
     <button class="pp-x" id="stickerClose" title="收起來（工具還拿在手上）">✕</button></div>
   <div class="pp-row" id="stickerGrid"></div>
-  <div class="pp-empty" id="stickerEmpty">還沒有貼紙 —— 先去「🏷➕ 貼紙庫」做幾張</div>
+  <div class="pp-empty" id="stickerEmpty">還沒有貼紙 —— 按下面那顆做幾張</div>
+  <!-- 缺貼紙的時候不必先走出這本 DM：這顆開的就是檔期列表上那顆「貼紙庫」開的
+       同一張浮層（跟版上點一個空框會把商品目錄開起來是同一條路）。
+       關掉之後盤子會重讀一次（見 closeApp），剛做好的那張當場就在。 -->
+  <button class="pp-more" id="stickerMore">🏷➕ 開貼紙庫（新增／修改）</button>
   <div class="pp-note" id="stickerNote">點一張，再點版上一格貼上去</div>
 </div>
 <div id="toastHost"></div>
@@ -8692,7 +8704,8 @@ function openApp(src, title, note){
   document.getElementById('catNote').textContent = note;
   catFrame.title = title;
   catFrame.src = src;
-  openedApp = /logo_page/.test(src) ? 'logo' : 'cat';
+  openedApp = /logo_page/.test(src) ? 'logo'
+            : /sticker_editor/.test(src) ? 'sticker' : 'cat';
   catMask.classList.add('on');
 }
 function closeApp(){
@@ -8701,6 +8714,9 @@ function closeApp(){
   /* Logo 庫那一頁自己連它那個 Supabase，換了什麼主程式這邊完全不知道 ——
      所以關起來就重拉一次。商品目錄不必：那一頁改完會 catalogueSave 報上來。 */
   if (openedApp === 'logo') refreshLogos();
+  /* 貼紙庫剛剛可能多了一張。盤子是「每次打開重讀一遍」，但它現在可能正開著
+     （從 拼板 那一盤按進去的），不重畫的話剛做好的那張要等下一次拿起工具才看得到。 */
+  if (openedApp === 'sticker') syncStickerTool();
   openedApp = '';
 }
 document.getElementById('catBtn').addEventListener('click', () =>
@@ -8717,9 +8733,7 @@ document.getElementById('logoBtn').addEventListener('click', () =>
    跟主程式同一個網站、同一個瀏覽器就讀得到，不用另外接一條同步的路）。
    拼板 那顆「貼圖」工具開起來的面板是直接讀同一份 localStorage，不是讀這個
    iframe 裡的東西，所以這裡開／關不用像 logo 那樣特地重拉一次。 */
-document.getElementById('stickerLibBtn').addEventListener('click', () =>
-  openApp('sticker_editor.html', '貼紙庫',
-          '做促銷、規格、贈品這幾種可重複貼的小圖——這裡管理貼紙，貼到格子上請到 拼板 按「貼圖」'));
+document.getElementById('stickerLibBtn').addEventListener('click', openStickerLib);
 document.getElementById('catClose').addEventListener('click', closeApp);
 catMask.addEventListener('click', e => { if (e.target === catMask) closeApp(); });
 /* 合成單檔（--bundle）裡沒有這幾頁的檔案 —— 那一版是「寄一支檔案給別人看」，
@@ -12007,6 +12021,15 @@ document.getElementById('stickerGrid').addEventListener('click', e => {
   stickerArmed = row;
   renderStickerPop();
 });
+
+/* 兩個入口共用這一支：檔期列表上那顆「🏷➕ 貼紙庫」，和貼圖盤底下那顆。
+   ?embed=1 ＝請它換一種穿法：練習版面、清除存檔那些收起來，整個畫面就是那一櫃貼紙
+   （見那一支的 stylesheet 最後一段）。單獨打開那一支完全不受影響。 */
+function openStickerLib(){
+  openApp('sticker_editor.html?embed=1', '貼紙庫',
+          '做促銷、規格、贈品這幾種可重複貼的小圖——貼到格子上請到 拼板 按「貼圖」');
+}
+document.getElementById('stickerMore').addEventListener('click', openStickerLib);
 
 document.getElementById('stickerClose').addEventListener('click', () => {
   stickerPopShut = true;         // 工具還拿在手上，只是盤子收起來（跟 上色 同一條規矩）

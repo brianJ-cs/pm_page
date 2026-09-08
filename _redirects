@@ -9,3 +9,6 @@
 # 但「我只是要改一筆商品」不必先開檔期列表 —— 而且這樣才貼得進 Slack。
 /products  /product.html         200
 /logos     /logo_page/index.html 200
+# 貼紙庫同理。不帶 ?embed=1 進去就是完整的那一間（練習版面、清空重來都在）——
+# 那正是「我只是要做一張貼紙」要的樣子。
+/stickers  /sticker_editor.html  200

@@ -212,18 +212,52 @@ input[type=color]{width:100%;height:26px;padding:0;border:1px solid var(--line);
 ::-webkit-scrollbar-thumb{background:#c3cad3;border-radius:5px}
 ::-webkit-scrollbar-track{background:transparent}
 @media(max-width:980px){.props{display:none}}
+
+/* ══ 被主程式請進來的那一種穿法（?embed=1）══
+   自己單獨打開＝整間工作室：上面那排開關、中間那張練習用的版面、右邊那條
+   「選取的貼紙」通通都在。被主程式的浮層請進來的時候那些收進門後 ——
+   浮層外面已經寫著「貼紙庫」，裡面要的就只有那一櫃貼紙。
+   ⚠️ 只是藏起來，不是拿掉：單獨打開的行為一個字都沒改。 */
+html.embed h1,
+html.embed #hgGrid,            /* 練習版面的欄／列／套用 */
+html.embed #hgSw,              /* 格線／Debug／鎖在格內／拖曳即時寫入：講的都是那張練習版面 */
+html.embed #btnWipe,           /* 清除存檔＝整櫃當場清空，不該站在正常按鈕旁邊 */
+html.embed #btnClear,          /* 清空版面：練習版面都不在了 */
+html.embed .stage,
+html.embed .props{display:none}
+/* 貼紙櫃推到主位。本來它是最下面一條 150px 的抽屜（上面是練習版面），
+   現在整個畫面就是它 —— 所以縮圖改成一排排往下排，不是一條橫著捲。 */
+html.embed .lib{flex:1;min-height:0;height:auto;border-top:0}
+html.embed .lib-items{flex-wrap:wrap;align-items:flex-start;align-content:flex-start;
+  overflow-x:hidden;overflow-y:auto;gap:12px;padding:13px}
+/* 卡片本來是照「最下面一條 150px 的抽屜」訂的尺寸。整個畫面都給它之後，
+   一牆 66px 的小卡看起來像這一頁是空的 —— 貼紙是要看得出長什麼樣才挑得下去的。 */
+html.embed .lib-item{height:118px;min-width:128px;max-width:190px;padding:8px 10px;gap:5px}
+html.embed .lib-item .thumb{height:74px}
+html.embed .lib-item .nm{font-size:10.5px;max-width:170px}
+html.embed .lib-add{width:118px;height:118px;font-size:11px}
+html.embed .lib-add .p{font-size:24px}
+/* 浮層外面已經寫著「貼紙庫」了，這裡不必再寫第二次 */
+html.embed .lib-top .tag{display:none}
 </style>
+<script>
+/* 被主程式的浮層請進來就換一種穿法（見 stylesheet 最後那一段）。
+   寫在 <head>、掛在 <html> 上，不等下面那支大的 —— 晚一步的話，
+   練習版面和「清除存檔」會先閃出來一次。 */
+if (new URLSearchParams(location.search).get('embed') === '1')
+  document.documentElement.classList.add('embed');
+</script>
 </head>
 <body>
 
 <header>
   <h1>貼紙系統 <small>v3 · LAYERED EDITOR</small></h1>
-  <div class="hgroup">
+  <div class="hgroup" id="hgGrid">
     <label>欄</label><input type="number" id="cols" value="3" min="1" max="8">
     <label>列</label><input type="number" id="rows" value="2" min="1" max="8">
     <button class="btn" id="applyGrid">套用</button>
   </div>
-  <div class="hgroup">
+  <div class="hgroup" id="hgSw">
     <label class="sw"><input type="checkbox" id="swGrid" checked>格線</label>
     <label class="sw"><input type="checkbox" id="swDebug">Debug 標籤</label>
     <label class="sw"><input type="checkbox" id="swLock">鎖在格內</label>
