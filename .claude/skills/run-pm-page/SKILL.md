@@ -1,6 +1,6 @@
 ---
 name: run-pm-page
-description: Launch pm_page's single-file HTML apps (design_and_PM.html, 2cell-product-pick.html) in headless Chrome, click through the views, screenshot, and report console errors. Use before claiming any change works — these apps are one big inline script, so a runtime error kills the whole page while the file still parses fine.
+description: 跑起來看 —— 用 headless Chrome 開 pm_page 那幾支單檔 HTML（design_and_PM.html、2cell-product-pick.html）、點過去、截圖、回報 console 錯誤，並且**決定這次要驗到哪一級**（只開起來／真的點一下／連兩把尺一起跑）。說「好了」之前一定要看這一份：整支程式是一個 inline script，一個執行期錯誤就整頁死掉，而語法檢查照樣過。點不到東西、快捷鍵沒反應的時候也看這裡。
 ---
 
 # 跑 pm_page 看看
@@ -10,11 +10,36 @@ description: Launch pm_page's single-file HTML apps (design_and_PM.html, 2cell-p
 
 全程收集 console 錯誤和未捕捉的例外，最後印出來；有錯就 exit 1 —— 所以它同時是煙霧測試。
 
-## 什麼時候一定要跑
+## 為什麼一定要跑
 
-- **改過任何頂層（module-level）的程式碼之後。** 整支程式是同一個 `<script>`：在頂層呼叫一個會讀到下面才宣告的 `let` 的函式，就是 `ReferenceError`，整頁死掉，而語法檢查完全看不出來。這個坑踩過。
-- 改顏色、改版面之後 —— 用 `--eval` 量 computed style，比用眼睛猜可靠。
-- 說「修好了」之前。
+整支程式是同一個 `<script>`。在頂層呼叫一個會讀到**下面才宣告**的 `let` 的函式 →
+`ReferenceError` → 整支程式停在那一行 → 開起來整頁是死的。**語法檢查完全看不出來**，
+而且踩過不只一次：2026-09 那次是把一個 `}` 插錯一行，`node --check` 照樣過
+（IIFE 裡的頂層 `return` 是合法的），整支共用的東西根本沒被匯出。
+
+所以規矩是：**說「好了」之前一定跑一次**。但**不是每次都跑同一套** —— 見下面。
+
+## 這次要驗到哪一級
+
+一趟完整走查裡光是 `--wait` 就二十幾秒，每改一行跑一次，一個下午就沒了。
+照**這次改了什麼**挑一級，不要每次都跑最貴的那一套。
+
+| 級 | 這次改了什麼 | 跑什麼 | 大概多久 | 什麼叫過 |
+|---|---|---|---|---|
+| **1** | 只有樣式、文案、註解 | `driver.mjs --file "design_and_PM.html?as=design" --wait 800` | **3.7 秒** | 印出 `ok — no console errors` |
+| **2** | 會被點到、會被讀到的東西（多數改動都在這一級） | 下面那條「開檔期 → 拼板」再加一個 `--eval` 斷言 | **5.6 秒** | 同上，**外加真的點一下那件事**，而且斷言拿到預期的值 |
+| **2＋** | 動到格子裡的零件（選取、拖曳、刪除） | `scenario.mjs blk --assert "…"` | **17 秒** | 同上，斷言在畫布裡跑得過 |
+| **3** | 排版算法、座標、資料的形狀 | 第 2 級 ＋ `2cell-parity/parity.mjs` ＋ `stress-board/stress.mjs` | 分鐘級（開兩次瀏覽器／60 個 iframe） | 兩把尺沒有變紅 |
+
+（上面那三個秒數是 2026-09-08 在這台機器上量的，不是估的。真正貴的是 60 個 iframe
+那一套和自己加的長 `--wait` —— 那一輪跑了十幾趟，多數其實第 2 級就夠。）
+
+- **第 1 級不夠的判準很簡單**：這次改的東西，使用者會不會**點到**它？會，就是第 2 級。
+- 第 2 級**一定要含一個真的互動**。只開頁面看 console 是不夠的：刪掉某幾個變數之後
+  還留著參照的那次，頁面載得起來、console 乾淨，但格子裡點任何東西都會炸。
+- 第 3 級只在**動到排版算法之後**跑一次，不是每次。
+- 一批改完再驗，不要每改一行驗一次（節奏那一份 `edit-fast` 第 1 節）。
+- 改顏色、改版面用 `--eval` 量 computed style，比用眼睛猜可靠。
 
 ## 先看這個：`scenario.mjs`
 
@@ -23,7 +48,7 @@ description: Launch pm_page's single-file HTML apps (design_and_PM.html, 2cell-p
 而且很容易在 shell 的引號上出錯。
 
 ```bash
-cd C:/Users/User/Documents/work/pm_page
+cd "C:/Users/afluf/OneDrive/文件/work/work/pm_page"
 S=".claude/skills/run-pm-page/scenario.mjs"
 
 node $S smoke                  # 四個畫面走一輪，看有沒有炸
@@ -58,7 +83,7 @@ node $S blk \
 `scenario.mjs` 蓋不到的才直接用它。
 
 ```bash
-cd C:/Users/User/Documents/work/pm_page
+cd "C:/Users/afluf/OneDrive/文件/work/work/pm_page"
 
 # 最短的一次：開起來有沒有炸
 node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?as=design" --wait 800
@@ -86,6 +111,24 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=
 - 截圖用 Read 工具打開來看，不要只看它有沒有存檔成功。
 
 ## 幾個坑
+
+### 點不到、按不動的時候（多半不是程式壞了）
+
+- **點過任何 `<input>` 之後，鍵盤快捷鍵就進不去了。** 那支程式的鍵盤處理會擋掉
+  焦點在輸入框裡的按鍵 —— 所以 `--click-text "顯示便利貼"`（那是一顆開關）之後再
+  `--key t`，那一下什麼都不會發生。2026-09 那次因此連貼了三張貼紙都沒察覺。
+  **能點按鈕就點按鈕**：`--click ".tool[data-tool=edit]"`。
+- **左邊那條工具直條自己會捲。** 視窗矮的時候底下那幾顆（🎨、🏷️）捲出畫面，
+  `--click` 回 `no visible element`。那不是選擇器寫錯，先 `--size` 拉高或改點別的入口。
+- **點格子常常點到別的東西**：便利貼的標記就坐在格子中央，點下去開的是留言卡。
+  先 `--click-text "顯示便利貼"` 把標記收掉，或挑一格乾淨的：
+  `.cell.filled:not(:has(.cmk)):not(:has(.cnb))`。
+- **`--eval` 看不到那支程式的頂層 `let`／`function`**（`activeTab`、`readStickerLib`
+  都會是 undefined，見上面 `--assert` 那一段的原因）。**斷言一律走 DOM**，
+  格子裡的畫布用 `document.querySelector('.ccanvas').contentDocument`
+  （driver 帶了 `--allow-file-access-from-files`，所以進得去）。
+
+### 其他
 
 - **`?seed=1` 一定要加引號**，否則 shell 會吃掉 `?`。沒有 seed 的話 localStorage 是空的，檔期列表也是空的（這是刻意的）。
 - 每次跑都是全新的 Chrome profile：**localStorage 不會留下來**，上一輪貼的便利貼、開過的檔期都不在。要有資料就靠 `?seed=1`。

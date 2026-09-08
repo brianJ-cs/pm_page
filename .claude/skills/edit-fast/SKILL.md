@@ -1,6 +1,6 @@
 ---
 name: edit-fast
-description: pm_page 改東西的節奏：驗一次、不要在中途生附加產物、動手前先講清楚根本原因、前後兩句衝突就照新的那句，以及**怎麼動檔案**（一律寫一支 .mjs 用錨點改，不要在 shell 裡寫 JS；CRLF／LF 混著）和 driver 驗互動的坑。**改這個專案的任何 .html／.js 之前先看這一份，不必等使用者說** —— 尤其是要一次改好幾個檔案、要用 sed／node -e／heredoc 改檔、或事情已經開始拖的時候。這裡講的是「怎麼不浪費時間」，不是「怎麼寫」（那在 CLAUDE.md 和 pm-page-traps）。
+description: pm_page 改東西的節奏：驗一次、不要在中途生附加產物、動手前先講清楚根本原因、前後兩句衝突就照新的那句，以及**怎麼動檔案**（一律寫一支 .mjs 用錨點改，不要在 shell 裡寫 JS；CRLF／LF 混著）。驗到哪一級、driver 點不到東西怎麼辦在 run-pm-page 那一份。**改這個專案的任何 .html／.js 之前先看這一份，不必等使用者說** —— 尤其是要一次改好幾個檔案、要用 sed／node -e／heredoc 改檔、或事情已經開始拖的時候。這裡講的是「怎麼不浪費時間」，不是「怎麼寫」（那在 CLAUDE.md 和 pm-page-traps）。
 ---
 
 # 改這個專案的節奏
@@ -108,19 +108,10 @@ const sub=(a0,b0)=>{ const a=nl(a0),b=nl(b0);
 - **`| cat -n` 在這個 repo 會卡住**（OneDrive）：那一次卡了 25 分鐘才回來。
   純 `sed -n '100,120p'` 秒回。
 
-## 9. 用 driver 驗互動的四個坑
+## 9. 驗到哪一級、點不到東西怎麼辦 → 看 `run-pm-page`
 
-同一輪換來的，跟 `run-pm-page` 那份併著看。
+那一份現在管兩件事：**這次該驗到哪一級**（只開起來／真的點一下／連兩把尺一起跑，
+各要多久、什麼叫過），以及 **driver 點不到東西時的那幾個坑**（快捷鍵被輸入框搶走、
+工具列捲出畫面、便利貼標記坐在格子中央、`--eval` 讀不到頂層的 `let`）。
 
-- **`--eval` 看不到那支程式的頂層 `let`／`function`**（`activeTab`、`readStickerLib`
-  都是 undefined）。**斷言一律走 DOM**：`document.getElementById(...)`、
-  `document.querySelector('.ccanvas').contentDocument`（driver 帶了
-  `--allow-file-access-from-files`，所以格子裡的畫布量得到）。
-- **快捷鍵會被搶焦點**：點過任何 `<input>`（例如「顯示便利貼」那顆開關）之後，
-  `--key t` 就進不到那支程式了 —— 那一次因此連貼了三張貼紙都沒發現。
-  **能點按鈕就點按鈕**（`--click ".tool[data-tool=edit]"`）。
-- **工具列自己會捲**：視窗矮的時候 `.tool[data-tool=sticker]` 捲出畫面，
-  `--click` 回「no visible element」。那不是選擇器寫錯。
-- **點格子會點到別的東西**：便利貼標記就在格子中央，點下去開的是留言卡。
-  先 `--click-text "顯示便利貼"` 收掉，或挑
-  `.cell.filled:not(:has(.cmk)):not(:has(.cnb))`。
+這裡只留節奏：**一批改完再驗、驗一次、在最後**（第 1 節）。同一段話不要兩份。
