@@ -11,6 +11,7 @@
 -- 那張表還一條都沒有的時候才建（見下面的 DO 區塊）—— 不會去動你在後台點出來的
 -- 那幾條，也不會刪任何東西。
 --
+-- 貼紙庫（sticker_lib／sticker_cats ＋ stickers 這個 bucket）在這一支的最後面。
 -- 品牌 Logo 那兩張表（companies／logos）不在這裡，在 `logo_page/schema.sql`。
 -- 兩支各自 idempotent，跑在同一個專案裡不會互相踩到（名字一個都沒撞）。
 -- ---------------------------------------------------------------------------
@@ -127,3 +128,85 @@ $$;
 -- 刻意的：它是給手滑用的，不是版本控制，而且刪除本身是直接把共用那一列拿掉。
 -- 所以這裡不建，免得下一個人看到表就以為那件事還在。
 -- ---------------------------------------------------------------------------
+
+
+-- ---------------------------------------------------------------------------
+-- 貼紙庫 —— 一張貼紙一列（sticker_editor.html）
+--
+-- 以前只活在做貼紙那台瀏覽器的 localStorage 裡：設計 A 做的貼紙設計 B 看不到，
+-- 圖轉成 base64 塞進去，大約 5MB 就滿。
+--
+-- ・一張貼紙一列，不是整包：兩個人各做各的貼紙寫的是不同的列，沒有東西要合併。
+-- ・`template` 是圖層模板的 JSON **字串**，刻意不用 jsonb：前端整條字串搬來搬去
+--   （貼到版上的那一張也是抄這一條），jsonb 會重排 key，同一份模板讀回來就
+--   不是同一條字串了。
+-- ・`preview` 是烤好的縮圖的**網址**（stickers/previews/…）。以前是一段 SVG，
+--   圖片包在裡面 —— 圖改放 Storage 之後那段 SVG 當 <img> 畫不出圖。
+-- ・刪除＝`deleted_at` 標記，不抹掉（跟 Logo 庫的回收桶同一套）。
+-- ・`updated_at` 是用戶端寫的，前端只拿來比「一不一樣」
+--   （同一張被兩個人改：用後存的那份，並講一句）。
+-- ・`id` 是 text 不是 uuid：貼紙庫在沒有 crypto.randomUUID 的環境會退回自己拼的字串。
+-- ---------------------------------------------------------------------------
+create table if not exists public.sticker_lib (
+  id           text primary key,
+  name         text not null default '',
+  category     text not null default '',
+  ratio        double precision,
+  layer_count  integer,
+  text_layers  integer,
+  template     text not null,
+  preview      text,
+  updated_by   text,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  deleted_at   timestamptz
+);
+
+-- 分類一個一列：空的分類也要留得住（貼紙庫可以先開一個分類再往裡面放）。
+create table if not exists public.sticker_cats (
+  name  text primary key,
+  sort  integer not null default 0
+);
+
+alter table public.sticker_lib  enable row level security;
+alter table public.sticker_cats enable row level security;
+
+-- 同上面那一段：用 SQL 建的表 anon 沒有權限，policy 建好了照樣 42501。
+grant select, insert, update, delete on public.sticker_lib  to anon;
+grant select, insert, update, delete on public.sticker_cats to anon;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies
+                  where schemaname = 'public' and tablename = 'sticker_lib') then
+    execute $p$create policy "anon rw sticker_lib" on public.sticker_lib
+              for all to anon using (true) with check (true)$p$;
+  end if;
+
+  if not exists (select 1 from pg_policies
+                  where schemaname = 'public' and tablename = 'sticker_cats') then
+    execute $p$create policy "anon rw sticker_cats" on public.sticker_cats
+              for all to anon using (true) with check (true)$p$;
+  end if;
+end;
+$$;
+
+-- 貼紙用到的圖（stickers/assets/…）和烤好的縮圖（stickers/previews/…）。
+-- 檔名都是**內容雜湊**，所以同一個名字永遠是同一張圖：只要讀和新增，
+-- 不必 update（沒有「換掉某一張」這回事，換了內容就是另一個名字）。
+insert into storage.buckets (id, name, public)
+values ('stickers', 'stickers', true)
+on conflict (id) do update set public = excluded.public;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies
+                  where schemaname = 'storage' and tablename = 'objects'
+                    and policyname like 'anon % stickers') then
+    execute $p$create policy "anon read stickers" on storage.objects
+              for select to anon using (bucket_id = 'stickers')$p$;
+    execute $p$create policy "anon insert stickers" on storage.objects
+              for insert to anon with check (bucket_id = 'stickers')$p$;
+  end if;
+end;
+$$;

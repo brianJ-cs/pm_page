@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全局 Bitmap 快取模擬器 v2（整張畫布縮圖）</title>
+<style>
+    body, html {
+        margin: 0; padding: 0; width: 100vw; height: 100vh;
+        overflow: hidden; background-color: #1e1e1e; color: #fff;
+        font-family: 'Segoe UI', 'Noto Sans TC', sans-serif; user-select: none;
+    }
+
+    #toolbar {
+        position: absolute; top: 20px; left: 20px; z-index: 100;
+        background: rgba(32,32,32,0.94); padding: 16px 20px; border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,.6); border: 1px solid #3a3a3a;
+        display: flex; flex-direction: column; gap: 12px; width: 300px;
+    }
+    .row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .hint { font-size: 11px; color: #999; line-height: 1.6; }
+    button {
+        background: #007acc; color: #fff; border: none; padding: 8px 14px;
+        border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+    }
+    button:hover { background: #0a8ae0; }
+    input[type=range] { flex: 1; }
+    hr { border: none; border-top: 1px solid #3a3a3a; margin: 2px 0; }
+
+    #viewport { width: 100vw; height: 100vh; cursor: grab; position: relative; }
+    #viewport:active { cursor: grabbing; }
+
+    #board { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+
+    /* 快取層：整個場景的一張縮圖，用平滑放大（不是 pixelated 馬賽克） */
+    #global-bitmap {
+        position: absolute; top: 0; left: 0; z-index: 10;
+        pointer-events: none;
+        image-rendering: auto;
+        transition: opacity .25s ease;
+    }
+    /* 真實 DOM 層 */
+    #real-layer { position: absolute; top: 0; left: 0; z-index: 5; }
+
+    .img-node {
+        position: absolute; width: 200px; height: 200px;
+        background: #2a2a2a; border: 1px solid #4a4a4a; border-radius: 8px;
+        overflow: hidden; display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,.35);
+    }
+    .img-node img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s ease; }
+    .loading-text { position: absolute; font-size: 12px; color: #777; }
+
+    #status {
+        position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+        z-index: 100; background: #ff9800; color: #fff; padding: 8px 18px;
+        border-radius: 20px; font-weight: 600; font-size: 13px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.5); pointer-events: none; transition: background .25s;
+    }
+    #status.real { background: #4CAF50; }
+    #status.building { background: #6c6c6c; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+    <div class="row">
+        <input type="checkbox" id="cacheToggle" checked>
+        <label for="cacheToggle" style="font-weight:700">開啟全局 Bitmap 快取</label>
+    </div>
+    <div class="row">
+        <span style="width:74px">快取解析度</span>
+        <input type="range" id="qualitySlider" min="0.05" max="1" step="0.05" value="0.25">
+        <span id="qualityVal" style="width:34px;text-align:right">25%</span>
+    </div>
+    <div class="row">
+        <input type="checkbox" id="waitToggle">
+        <label for="waitToggle">等圖片載入完才換成真實 DOM</label>
+    </div>
+    <hr>
+    <div class="hint">
+        快取層是「整張畫布」被縮小成一張圖再放大，所以看起來是模糊的全景，而不是一格一格色塊。
+        實務上這張縮圖由後端預先產生（Figma 的 thumbnail）或上次離開時存下來。
+    </div>
+    <button id="reloadBtn">重新載入場景（模擬 F5）</button>
+</div>
+
+<div id="status">建立快取中…</div>
+
+<div id="viewport">
+    <div id="board">
+        <canvas id="global-bitmap"></canvas>
+        <div id="real-layer"></div>
+    </div>
+</div>
+
+<script>
+const N = 50, COLS = 10, NODE = 200, SPACING = 220, RADIUS = 8;
+
+const viewport = document.getElementById('viewport');
+const board = document.getElementById('board');
+const bmp = document.getElementById('global-bitmap');
+const realLayer = document.getElementById('real-layer');
+const cacheToggle = document.getElementById('cacheToggle');
+const waitToggle = document.getElementById('waitToggle');
+const qualitySlider = document.getElementById('qualitySlider');
+const qualityVal = document.getElementById('qualityVal');
+const reloadBtn = document.getElementById('reloadBtn');
+const status = document.getElementById('status');
+
+let scale = 1;
+let translateX = window.innerWidth / 2 - (COLS * SPACING) / 2;
+let translateY = window.innerHeight / 2 - 480;
+let isDragging = false, startX = 0, startY = 0;
+
+let nodes = [], timers = [], loadedCount = 0;
+let usingBitmap = true, sceneToken = 0;
+
+const BOARD_W = COLS * SPACING;
+const BOARD_H = Math.ceil(N / COLS) * SPACING;
+
+function generateData() {
+    const data = [];
+    for (let i = 0; i < N; i++) {
+        const seed = i + 2000 + Math.floor(Math.random() * 100000) * 0; // 固定 seed 讓縮圖與大圖同一張
+        data.push({
+            id: i,
+            x: (i % COLS) * SPACING + (Math.random() * 20 - 10),
+            y: Math.floor(i / COLS) * SPACING + (Math.random() * 20 - 10),
+            base: `#3a3a3a`,
+            thumb: `https://picsum.photos/seed/${seed}/48/48`,   // 極小縮圖，秒載
+            url:   `https://picsum.photos/seed/${seed}/400/400`  // 真實大圖
+        });
+    }
+    return data;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
+    else {
+        ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+    }
+}
+
+// 建立快取層：把整個 board 當成一張圖來畫（座標用 board 原尺寸，靠 ctx.scale 壓縮）
+function setupBitmapCanvas(q) {
+    bmp.width  = Math.round(BOARD_W * q);
+    bmp.height = Math.round(BOARD_H * q);
+    bmp.style.width  = BOARD_W + 'px';   // CSS 放大回原尺寸 → 平滑模糊
+    bmp.style.height = BOARD_H + 'px';
+    const ctx = bmp.getContext('2d');
+    ctx.setTransform(q, 0, 0, q, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#1e1e1e';
+    ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+    return ctx;
+}
+
+function drawNodeToBitmap(ctx, n, img) {
+    ctx.save();
+    roundRectPath(ctx, n.x, n.y, NODE, NODE, RADIUS);
+    ctx.clip();
+    if (img) ctx.drawImage(img, n.x, n.y, NODE, NODE);
+    else { ctx.fillStyle = n.base; ctx.fillRect(n.x, n.y, NODE, NODE); }
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.lineWidth = 1;
+    roundRectPath(ctx, n.x + .5, n.y + .5, NODE - 1, NODE - 1, RADIUS);
+    ctx.stroke();
+}
+
+// 用小縮圖把整張畫布畫出來（進場前先畫底色骨架，縮圖到齊就補上）
+async function buildBitmap(data, q, token) {
+    const ctx = setupBitmapCanvas(q);
+    data.forEach(n => drawNodeToBitmap(ctx, n, null));
+
+    await Promise.all(data.map(n => new Promise(res => {
+        const im = new Image();
+        im.crossOrigin = 'anonymous';
+        im.onload = () => {
+            if (token === sceneToken) drawNodeToBitmap(ctx, n, im);
+            res();
+        };
+        im.onerror = () => res();
+        im.src = n.thumb;
+    })));
+}
+
+function setStatus(text, cls) { status.textContent = text; status.className = cls || ''; }
+
+function loadScene() {
+    sceneToken++;
+    const token = sceneToken;
+
+    timers.forEach(clearTimeout); timers = [];
+    realLayer.innerHTML = '';
+    nodes = []; loadedCount = 0;
+
+    const q = parseFloat(qualitySlider.value);
+    const useCache = cacheToggle.checked;
+    const data = generateData();
+
+    board.style.width = BOARD_W + 'px';
+    board.style.height = BOARD_H + 'px';
+
+    if (useCache) {
+        usingBitmap = true;
+        bmp.style.display = 'block';
+        bmp.style.opacity = '1';
+        realLayer.style.opacity = '0';
+        setStatus('建立快取中…', 'building');
+        buildBitmap(data, q, token).then(() => {
+            if (token === sceneToken && usingBitmap) setStatus('目前渲染：全局 Bitmap 快取', '');
+        });
+    } else {
+        usingBitmap = false;
+        bmp.style.display = 'none';
+        realLayer.style.opacity = '1';
+        setStatus('目前渲染：真實 DOM 層', 'real');
+    }
+
+    // 真實 DOM 節點（在快取底下持續 loading）
+    data.forEach((d, i) => {
+        const el = document.createElement('div');
+        el.className = 'img-node';
+        el.style.transform = `translate(${d.x}px, ${d.y}px)`;
+
+        const imgEl = document.createElement('img');
+        const textEl = document.createElement('div');
+        textEl.className = 'loading-text';
+        textEl.textContent = 'Supabase Fetching…';
+        el.append(textEl, imgEl);
+        realLayer.appendChild(el);
+        nodes.push({ ...d, el, imgEl, textEl });
+
+        const delay = 1000 + Math.random() * 3000;
+        timers.push(setTimeout(() => {
+            const hd = new Image();
+            hd.onload = () => {
+                if (token !== sceneToken) return;
+                imgEl.src = d.url;
+                imgEl.style.opacity = 1;
+                textEl.style.display = 'none';
+                if (++loadedCount === N && waitToggle.checked) switchToReal();
+            };
+            hd.src = d.url;
+        }, delay));
+    });
+
+    updateTransform();
+}
+
+// 快取 → 真實 DOM，交叉淡出，避免硬切
+function switchToReal() {
+    if (!usingBitmap) return;
+    usingBitmap = false;
+    realLayer.style.transition = 'opacity .25s ease';
+    realLayer.style.opacity = '1';
+    bmp.style.opacity = '0';
+    setTimeout(() => { if (!usingBitmap) bmp.style.display = 'none'; }, 260);
+    setStatus('目前渲染：真實 DOM 層', 'real');
+}
+
+function onInteract() {
+    if (waitToggle.checked && loadedCount < N) return; // 等載完模式下不因互動切換
+    switchToReal();
+}
+
+function updateTransform() {
+    board.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+}
+
+viewport.addEventListener('mousedown', e => {
+    if (e.target.closest('#toolbar')) return;
+    isDragging = true;
+    startX = e.clientX - translateX;
+    startY = e.clientY - translateY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    translateX = e.clientX - startX;
+    translateY = e.clientY - startY;
+    updateTransform();
+    onInteract();
+});
+viewport.addEventListener('wheel', e => {
+    if (e.target.closest('#toolbar')) return;
+    e.preventDefault();
+    const delta = e.deltaY * 0.0015;
+    let ns = Math.max(0.1, Math.min(scale * (1 - delta), 5));
+    const rect = viewport.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    translateX = mx - (mx - translateX) * (ns / scale);
+    translateY = my - (my - translateY) * (ns / scale);
+    scale = ns;
+    updateTransform();
+    onInteract();
+}, { passive: false });
+
+qualitySlider.addEventListener('input', () => {
+    qualityVal.textContent = Math.round(qualitySlider.value * 100) + '%';
+});
+qualitySlider.addEventListener('change', loadScene);
+cacheToggle.addEventListener('change', loadScene);
+reloadBtn.addEventListener('click', loadScene);
+
+loadScene();
+</script>
+</body>
+</html>

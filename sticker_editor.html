@@ -166,7 +166,9 @@ input[type=color]{width:100%;height:26px;padding:0;border:1px solid var(--line);
 .shp:hover{border-color:var(--accent);background:var(--accent-soft)}
 .shp svg{width:100%;height:22px}
 .shp span{font-size:8.5px;font-weight:700;color:var(--muted)}
-.artwrap{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+/* ⚠️ 兩軸都要 safe center：置中的排法在溢出時是往**兩邊**溢的，畫板放大到比這裡還大
+   的時候，上緣和左緣那一截會捲不到（捲動已經在 0，畫面上卻是從中間開始）。 */
+.artwrap{flex:1;min-width:0;display:flex;flex-direction:column;align-items:safe center;justify-content:safe center;gap:10px;
   background:repeating-conic-gradient(#eef1f5 0 25%,#fff 0 50%) 0 0/18px 18px;padding:14px;overflow:auto;position:relative}
 #art{position:relative;background:transparent;flex-shrink:0}
 .gd{position:absolute;background:#ff2e93;pointer-events:none;z-index:40}
@@ -181,6 +183,13 @@ input[type=color]{width:100%;height:26px;padding:0;border:1px solid var(--line);
 #art::before{content:'';position:absolute;inset:0;z-index:-1;
   background:repeating-conic-gradient(#e9edf2 0 25%,#fff 0 50%) 0 0/14px 14px}
 #art.dragover{outline:3px dashed var(--accent);outline-offset:4px}
+/* 現在放多大。只在不是原尺寸時出現 —— 永遠寫著 100% 的話它只是一塊擋住畫板的字，
+   而過一陣子回來發現貼紙「變大了」的時候，第一個念頭會是自己把它拉大了。 */
+.artzoom{position:absolute;right:9px;bottom:9px;z-index:50;display:none;
+  font:800 11px var(--mono);color:#fff;background:rgba(18,22,28,.72);
+  padding:3px 8px;border-radius:11px;cursor:pointer;user-select:none}
+.artzoom.on{display:block}
+.artzoom:hover{background:var(--accent)}
 #art .lyr{pointer-events:auto;cursor:move}
 #art .lyr.hidden{display:none}
 #art .lyr.lock{cursor:not-allowed}
@@ -239,6 +248,13 @@ html.embed .lib-add{width:118px;height:118px;font-size:11px}
 html.embed .lib-add .p{font-size:24px}
 /* 浮層外面已經寫著「貼紙庫」了，這裡不必再寫第二次 */
 html.embed .lib-top .tag{display:none}
+/* 同步要跟人講的話（「剛剛有人也改過這張」「連不上」）。log 在浮層裡是藏著的，
+   而這幾句是使用者要知道的事，不是除錯訊息。 */
+.rflash{position:fixed;left:50%;bottom:18px;transform:translate(-50%,8px);z-index:960;
+  max-width:min(520px,90vw);background:var(--cons-bg);color:#fff;font-size:12.5px;font-weight:700;
+  padding:8px 14px;border-radius:9px;box-shadow:0 8px 26px rgba(0,0,0,.25);
+  opacity:0;pointer-events:none;transition:opacity .18s,transform .18s}
+.rflash.on{opacity:1;transform:translate(-50%,0)}
 </style>
 <script>
 /* 被主程式的浮層請進來就換一種穿法（見 stylesheet 最後那一段）。
@@ -311,7 +327,7 @@ if (new URLSearchParams(location.search).get('embed') === '1')
     </div>
     <div class="artwrap">
       <div id="art"></div>
-
+      <div class="artzoom" id="artZoom" title="點一下回到原尺寸">100%</div>
     </div>
     <div class="side">
       <div style="padding:7px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px">
@@ -329,6 +345,7 @@ if (new URLSearchParams(location.search).get('embed') === '1')
 </div></div>
 
 <div class="dropnote" id="dropnote"></div>
+<div class="rflash" id="rflash"></div>
 <div class="imp" id="imp"><div class="impbox">
   <div class="ih">匯入預覽</div>
   <div class="ib" id="impBody"></div>
@@ -341,6 +358,10 @@ if (new URLSearchParams(location.search).get('embed') === '1')
 
 
 
+<!-- 共用的貼紙庫走主程式那一套資料層。兩支都是選配的：config.js 是空的（測試模式）
+     PlanSync.ok() 就回 false，這一頁照舊只存這台瀏覽器。 -->
+<script src="config.js"></script>
+<script src="supabase-sync.js"></script>
 <script src="sticker-render.js"></script>
 <script>
 /* ════════ 0. SQL 引擎 ════════ */
@@ -398,6 +419,7 @@ function dbInsert(table,obj){
   const cols=DB.schema[table];
   pushLog('INSERT',`INSERT INTO ${table} (${cols.join(', ')})\n  VALUES (${cols.map(c=>lit(shortV(c,row[c]))).join(', ')});`,
     `1 row · ${(performance.now()-t0).toFixed(2)}ms`);
+  if(table==='sticker_lib')remoteTouch(row.id,'put');
   syncViews();persist('INSERT');return row;
 }
 function dbUpdate(table,id,patch,tag){
@@ -409,11 +431,14 @@ function dbUpdate(table,id,patch,tag){
   row.updated_at=iso(now());
   pushLog('UPDATE',`UPDATE ${table} SET ${Object.keys(ch).map(k=>k+' = '+lit(shortV(k,ch[k]))).join(', ')}, updated_at = ${lit(row.updated_at)}\n  WHERE id = ${id};`,
     `1 row · ${(performance.now()-t0).toFixed(2)}ms${tag?' · '+tag:''}`);
+  if(table==='sticker_lib')remoteTouch(id,'put');
   syncViews();persist('UPDATE');return row;
 }
 function dbDelete(table,id){
   const i=DB[table].findIndex(r=>r.id===id);if(i<0)return;
-  DB[table].splice(i,1);pushLog('DELETE',`DELETE FROM ${table} WHERE id = ${id};`,'1 row');syncViews();persist('DELETE');
+  DB[table].splice(i,1);pushLog('DELETE',`DELETE FROM ${table} WHERE id = ${id};`,'1 row');
+  if(table==='sticker_lib')remoteTouch(id,'del');
+  syncViews();persist('DELETE');
 }
 function deleteSticker(id){
   const f=DB.sticker_fields.filter(x=>x.sticker_id===id);
@@ -429,8 +454,9 @@ function deleteSticker(id){
 const {rr,starPath,shapeInner,FONTS,wrapByCount,hasLabel,contentOf,styleOf,
        textLayers,layerHTML,renderTemplate,measureText,growShapes,fitTexts,
        applyVals,assetKeysOf}=StickerRender;
-/* 圖片圖層去哪裡拿：這一頁自己那份 ASSETS（在下面才宣告，但呼叫的時候早就有了）。 */
-StickerRender.resolveAsset=k=>ASSETS[k]||'';
+/* 圖片圖層去哪裡拿：這一頁自己那份 ASSETS（在下面才宣告，但呼叫的時候早就有了），
+   沒有就是已經傳上 Storage 的那一張（見 §10.5：傳上去的圖不再留在 localStorage）。 */
+StickerRender.resolveAsset=k=>ASSETS[k]||remoteAssetUrl(k);
 const SHAPES={
   rect:{n:'方框',r:.5},pill:{n:'膠囊',r:.3},circle:{n:'橢圓',r:1},
   triangle:{n:'三角',r:.9},diamond:{n:'菱形',r:1},hex:{n:'六角',r:.9},
@@ -571,7 +597,7 @@ function renderCats(){
     b.onclick=()=>{activeCat=c;renderCats();renderLib();};catsEl.appendChild(b);});
 }
 $('addCat').onclick=()=>{const n=prompt('新分類名稱：');if(!n||CATS.includes(n))return;
-  CATS.push(n);activeCat=n;renderCats();renderLib();fillCatSel();};
+  CATS.push(n);activeCat=n;renderCats();renderLib();fillCatSel();remoteCats();};
 function renderLib(){
   libItems.innerHTML='';
   const add=document.createElement('div');
@@ -611,6 +637,7 @@ function addAsset(file,cb){
       const key='sha256-'+h.slice(0,40)+'.'+extOf(file.type);
       const dup=!!ASSETS[key];
       if(!dup)ASSETS[key]=dataURL;
+      remoteUploadAsset(key).catch(()=>{});   // 失敗沒關係，存檔送出去的時候會再補一次
       note(dup?`asset 已存在，直接重用 ${key}`:`asset 入庫 ${key}（內容雜湊當 key，同一張圖不會存第二份）`);
       const img=new Image();
       img.onload=()=>cb(key,r4(img.height/img.width));
@@ -666,7 +693,11 @@ window.addEventListener('drop',e=>{
 /* ════════ 5. 圖層編輯器 ════════ */
 const ov=$('ov'),art=$('art');
 let E=null;                 // {libId,tpl,name,cat,sel}
-const ART_W=380;
+/* 畫板畫出來多寬。**只是把畫面拉近看** —— 每一層的位置都記成「佔畫板的幾成」，
+   所以畫大一點只是同一份東西畫得比較大，存出去的貼紙一點都不會變。 */
+const ART_W0=380;
+let artZoom=1, ART_W=ART_W0;
+const ARTWRAP=document.querySelector('.artwrap');
 const selLayer=()=>E&&E.tpl.layers.find(l=>l.id===E.sel);
 function fillCatSel(){$('dCat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');}
 function openEditor(row,img){
@@ -681,7 +712,8 @@ function openEditor(row,img){
     $('dTitle').textContent=img?'以 PNG 為底 · 疊上可變文字':'新貼紙';
   }
   fillCatSel();$('dName').value=E.name;$('dCat').value=E.cat;
-  renderShapeRail();drawArt();renderLayerList();renderInspect();
+  artZoom=1;ART_W=ART_W0;ARTWRAP.scrollLeft=ARTWRAP.scrollTop=0;
+  renderShapeRail();drawArt();syncArtZoom();renderLayerList();renderInspect();
   ov.classList.add('open');
 }
 const PICK=['rect','pill','circle','triangle','diamond','hex','arrow','burst','star','seal'];
@@ -747,6 +779,35 @@ art.addEventListener('drop',e=>{
     addLayer(newShapeLayer(kind,clamp(rx-w/2,0,1-w),clamp(ry-h/2,0,1-h),w,h));
   }
 });
+
+/* ══ 滾輪縮放畫板 ══
+   ⚠️ 釘住游標下那一點的做法是**先重畫、再量一次差多少去補捲動位置**，不是用
+   「以捲動原點等比例放大」算出來的：這裡外面有一圈 padding、而且是置中排的，
+   用算的一定偏。（跟主程式 總體 那一頁同一種做法。） */
+function syncArtZoom(){
+  const b=$('artZoom'); if(!b)return;
+  b.textContent=Math.round(artZoom*100)+'%';
+  b.classList.toggle('on',Math.abs(artZoom-1)>.001);
+}
+function setArtZoom(z,ax,ay){
+  const nz=clamp(z,.25,4);
+  if(Math.abs(nz-artZoom)<.001)return;
+  const before=art.getBoundingClientRect();
+  if(ax==null){ax=before.left+before.width/2;ay=before.top+before.height/2;}
+  const fx=before.width?(ax-before.left)/before.width:.5;
+  const fy=before.height?(ay-before.top)/before.height:.5;
+  artZoom=nz; ART_W=Math.round(ART_W0*artZoom);
+  drawArt(); syncArtZoom();
+  const after=art.getBoundingClientRect();
+  ARTWRAP.scrollLeft+=(after.left+fx*after.width)-ax;
+  ARTWRAP.scrollTop +=(after.top +fy*after.height)-ay;
+}
+ARTWRAP.addEventListener('wheel',e=>{
+  if(!E)return;
+  e.preventDefault();
+  setArtZoom(artZoom*(e.deltaY<0?1.1:1/1.1),e.clientX,e.clientY);
+},{passive:false});
+$('artZoom').onclick=()=>setArtZoom(1,null,null);
 /* 選取 / 變形 */
 /* ══ 對齊磁吸 ══
    吸附目標＝畫板的左/中/右、上/中/下，加上其他每個可見圖層的三條垂直線與三條水平線。
@@ -1352,7 +1413,8 @@ function applyFieldLive(fid){
 function syncViews(){}
 function download(n,t,ty){const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([t],{type:ty||'text/plain'}));a.download=n;a.click();URL.revokeObjectURL(a.href);}
-$('btnJson').onclick=()=>{
+$('btnJson').onclick=async()=>{
+  await remoteFillAssets(allUsedAssets());
   const used=allUsedAssets(),assets={};
   used.forEach(k=>{if(ASSETS[k])assets[k]=ASSETS[k];});          // 這次把圖真的內嵌進去
   const body={format:'sticker-pack-single',schema_version:SCHEMA_VERSION,exported_at:iso(now()),
@@ -1467,6 +1529,7 @@ function safeName(n){return String(n).replace(/[\\/:*?"<>|\s]+/g,'_').slice(0,40
 async function buildStickerZip(row){
   const enc=new TextEncoder(),files=[];
   const keys=[...assetKeysOf(row.template)];
+  await remoteFillAssets(keys);
   const missing=keys.filter(k=>!ASSETS[k]);
   // 沒有 manifest：單張包＝有 db/sticker_lib.json；整包＝底下有 stickers/*.zip
   files.push({name:'db/sticker_lib.json',data:enc.encode(JSON.stringify([row],null,2))});
@@ -1609,6 +1672,7 @@ $('impGo').onclick=()=>{
     }else map[r.id]=dbInsert('sticker_lib',Object.assign({id:r.id},body)).id;
   });
   PENDING=null;selId=null;
+  remoteCats();
   renderCats();fillCatSel();renderLib();renderStickers();
   note(`匯入完成 · 新增 ${rep.add.length} 張`+(skipped?`、略過已存在 ${skipped} 張`:'')+
     (ovw&&rep.over.length?`、覆蓋 ${rep.over.length} 張`:'')+(rep.missing.length?` · ⚠ 缺圖 ${rep.missing.length} 個`:''));
@@ -1647,7 +1711,9 @@ function doPersist(reason){
   const db=JSON.stringify({v:SCHEMA_VERSION,cats:CATS,
     sticker_lib:DB.sticker_lib,stickers:DB.stickers,sticker_fields:DB.sticker_fields});
   const used=allUsedAssets(),keep={};
-  used.forEach(k=>{if(ASSETS[k])keep[k]=ASSETS[k];});   // 只留還有人引用的圖
+  /* 只留還有人引用、而且**還沒傳上 Storage** 的圖 —— 傳上去的那幾張留在這裡，
+     就是 localStorage 5MB 那個上限原封不動地還在。 */
+  used.forEach(k=>{if(ASSETS[k]&&!UPLOADED.has(k))keep[k]=ASSETS[k];});
   const assets=JSON.stringify(keep);
   try{
     localStorage.setItem(LSK.db,db);
@@ -1707,7 +1773,7 @@ function restore(){
       try{r.preview=previewSVG(tplOf(r),600);baked++;}catch(e){}
     });
     if(baked)doPersist('backfill preview');   // 直接寫，不透過 persist()——開機時 booting 還是 true，debounce 版本會被吞掉
-    const miss=[...allUsedAssets()].filter(k=>!ASSETS[k]);
+    const miss=remote()?[]:[...allUsedAssets()].filter(k=>!ASSETS[k]);   // 接了後端，本機沒有的圖在 Storage 上
     pushLog('NOTE',`-- 從 localStorage 復原 · ${DB.sticker_lib.length} 張貼紙 · ${DB.stickers.length} 個擺放 · ${DB.sticker_fields.length} 筆文字 · ${ac} 張圖`+
       (miss.length?` · ⚠ ${miss.length} 張圖遺失`:''),'','note');
     if(miss.length)note('有圖片沒存進來（多半是之前超過 localStorage 容量），那些圖層會是空白');
@@ -1721,11 +1787,250 @@ function restore(){
   }
 }
 function wipeStorage(){
-  if(!confirm('清掉瀏覽器裡的存檔，回到出廠的預設貼紙。\n目前的貼紙如果還沒匯出就會消失，確定嗎？'))return;
-  try{localStorage.removeItem(LSK.db);localStorage.removeItem(LSK.assets);}catch(e){}
+  const msg=remote()
+    ?'清掉這台電腦上的快取，重新從共用的貼紙庫拉一份。\n還沒送上去的改動會不見，確定嗎？'
+    :'清掉瀏覽器裡的存檔，回到出廠的預設貼紙。\n目前的貼紙如果還沒匯出就會消失，確定嗎？';
+  if(!confirm(msg))return;
+  /* ⚠️ 「還沒送出去」那份清單要一起清：留著的話重整之後它會照著清單去送 ——
+     而那幾張已經不在這台電腦上了。 */
+  try{localStorage.removeItem(LSK.db);localStorage.removeItem(LSK.assets);localStorage.removeItem(RLSK.pending);}catch(e){}
   location.reload();
 }
 window.addEventListener('beforeunload',()=>{if(saveTimer){clearTimeout(saveTimer);doPersist('unload');}});
+
+/* ════════ 10.5 共用：伺服器上那一份（Supabase） ════════
+   貼紙庫以前只活在這台瀏覽器：設計 A 做的貼紙設計 B 看不到，圖一多 localStorage 就滿。
+   現在兩層，跟主程式的檔期同一套：localStorage 是本機快取（秒開、斷網也還在），
+   伺服器上那一份才是大家共用的。沒接後端（config.js 空的、測試模式）整段不跑 ——
+   跟以前一模一樣，這也是 rollback。
+   ・一張貼紙一列：兩個人各做各的貼紙寫的是不同的列，沒有東西要合併。
+     同一張被兩個人改＝用後存的那份，講一句（貼紙很小，重做很快）。
+   ・圖進 Storage，檔名就是本來那個內容雜湊。localStorage 只留還沒傳上去的那幾張。
+   ・縮圖存成烤好的一張圖的網址（為什麼不能再是 SVG，見 bakePreview）。
+   ・練習版面（stickers／sticker_fields）不上去：那只是試貼用的，被主程式請進來時本來就藏著。 */
+const RLSK={pending:'stk.pending',joined:'stk.remote'};
+const remote=()=>(window.PlanSync&&PlanSync.ok()&&PlanSync.pullStickerLib)?PlanSync:null;
+const UPLOADED=new Set();        // 這一趟確定已經在 Storage 上的圖：不必再傳，也不必再存本機
+/* 還沒送出去的：id → 'put'（寫上去）／'del'（標記刪掉）。存在 localStorage，
+   關掉分頁再開也還記得要補送。
+   ⚠️ 刪除一定要**明講**，不能從「清單上有、本機卻沒有這一張」推出來：本機的存檔
+   讀壞了、或剛清過快取，那幾張也會「不在本機」—— 用推的就會把共用庫裡的貼紙刪掉。 */
+let rPending=new Map(), rTimer=0, rBusy=null, rWarned=false, rCatsDirty=false, rReady=false;
+try{Object.entries(JSON.parse(localStorage.getItem(RLSK.pending))||{}).forEach(([k,v])=>rPending.set(k,v));}catch(e){}
+function savePending(){try{localStorage.setItem(RLSK.pending,JSON.stringify(Object.fromEntries(rPending)));}catch(e){}}
+
+function remoteAssetUrl(k){const R=remote();return R&&k?R.stickerFileUrl('assets/'+k):'';}
+function remoteTouch(id,op){
+  if(!remote()||booting||!id)return;     // 開機灌預設貼紙那一段不算（要不要傳上去由 remoteBoot 決定）
+  rPending.set(id,op);savePending();remoteSoon();
+}
+function remoteCats(){if(!remote()||booting)return;rCatsDirty=true;remoteSoon();}
+function remoteSoon(ms){clearTimeout(rTimer);rTimer=setTimeout(()=>{rTimer=0;remoteFlush();},ms==null?500:ms);}
+
+let flashT=0;
+function flash(t){
+  const el=$('rflash');note(t);if(!el)return;
+  el.textContent=t;el.classList.add('on');
+  clearTimeout(flashT);flashT=setTimeout(()=>el.classList.remove('on'),4200);
+}
+/* 誰改的：主程式跟這一頁同一個網站，登入的是誰就寫在它那兩把鑰匙裡。單獨打開這一頁就沒有。 */
+function whoName(){
+  try{const id=localStorage.getItem('board_user_at_v1');
+    const u=(JSON.parse(localStorage.getItem('board_users_v1'))||[]).find(x=>x.id===id);
+    return u?u.name:null;}catch(e){return null;}
+}
+const isUrl=v=>/^https?:\/\//.test(String(v||''));
+function blobDataURL(b){return new Promise((res,rej)=>{const fr=new FileReader();
+  fr.onload=()=>res(fr.result);fr.onerror=()=>rej(fr.error);fr.readAsDataURL(b);});}
+
+async function remoteUploadAsset(k){
+  const R=remote(),d=String(ASSETS[k]||'');
+  if(!R||UPLOADED.has(k)||!d.startsWith('data:'))return;
+  const mime=(d.match(/^data:([^;,]+)/)||[])[1]||'image/png';
+  await R.uploadStickerFile('assets/'+k,new Blob([dataURLBytes(d)],{type:mime}));
+  UPLOADED.add(k);
+}
+/* 匯出、烤縮圖要的是位元組，而傳上去的圖不在本機：抓回來放進 ASSETS（標成已上傳，
+   所以不會因此又被寫回 localStorage）。抓不到的就讓它缺著，跟以前「缺圖」同一條路。 */
+async function remoteFillAssets(keys){
+  const R=remote();if(!R)return;
+  await Promise.all([...keys].map(async k=>{
+    if(ASSETS[k])return;
+    try{const r=await fetch(R.stickerFileUrl('assets/'+k));if(!r.ok)return;
+      ASSETS[k]=await blobDataURL(await r.blob());UPLOADED.add(k);}catch(e){}
+  }));
+}
+
+/* 縮圖為什麼要烤成一張圖：以前 preview 是一段 SVG，圖片直接寫成 data: 包在裡面，
+   拿去 <img src> 就畫得出來。圖改放 Storage 之後那段 SVG 裡只剩網址 ——
+   而 **SVG 被當成 <img> 畫的時候不會去載任何外部資源**（跟主程式整本預覽
+   foreignObject 那一條同一個坑），圖片圖層會整片空白。
+   所以送上去之前：圖抓回來內嵌 → 畫到 canvas → 烤成一張圖傳上去，列裡只留網址。
+   檔名也是內容雜湊：沒改過的貼紙每次烤出同一個名字，不會愈傳愈多。 */
+async function bakePreview(row){
+  const R=remote();if(!R)return null;
+  const tpl=tplOf(row);
+  await remoteFillAssets(assetKeysOf(row.template));
+  const svg=previewSVG(tpl,600);
+  const blob=await new Promise((res,rej)=>{
+    const im=new Image();
+    im.onload=()=>{try{
+      const c=document.createElement('canvas');
+      c.width=im.naturalWidth||600;c.height=im.naturalHeight||Math.max(1,Math.round(600*tpl.ratio));
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      c.toBlob(b=>b?res(b):rej(new Error('縮圖烤不出來')),'image/webp',.9);   // 不支援 webp 的瀏覽器會自己給 png
+    }catch(e){rej(e);}};
+    im.onerror=()=>rej(new Error('縮圖的 SVG 讀不進來'));
+    im.src='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+  });
+  const h=await hashBytes(new Uint8Array(await blob.arrayBuffer()));
+  return R.uploadStickerFile('previews/sha256-'+h.slice(0,40)+'.'+extOf(blob.type),blob);
+}
+
+function serverRow(row){
+  return {id:row.id,name:row.name||'',category:row.category||'',ratio:Number(row.ratio)||null,
+    layer_count:row.layer_count,text_layers:row.text_layers,template:row.template,
+    /* 還沒烤成網址的就不送這一欄（merge-duplicates 只改有送的欄位）：
+       送 SVG 上去等於把圖的 base64 又塞回資料庫，送 null 會把上一次烤好的那張蓋掉。 */
+    preview:isUrl(row.preview)?row.preview:undefined,
+    created_at:row.created_at||undefined,updated_by:whoName()||undefined};
+}
+
+async function remoteFlush(opt){
+  const R=remote();if(!R)return;
+  /* 頁面正在關（浮層收起來 → iframe 換成 about:blank）：只剩一發的機會。
+     每一筆都要在**同一個同步段落裡**發出去 —— 第一個 await 之後的東西不會再跑。
+     不烤縮圖、不傳圖（那些要好幾趟來回），清單也不清：下次打開會照清單再送一次，
+     送兩次是同一份東西，沒有害處。 */
+  if(opt&&opt.keepalive){
+    rPending.forEach((op,id)=>{
+      const row=DB.sticker_lib.find(r=>r.id===id);
+      if(op==='del')R.removeSticker(id,{keepalive:true}).catch(()=>{});
+      else if(row)R.writeSticker(serverRow(row),{keepalive:true}).catch(()=>{});
+    });
+    return;
+  }
+  if(rBusy){remoteSoon(400);return;}     // 上一批還在路上：等它送完再來，不然同一張會同時送兩份
+  if(!rPending.size&&!rCatsDirty)return;
+  rBusy=(async()=>{
+    let cur=null;
+    try{
+      if(rCatsDirty){rCatsDirty=false;await R.writeStickerCats(CATS.slice());}
+      for(const [id,op] of [...rPending]){
+        cur=[id,op];
+        /* 先拿掉再送：送的途中又被改了一次的話，remoteTouch 會把它放回來，下一輪再送 ——
+           送完才拿掉的話，那一次新的改動就跟著被拿掉了。 */
+        rPending.delete(id);
+        const row=DB.sticker_lib.find(r=>r.id===id);
+        if(op==='del'){await R.removeSticker(id);savePending();continue;}
+        if(!row){savePending();continue;}          // 寫上去之前本機又刪掉了：那一筆 'del' 會自己來
+        await Promise.all([...assetKeysOf(row.template)].map(remoteUploadAsset));
+        if(!isUrl(row.preview)){
+          try{const u=await bakePreview(row);if(u){row.preview=u;persist('preview');}}
+          catch(e){pushLog('ERROR','-- 縮圖烤不出來，這一張先沒有縮圖：'+e.message,'');}
+        }
+        const res=await R.writeSticker(serverRow(row));
+        if(res&&res.row)row.updated_at=res.row.updated_at;
+        savePending();
+        if(res&&res.clobbered)flash(`「${row.name}」剛剛也有人改過 —— 存的是你這一份`);
+      }
+      cur=null;rWarned=false;
+    }catch(e){
+      if(cur&&!rPending.has(cur[0]))rPending.set(cur[0],cur[1]);
+      savePending();
+      if(!rWarned){rWarned=true;
+        pushLog('ERROR','-- 貼紙庫同步失敗，這次的改動先存在這台電腦：'+e.message,'');
+        flash('連不上共用的貼紙庫 —— 改動先存在這台電腦，連上之後會自己補送');}
+    }finally{rBusy=null;}
+  })();
+  return rBusy;
+}
+
+const byCreated=(a,b)=>String(a.created_at||'').replace('T',' ').localeCompare(String(b.created_at||'').replace('T',' '));
+function fromServer(r){
+  return {id:r.id,name:r.name||'',category:r.category||'',ratio:Number(r.ratio)||.4,
+    layer_count:r.layer_count,text_layers:r.text_layers,template:r.template,preview:r.preview||'',
+    created_at:r.created_at,updated_at:r.updated_at};
+}
+/** 換成伺服器上那一份。還沒送出去的（清單上有的）用本機這一份。 */
+function applyServer(got){
+  const onServer=new Set(got.rows.map(r=>r.id));
+  const mine=new Map(DB.sticker_lib.map(r=>[r.id,r]));
+  const next=[];
+  got.rows.forEach(r=>{
+    const op=rPending.get(r.id);
+    if(op==='put'){if(mine.has(r.id))next.push(mine.get(r.id));return;}
+    if(op==='del'||r.deleted_at)return;
+    next.push(fromServer(r));
+  });
+  // 伺服器上還沒有、正在路上的那幾張
+  DB.sticker_lib.forEach(r=>{if(!onServer.has(r.id)&&rPending.get(r.id)==='put')next.push(r);});
+  next.sort(byCreated);
+  DB.sticker_lib=next;
+  got.cats.concat(next.map(r=>r.category)).forEach(c=>{if(c&&!CATS.includes(c))CATS.push(c);});
+}
+
+/* 出廠的預設貼紙長什麼樣。每台瀏覽器第一次打開都各灌了一份，而圖層 id 是亂數 ——
+   所以比的時候把 id 拿掉，只比名字和圖層內容。 */
+function presetSig(name,tpl){
+  return name+'|'+JSON.stringify({r:tpl.ratio,l:(tpl.layers||[]).map(l=>{const o=Object.assign({},l);delete o.id;return o;})});
+}
+const PRESET_SIGS=new Set(PRESETS.map(p=>presetSig(p.name,{ratio:p.ratio,layers:p.layers})));
+function isStockPreset(r){try{return PRESET_SIGS.has(presetSig(r.name,tplOf(r)));}catch(e){return false;}}
+
+async function remoteBoot(){
+  const R=remote();if(!R)return;
+  let got;
+  try{got=await R.pullStickerLib();}
+  catch(e){pushLog('ERROR','-- 共用貼紙庫拉不到：'+e.message,'');
+    flash('連不上共用的貼紙庫 —— 先用這台電腦上的');return;}
+  if(!got){flash('伺服器上還沒有貼紙庫的表（schema.sql 還沒跑）—— 先用這台電腦上的');return;}
+
+  /* 這台瀏覽器第一次接上這個專案：本機有、共用庫沒有的貼紙要不要傳上去。
+     認的是「哪一個 Supabase 專案」，換一個專案就要重新搬一次。
+     ・預設貼紙：只有共用庫還是空的時候才傳（伺服器上只建一次）。每台瀏覽器都各灌了一份，
+       全部照傳的話共用庫裡會有「每台電腦一份爆炸狂降」。
+     ・自己做的：先問一句。直接雙擊 HTML 打開的那一份也連著正式資料，
+       那台瀏覽器裡試做的貼紙不該不聲不響就變成全公司的。 */
+  const joinKey=R.stickerFileUrl('');
+  let joined=null;try{joined=localStorage.getItem(RLSK.joined);}catch(e){}
+  if(joined!==joinKey){
+    const onServer=new Set(got.rows.map(r=>r.id));
+    const mine=DB.sticker_lib.filter(r=>!onServer.has(r.id)&&!rPending.has(r.id));
+    const custom=mine.filter(r=>!isStockPreset(r));
+    const take=got.rows.length?[]:mine.filter(isStockPreset);
+    if(custom.length){
+      const names=custom.slice(0,5).map(r=>'・'+r.name).join('\n')+(custom.length>5?`\n…還有 ${custom.length-5} 張`:'');
+      if(confirm(`這台電腦裡有 ${custom.length} 張共用貼紙庫還沒有的貼紙：\n${names}\n\n要傳上去讓大家都用得到嗎？\n（按「取消」＝不傳，這台電腦上的舊存檔另外留一份備份）`))
+        take.push(...custom);
+      else{
+        try{localStorage.setItem(LSK.db+'.local-backup',localStorage.getItem(LSK.db)||'');}catch(e){}
+        try{localStorage.setItem(LSK.assets+'.local-backup',localStorage.getItem(LSK.assets)||'');}catch(e){}
+        note('沒有傳上去的舊存檔留在 '+LSK.db+'.local-backup');
+      }
+    }
+    take.forEach(r=>rPending.set(r.id,'put'));
+    savePending();
+    rCatsDirty=true;
+    try{localStorage.setItem(RLSK.joined,joinKey);}catch(e){}
+    if(take.length)note(`接上共用貼紙庫 · 傳上去 ${take.length} 張`);
+  }
+
+  applyServer(got);
+  rReady=true;
+  doPersist('共用貼紙庫');
+  renderCats();fillCatSel();renderLib();
+  if(rPending.size||rCatsDirty)remoteFlush();
+}
+/* 單獨開著這一頁的時候，切回來再問一次（被主程式請進浮層的那一種每次打開都是重新載入）。 */
+async function remoteRefresh(){
+  const R=remote();if(!R||!rReady||rBusy)return;
+  try{const got=await R.pullStickerLib();if(!got||!got.changed)return;
+    applyServer(got);doPersist('共用貼紙庫');renderCats();fillCatSel();renderLib();}catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')remoteRefresh();});
+window.addEventListener('online',()=>{remoteSoon(0);remoteRefresh();});
+window.addEventListener('pagehide',()=>{if(remote()&&rPending.size)remoteFlush({keepalive:true});});
 
 /* ════════ 11. 開機 ════════ */
 if(restore()){
@@ -1743,6 +2048,7 @@ booting=false;
 renderCats();fillCatSel();renderLib();buildGrid();
 if(!localStorage.getItem(LSK.db))doPersist('first boot');
 note('ready · 「＋新貼紙」開圖層編輯器；貼紙拖進貼紙庫＝匯入，圖片＝開新貼紙');
+remoteBoot();                     // 不 await：共用庫慢或掛掉，這一頁照樣先用本機那一份開起來
 </script>
 </body>
 </html>

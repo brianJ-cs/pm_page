@@ -64,11 +64,18 @@ netlify deploy --no-build --dir public \
 要給外人試、或不想被亂寫，發 demo 那一份：
 
 ```bash
-node deploy.mjs review --demo     # 發 out/demo，config.js 是佔位符
+node deploy.mjs review --demo     # 發 out/demo，config.js 是唯讀的那一份
 ```
 
-那一份 `PlanSync.ok()` 回 false，整支走 `localStorage`，碰不到公司資料。
-（`out/demo` 的 config.js 是手工換過的，所以 `--demo` 不會重新 build，別把它 build 蓋掉。）
+那一份的 config.js 是正式的網址和 anon key **加上 `readOnly: true`**：`PlanSync.ok()` 回 false，
+檔期、便利貼、貼紙庫、上傳全部只存看的人自己的瀏覽器，碰不到公司資料；
+但**商品目錄、商品圖、品牌 Logo 照樣讀得到**（`canRead()`）。給人看的時候網址後面加 `?seed=1` 才有示範檔期。
+⚠️ **不要用佔位符**（整個不接）：2026-09-10 發過兩份，商品目錄整片空白、挑貨清單只剩內建那十幾支，
+被當成「資料庫被清空了」。
+（`out/demo` 的 config.js 是手工換過的，所以 `--demo` 不會重新 build，別把它 build 蓋掉。
+要帶新程式進去：先 `node build-single.mjs`，再把 `public/` 除了 `config.js` 以外的檔案複製過去。）
+⚠️ `out/demo/logo_page/config.js` 是正式的 Logo 專案：示範版裡設計點得開 Logo 庫那一頁，
+那一頁自己連 supabase-js，**唯讀擋不到它**。
 
 ## 發完怎麼確認發對了
 

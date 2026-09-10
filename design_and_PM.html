@@ -1972,59 +1972,73 @@
     font-size:10.5px;color:var(--ink-dim);line-height:1.5;
   }
 
-  /* ---- 貼紙面板：拿起 貼圖 的時候，左邊那一欄整欄換成它 -------------------
-     照 Canva 那種排法：最左邊一排圖示（在這裡就是 拼板 的工具直條），旁邊
-     一整片素材，上面一條搜尋、底下分類。為什麼是接管這一欄、不另外開一片浮層：
-     右邊就是版面本人，浮在上面的盤子蓋住的正是你要貼的那幾格（取色盤當初站到
-     工具列左邊就是這個理由），而這一欄講的本來就是「先挑一樣東西，再回版上動手」。
-     縮圖統一是正方形、裡面的圖 object-fit:contain —— 貼紙本身長寬比不一，
-     容器一樣大才排得整齊。 */
-  #pmStack.at-stk #secPlans,#pmStack.at-stk #secMini{display:none}
-  #pmStack:not(.at-stk) #secStk{display:none}
-  #secStk{display:flex;flex-direction:column;min-height:0;padding-bottom:12px}
-  .stk-head{
-    display:flex;align-items:center;gap:7px;padding:9px 6px 8px;
-    font-size:12px;font-weight:800;letter-spacing:.06em;color:var(--muted);
+  /* ---- 貼紙：拿起 貼圖 的時候，版面底下長出一條 -----------------------------
+     照貼紙庫那一支底下那一櫃（sticker_editor.html 的 .lib）抄的：150px 高，上面一排
+     標籤＋分類，底下一排卡片左右捲。顏色換成這一支的名字：那邊的紅是它自己的主色，
+     這邊的藍是「你正在點的東西」，所以只有挑中的分類是藍的。
+     ⚠️ 2026-09-11 以前它接管左邊那一欄（Canva 那種排法）。拿掉的理由：那一欄講的是
+     「你在哪一本 DM、哪一塊」，拿著筆的時候照樣要看得到；而一排橫的卡片只吃掉版面
+     底下一截高度，版面的寬度一點都不動。 */
+  #stkDock{
+    display:none;flex:none;height:150px;flex-direction:column;
+    background:var(--surface);border-top:1px solid var(--line-strong);
   }
-  .stk-head .stk-x{
-    margin-left:auto;border:0;background:transparent;color:var(--ink-dim);
-    font-size:15px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;
+  #stkDock.on{display:flex}
+  .stk-top{
+    display:flex;align-items:center;gap:8px;padding:6px 13px;
+    border-bottom:1px solid var(--line);flex-wrap:wrap;
   }
-  .stk-search{
-    width:100%;padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;
-    background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;
-  }
-  .stk-search:focus{outline:none;border-color:var(--blue)}
+  .stk-tag{font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--muted)}
   /* 分類是一排藥丸：挑中的那一顆是藍的（藍＝你正在點的東西）。 */
-  .stk-cats{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+  .stk-cats{display:flex;flex-wrap:wrap;gap:6px}
   .stk-cat{
     border:1px solid var(--line-strong);background:var(--surface);color:var(--ink-dim);
-    border-radius:999px;padding:3px 9px;font:inherit;font-size:11px;font-weight:700;
+    border-radius:16px;padding:3px 11px;font:inherit;font-size:12px;font-weight:700;
     cursor:pointer;
   }
   .stk-cat:hover{border-color:var(--ink-dim);color:var(--ink)}
   .stk-cat.on{border-color:var(--blue);color:var(--blue);background:var(--accent-tint)}
-  .stk-lbl{
-    margin:12px 0 6px;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);
+  .stk-search{
+    margin-left:auto;width:170px;padding:4px 9px;border:1px solid var(--line-strong);
+    border-radius:7px;background:var(--surface);color:var(--ink);font:inherit;font-size:12px;
   }
-  .stk-grid{display:flex;flex-wrap:wrap;gap:6px}
-  /* 手勢寫著它拿得起來：這一片的主要用法就是把縮圖拖到格子上 */
+  .stk-search:focus{outline:none;border-color:var(--blue)}
+  .stk-x{
+    border:0;background:transparent;color:var(--ink-dim);
+    font-size:15px;line-height:1;cursor:pointer;padding:0 2px;font-family:inherit;
+  }
+  .stk-items{
+    flex:1;min-height:0;display:flex;align-items:center;gap:9px;padding:9px 13px;
+    overflow-x:auto;overflow-y:hidden;
+  }
+  /* 一張卡：上面縮圖、下面名字（貼紙庫那一櫃的 .lib-item）。縮圖一律同一個高、
+     寬照貼紙自己的比例 —— 貼紙長寬比差很多，一排橫的擺得下，不必塞進正方形。
+     手勢寫著它拿得起來：這一條的主要用法就是把卡片拖到格子上。 */
   .stk-th{
-    position:relative;width:82px;height:82px;padding:3px;border-radius:8px;cursor:grab;
-    border:1.5px solid var(--line-strong);background:var(--bg);
-    display:flex;align-items:center;justify-content:center;overflow:hidden;
+    flex:0 0 auto;height:86px;min-width:80px;max-width:150px;padding:6px 8px;
+    border:1px solid var(--line-strong);border-radius:9px;background:var(--surface);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    cursor:grab;font:inherit;transition:transform .12s,border-color .12s;
   }
-  .stk-th img{max-width:100%;max-height:100%;object-fit:contain}
-  .stk-th:hover{border-color:var(--ink-dim)}
-  /* 現在拿著的就是這一張：藍框（藍＝你正在點的東西），跟色盤挑色同一條規矩 */
-  .stk-th.on{border-color:var(--blue);box-shadow:0 0 0 2px var(--accent-tint)}
-  .stk-th .nm{
-    position:absolute;left:0;right:0;bottom:0;font-size:8.5px;font-weight:700;
-    color:#fff;background:rgba(0,0,0,.55);padding:1px 3px;line-height:1.3;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
+  .stk-th:hover{border-color:var(--ink-dim);transform:translateY(-3px)}
   .stk-th:active{cursor:grabbing}
-  .stk-empty{font-size:11px;color:var(--ink-dim);line-height:1.6;padding:2px}
+  .stk-th .tb{height:52px;display:flex;align-items:center;justify-content:center}
+  .stk-th img{max-height:52px;max-width:134px;object-fit:contain}
+  .stk-th .nm{
+    font-size:10px;font-weight:700;color:var(--muted);max-width:134px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  /* 「＋ 新貼紙」：虛線、永遠排第一張 —— 缺一張的時候不必先走出這本 DM。
+     它開的就是檔期列表上那顆「貼紙庫」開的同一張浮層。 */
+  .stk-add{
+    flex:0 0 auto;width:80px;height:86px;border:1.5px dashed var(--line-strong);
+    border-radius:9px;background:var(--surface);color:var(--ink-dim);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    font:inherit;font-size:10.5px;font-weight:800;line-height:1.25;cursor:pointer;
+  }
+  .stk-add .p{font-size:20px;line-height:1}
+  .stk-add:hover{border-color:var(--ink-dim);color:var(--ink)}
+  .stk-empty{font-size:12px;color:var(--ink-dim);padding:0 6px;white-space:nowrap}
   /* 拖曳途中手上那一張：看不到自己拿著什麼的話，拖到一半跟畫面當掉分不出來。
      它不吃指標（要量的是它底下那一格是誰）。 */
   .stk-ghost{
@@ -2035,9 +2049,6 @@
     font-size:10px;font-weight:800;color:var(--ink-dim);text-align:center;
   }
   .stk-ghost img{max-width:100%;max-height:100%;object-fit:contain}
-  /* 「開貼紙庫」：滿寬，長得像這一片的一部分而不是另一顆工具 —— 它做的事跟
-     上面那些縮圖是同一件（挑貼紙），只是要去更遠的地方拿。 */
-  .stk-more{display:block;width:100%;margin-top:14px;font-size:11.5px}
   /* 拿著 貼圖 的時候游標也換掉，跟上色同一條理由：手上拿著哪一件事要看得出來 */
   #sheetMain.tool-sticker,#sheetMain.tool-sticker .cell{cursor:crosshair}
 
@@ -2376,8 +2387,11 @@
   .blk-grab:hover::before,body.blk-resizing .blk-grab::before{background:var(--blue)}
   /* 牌子擺在紙的**外面**：壓在最後一欄格子上的話，那顆牌子會蓋掉正在排的東西
      （而它只是個記號）。紙四周本來就有一大圈捲動用的空地，擺得下。 */
+  /* 牌子本身也是把手（2026-09-11）：它寫著數字、長得像一顆東西，人就會去抓它 ——
+     抓了卻只選到字，看起來就是壞了。它是那條邊的小孩，按下去冒泡到同一支 pointerdown，
+     游標也跟著那條邊（ew／ns-resize）。 */
   .blk-lab{
-    position:absolute;white-space:nowrap;pointer-events:none;  /* 抓的是底下那條邊 */
+    position:absolute;white-space:nowrap;pointer-events:auto;user-select:none;
     background:var(--surface);border:1px solid var(--line-strong);border-radius:999px;
     padding:2px 8px;font-size:11.5px;font-weight:800;color:var(--ink-dim);
     box-shadow:0 1px 3px rgba(30,40,60,.14);transition:border-color .12s,color .12s;
@@ -2544,6 +2558,8 @@
     position:fixed;left:50%;bottom:34px;transform:translateX(-50%);z-index:400;
     display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;
   }
+  /* 底下那一條貼紙開著：提示站到它上面去 —— 「貼上了」那一句蓋住的正是下一張要拖的卡片 */
+  body.stk-dock-on #toastHost{bottom:184px}
   .toast{
     font-size:14.5px;font-weight:800;padding:10px 20px;border-radius:9px;
     background:var(--ink);color:var(--surface);box-shadow:0 4px 16px rgba(30,40,60,.28);
@@ -3191,26 +3207,6 @@
           <div class="sec-head" data-sec="mini"><span>整本落版</span><span class="n"></span></div>
           <aside id="sheetSide"></aside>
         </div>
-        <!-- 貼紙：拿起 拼板 那支「貼圖」筆的時候，整欄換成這一片。
-             為什麼接管這一欄、不另外開一片浮層：右邊就是版面本人，浮層蓋住的
-             正是你要貼的那幾格（取色盤當初站到工具列左邊就是這個理由）；
-             而這一欄講的本來就是「先挑一樣東西，再回版上動手」。 -->
-        <div class="pm-sec" id="secStk">
-          <div class="stk-head"><span>貼紙</span>
-            <button class="stk-x" id="stickerClose"
-                    title="收起來（貼圖筆還拿在手上），這一欄換回檔期／整本落版">✕</button></div>
-          <input id="stkSearch" class="stk-search" type="search" placeholder="找貼紙…"
-                 spellcheck="false" autocomplete="off">
-          <div class="stk-cats" id="stkCats"></div>
-          <div class="stk-lbl" id="stkRecentLbl">最近用過</div>
-          <div class="stk-grid" id="stkRecent"></div>
-          <div class="stk-lbl" id="stkAllLbl">全部貼紙</div>
-          <div class="stk-grid" id="stkGrid"></div>
-          <div class="stk-empty" id="stkEmpty"></div>
-          <!-- 缺貼紙的時候不必先走出這本 DM：這顆開的就是檔期列表上那顆「貼紙庫」
-               開的同一張浮層。關掉之後這一片會重讀一次（見 closeApp）。 -->
-          <button class="btn stk-more" id="stickerMore">🏷➕ 開貼紙庫（新增／修改）</button>
-        </div>
       </div>
     </div>
     <!-- 字級：跟 落版 的工具列同一個位置、同一個樣子。它跟工具一樣是「對這個版位
@@ -3277,6 +3273,23 @@
         <span>顯示便利貼</span>
       </label>
       <div id="boardOverview"></div>
+      <!-- 貼紙：拿起 拼板 那支「貼圖」筆的時候，版面底下長出這一條。照貼紙庫那一支
+           （sticker_editor.html）底下那一櫃抄的：上面一排標籤＋分類，底下一排卡片左右捲
+           —— 在那邊做好的貼紙，到這邊是同一個樣子，一眼認得出來。
+           為什麼在底下、不在左欄：左欄講的是「你在哪一本 DM、哪一塊」，拿著筆的時候
+           那件事照樣要看得到；一條橫的只吃掉版面底下一截，版面的寬一點都不動。 -->
+      <div id="stkDock">
+        <div class="stk-top">
+          <span class="stk-tag">貼紙</span>
+          <div class="stk-cats" id="stkCats"></div>
+          <input id="stkSearch" class="stk-search" type="search" placeholder="找貼紙…"
+                 spellcheck="false" autocomplete="off">
+          <button class="stk-x" id="stickerClose"
+                  title="收起來（貼圖筆還拿在手上）">✕</button>
+        </div>
+        <!-- 第一張永遠是「＋ 新貼紙」（開貼紙庫），接著是貼紙本人 —— 見 renderStickerPanel -->
+        <div class="stk-items" id="stkGrid"></div>
+      </div>
     </div>
     <!-- 意見欄：貼紙從這裡拖到格子上，貼上去的每一則都在下面排成一張卡 -->
     <div id="boardRail">
@@ -3402,7 +3415,7 @@
   <div class="pp-row" id="paintTop"></div>
   <div class="pp-note" id="paintNote"></div>
 </div>
-<!-- ⚠️ 貼圖那一片素材牆現在站在左邊那一欄裡（#secStk），不是浮在版面上的盤子：
+<!-- ⚠️ 貼圖那一排貼紙站在版面底下（#stkDock），不是浮在版面上的盤子：
      216px 的浮層蓋住的正是你要貼的那幾格。 -->
 <div id="toastHost"></div>
 <!-- 進度：左邊版位交出了幾成，右邊每位 PM 拼完幾格 -->
@@ -5670,7 +5683,15 @@ function setBlockCm(block, horizontal, cm){
    手勢照刊頭那條把手抄（同一個讀數、同一個 rAF 重畫、放手才記一步）。
    ⚠️ 拖的時候尺度要**釘住**（blkScalePin）：平常 gridW ＝ 這塊窗口的寬，
    版位變寬螢幕上不會變寬（只有高度跟著縮），於是你拉的那條邊完全不動，
-   手上和畫面上是兩件事。釘住之後兩條邊都跟著手走 1:1，放手才回到「符合視窗」。
+   手上和畫面上是兩件事。釘住之後拉的那條邊跟著手走 1:1。
+   ⚠️ **畫面不准跑位**（2026-09-11，「拖一拖畫面自己換位置」）。三個原因各補一條：
+   ・釘的是**沒乘縮放**的尺度：sheetMetrics 釘住之後還會再乘一次 sheetZoom。
+     以前直接拿螢幕上量到的 px/cm 去釘（已經乘過一次），於是只要不是剛好 100%，
+     按下去那一下整塊就大一圈或小一圈，接著那條邊跑得比手快（或慢）。
+   ・左上角釘在螢幕上（blkKeepAnchor）：版位窄到比窗口小的時候會被置中，
+     左緣跟著移 —— 每重畫一次就量一次、差多少捲多少。
+   ・放手之後**不回到符合視窗**：那一下尺度會變，整塊跟著放大縮小、換位置。
+     改成把縮放補回去（螢幕上一公分還是一樣長），左上角再捲回原位。
    ========================================================================== */
 let blkResize = null, blkFrame = 0, blkScalePin = 0;
 
@@ -5686,14 +5707,26 @@ function startBlkResize(ev, horizontal){
   ev.stopPropagation();                 // 這不是拖畫面，也不是搬一列
   const cm = blockCm(activeBlock);
   const m = lastMetrics;
-  const pxPerCm = (m && m.pxPerCm > 0) ? m.pxPerCm : 20;
+  const pxPerCm = (m && m.pxPerCm > 0) ? m.pxPerCm : 20;   // 螢幕上的（已經乘過縮放）
+  const r0 = boardEl.getBoundingClientRect();
   blkResize = { horizontal, sx: ev.clientX, sy: ev.clientY,
                 start: horizontal ? cm.w : cm.h, cur: horizontal ? cm.w : cm.h,
-                w0: cm.w, h0: cm.h, pxPerCm, changed: false };
-  blkScalePin = pxPerCm;                // 這一趟畫面用真實比例，不再塞滿窗口
+                w0: cm.w, h0: cm.h, pxPerCm, changed: false,
+                ax: r0.left, ay: r0.top };
+  /* 這一趟畫面用真實比例，不再塞滿窗口。⚠️ 除掉縮放：sheetMetrics 釘住之後會再乘一次 */
+  blkScalePin = pxPerCm / (sheetZoom || 1);
   document.body.classList.add('blk-resizing', horizontal ? 'ew' : 'ns');
   showBlkTip(ev, cm.w.toFixed(1), cm.h.toFixed(1));
   renderGrid(activeBlock);              // 先換成釘住的尺度，不然第一下會跳
+  blkKeepAnchor();
+}
+
+/** 版位的左上角留在按下去那一刻的位置：量一次、差多少捲多少（同 zoomKeepPoint）。 */
+function blkKeepAnchor(ax, ay){
+  if (ax == null){ if (!blkResize) return; ax = blkResize.ax; ay = blkResize.ay; }
+  const r = boardEl.getBoundingClientRect();
+  sheetMainEl.scrollLeft += r.left - ax;
+  sheetMainEl.scrollTop  += r.top  - ay;
 }
 
 document.addEventListener('pointermove', e => {
@@ -5715,6 +5748,7 @@ document.addEventListener('pointermove', e => {
     blkResize.changed = true;
     syncSheetCm();                      // 版位的公分是底下每一條算式的來源
     renderGrid(activeBlock);
+    blkKeepAnchor();
     const inp = blockHead.querySelectorAll('.blk-cm .mh-num')[blkResize.horizontal ? 0 : 1];
     if (inp) inp.value = (blkResize.horizontal ? blockCm(activeBlock).w
                                                : blockCm(activeBlock).h).toFixed(1);
@@ -5725,14 +5759,30 @@ function endBlkResize(){
   if (!blkResize) return;
   if (blkFrame){ cancelAnimationFrame(blkFrame); blkFrame = 0; }
   const changed = blkResize.changed;
+  const { ax, ay } = blkResize;
+  const onScreen = blkScalePin * (sheetZoom || 1);   // 拖的時候螢幕上一公分多長
   blkResize = null;
-  blkScalePin = 0;                      // 回到「塞滿這塊窗口」
+  blkScalePin = 0;                      // 版面的算法回到「塞滿這塊窗口」
   document.body.classList.remove('blk-resizing', 'ew', 'ns');
   if (changed){
     commitAction();
     rebuildAll(activeBlock && activeBlock.id);   // 總體、小地圖跟著換形狀
   } else {
     renderGrid(activeBlock);
+  }
+  /* 算法回到塞滿窗口，螢幕上的尺度就跟拖的時候不一樣了 —— 放手那一下整塊會
+     放大或縮小、換一個位置。用縮放把那個倍數補回去，畫面上一動都不動
+     （塞滿窗口的那個基準跟縮放無關，所以乘回去剛好是同一個大小）。 */
+  const m = lastMetrics;
+  if (activeTab === 'sheet' && activeBlock && m && m.pxPerCm > 0 && onScreen > 0){
+    const k = onScreen / m.pxPerCm;
+    if (Math.abs(k - 1) > 0.002){
+      sheetZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, sheetZoom * k));
+      renderGrid(activeBlock);
+      zoomVal.textContent = Math.round(sheetZoom * 100) + '%';
+      syncZoomHint();
+    }
+    blkKeepAnchor(ax, ay);
   }
 }
 document.addEventListener('pointerup', endBlkResize);
@@ -5762,11 +5812,15 @@ function ensureBlkGrabs(){
       lab.textContent = (horizontal ? '↔ ' : '↕ ')
                       + (horizontal ? cm.w : cm.h).toFixed(1) + 'cm';
       /* 量一下牌子有沒有掉出窗口。版面平常是塞滿這塊窗口的，所以「紙的右邊」
-         多半就是「窗口的右邊」—— 不翻的話那顆牌子永遠被切掉一半。 */
-      g.classList.remove('flip');
-      const lr = lab.getBoundingClientRect(), mr = sheetMainEl.getBoundingClientRect();
-      if (horizontal ? lr.right > mr.right - 4 : lr.bottom > mr.bottom - 4)
-        g.classList.add('flip');
+         多半就是「窗口的右邊」—— 不翻的話那顆牌子永遠被切掉一半。
+         ⚠️ 拖的途中不重量：牌子現在也是把手，拖到一半翻到邊的另一側，
+         手底下那顆東西就換了位置。 */
+      if (!blkResize){
+        g.classList.remove('flip');
+        const lr = lab.getBoundingClientRect(), mr = sheetMainEl.getBoundingClientRect();
+        if (horizontal ? lr.right > mr.right - 4 : lr.bottom > mr.bottom - 4)
+          g.classList.add('flip');
+      }
     }
   });
 }
@@ -8179,6 +8233,10 @@ const VIEWS = {
       syncTypeBar();          // 字級那一排只有這一頁看得到
     },
     unmount(){
+      /* 離開 拼板（換分頁、回檔期列表）就把集體移動關掉。它是「這一下拖曳動整個版位」
+         的模式，開著回來的話，下一次隨手拖一個價格就是六十格一起走 —— 而那顆鈕早就
+         被忘了。安靜地關，不跳那句「集體移動關了」：人已經在別的頁面了。 */
+      setBulkMove(false, true);
       hideTip(); closeBoardCell(); armKind(null); clearBoardThumbs(); hideBoardCover();
       markWrap.style.display = 'none';
       typeWrap.classList.remove('on');
@@ -8319,6 +8377,8 @@ function openBoardCell(anchor, block, cells, at){
   } else {
     showBoardPanel();          // 同一格再打開：iframe 沒重載，內容還在
     tellBoardRole();
+    /* 但圖層那一排可能早就過時了：面板關著的時候版上照樣改得動（搬、貼、刪） */
+    tellPanelLayers(boardCell.cell.id);
   }
   tellStageEditing();
 }
@@ -8477,6 +8537,14 @@ function canvasScale(f){
   return f.getBoundingClientRect().width / lay || 1;
 }
 const pickedOf = c => ((c.board && c.board.state && c.board.state.picked) || []);
+/* 每一格的畫布最後一次報上來的圖層那一排（見 stageLayers）。只是轉手用的，不存檔。 */
+const stageLayersOf = Object.create(null);
+function tellPanelLayers(id){
+  const got = stageLayersOf[id];
+  const f = document.getElementById('boardFrame');
+  if (!got || !f || !f.contentWindow) return;
+  try { f.contentWindow.postMessage({ stageLayers: got.layers, activeLayer: got.active }, '*'); } catch (_){}
+}
 
 addEventListener('message', e => {
   const d = e.data || {};
@@ -8525,6 +8593,7 @@ addEventListener('message', e => {
                            stageEditing: boardCell ? String(boardCell.cell.id) : '',
                            gridLines,       // 工具列那顆開關現在是開是關
                            boardRestore: (target.board || {}).state || null }, '*');
+    if (d.src === 'panel') tellPanelLayers(target.id);
     /* 換格時面板是蓋著的（見 openBoardCell）：上面那一句 restore 就是它要的最後一樣
        東西，收下之後那一頁就是這一格的樣子了 —— 下一幀（畫完）才掀開，
        不然會先看到一份什麼都沒勾的清單。只有面板那一份算，版上那幾十塊畫布
@@ -8541,6 +8610,24 @@ addEventListener('message', e => {
     const f = canvasFrame(target.id);
     if (f && f.contentWindow)
       try { f.contentWindow.postMessage({ boardOff: d.boardOff }, '*'); } catch (_){}
+    return;
+  }
+
+  /* 圖層那一排。面板是另一份文件，手上沒有版上的零件（見上面：面板報的 blocks 一律不收），
+     所以「這一格疊了哪幾層」由畫布報上來、這裡轉給面板；面板上按下去的那一下
+     （最上面、刪掉、排順序、滑過去、點選）再轉回畫布去做。
+     以前沒有這一條：面板上的「最上面」和拖曳排序只改到面板自己的副本，版上一動也不動，
+     貼圖更是永遠列不出來。記一份在這裡：面板是之後才開、或換一格重新載入的，
+     它起來的那一刻要拿得到。 */
+  if (d.stageLayers){
+    stageLayersOf[target.id] = { layers: d.stageLayers, active: d.activeLayer || '' };
+    if (boardCell && String(boardCell.cell.id) === String(target.id)) tellPanelLayers(target.id);
+    return;
+  }
+  if (d.layerAct){
+    const f = canvasFrame(target.id);
+    if (f && f.contentWindow)
+      try { f.contentWindow.postMessage({ layerAct: d.layerAct }, '*'); } catch (_){}
     return;
   }
 
@@ -8645,10 +8732,15 @@ addEventListener('message', e => {
     }
     if (d.openLib === 'logo'){
       if (activeMode !== 'design'){ toast('品牌 Logo 庫只有設計看得到', 'warn'); return; }
-      openApp('logo_page/index.html', '品牌 Logo',
-              '各家品牌的 logo 都放在這裡 —— 排版要用哪一張就從這裡找');
+      /* 帶上是哪一家：那一頁會把它那一格放大、捲到畫面中間（見 logo_page 的 FOCUS）。
+         開到庫只做了一半 —— 人還得在二十幾家裡自己找。 */
+      openApp('logo_page/index.html' + (d.brand ? '?focus=' + encodeURIComponent(d.brand) : ''),
+              '品牌 Logo', '各家品牌的 logo 都放在這裡 —— 排版要用哪一張就從這裡找');
     } else {
-      openApp('product.html?embed=1', '商品目錄',
+      /* 同一條理由：那一列自己站出來，小框放大成「拖圖到這裡」（見 product.html 的 FOCUS） */
+      const qs = (d.key ? '&focus=' + encodeURIComponent(d.key) : '')
+               + (d.sku ? '&sku=' + encodeURIComponent(d.sku) : '');
+      openApp('product.html?embed=1' + qs, '商品目錄',
               '全公司一份 —— 改了，每一本 DM 的挑貨清單當場就跟著變');
     }
     return;
@@ -8751,7 +8843,7 @@ function closeApp(){
   if (openedApp === 'logo') refreshLogos();
   /* 貼紙庫剛剛可能多了一張。盤子是「每次打開重讀一遍」，但它現在可能正開著
      （從 拼板 那一盤按進去的），不重畫的話剛做好的那張要等下一次拿起工具才看得到。 */
-  if (openedApp === 'sticker') syncStickerTool();
+  if (openedApp === 'sticker'){ refreshStickerLib(true); syncStickerTool(); }
   openedApp = '';
 }
 document.getElementById('catBtn').addEventListener('click', () =>
@@ -8764,10 +8856,9 @@ document.getElementById('catBtn').addEventListener('click', () =>
 document.getElementById('logoBtn').addEventListener('click', () =>
   openApp('logo_page/index.html', '品牌 Logo',
           '各家品牌的 logo 都放在這裡 —— 排版要用哪一張就從這裡找'));
-/* 貼紙庫自己一支獨立的檔案（sticker_editor.html），只存這台瀏覽器（localStorage，
-   跟主程式同一個網站、同一個瀏覽器就讀得到，不用另外接一條同步的路）。
-   拼板 那顆「貼圖」工具開起來的面板是直接讀同一份 localStorage，不是讀這個
-   iframe 裡的東西，所以這裡開／關不用像 logo 那樣特地重拉一次。 */
+/* 貼紙庫自己一支獨立的檔案（sticker_editor.html），自己連共用的那一份（Supabase）。
+   拼板 那顆「貼圖」工具開起來的面板不讀這個 iframe 裡的東西，是自己去問伺服器
+   （見 refreshStickerLib）—— 所以關起來的時候要叫它再問一次，跟 logo 那條同一個理由。 */
 document.getElementById('stickerLibBtn').addEventListener('click', openStickerLib);
 document.getElementById('catClose').addEventListener('click', closeApp);
 catMask.addEventListener('click', e => { if (e.target === catMask) closeApp(); });
@@ -10003,9 +10094,8 @@ boardOv.addEventListener('click', e => {
      而便利貼是對話：PM 在 製作 那一關想問一句，那正是最該問得到的時候。 */
   // 手上拿著貼紙：這一下是貼上去，不是進去編輯
   if (armedKind){ dropNote(armedKind, el, e.clientX, e.clientY); return; }
-  /* 手上拿著 貼圖：按在格子的空白處＝貼一張上去（畫布把那一下轉出來，見 stagePass）。
-     按在零件上的那一下根本走不到這裡 —— 那是格子裡的事，跟 S 那顆一樣。 */
-  if (activeTool === 'sticker'){ pasteStickerOn(el, null, e); return; }
+  /* 拿著 貼圖 點格子不會貼（只有拖的才貼，見 stkThumb），也不進去編輯 ——
+     下面那條「不是 edit 就 return」會接住它。 */
   /* 手上拿著 搬移／複製：點一格是那個工具的事（pointerdown 已經接走了），
      不是進去編輯。貼紙排在前面 —— 那是一個模式，比工具更優先。 */
   if (activeTool !== 'edit') return;
@@ -10133,13 +10223,35 @@ let boardPan = null, boardDragged = false;
    那些只寫在 click 裡面一份，重寫一份遲早會跟本尊分岔。 */
 /* 某一格抓到選取了：其他每一格都放手。版上一次只該有一個藍框 ——
    兩個框同時亮著，看起來就像兩邊都在編輯。 */
+/* 現在抓著選取的是哪一格的畫布（它自己報上來的那一支 window）。給 Delete 用。 */
+let stageSelWin = null;
 addEventListener('message', e => {
   if (!('stageSel' in (e.data || {}))) return;
+  if (e.data.stageSel) stageSelWin = e.source;
+  else if (stageSelWin === e.source) stageSelWin = null;
   if (!e.data.stageSel) return;                 // 放手的那則不必轉發
   boardEl.querySelectorAll('.ccanvas').forEach(f => {
     if (f.contentWindow === e.source) return;
     try { f.contentWindow.postMessage({ stageClearSel: 1 }, '*'); } catch (_){}
   });
+});
+
+/* 按 Delete 的時候焦點在這一頁（例如剛把貼紙拖進格子：縮圖是這一頁的按鈕，
+   鍵盤跟著留在這裡），格子裡的畫布收不到那一下 —— 而剛貼上去的那一張正選著，
+   按 Delete 是最自然的反悔。所以轉給抓著選取的那一格，讓它照自己的規矩刪
+   （沒點開的格子只刪貼圖，見 2cell 的 keyDelete）。
+   焦點本來就在畫布裡的時候，這一頁根本收不到這個鍵，不會刪兩次。 */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (activeTab !== 'board' || activeMode !== 'design' || !stageSelWin) return;
+  // 版面重建過，那一支畫布已經不在版上了
+  const alive = [...boardEl.querySelectorAll('.ccanvas')].some(f => f.contentWindow === stageSelWin);
+  if (!alive){ stageSelWin = null; return; }
+  e.preventDefault();
+  try { stageSelWin.postMessage({ stageDelete: 1 }, '*'); } catch (_){}
 });
 
 addEventListener('message', e => {
@@ -11463,14 +11575,16 @@ function tellBulkMode(){
   });
 }
 const bulkBtn = document.getElementById('bulkBtn');
-bulkBtn.addEventListener('click', () => {
-  bulkMove = !bulkMove;
+function setBulkMove(on, quiet){
+  if (bulkMove === on) return;
+  bulkMove = on;
   bulkBtn.classList.toggle('on', bulkMove);
   tellBulkMode();
-  toast(bulkMove
+  if (!quiet) toast(bulkMove
     ? '集體移動：選起來的那幾塊會描紅虛線 —— 拖它們，每一格的同一個一起走'
     : '集體移動關了', 'info', 2600);
-});
+}
+bulkBtn.addEventListener('click', () => setBulkMove(!bulkMove));
 
 /* 拖曳途中的預覽：轉發給其他每一格。它們只改 style（見畫布的 showBulkPreview），
    不動資料也不重建 —— 所以每一幀轉發六十則是負擔得起的，而放手才寫資料。 */
@@ -11984,32 +12098,71 @@ document.addEventListener('pointercancel', () => endPaintDrag(true));
    物件，一次貼一張，不是批次動作。
    ⚠️ 這裡的「貼紙庫」是 sticker_editor.html 存的那份模板清單，跟意見欄那疊
    「貼紙」（便利貼）是兩回事——這一段的按鈕、提示故意都寫「貼圖」不寫「貼紙」。
-   貼紙庫這次先只存這台瀏覽器的 localStorage：跟主程式同一個網站、同一個瀏覽器
-   就讀得到，不用另外接一條同步的路（CLAUDE.md「資料」那段講的兩層架構，這次
-   只做第一層；要不要接 Supabase 共用是之後的事）。 */
-const STK_LSK = 'stk.db';                 // sticker_editor.html 存檔用的那把鑰匙
+   貼紙庫是全公司共用的一份（Supabase 的 sticker_lib，圖在 Storage）。這裡讀的是
+   伺服器上那一份；沒接後端、或還沒拉到之前，讀貼紙庫那一頁留在這台瀏覽器的快取
+   （同一個網站、同一個瀏覽器，localStorage 讀得到）。 */
+const STK_LSK = 'stk.db';                 // sticker_editor.html 的本機快取那把鑰匙
 let stickerLib = [];                      // 每次要用才重讀——貼紙庫可能剛被改過
-let stickerArmed = null;                  // 手上拿著哪一張（stickerLib 裡的一列），null＝空手
+/* 伺服器上那一份（**含刪掉的**），null＝還沒拉到或沒接後端。見 refreshStickerLib。 */
+let stkRemote = null, stkPulledAt = 0, stkPulling = null, stkRenderLater = false;
 let stickerPopShut = false;
 
 function readStickerLib(){
+  let local = [];
   try {
-    const raw = localStorage.getItem(STK_LSK);
-    if (!raw) return [];
-    const o = JSON.parse(raw);
-    return Array.isArray(o && o.sticker_lib) ? o.sticker_lib : [];
-  } catch (e){ return []; }
+    const o = JSON.parse(localStorage.getItem(STK_LSK) || 'null');
+    if (Array.isArray(o && o.sticker_lib)) local = o.sticker_lib;
+  } catch (e){}
+  if (!stkRemote) return local;
+  /* 快取裡有、伺服器上**從來沒見過**的那幾張也要列：多半是剛在貼紙庫存好、
+     還在路上的那一張（關浮層那一下才送出去）—— 不列的話剛做好的貼紙回到版上看不到，
+     要等下一次拉。伺服器上刪過的不算「沒見過」，所以不會又冒出來。
+     ⚠️ 只在那台瀏覽器已經接上共用庫之後才這樣做（stk.remote）：接上之前的快取裡是
+     它自己灌的那一份預設貼紙，列出來就是每一張都有兩份。 */
+  let joined = false;
+  try { joined = !!localStorage.getItem('stk.remote'); } catch (e){}
+  const seen = new Set(stkRemote.map(r => r.id));
+  return stkRemote.filter(r => !r.deleted_at)
+    .concat(joined ? local.filter(r => !seen.has(r.id)) : []);
 }
-/* previewSVG 存的是原始 SVG 字串（sticker_editor.html 存檔時烤的），要轉成
-   data: URL 才能當 <img src> 或送進畫布那邊的 <img src>。轉一次就整包帶著走——
-   貼上去之後這個字串會整包存進那一格的資料裡，跟商品圖存網址是兩回事：
-   貼紙庫是本機的，沒有網址可以存。 */
+/* 去伺服器問一次。只問 id 和時間，變了的才抓（見 supabase-sync 的 pullStickerLib），
+   所以拿起工具就問一次也不貴；還是隔 15 秒才再問，免得來回切工具一直打。
+   ⚠️ 拖著一張縮圖的時候**不可以**重畫那一片（見 pointermove 那條）：記下來，放手再畫。 */
+async function refreshStickerLib(force){
+  const s = sync();
+  if (!s || !s.pullStickerLib) return;
+  if (stkPulling) return stkPulling;
+  if (!force && Date.now() - stkPulledAt < 15000) return;
+  stkPulledAt = Date.now();
+  stkPulling = (async () => {
+    try {
+      const got = await s.pullStickerLib();
+      if (!got) return;                  // 表還沒建：照舊讀快取
+      const first = !stkRemote;
+      stkRemote = got.rows.slice().sort((a, b) =>
+        String(a.created_at || '').replace('T', ' ').localeCompare(String(b.created_at || '').replace('T', ' ')));
+      if (!(first || got.changed) || !stickerPanelOn()) return;
+      if (stkDrag) stkRenderLater = true; else renderStickerPanel();
+    } catch (e){
+      console.warn('共用貼紙庫拉不到，先用這台電腦上的', e);
+    } finally { stkPulling = null; }
+  })();
+  return stkPulling;
+}
+/* 縮圖有兩種：共用庫裡的是一張烤好的圖的**網址**（貼紙庫送上去之前烤的，
+   為什麼不再是 SVG 見 sticker_editor 的 bakePreview）；只存在本機的是一段原始 SVG
+   字串，要轉成 data: URL 才能當 <img src>。 */
 function svgToDataUrl(svg){
   try { return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg))); }
   catch (e){ return ''; }
 }
+function previewSrc(row){
+  const v = String((row && row.preview) || '');
+  if (!v) return '';
+  return /^(https?:|data:)/.test(v) ? v : svgToDataUrl(v);
+}
 
-/* 面板站在左邊那一欄裡（#secStk）：拿起 貼圖 的時候整欄換成它。 */
+/* 那一條站在版面底下（#stkDock）：拿起 貼圖 的時候長出來。 */
 let stkQuery = '';                 // 搜尋框打的字
 let stkCat   = '';                 // 挑了哪一類，'' ＝全部
 
@@ -12024,34 +12177,31 @@ function stickerPanelOn(){
 function syncStickerTool(){
   const btn = document.querySelector('.tool[data-tool="sticker"]');
   if (btn) btn.style.display = (activeTab === 'board' && activeMode === 'design') ? '' : 'none';
-  const st = document.getElementById('pmStack');
-  /* ⚠️ 開關寫在這裡、不寫進 paintSideMode()：那一支在整支程式很早就會被叫到
-     （hostSide／setSideMode），而 activeTool 是底下才宣告的 let —— 在它上面讀
-     就是 ReferenceError，整支程式停在那一行。 */
-  if (st) st.classList.toggle('at-stk', stickerPanelOn());
-  paintSideMode();                 // 那一欄一次只看得到一段，換段的規矩在它那裡
-  if (stickerPanelOn()) renderStickerPanel();
+  /* 開關那一條不重排版面：它只吃掉底下一截高度，版面照舊從左上角排下來，
+     重排反而會讓整張版在拿起筆的那一下跳一次。 */
+  document.getElementById('stkDock').classList.toggle('on', stickerPanelOn());
+  document.body.classList.toggle('stk-dock-on', stickerPanelOn());
+  if (stickerPanelOn()){ renderStickerPanel(); refreshStickerLib(); }
 }
 
 /** 這一檔用過哪幾張貼紙、各幾次。跟色盤那個「最常用」同一種東西：只會加。 */
 const stkUseOf = p => (p && p.stkUse && typeof p.stkUse === 'object') ? p.stkUse : {};
 
 function stkThumb(r){
-  /* 拖得動：直接把縮圖丟到版上那一格就是貼上去（點一下拿在手上那條路照舊）。
+  /* 貼上去**只有拖這一條路**：把縮圖丟到版上那一格。以前還有「點一下拿在手上、
+     再點一格」，但拿在手上就一直拿著 —— 每點一格多貼一張，點著點著就貼了一排。
      ⚠️ **不用瀏覽器原生的拖曳**（便利貼那一疊用的那種）：那一套從 <button> 起不來，
      而縮圖就是一顆按鈕；何況拿著 貼圖 的時候格子裡的畫布是收指標的（見上面的
      tooling），原生拖曳會掉進那份文件裡，外面永遠等不到放手那一下。
      指標捕捉沒有這兩個問題：按下去之後每一下都送回這顆縮圖，蓋在上面的是誰都沒差。 */
-  return `<button class="stk-th${stickerArmed && stickerArmed.id === r.id ? ' on' : ''}"
-      data-stk="${r.id}" title="${escapeHtml(r.name || '')}">
-      ${r.preview ? `<img src="${svgToDataUrl(r.preview)}" alt="" draggable="false">` : ''}
+  return `<button class="stk-th" data-stk="${r.id}"
+      title="${escapeHtml(r.name || '')} —— 拖到格子上就貼上去">
+      <span class="tb">${r.preview ? `<img src="${previewSrc(r)}" alt="" draggable="false">` : ''}</span>
       <span class="nm">${escapeHtml(r.name || '')}</span></button>`;
 }
 
 function renderStickerPanel(){
   stickerLib = readStickerLib();
-  // 手上那張如果被刪掉了（貼紙庫剛好被改過），就放掉——不要繼續拿著一張不存在的貼紙
-  if (stickerArmed && !stickerLib.some(r => r.id === stickerArmed.id)) stickerArmed = null;
 
   /* 分類只列**真的有貼紙**的那幾類：空的分類點進去什麼都沒有，
      而那跟「這一類我還沒做」長得一模一樣。 */
@@ -12066,28 +12216,22 @@ function renderStickerPanel(){
       `<button class="stk-cat${stkCat === c ? ' on' : ''}" data-cat="${escapeHtml(c)}">${escapeHtml(c || '全部')}</button>`).join('');
 
   const q = stkQuery.trim().toLowerCase();
+  /* 這一檔用過的排前面（貼過幾次，多的先）。以前另外有一排「最近用過」，
+     但一條橫的放兩排就是同一批卡片出現兩次；排前面講的是同一件事。
+     sort 是穩定的：沒用過的照庫裡原本的順序。 */
+  const use = stkUseOf(currentPlan);
   const rows = stickerLib.filter(r =>
     (!stkCat || (r.category || '') === stkCat) &&
-    (!q || String(r.name || '').toLowerCase().indexOf(q) >= 0));
+    (!q || String(r.name || '').toLowerCase().indexOf(q) >= 0))
+    .sort((a, b) => (use[b.id] || 0) - (use[a.id] || 0));
 
-  /* 最近用過＝這一檔貼過幾次，多的排前面。只在沒搜尋、沒挑分類的時候出現：
-     篩過之後它跟下面那一片講的是同一批東西，兩排一樣的縮圖只會讓人以為重複了。 */
-  const use = stkUseOf(currentPlan);
-  const recent = (q || stkCat) ? []
-    : stickerLib.filter(r => use[r.id]).sort((a, b) => use[b.id] - use[a.id]).slice(0, 6);
-  const rEl = document.getElementById('stkRecent');
-  rEl.innerHTML = recent.map(stkThumb).join('');
-  rEl.style.display = recent.length ? '' : 'none';
-  document.getElementById('stkRecentLbl').style.display = recent.length ? '' : 'none';
-
-  document.getElementById('stkGrid').innerHTML = rows.map(stkThumb).join('');
-  // 上面沒有「最近用過」的時候，「全部貼紙」那一行字沒有在區分什麼，收起來
-  document.getElementById('stkAllLbl').style.display = (recent.length && rows.length) ? '' : 'none';
-  const em = document.getElementById('stkEmpty');
-  em.textContent = stickerLib.length
+  const em = stickerLib.length
     ? (rows.length ? '' : '找不到符合的貼紙')
-    : '還沒有貼紙 —— 按下面那顆做幾張';
-  em.style.display = em.textContent ? '' : 'none';
+    : '還沒有貼紙 —— 按「＋ 新貼紙」做幾張';
+  document.getElementById('stkGrid').innerHTML =
+    `<button class="stk-add" data-more title="開貼紙庫（新增／修改）"><span class="p">＋</span><span>新貼紙</span></button>`
+    + rows.map(stkThumb).join('')
+    + (em ? `<span class="stk-empty">${escapeHtml(em)}</span>` : '');
 }
 
 document.getElementById('stkSearch').addEventListener('input', e => {
@@ -12100,38 +12244,41 @@ document.getElementById('stkCats').addEventListener('click', e => {
   stkCat = b.dataset.cat || '';
   renderStickerPanel();
 });
-/* 縮圖那兩片（最近用過／全部）都在這一段裡面，所以聽整段就好 */
-document.getElementById('secStk').addEventListener('click', e => {
-  const btn = e.target.closest('[data-stk]');
-  if (!btn) return;
-  const row = stickerLib.find(r => r.id === btn.dataset.stk);
-  if (!row) return;
-  stickerArmed = row;
-  renderStickerPanel();
+/* 只點一下卡片（沒拖）：講一句怎麼用。什麼都不發生的話，看起來就是壞了。 */
+let stkDragged = false;           // 剛拖完：放手後瀏覽器補的那一發 click 不算「只點一下」
+document.getElementById('stkDock').addEventListener('click', e => {
+  if (e.target.closest('[data-more]')){ openStickerLib(); return; }
+  if (!e.target.closest('[data-stk]')) return;
+  if (stkDragged){ stkDragged = false; return; }
+  toast('把貼紙拖到格子上就貼上去', 'info', 1800);
 });
+/* 一排橫的：滾輪直接往左右捲 —— 大部分滑鼠只有直的滾輪，不然右邊那幾張要去抓捲軸。 */
+document.getElementById('stkGrid').addEventListener('wheel', e => {
+  const el = e.currentTarget;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
+  e.preventDefault();
+  el.scrollLeft += e.deltaY;
+}, { passive: false });
 /* ---- 把縮圖拖到格子上 ----
    手上帶著一張跟著游標走的縮圖（`.stk-ghost`）：拖曳途中看不到自己拿著什麼的話，
    跟畫面當掉分不出來。經過的那一格照便利貼那一套亮起來（同一支 hotCell）。
-   拖到一半反悔、放在版外：手上那張還拿著，跟點一下的結果一樣，不是白拖一趟。 */
+   拖到一半反悔、放在版外（或放在還沒挑貨的格子上）：什麼都不貼，放手就算了。 */
 let stkDrag = null, stkGhostEl = null;
-/** 只換「現在拿著哪一張」那一圈藍框 —— 拖曳途中不能重畫整片，見下面那段。 */
-function markStkArmed(){
-  document.querySelectorAll('#secStk .stk-th').forEach(b =>
-    b.classList.toggle('on', !!stickerArmed && b.dataset.stk === stickerArmed.id));
-}
 function stkGhostShow(row){
   stkGhostEl = document.createElement('div');
   stkGhostEl.className = 'stk-ghost';
   stkGhostEl.innerHTML = row.preview
-    ? `<img src="${svgToDataUrl(row.preview)}" alt="">`
+    ? `<img src="${previewSrc(row)}" alt="">`
     : escapeHtml(row.name || '');
   document.body.appendChild(stkGhostEl);
 }
 function stkGhostEnd(){
   if (stkGhostEl){ stkGhostEl.remove(); stkGhostEl = null; }
+  // 拖的途中伺服器那份變了：那時候不能重畫，現在手放開了
+  if (stkRenderLater && !stkDrag){ stkRenderLater = false; if (stickerPanelOn()) renderStickerPanel(); }
   hotCell(null);
 }
-document.getElementById('secStk').addEventListener('pointerdown', e => {
+document.getElementById('stkDock').addEventListener('pointerdown', e => {
   const btn = e.target.closest('[data-stk]');
   if (!btn || e.button !== 0) return;
   const row = stickerLib.find(r => r.id === btn.dataset.stk);
@@ -12139,19 +12286,16 @@ document.getElementById('secStk').addEventListener('pointerdown', e => {
   stkDrag = { row, btn, id: e.pointerId, x0: e.clientX, y0: e.clientY, on: false };
   try { btn.setPointerCapture(e.pointerId); } catch (_){}
 });
-document.getElementById('secStk').addEventListener('pointermove', e => {
+document.getElementById('stkDock').addEventListener('pointermove', e => {
   if (!stkDrag || e.pointerId !== stkDrag.id) return;
   /* 走了 5px 才算拖 —— 不然按下去手抖一下，每一次點選都變成一趟拖曳。 */
   if (!stkDrag.on){
     if (Math.abs(e.clientX - stkDrag.x0) + Math.abs(e.clientY - stkDrag.y0) < 5) return;
     stkDrag.on = true;
-    stickerArmed = stkDrag.row;      // 拖起來就等於拿在手上（半路放掉也還拿著）
-    /* ⚠️ 這裡**不可以** renderStickerPanel()：那一支會把整片縮圖重畫一次，
+    /* ⚠️ 拖的途中**不可以** renderStickerPanel()：那一支會把整片縮圖重畫一次，
        而指標捕捉抓著的就是剛剛按下去那一顆 —— 節點被換掉，捕捉當場失效，
        接下來的每一下都掉到游標底下那個東西上，於是手上那張縮圖停在原地不動、
-       放手那一下也永遠等不到（拖了半天什麼都沒發生，還留下一張浮在畫面上的圖）。
-       藍框自己換就好，那正是這一趟唯一變了的東西。 */
-    markStkArmed();
+       放手那一下也永遠等不到（拖了半天什麼都沒發生，還留下一張浮在畫面上的圖）。 */
     stkGhostShow(stkDrag.row);
   }
   stkGhostEl.style.left = e.clientX + 'px';
@@ -12163,12 +12307,14 @@ function stkDragEnd(e){
   const d = stkDrag; stkDrag = null;
   try { d.btn.releasePointerCapture(d.id); } catch (_){}
   if (!d.on) return;                 // 沒動過＝這是一次點選，交給 click 那條
+  stkDragged = true;
+  setTimeout(() => { stkDragged = false; }, 0);   // 放在版上的話不會有 click，別留到下一次
   const cel = cellUnder(e.clientX, e.clientY);
   stkGhostEnd();
   if (cel) pasteStickerOn(cel, d.row, e);      // 放手那一點就是它的中心
 }
-document.getElementById('secStk').addEventListener('pointerup', stkDragEnd);
-document.getElementById('secStk').addEventListener('pointercancel', e => {
+document.getElementById('stkDock').addEventListener('pointerup', stkDragEnd);
+document.getElementById('stkDock').addEventListener('pointercancel', e => {
   if (!stkDrag || e.pointerId !== stkDrag.id) return;
   stkDrag = null; stkGhostEnd();
 });
@@ -12176,10 +12322,12 @@ document.getElementById('secStk').addEventListener('pointercancel', e => {
 /* 貼上去的時候要送給那一格的一整包。**不是只送一張烤好的圖**：
    ・tpl ＝這張貼紙的模板整份（字串，跟貼紙庫存的同一份）—— 格子那邊照它現場排，
      所以貼上去之後那幾個字還改得動（一格一格自己的字）。
-   ・assets ＝這張貼紙用到的圖片，只帶用得到的那幾張（整包 stk.assets 可能是幾 MB）。
-   ・svg ＝烤好的那一張，當備胎：模板哪天解不開，格子裡至少還看得到東西。
-   為什麼整份跟著走、不是只記一個編號：貼紙庫只活在這台瀏覽器的 localStorage，
-   別台電腦打開這本 DM 的時候庫裡沒有那一張。 */
+   ・assets ＝這張貼紙用到的圖片，只帶用得到的那幾張，而且**只帶網址**（在 Storage 上，
+     檔名是內容雜湊，永遠指著同一張）。以前帶的是整張 base64 —— 那是「圖不進 plan」
+     那一條踩過的坑，只是換一個入口。沒接後端才退回帶 base64（那時候沒有網址可以帶）。
+   ・svg ＝縮圖，當備胎：模板哪天解不開，格子裡至少還看得到東西。
+   為什麼模板整份跟著走、不是只記一個編號：貼紙庫裡改了一張，已經貼出去的不該跟著變
+   （跟品牌圖「手動指定的排在庫前面」同一條理由），刪掉的也不該讓版上那一張跟著消失。 */
 const STK_ASSET_LSK = 'stk.assets';       // 貼紙庫存圖片的那把鑰匙
 function readStickerAssets(){
   try {
@@ -12192,38 +12340,41 @@ function stickerPayload(row){
   let assets = null;
   try {
     const keys = StickerRender.assetKeysOf(tpl);
+    const s = stkRemote && sync();
     if (keys.size){
-      const all = readStickerAssets();
+      const all = s ? null : readStickerAssets();
       assets = {};
-      keys.forEach(k => { if (all[k]) assets[k] = all[k]; });
+      keys.forEach(k => {
+        if (s) assets[k] = s.stickerFileUrl('assets/' + k);
+        else if (all[k]) assets[k] = all[k];
+      });
     }
   } catch (e){}
   let ratio = +row.ratio || 0;
   if (!ratio){ try { ratio = +JSON.parse(tpl).ratio || 0; } catch (e){} }
   return { libId: row.id, name: row.name || '', tpl, assets,
-           ratio: ratio || .4, svg: svgToDataUrl(row.preview || '') };
+           ratio: ratio || .4, svg: previewSrc(row) };
 }
 
-/* 兩個入口共用這一支：檔期列表上那顆「🏷➕ 貼紙庫」，和貼紙面板底下那顆。
+/* 兩個入口共用這一支：檔期列表上那顆「🏷➕ 貼紙庫」，和貼紙那一條最前面那張「＋ 新貼紙」。
    ?embed=1 ＝請它換一種穿法：練習版面、清除存檔那些收起來，整個畫面就是那一櫃貼紙
    （見那一支的 stylesheet 最後一段）。單獨打開那一支完全不受影響。 */
 function openStickerLib(){
   openApp('sticker_editor.html?embed=1', '貼紙庫',
           '做促銷、規格、贈品這幾種可重複貼的小圖——貼到格子上請到 拼板 按「貼圖」');
 }
-document.getElementById('stickerMore').addEventListener('click', openStickerLib);
 
 document.getElementById('stickerClose').addEventListener('click', () => {
   stickerPopShut = true;         // 工具還拿在手上，只是盤子收起來（跟 上色 同一條規矩）
   syncStickerTool();
 });
 
-/* 貼上去只有這一支：手上拿著點一格、和把縮圖拖到那一格，走的是同一條路。
-   兩條入口各寫一份的話，「還沒挑貨」「不是設計」「最近用過」遲早會有一邊漏掉。 */
+/* 貼上去：把縮圖拖到那一格、放手（見 stkDragEnd）。「還沒挑貨」「不是設計」
+   「最近用過」都收在這一支裡。 */
 function pasteStickerOn(cel, row, at){
   if (activeMode !== 'design'){ toast('貼圖由設計決定', 'info', 1800); return false; }
-  const r = row || stickerArmed;
-  if (!r){ toast('先在貼紙庫挑一張', 'info', 1800); return false; }
+  const r = row;
+  if (!r) return false;
   const cell = cellById(cel.dataset.cellId);
   if (!cell) return false;
   const f = canvasFrame(cell.id);
@@ -12231,7 +12382,7 @@ function pasteStickerOn(cel, row, at){
      安靜地什麼都不做的話，看起來就是「貼圖壞了」—— 講一句。 */
   if (!f || !f.contentWindow){ toast('這一格還沒挑貨，貼紙沒有地方站', 'info', 2200); return false; }
   const load = stickerPayload(r);
-  /* 放手（或點下去）的那一點就是這張貼圖的中心 —— 照便利貼那條規矩：東西落在
+  /* 放手的那一點就是這張貼圖的中心 —— 照便利貼那條規矩：東西落在
      你放它的地方，不是格子正中間。
      ⚠️ 送過去的是**畫布那份文件自己的**客座標（先除掉 iframe 上那個 transform，
      見 canvasScale），**不是排版座標**。排版座標還要再除一個「裝不下就整份縮」
@@ -12248,16 +12399,11 @@ function pasteStickerOn(cel, row, at){
        （只會加，所以合併時取兩邊的增量，見 mergePaintInto）。 */
     const use = Object.assign({}, stkUseOf(currentPlan));
     use[r.id] = (use[r.id] || 0) + 1;
-    currentPlan.stkUse = use;
-    renderStickerPanel();
+    currentPlan.stkUse = use;       // 不重畫那一條：重排的話剛拖的那張會從手邊跳走
     toast('貼上了 —— 點那張貼紙再點它的字就能改', 'ok', 2000);
     return true;
   } catch (_){ return false; }
 }
-/* ⚠️ 貼上去那一下**不接 pointerdown**（上色、取色那幾支是接的）：拿著 貼圖 的時候
-   格子裡的畫布是活的，按在格子上的那一下多半根本不會傳到這一層。走 click 那條，
-   格子裡按空白處轉出來的那一下（stagePass 補的就是 click）跟真的點到格子邊上
-   那一下才會是同一條路 —— 兩邊各接一份的話，會有一種按法貼得上、另一種按不動。
 
 /* ---- 取色 ----
    取的是那一格存著的色碼（cell.bg），不是螢幕上那幾顆像素：格子上蓋著壓暗、hover、
@@ -16379,12 +16525,17 @@ bootLogin();
   const want = new URLSearchParams(location.search).get('plan');
 
   bootLogos();                  // 不 await：品牌 Logo 拉不拉得到都不影響這一頁開起來
-  if (!s) catReady = true;      // 沒接後端＝沒有共用的那一份可以毀（見 catReady）
-  if (s){
-    /* 目錄先拉：畫布掛上來的時候就要有得用。拉不到（表還沒建、網路不通）
-       就維持 null，畫布照舊用它自己寫死的那份。 */
+  if (!s) catReady = true;      // 沒接後端（或示範版的唯讀）＝沒有共用的那一份可以毀（見 catReady）
+  /* 目錄先拉：畫布掛上來的時候就要有得用。拉不到（表還沒建、網路不通）
+     就維持 null，畫布照舊用它自己寫死的那份。
+     ⚠️ 示範版（config.js 帶 readOnly）**也要拉**：它什麼都不寫（ok() 是 false，檔期、
+     便利貼、貼紙庫全部只存這台瀏覽器），但商品目錄和商品圖是「拿來看、拿來挑」的東西。
+     2026-09-10 那兩份示範版就是整個沒接，於是商品目錄整片空白、挑貨只剩內建那十幾支 ——
+     看起來像資料庫被清空了。 */
+  const rd = (window.PlanSync && window.PlanSync.canRead && window.PlanSync.canRead()) ? window.PlanSync : null;
+  if (rd){
     try {
-      const cat = await s.pullCatalogue();
+      const cat = await rd.pullCatalogue();
       if (cat && Array.isArray(cat.rows) && cat.rows.length){ CATALOGUE = cat; pushCatalogue(); }
       catReady = true;                 // 讀到了（連「那一列還不存在」也算）
     } catch (e){
@@ -16392,7 +16543,8 @@ bootLogin();
          這時候本機看起來是空的，存下去就是把伺服器上那一份抹掉。 */
       console.warn('商品目錄同步失敗，先用內建的', e);
     }
-
+  }
+  if (s){
     try {
       const rows = await s.pullAll();
       if (rows && rows.length){

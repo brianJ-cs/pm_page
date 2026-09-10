@@ -23,9 +23,8 @@
   --warn:#c98a12; --amber-bg:#fdf3dc;
 }
 *{box-sizing:border-box}
-/* ⚠️ 這一條要在最前面：`display:flex` 那幾塊（#impMask、#drop）用 id 選，
-   權重比瀏覽器內建的 `[hidden]{display:none}` 高 —— 沒有這一條的話，
-   那兩塊蓋著整個畫面而且關不掉，而 HTML 上明明寫著 hidden。 */
+/* ⚠️ 這一條要在最前面：用 id 選、自己寫了 display 的那幾塊，權重比瀏覽器內建的
+   `[hidden]{display:none}` 高 —— 沒有這一條的話 HTML 上寫著 hidden 也藏不起來。 */
 [hidden]{display:none !important}
 html,body{height:100%}
 body{
@@ -177,49 +176,29 @@ tr.bad input.sku{border-color:var(--danger-line);background:var(--danger-tint)}
 #empty{max-width:520px;margin:80px auto;text-align:center;color:var(--muted);
        font-size:15px;font-weight:700;line-height:2}
 #empty b{color:var(--ink)}
-/* 一句話的回報。存檔狀態在上面那條，這裡只講一次性的事（匯出了幾筆、合併了幾筆） */
+/* 一句話的回報。存檔狀態在上面那條，這裡只講一次性的事（放好圖了、合併了幾筆） */
 #say{
   position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:50;
   background:#1e2532;color:#fff;font-size:13.5px;font-weight:800;
   padding:9px 16px;border-radius:999px;opacity:0;transition:opacity .18s;pointer-events:none;
 }
 #say.on{opacity:.95}
+/* 從版上那個空的商品圖框點進來的那一列（見 FOCUS）。一份幾百列的表，開到這一頁
+   只做了一半 —— 人還得自己找到那一列、再找到那個 34px 的小框。所以那一列自己
+   站出來：整列亮、小框放大成一個寫著「拖圖到這裡」的落點。
+   藍＝放下去的位置（跟拖圖經過時那個 dragover 同一種藍）。 */
+tr.want td{background:var(--accent-tint)}
+.thumb.want{
+  width:92px;height:92px;padding:6px;border:2px dashed var(--blue);border-radius:9px;
+  background:var(--surface);color:var(--blue);font-size:12px;line-height:1.35;
+  text-align:center;white-space:normal;animation:want-pulse 1.4s ease-in-out infinite;
+}
+.thumb.want.dragover{background:var(--accent-tint);border-style:solid;animation:none}
+@keyframes want-pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(74,111,220,.45)}
+  50%{box-shadow:0 0 0 8px rgba(74,111,220,0)}
+}
 
-/* ---- 匯入 ---- */
-#impMask{
-  position:fixed;inset:0;z-index:60;background:rgba(20,26,38,.5);
-  display:flex;align-items:center;justify-content:center;padding:28px;
-}
-#imp{
-  background:var(--surface);border-radius:14px;width:min(980px,100%);max-height:100%;
-  display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(20,26,38,.35);overflow:hidden;
-}
-.imp-hd{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line)}
-.imp-hd b{font-size:17px}
-.imp-hd #impFile{font-size:13px;font-weight:700;color:var(--muted);margin-right:auto}
-.imp-body{flex:1;min-height:0;overflow:auto;padding:6px 20px 16px}
-.imp-sec{padding:14px 0;border-bottom:1px solid var(--line)}
-.imp-sec:last-child{border-bottom:none}
-.imp-t{font-size:14px;font-weight:800;margin-bottom:6px}
-.imp-sum{display:flex;flex-wrap:wrap;gap:8px}
-.imp-sum span{
-  font-size:13px;font-weight:800;padding:6px 12px;border-radius:999px;
-  background:var(--surface-2);color:var(--ink-dim);
-}
-.imp-sum span.add{background:var(--ok-tint);color:var(--ok-ink)}
-.imp-sum span.upd{background:var(--accent-tint);color:var(--blue)}
-.imp-sum span.skip{background:var(--danger-tint);color:var(--danger-ink)}
-.imp-warn{margin-top:12px;padding:10px 12px;border-radius:9px;font-size:13px;font-weight:700;
-          line-height:1.7;background:var(--danger-tint);color:var(--danger-ink)}
-.imp-ft{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line);
-        background:var(--surface-2)}
-.imp-err{flex:1;font-size:13px;font-weight:800;color:var(--danger-ink)}
-/* 拖一份檔案進來：整頁變成一個落點，不必先找到那顆鈕 */
-#drop{
-  position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
-  background:rgba(74,111,220,.16);border:4px dashed var(--blue);
-  font-size:22px;font-weight:800;color:var(--accent-strong);pointer-events:none;
-}
 </style>
 </head>
 <body>
@@ -229,41 +208,8 @@ tr.bad input.sku{border-color:var(--danger-line);background:var(--danger-tint)}
   <span id="count"></span>
   <input id="search" type="search" placeholder="找品名／型號／SKU／品牌">
   <button class="btn" id="addBtn">＋ 新增一列</button>
-  <button class="btn primary" id="impBtn">匯入 CSV</button>
-  <button class="btn" id="csvBtn">匯出 CSV</button>
-  <button class="btn" id="undoBtn" hidden>復原匯入</button>
   <span id="state"></span>
 </div>
-<input id="file" type="file" accept=".csv,.tsv,.txt,text/csv" hidden>
-
-<!-- 匯入：選檔 → 看它會改什麼 → 匯入。
-     ⚠️ 中間本來還有「這幾欄是什麼」（可以自己改的對照表）和「前幾筆長這樣」，
-     談定拿掉了：欄位名固定就是那幾個，猜得到就直接走，猜不到就整份擋下來
-     （見 impErr）—— 半對半錯地匯進去才是弄髒目錄的那條路。
-     「合併／取代」那個選擇也拿掉了，一律**合併**：照 SKU 更新或新增，
-     沒出現在 CSV 裡的商品留著。刪商品要一筆一筆刪，不由匯入順手做。 -->
-<div id="impMask" hidden>
-  <div id="imp">
-    <div class="imp-hd">
-      <b>匯入 CSV</b><span id="impFile"></span>
-      <button class="btn" id="impClose">關掉</button>
-    </div>
-    <div class="imp-body">
-      <div class="imp-sec">
-        <div class="imp-t">匯進去會發生什麼</div>
-        <div id="impSum" class="imp-sum"></div>
-        <div id="impBad" class="imp-warn" hidden></div>
-      </div>
-    </div>
-    <div class="imp-ft">
-      <span id="impErr" class="imp-err"></span>
-      <button class="btn" id="impCancel">取消</button>
-      <button class="btn primary" id="impGo">匯入</button>
-    </div>
-  </div>
-</div>
-<div id="drop" hidden>放開就讀這份 CSV</div>
-
 <!-- 品牌對不上 Logo 庫的時候才出現。這是「商品目錄」和「品牌 Logo」兩邊
      唯一會對不起來的地方：這裡打的品牌名，那邊要有同名的公司才找得到圖。 -->
 <div id="logoWarn" hidden></div>
@@ -489,6 +435,16 @@ const COLS = [
 
 const UNCAT = '未分類';
 let catPick = null;          // 左欄點到哪一類（null＝全部）
+
+/* 版上點一個空的商品圖框進來的（主程式開這一頁時帶 ?focus＝那一格的圖鑰匙、?sku）。
+   鑰匙跟畫布那邊同一支 imgKey 算的，所以同一把鑰匙的每一列都亮 —— 那幾列本來就
+   共用同一張圖，放在哪一列都一樣。SKU 對得上的那一列一定亮（鑰匙規則換過的舊資料）。 */
+const FOCUS = (() => { const u = new URLSearchParams(location.search);
+  return { key: u.get('focus') || '', sku: u.get('sku') || '' }; })();
+const FOCUS_ON = !!(FOCUS.key || FOCUS.sku);
+let focusShown = false, focusMissSaid = false;
+const isFocus = r => FOCUS_ON && !!r
+  && ((FOCUS.sku && String(r.sku || '') === FOCUS.sku) || (FOCUS.key && imgKey(r) === FOCUS.key));
 let sel = new Set();         // 選到的是第幾列。加／刪／匯入都會清掉它 ——
                              // 那幾種動作會讓索引對不上，留著就會搬到別人身上
 
@@ -627,6 +583,10 @@ $('#newCat').addEventListener('keydown', e => {
 $('#selNone').addEventListener('click', () => { sel.clear(); render(); });
 
 function render(){
+  /* 要找的那一列被搜尋或類別篩掉的話，站出來也看不到 —— 第一次找到它時把篩選清掉。 */
+  if (FOCUS_ON && !focusShown && CAT.rows.some(isFocus)){
+    q = ''; $('#search').value = ''; catPick = null;
+  }
   renderCats();
   renderSelBar();
   renderLogoWarn();
@@ -640,8 +600,7 @@ function render(){
   const tbl = $('#tbl'), empty = $('#empty');
   if (!CAT.rows.length){
     tbl.hidden = true; empty.hidden = false;
-    empty.innerHTML = '<b>還沒有商品</b><br>把一份 CSV 拖進來，'
-                    + '<br>或按上面的「＋ 新增一列」自己打。';
+    empty.innerHTML = '<b>還沒有商品</b><br>按上面的「＋ 新增一列」自己打。';
     return;
   }
   if (!rows.length){
@@ -674,6 +633,17 @@ function render(){
          + list.map(x => rowHTML(x.r, x.i)).join('');
   }).join('');
   $('#tbody').innerHTML = head + body;
+
+  if (FOCUS_ON && !focusShown){
+    const tr = $('#tbody tr.want');
+    if (tr){ focusShown = true; tr.scrollIntoView({ block: 'center' }); }
+    /* 共用那一份讀到了還是找不到：多半是那個商品已經從目錄拿掉了。
+       安靜地停在第一列的話，看起來就是「點了沒帶我去」。 */
+    else if (answered && !focusMissSaid){
+      focusMissSaid = true;
+      say('目錄裡找不到「' + (FOCUS.key.split('|')[0] || FOCUS.sku) + '」—— 可能已經被刪掉了');
+    }
+  }
 }
 
 const esc = s => String(s == null ? '' : s)
@@ -702,12 +672,14 @@ function imgOf(r){
 }
 
 function rowHTML(r, i){
-  const cls = [r.sku ? '' : 'bad', sel.has(i) ? 'on' : ''].filter(Boolean).join(' ');
+  const want = isFocus(r);
+  const cls = [r.sku ? '' : 'bad', sel.has(i) ? 'on' : '', want ? 'want' : ''].filter(Boolean).join(' ');
   const u = imgOf(r);
+  const big = want && !u;          // 放好圖之後小框回到原本大小，整列還亮著
   return `<tr${cls ? ` class="${cls}"` : ''} data-i="${i}">`
     + `<td class="pick"><input type="checkbox" data-pick="${i}"${sel.has(i) ? ' checked' : ''}></td>`
-    + `<td class="im"><span class="thumb${u ? ' has' : ''}" data-img="${i}" title="${
-        u ? '拖一張圖到這裡換掉它' : '拖一張圖到這裡'}">${u ? `<img src="${esc(u)}" alt="">` : '＋'}</span>${
+    + `<td class="im"><span class="thumb${u ? ' has' : ''}${big ? ' want' : ''}" data-img="${i}" title="${
+        u ? '拖一張圖到這裡換掉它' : '拖一張圖到這裡'}">${u ? `<img src="${esc(u)}" alt="">` : big ? '拖圖到這裡' : '＋'}</span>${
         u ? `<button class="imgx" data-imgdel="${i}" title="拿掉這張圖">✕</button>` : ''}</td>`
     + COLS.map(c => {
     const f = c[0];
@@ -834,8 +806,8 @@ $('#tbody').addEventListener('click', e => {
 /* 把一張圖拖到那一列的縮圖上就換掉它。**沒有「點一下選檔案」這回事**
    （整支程式都不開檔案視窗）：檔案視窗只講得出「一個檔案」，講不出「哪一列」，
    手滑一下就換掉隔壁那一支的圖。
-   ⚠️ 一定要 stopPropagation：整頁還掛著一個「放開就讀這份 CSV」的 drop，
-   不擋的話這張圖會被當成一份 CSV 拿去解析。 */
+   ⚠️ 一定要 stopPropagation：整頁還掛著一個「圖丟錯地方」的 drop，
+   不擋的話放好了還會多講一句「沒對準」。 */
 $('#tbody').addEventListener('dragover', e => {
   const t = e.target.closest('.thumb');
   if (!t || !dragHasImage(e.dataTransfer)) return;
@@ -887,253 +859,20 @@ $('#addBtn').addEventListener('click', () => {
   if (first) first.focus();
 });
 
-/* ---- 匯出 CSV ------------------------------------------------------------
-   欄位順序跟公司給的那一份一模一樣（類別,品牌,商品名字,型號,SKU,市價），
-   後面才接規格和顏色 —— 匯出去的檔案要能原封不動再匯進來，多的欄位放後面，
-   前六欄跟來源對得起來。
-   ⚠️ Excel 開 UTF-8 的 CSV 一定要有 BOM，不然中文全部變亂碼。 */
-const CSV_COLS = [['cat','類別'],['brand','品牌'],['name','商品名字'],['model','型號'],
-                  ['sku','SKU'],['price','市價'],['spec','規格'],['color','顏色']];
-function csvCell(v){
-  const s = String(v == null ? '' : v);
-  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-$('#csvBtn').addEventListener('click', () => {
-  const rows = CAT.rows.filter(hit);
-  if (!rows.length){ say('沒有可以匯出的商品'); return; }
-  const lines = [CSV_COLS.map(c => c[1]).join(',')]
-    .concat(rows.map(r => CSV_COLS.map(c => csvCell(r[c[0]])).join(',')));
-  const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'],
-                        { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'dm_products_' + new Date().toISOString().slice(0, 10) + '.csv';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  say(`匯出 ${rows.length} 筆` + ((q || catPick != null) ? '（只有現在看得到的那些）' : ''));
-});
-
-/* ==========================================================================
-   匯入 CSV
-   自己解析，不引 library（這個專案沒有相依套件，而 CSV 難的地方就那三件：
-   引號裡的逗號和換行、\r\n、BOM）。
-   ========================================================================== */
-
-/** 逗號還是 Tab：從 Excel 直接複製貼上是 TSV，那是最常發生的事。
-    只看第一行、只數不在引號裡的分隔符。 */
-function pickDelim(line){
-  let inQ = false, c = 0, t = 0;
-  for (let i = 0; i < line.length; i++){
-    const ch = line[i];
-    if (ch === '"'){ inQ = !inQ; continue; }
-    if (inQ) continue;
-    if (ch === ',') c++;
-    else if (ch === '\t') t++;
-  }
-  return t > c ? '\t' : ',';
-}
-
-function parseDelimited(text){
-  text = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');   // BOM ＋ 換行統一
-  const delim = pickDelim(text.split('\n')[0] || '');
-  const rows = []; let row = [], cell = '', inQ = false;
-  for (let i = 0; i < text.length; i++){
-    const ch = text[i];
-    if (inQ){
-      if (ch !== '"'){ cell += ch; continue; }
-      if (text[i + 1] === '"'){ cell += '"'; i++; continue; }   // "" ＝ 一個引號
-      inQ = false; continue;
-    }
-    if (ch === '"'){ inQ = true; continue; }
-    if (ch === delim){ row.push(cell); cell = ''; continue; }
-    if (ch === '\n'){ row.push(cell); rows.push(row); row = []; cell = ''; continue; }
-    cell += ch;
-  }
-  if (cell !== '' || row.length){ row.push(cell); rows.push(row); }
-  // 整列都是空的就當作沒這一列（檔案結尾多一個換行是常態）
-  return rows.map(r => r.map(v => v.trim())).filter(r => r.some(v => v !== ''));
-}
-
-/* 欄位名怎麼認。第一個對得上的就用它 —— 猜完還是讓人看得到、改得動（見第 1 段）。 */
-const ALIAS = {
-  cat:   ['類別','分類','品類','群組','category','cat'],
-  brand: ['品牌','廠牌','brand'],
-  name:  ['商品名字','商品名稱','商品名','品名','名稱','name','product'],
-  model: ['型號','機型','型式','model'],
-  spec:  ['規格','容量','spec'],
-  color: ['顏色','色','color','colour'],
-  sku:   ['sku','貨號','料號','商品編號','品號'],
-  price: ['市價','價格','售價','定價','單價','price']
-};
-function guessMap(cols){
-  const map = {};
-  const norm = s => String(s || '').trim().toLowerCase().replace(/\s+/g, '');
-  FIELDS.forEach(f => {
-    const idx = cols.findIndex((c, i) =>
-      !Object.values(map).includes(i) && ALIAS[f].some(a => norm(c) === norm(a)));
-    if (idx >= 0){ map[f] = idx; return; }
-    const loose = cols.findIndex((c, i) =>
-      !Object.values(map).includes(i) && ALIAS[f].some(a => norm(c).includes(norm(a))));
-    if (loose >= 0) map[f] = loose;
-  });
-  return map;
-}
-
-let imp = null;      // { file, cols, rows, map }
-const LABEL = { cat:'類別', brand:'品牌', name:'商品名字', model:'型號',
-                spec:'規格', color:'顏色', sku:'SKU', price:'市價' };
-
-/** 一列 CSV 照目前的對法變成一筆商品。 */
-function impRow(r){
-  const get = f => (imp.map[f] == null ? '' : (r[imp.map[f]] || ''));
-  return normRow({
-    cat:get('cat'), brand:get('brand'), name:get('name'), model:get('model'),
-    spec:get('spec'), color:get('color'), sku:get('sku'),
-    price: +String(get('price')).replace(/[^\d.-]/g, '') || 0
-  });
-}
-
-/** 匯進去會發生什麼。算一次，畫面和真的匯入都讀它 —— 兩份算法遲早會各說各話。
-    永遠是「合併」：照 SKU 更新或新增，沒出現在這份 CSV 裡的商品留著。 */
-function impPlan(){
-  const seen = new Map();       // sku → 這份檔案裡最後那一筆（同檔重複以最後為準）
-  let skipped = 0, dups = 0;
-  imp.rows.forEach(raw => {
-    const r = impRow(raw);
-    if (!r.sku){ skipped++; return; }
-    if (seen.has(r.sku)) dups++;
-    seen.set(r.sku, r);
-  });
-  const cur = new Map(CAT.rows.map((r, i) => [r.sku, i]));
-  const adds = [], upds = [], same = [];
-  seen.forEach((r, sku) => {
-    const i = cur.get(sku);
-    if (i == null){ adds.push(r); return; }
-    (j(normRow(CAT.rows[i])) === j(r) ? same : upds).push(r);
-  });
-  const noName = [...seen.values()].filter(r => !r.name).length;
-  return { seen, adds, upds, same, skipped, dups, noName };
-}
-
-function renderImport(){
-  /* 認不出 SKU 那一欄就整份擋下來，並且把讀到的標題原樣列出來 ——
-     使用者要修的是那份檔案（或那個匯出設定），不是在這裡湊一組對照。 */
-  const ok = imp.map.sku != null;
-  const bad = $('#impBad');
-  $('#impGo').disabled = !ok;
-  if (!ok){
-    $('#impSum').innerHTML = '';
-    $('#impErr').textContent = '認不出哪一欄是 SKU';
-    bad.hidden = false;
-    bad.textContent = '⚠️ SKU 是商品的身分，沒有它就不知道哪一筆是哪一筆。'
-      + `這份檔案的標題列是：${imp.cols.join('、')}　`
-      + '—— 把那一欄的標題改成「SKU」（或貨號／料號／商品編號）再匯一次。';
-    return;
-  }
-  $('#impErr').textContent = '';
-  bad.hidden = true;
-
-  const p = impPlan();
-  const bits = [`<span class="add">新增 ${p.adds.length} 筆</span>`,
-                `<span class="upd">更新 ${p.upds.length} 筆</span>`];
-  if (p.same.length) bits.push(`<span>沒變 ${p.same.length} 筆</span>`);
-  if (p.dups)        bits.push(`<span>檔案裡有 ${p.dups} 筆重複的 SKU（以最後一筆為準）</span>`);
-  if (p.skipped)     bits.push(`<span class="skip">跳過 ${p.skipped} 筆（沒有 SKU）</span>`);
-  if (p.noName)      bits.push(`<span class="skip">${p.noName} 筆沒有商品名字</span>`);
-  $('#impSum').innerHTML = bits.join('');
-}
-
-/* 匯入前先留一份。這是全公司共用的目錄，而匯入是一次動幾百列的動作 ——
-   「按錯了」跟「檔案是錯的」都要有一條回得去的路。留在記憶體裡就好：
-   重整之後那一份已經上去了，要救得靠別人手上的版本。 */
-let undoSnap = null;
-function doImport(){
-  const p = impPlan();
-  if (!p.adds.length && !p.upds.length){ say('沒有東西要改'); closeImport(); return; }
-  undoSnap = jclone(CAT.rows);
-  const by = new Map(CAT.rows.map((r, i) => [r.sku, i]));
-  p.seen.forEach((r, sku) => {
-    const i = by.get(sku);
-    if (i == null) CAT.rows.push(r);
-    else CAT.rows[i] = r;
-  });
-  sel.clear();
-  $('#undoBtn').hidden = false;
-  markDirty(); render(); closeImport();
-  say(`匯入完成：新增 ${p.adds.length}、更新 ${p.upds.length}`);
-}
-
-$('#undoBtn').addEventListener('click', () => {
-  if (!undoSnap) return;
-  CAT.rows = undoSnap; undoSnap = null;
-  $('#undoBtn').hidden = true;
-  markDirty(); render();
-  say('已經退回匯入之前那一份');
-});
-
-function closeImport(){ $('#impMask').hidden = true; imp = null; }
-$('#impClose').addEventListener('click', closeImport);
-$('#impCancel').addEventListener('click', closeImport);
-$('#impGo').addEventListener('click', doImport);
-$('#impMask').addEventListener('click', e => { if (e.target === $('#impMask')) closeImport(); });
-
-/** 檔案讀進來 → 解析 → 猜一次 → 開浮層。 */
-function readFile(file){
-  const fr = new FileReader();
-  fr.onload = () => {
-    /* 台灣的 Excel 存 CSV 預設是 Big5，不是 UTF-8。先照 UTF-8 解，
-       解出替代字元（U+FFFD）就代表猜錯了，改用 Big5 再解一次 ——
-       不然整份檔案是亂碼，而使用者只會說「你的匯入壞了」。 */
-    let text = new TextDecoder('utf-8').decode(fr.result);
-    if (text.includes('�')){
-      try {
-        const b5 = new TextDecoder('big5').decode(fr.result);
-        if (!b5.includes('�')) text = b5;
-      } catch (e){ /* 瀏覽器不認 big5 就算了，至少還有 UTF-8 那一版 */ }
-    }
-    const rows = parseDelimited(text);
-    if (rows.length < 2){ say('這份檔案裡沒有資料（至少要有標題列和一列商品）'); return; }
-    imp = { file: file.name, cols: rows[0], rows: rows.slice(1), map: guessMap(rows[0]) };
-    $('#impFile').textContent = `${file.name}　${imp.rows.length} 列`;
-    $('#impMask').hidden = false;
-    renderImport();
-  };
-  fr.onerror = () => say('讀不到這個檔案');
-  fr.readAsArrayBuffer(file);
-}
-
-$('#impBtn').addEventListener('click', () => $('#file').click());
-$('#file').addEventListener('change', e => {
-  const f = e.target.files && e.target.files[0];
-  if (f) readFile(f);
-  e.target.value = '';            // 同一個檔案再選一次也要收得到
-});
-
-/* 拖檔案進來走同一條路。整頁是落點：來源多半是剛從信裡下載的那一份，
-   要人先找到那顆鈕再選檔案是多一步。 */
-let dragDepth = 0;
-/* 拖的是一張圖就別亮「放開就讀這份 CSV」那塊落點：那是拿來換商品圖的，
-   落點在那一列的縮圖上（見 rowHTML 的 .thumb）。整頁蓋一塊「我要吃 CSV」
-   的布，看起來就像那張圖只能餵給匯入。 */
+/* ---- 圖丟在縮圖以外的地方 ----------------------------------------------
+   瀏覽器預設會直接打開那個檔案（整頁被換成那張圖），所以整頁都要擋下來，
+   並講一句該丟在哪 —— 那是「想換商品圖但沒對準」。
+   （CSV 匯入／匯出 2026-09-11 拿掉了，要找回來看 c308197 的這一支。） */
 const dragHasImage = dt => [...(dt && dt.items || [])].some(i => /^image\//.test(i.type));
-
-addEventListener('dragenter', e => {
-  if (![...(e.dataTransfer.types || [])].includes('Files')) return;
-  if (dragHasImage(e.dataTransfer)) return;
-  e.preventDefault(); dragDepth++; $('#drop').hidden = false;
-});
 addEventListener('dragover', e => {
   if ([...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault();
 });
-addEventListener('dragleave', () => { if (--dragDepth <= 0){ dragDepth = 0; $('#drop').hidden = true; } });
 addEventListener('drop', e => {
   const f = e.dataTransfer.files && e.dataTransfer.files[0];
   if (!f) return;
-  e.preventDefault(); dragDepth = 0; $('#drop').hidden = true;
-  /* 圖掉在表格外面：那是「想換商品圖但沒對準」，不是「想匯入一份 CSV」。
-     不講的話它會被當成 CSV 解析，然後說「這份檔案裡沒有資料」—— 對不上人在做的事。 */
-  if (/^image\//.test(f.type)){ say('要換商品圖的話，把圖拖到那一列最前面的小框上'); return; }
-  readFile(f);
+  e.preventDefault();
+  say(/^image\//.test(f.type) ? '要換商品圖的話，把圖拖到那一列最前面的小框上'
+                               : '這一頁只收商品圖 —— 拖到那一列最前面的小框上');
 });
 
 /* ==========================================================================
@@ -1229,6 +968,8 @@ addEventListener('message', e => {
 
 (async function boot(){
   const s = sync();
+  /* 示範版（唯讀）：讀一份來看，改的只存在這台瀏覽器（見 supabase-sync 的 readOnly） */
+  const rd = !s && window.PlanSync && window.PlanSync.canRead && window.PlanSync.canRead() ? window.PlanSync : null;
   setState(EMBED || s ? 'wait' : 'local');        // 讀到之前一律先擋著（見 answered）
   if (!EMBED && !s) answered = true;              // 純本機：沒有共用的那一份可以毀
 
@@ -1259,11 +1000,15 @@ addEventListener('message', e => {
 
   /* 單獨開這一頁：Logo 庫自己拉一次（嵌著的時候是上層給，見上面那個 message）。
      拉不到就當作「不知道」，那條提示不會亂講話。 */
-  if (s && s.pullLogos){
-    s.pullLogos().then(map => { if (map){ LOGOS = map; renderLogoWarn(); } })
+  if ((s || rd) && (s || rd).pullLogos){
+    (s || rd).pullLogos().then(map => { if (map){ LOGOS = map; renderLogoWarn(); } })
                  .catch(e => console.warn('品牌 Logo 庫拉不到', e));
   }
 
+  if (!s && rd){
+    try { const cat = await rd.pullCatalogue(); if (cat && !touched && adopt(cat)) render(); }
+    catch (e){ console.warn('商品目錄拉不到（示範版）', e); }
+  }
   if (!s){ answered = true; return; }             // 沒接後端＝沒有共用的那一份可以毀
   s.setCatalogueMerge(mergeCatalogueInto);
   s.setCatalogueAfter((data, report) => {

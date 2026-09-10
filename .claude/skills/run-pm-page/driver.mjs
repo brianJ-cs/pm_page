@@ -23,6 +23,7 @@
  *   --click <sel>        real mouse press+release at the element's centre
  *   --click-text <text>  click the first element whose textContent contains it
  *   --drag <sel> <dx> <dy>   pointer drag from the element's centre by dx,dy
+ *   --wheel <sel> <dy> <n>   n real wheel notches over the element's centre
  *   --type <text>        type into whatever has focus
  *   --key <Key>          press one key (Escape, Enter, Tab, ...)
  *   --eval <js>          evaluate in the page, print the result
@@ -211,6 +212,21 @@ async function drag(sel, dx, dy){
   await sleep(200);
 }
 
+/** Real browser wheel over an element's centre. A synthesised WheelEvent from
+    --eval proves the listener is wired; only this proves the browser actually
+    delivers a wheel there (nothing swallows it, the listener is non-passive). */
+async function wheel(sel, deltaY, notches = 1){
+  const c = await centreOf(sel);
+  if (!c) throw new Error('wheel: no visible element for ' + sel);
+  await mouse('mouseMoved', c.x, c.y, { buttons: 0 });
+  for (let i = 0; i < notches; i++){
+    await send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel', x: c.x, y: c.y, deltaX: 0, deltaY, buttons: 0 });
+    await sleep(60);
+  }
+  await sleep(150);
+}
+
 async function type(text){
   for (const ch of text){
     await send('Input.dispatchKeyEvent', { type: 'keyDown', text: ch });
@@ -340,6 +356,8 @@ try {
       case '--click-text':{ const t = arg(); await clickText(t); console.log('click  "' + t + '"'); break; }
       case '--drag':      { const s = arg(), dx = +arg(), dy = +arg();
                             await drag(s, dx, dy); console.log(`drag   ${s} ${dx},${dy}`); break; }
+      case '--wheel':     { const s = arg(), dy = +arg(), n = +arg();
+                            await wheel(s, dy, n); console.log(`wheel  ${s} ${dy} x${n}`); break; }
       case '--type':      { const t = arg(); await type(t); console.log('type   ' + t); break; }
       case '--key':       { const k = arg(); await key(k); console.log('key    ' + k); break; }
       case '--eval':      { const js = arg();

@@ -142,8 +142,11 @@ body.padding .cell.cur .safe{display:block}
 .blk.sticker{overflow:visible;padding:0;border-width:0}
 .blk.sticker:hover{outline:1px solid #c3cbd8;outline-offset:0}
 .blk.sticker > img{width:100%;display:block;pointer-events:none}
-.blk.sticker:hover .tobtn{display:block}
+.blk.sticker:hover .tobtn,.blk.sticker.actimg .tobtn{display:block}
 .blk.sticker.sel .tobtn{display:none}
+/* 滾輪切到這一張（跟商品圖的 .actimg 同一個記號）。貼圖沒有框線（見上面），
+   所以那一圈藍畫在 outline 上。 */
+.blk.sticker.actimg{outline:2px solid #007acc;outline-offset:0;box-shadow:0 0 12px rgba(0,122,204,.45);opacity:1!important}
 /* 下面這幾條是那支渲染器畫出來的節點要的定位規則。貼紙庫那一頁的 stylesheet 裡
    有同樣一份（那邊還多了選取框和把手）—— 幾行定位改壞了自己那一頁一眼看得到，
    真正會悄悄走鐘的是那幾百行怎麼排，所以共用的是程式不是這幾條。 */
@@ -185,6 +188,30 @@ body.padding .cell.cur .safe{display:block}
    `margin:15%` 也讓框的高度維持 70%+15%+15% ＝ 100% 寬，正方形不變，
    所以貼在它上面的那一疊、下面的價格都不會跟著移動。 */
 .blk.img .ph{aspect-ratio:1/1;height:auto;width:70%;margin:15% auto}
+/* 還沒有圖的那一塊：「你在動哪一個」的每一個記號都**貼著灰圖畫**，不是貼著框
+   （2026-09-11）。框比灰圖大一圈（上面那 15%），記號畫在框上的話，選起來那一圈
+   比看得到的東西大很多 —— 看起來像選到了一塊空氣。
+   ・框線、光暈（滑過／滾輪切到／多選）→ 換成灰圖身上的 outline 和 box-shadow
+   ・四個角的把手 → paintHandles 量灰圖的位置擺（placeHandles）
+   ・集體移動那圈螞蟻線 → 用 --iw（框寬）把灰圖的位置算回來
+   點得到的範圍也跟著縮：框是透明的，旁邊那一圈空白底下可能壓著別的東西。
+   ⚠️ 框本身（b.w）一個 px 都不動：換上真圖之後還是原來那個大小。 */
+.blk.img.noimg{border-color:transparent!important;box-shadow:none!important;pointer-events:none;
+  --cw:calc(var(--iw) - 2 * var(--ph,4px) - 2 * var(--bd,1.5px))}   /* 框的內容寬 */
+.blk.img.noimg > .ph{pointer-events:auto;border-radius:3px}
+.blk.img.noimg > .rz,.blk.img.noimg > .tobtn{pointer-events:auto}
+/* 「最上面」也站進灰圖的下緣：站在框的下緣的話，滑鼠從灰圖往下走去按它，
+   中間那一圈空白已經不算滑過了，鈕在手到之前就收起來。 */
+.blk.img.noimg > .tobtn{bottom:calc(var(--pv,2px) + var(--cw) * .15 + 3px)}
+.blk.img.noimg:hover > .ph{outline:var(--bd,1.5px) solid #c3cbd8}
+.blk.img.noimg.actimg > .ph{outline:var(--bd,1.5px) solid #007acc;box-shadow:0 0 12px rgba(0,122,204,.45)}
+.blk.img.noimg.msel > .ph{outline:var(--bd,1.5px) solid var(--select);box-shadow:0 0 0 1px var(--select)}
+.blk.img.noimg.bpick::after{
+  inset:auto;
+  left:calc(var(--ph,4px) + var(--cw) * .15 - 3px);
+  top:calc(var(--pv,2px) + var(--cw) * .15 - 3px);
+  width:calc(var(--cw) * .7 + 6px);height:calc(var(--cw) * .7 + 6px);
+}
 /* 52 是原版的值，跟 priceBase() 是同一個數字；實際字級由 JS 依格高換算 */
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:var(--fs-price,52px);line-height:1}
 .spec{display:inline-block;border:var(--bd,1.5px) solid #111;border-radius:var(--r,6px);
@@ -360,9 +387,16 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
    ⚠️ 站在框的**外面**一點點：選起來的時候四個角是改大小的把手，擠在一起就會按錯。
    ⚠️ 「最上面」選起來就收掉（那時候要拖、要縮，一顆鈕站在圖上只會擋路），
    ✕ 反過來要留著 —— 選起來正是打算對它做點什麼的時候。 */
-.delbtn{position:absolute;top:-9px;right:-9px;display:none;appearance:none;
-  width:18px;height:18px;padding:0;border-radius:999px;border:1px solid rgba(0,0,0,.2);
-  background:rgba(255,255,255,.96);color:#c0392b;font:inherit;font-size:11px;line-height:1;
+/* ⚠️ 大小照**螢幕**算，不照版面（跟四個角的把手同一條理由）：整份畫布被 --cs 縮進格子、
+   外面那層 .ccanvas 又縮一次（--ss），寫死 18px 的話在整張版上只剩五六個 px，
+   根本按不到。除回去讓它在螢幕上約 24px；但夾一個上限：不超過那張貼紙寬的 45%
+   （--bw，blockHTML 寫在那一塊上）—— 縮到很小的時候 1/縮放 會很大，
+   一顆 ✕ 比它要刪的那張貼紙還大，看起來就像那張貼紙本身。 */
+.delbtn{--dz:min(calc(24px / (var(--cs,1) * var(--ss,1))), calc(var(--bw,80px) * .45));
+  position:absolute;top:calc(var(--dz) * -.5);right:calc(var(--dz) * -.5);display:none;appearance:none;
+  width:var(--dz);height:var(--dz);padding:0;border-radius:999px;
+  border:max(1px, calc(var(--dz) / 20)) solid rgba(0,0,0,.2);
+  background:rgba(255,255,255,.96);color:#c0392b;font:inherit;font-size:calc(var(--dz) * .62);line-height:1;
   font-weight:800;cursor:pointer;z-index:6;box-shadow:0 2px 5px rgba(0,0,0,.2)}
 .delbtn:hover{background:#c0392b;color:#fff;border-color:#c0392b}
 .blk.sticker:hover .delbtn,.blk.sticker.sel .delbtn{display:block}
@@ -393,6 +427,9 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 .mini.danger:hover{border-color:var(--danger-ink);color:var(--danger-ink);background:var(--danger-tint)}
 .lthumb{width:30px;height:30px;flex-shrink:0;overflow:hidden;border-radius:5px;background:#f0f2f6}
 .lthumb img,.lthumb svg{width:100%;height:100%;object-fit:cover;display:block}
+/* 貼圖的縮圖整張放進來（形狀本身就是它的樣子，裁掉一截就認不出是哪一張） */
+.lthumb.stk img{object-fit:contain}
+.lthumb.stk{display:flex;align-items:center;justify-content:center;font-size:15px}
 .lname{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lz{font-size:10px;color:#999;font-weight:800}
 .spec.dark{background:#111;color:#fff;border-color:#111}
@@ -1514,7 +1551,11 @@ addEventListener('message',e=>{
   /* 尺寸要在 restoreBoard 之前收 —— 舊檔的座標換算是拿 CW 去算的，
      CW 還停在預設值的話就會照錯的比例縮。 */
   if(d.stageCm) applyStageCm(d.stageCm);
-  if(d.stageScale){ STAGE_SCALE = +d.stageScale || 1; resizeHandles(); }
+  if(d.stageScale){ STAGE_SCALE = +d.stageScale || 1; resizeHandles();
+    document.documentElement.style.setProperty('--ss', STAGE_SCALE.toFixed(4)); }
+  /* 上層轉過來的 Delete：焦點停在上層那一頁（例如剛把貼紙拖進來）時，
+     這一格收不到鍵盤，上層認得出選取在哪一格，就轉給那一格。 */
+  if(d.stageDelete) keyDelete();
   /* 開關集體移動＝已經選起來的那幾塊要換個顏色（藍↔紅），所以要重畫。
      沒有選取就什麼都不必動。 */
   if(d.bulkMode !== undefined){
@@ -1555,6 +1596,12 @@ addEventListener('message',e=>{
   if(d.boardPicked) applyPicked(d.boardPicked);
   // 面板那邊按了「刪掉」— uid 兩邊算出來是同一個，所以指名就認得出是哪一塊
   if(d.boardOff) applyOff(d.boardOff);
+  /* 圖層那一排：畫布報的那一份（面板照它畫），和面板按下去轉回來的那一下（畫布照做）。 */
+  if(d.stageLayers && UI_PANEL){
+    STAGE_LAYERS=d.stageLayers; STAGE_ACTIVE=d.activeLayer||'';
+    renderLayers();
+  }
+  if(d.layerAct && UI_STAGE) applyLayerAct(d.layerAct);
   /* 別的地方（別一格的畫布、商品目錄那一頁）換了某一個商品的圖。
      只補這一把鑰匙、只重畫用得到它的格 —— 這正是不走整包 catalogue 的理由：
      那條路會把每一格的 layoutKey 清掉重排一次。 */
@@ -2300,23 +2347,23 @@ function blockHTML(b,isCur=true){
        舊資料可能還留著 b.h（單向拉伸那個功能留下來的），不理它 —— 拉不回來的
        扁圖留在版上，比「不能改長寬比」這條規矩本身更糟。 */
     return `<div class="blk img${on}${noimg}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
-      style="${pos};top:${b.y}px;width:${iw}px;z-index:${b.z};opacity:${dim}">
+      style="${pos};top:${b.y}px;width:${iw}px;${noimg?`--iw:${iw}px;`:''}z-index:${b.z};opacity:${dim}">
       ${imgHTML(b.key, b.row)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
   /* 貼圖：b.tpl 是這張貼紙的模板（貼上去那一刻從貼紙庫抄一份跟著走），
      b.vals 是**這一格自己**改過的那幾個字。所以同一張貼紙貼十格，十格可以寫
      十種價格 —— 那正是貼紙庫「可變文字」的用處，而攤平成一張圖就沒有了。
-     為什麼模板要整份抄一份：貼紙庫只活在這台瀏覽器的 localStorage，
-     別台電腦打開這本 DM 的時候，庫裡沒有那一張，只剩這一份畫得出來。 */
+     為什麼模板要整份抄一份：庫裡改了那一張，已經貼出去的不該跟著變；
+     庫裡刪掉了，版上這一張也不該跟著消失。 */
   if(b.kind==='sticker'){
     const dim = isCur?xrayDim(b):1;
     const W = +b.w||0;
     /* 高度只有照模板排的時候才寫死（圖層是絕對定位的，沒有高度就疊在一起）。
        舊資料那種一張烤好的圖不寫 —— 高度跟著圖片自己的比例走就對了。 */
     const H = b.tpl ? `height:${(W*stickerRatio(b)).toFixed(1)}px;` : '';
-    return `<div class="blk sticker${on}${pk(b)}" data-b="${b.id}"
-      style="${pos};top:${b.y}px;width:${W.toFixed(1)}px;${H}z-index:${b.z};opacity:${dim}">
+    return `<div class="blk sticker${on}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
+      style="${pos};top:${b.y}px;width:${W.toFixed(1)}px;--bw:${W.toFixed(1)}px;${H}z-index:${b.z};opacity:${dim}">
       ${stickerArt(b, W, W*stickerRatio(b))}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button>
       ${ROLE==='pm' ? '' : `<button class="delbtn" data-del="${b.id}" title="刪掉這張貼圖">✕</button>`}</div>`;
@@ -2413,6 +2460,31 @@ function resizeHandles(){
   const sz = handleSize(el), bd = Math.max(1, sz / 9);
   hs.forEach(h=>{ h.style.width = h.style.height = sz.toFixed(1)+'px';
                   h.style.borderWidth = bd.toFixed(2)+'px'; });
+  placeHandles(el, hs, sz);
+}
+
+/* 還沒有圖的那一塊：四顆把手站在**灰圖**的四個角，不是框的四個角
+   （見 .blk.img.noimg 那一段）。量出來再擺 —— 灰圖在框裡的位置是 CSS 的百分比
+   加內距加框線算出來的，這裡照抄一份算式遲早對不上。
+   有圖的那幾塊把 inline 的位置清掉，交還給 .rz-nw／.rz-se 那幾條。 */
+function placeHandles(el, hs, sz){
+  const ph = el.classList.contains('noimg') ? el.querySelector(':scope > .ph') : null;
+  const er = el.getBoundingClientRect();
+  if(!ph || !er.width){
+    hs.forEach(h=>{ h.style.left = h.style.top = h.style.right = h.style.bottom = ''; });
+    return;
+  }
+  const pr = ph.getBoundingClientRect();
+  const k = el.offsetWidth / er.width;                 // 螢幕 px → 排版單位（外面還縮過好幾層）
+  const L = (pr.left - er.left) * k - el.clientLeft;   // 絕對定位從框線裡面算起
+  const T = (pr.top  - er.top)  * k - el.clientTop;
+  const W = pr.width * k, H = pr.height * k;
+  hs.forEach(h=>{
+    const c = h.dataset.corner || '';
+    h.style.left = (c.includes('w') ? L : L + W - sz).toFixed(1)+'px';
+    h.style.top  = (c.includes('n') ? T : T + H - sz).toFixed(1)+'px';
+    h.style.right = h.style.bottom = 'auto';
+  });
 }
 
 function paintHandles(){
@@ -2432,6 +2504,7 @@ function paintHandles(){
     h.style.borderWidth = bd.toFixed(2)+'px';
     el.appendChild(h);
   });
+  placeHandles(el, el.querySelectorAll('.rz'), sz);
 }
 
 /* 渲染單一格子（i 可為任一格） */
@@ -3101,7 +3174,10 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   if(hz && ROLE!=='pm'){
     const b=BLOCKS.find(x=>x.id===hz.parentElement.dataset.b);
     if(b){
-      const r=hz.parentElement.getBoundingClientRect(), k=scaleOf();
+      /* 沒圖的那一塊，把手站在灰圖的角上 —— 對角那一點也要量灰圖，
+         不然「游標離對角多遠」一開始就多算了那一圈空白，拉起來會比手慢。 */
+      const pe=hz.parentElement, phEl=pe.classList.contains('noimg') && pe.querySelector(':scope > .ph');
+      const r=(phEl||pe).getBoundingClientRect(), k=scaleOf();
       const c=hz.dataset.corner;
       rz={ id:b.id, corner:c, base:scaleBase(b),
            w0:+b.w||r.width/k, h0:r.height/k,
@@ -3134,10 +3210,10 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
        量它現在畫在哪（offsetLeft 就是排版座標），然後把錨點拿掉。
        不換的話拖曳算出來的 b.x 根本沒人在看，放手後它會跳回右邊界。 */
     unpin(blk);
-    if(blk && blk.kind==='img'){
-      // 點 PNG：立刻選為當前圖層並展開左右面板
+    if(blk && stackable(blk)){
+      // 點商品圖或貼圖：立刻選為當前圖層（圖層清單那一列跟著亮）
       activeImg=id;
-      openPanels(true);
+      if(blk.kind==='img') openPanels(true);   // 貼圖不順手開面板：多半只是要拖它
       setTimeout(renderLayers,0);
     }
     /* Ctrl／⌘ 和 Shift 是同一件事：加進選取（再點一次就拿掉）。
@@ -3307,13 +3383,14 @@ document.getElementById('grid').addEventListener('wheel',e=>{
   const idx=+ce.dataset.cell;
   if(idx!==curCell){ saveCell(); loadCell(idx); CELLS.forEach((c,i)=>renderOne(i)); renderPick(); renderLayers(); }
   if(!picked.size){ relayWheel(e); return; }
-  const imgs=BLOCKS.filter(b=>b.kind==='img');
-  if(!imgs.length){ relayWheel(e); return; }
-  const hit=e.target.closest('.blk');
-  // 游標下所有 img block（由 z 大到小）
+  /* 疊在一起的東西＝商品圖和貼圖（跟 bringTop 的「stackable」同一份名單）。
+     以前只算商品圖，於是壓在圖底下、或疊在一起的貼圖永遠輪不到，也就搬不動。 */
+  const layers=BLOCKS.filter(stackable);
+  if(!layers.length){ relayWheel(e); return; }
+  // 游標下所有疊得起來的零件（由 z 大到小）
   const p=cellPt(e), c=cellEl().getBoundingClientRect();
   const k=scaleOf();
-  const under=imgs.filter(b=>{
+  const under=layers.filter(b=>{
     const el=bEl(b.id); if(!el) return false;
     const r=el.getBoundingClientRect();
     const bx=(r.left-c.left)/k, by=(r.top-c.top)/k;
@@ -3360,7 +3437,12 @@ addEventListener('mouseup',e=>{
   const lib = (b.kind==='img'   && !imgUrlOf(b.key))            ? 'product'
             : (b.kind==='brand' && el && el.querySelector('.bph')) ? 'logo' : '';
   if(!lib) return;
-  try{ parent.postMessage({ boardCell:CELL_ID, openLib:lib }, '*'); }catch(_){}
+  /* 帶上「少的是哪一個」：開到庫只做了一半，一份幾百列的表人還得自己找。
+     商品帶圖鑰匙（跟目錄那一頁同一支 imgKey）和 SKU，品牌帶品牌名。 */
+  const msg = { boardCell:CELL_ID, openLib:lib };
+  if(lib==='product'){ msg.key = b.key || ''; msg.sku = String((b.row && b.row.sku) || ''); }
+  else msg.brand = b.brand || '';
+  try{ parent.postMessage(msg, '*'); }catch(_){}
 });
 /* 兩個窗口一律同進同退，不因格子有沒有內容而分開。
    各留各的：設計 沒有選商品面板，PM 沒有圖層面板（疊放順序是排版的事）。 */
@@ -3378,8 +3460,8 @@ function bringTop(id){
   const b=BLOCKS.find(x=>x.id===id); if(!b) return;
   const maxZ=Math.max(...BLOCKS.filter(stackable).map(x=>x.z));
   if(b.z!==maxZ){ b.z=maxZ+1; normalizeZ(); }
-  /* 圖層面板只認商品圖（見 renderLayers）——貼圖沒有那個面板可以開。 */
-  if(b.kind==='img') activeImg=id;
+  /* 圖層面板列的是商品圖和貼圖（見 renderLayers），移到最上面的那一層就是現在這一層。 */
+  if(stackable(b)) activeImg=id;
   renderCell(); renderLayers();
 }
 function normalizeZ(){
@@ -3390,8 +3472,8 @@ function normalizeZ(){
 /* ====== 貼圖：照模板現場排 ==================================================
    一張貼紙身上帶三樣東西：它是庫裡哪一張（b.libId）、它當下長什麼樣（b.tpl，
    整份模板抄一份）、以及**這一格自己**改過的那幾個字（b.vals）。
-   為什麼模板要抄一份而不是只記編號：貼紙庫只活在這台瀏覽器的 localStorage，
-   別台電腦打開這本 DM 的時候庫裡沒有那一張，只剩這一份畫得出來。
+   為什麼模板要抄一份而不是只記編號：庫裡改了那一張，已經貼出去的不該跟著變；
+   庫裡刪掉了，版上這一張也不該跟著消失。
    （代價是庫裡那一張之後被改了，已經貼出去的不跟著變 —— 跟品牌圖那條同一個
    道理：有人特地擺上去的，那就是他要的那一張。） */
 function stickerTpl(b){
@@ -3489,43 +3571,121 @@ function addStickerBlock(s){
 }
 
 /* ====== 右側圖層面板：顯示這個格子的圖層 ====== */
+/* ⚠️ 拼板 裡看到的這一排，是**面板那一份**（ui=panel，另一份文件）畫的，而面板手上的
+   BLOCKS 不是版上那一份：它只負責挑貨，版面上的零件從來不會傳給它（見主程式
+   src==='panel' 那一條：面板報上來的 blocks 一律不收）。
+   於是以前面板上的「最上面」、拖曳排順序改的都是面板自己的副本，版上一動也不動；
+   貼圖只活在版上那一份，面板更是永遠列不出來。
+   所以現在分兩半：
+     ・畫布（ui=stage）照自己的 BLOCKS 算出這一疊，報給上層（reportLayers）
+     ・面板收到就照那一份畫（STAGE_LAYERS），按下去的每一下都轉回畫布去做（layerAct）
+   沒有畫布報上來的時候（單獨開這一頁、或畫布還沒起來）就照自己的畫，跟以前一樣。 */
+let STAGE_LAYERS=null, STAGE_ACTIVE='', layersLater=false;
+const escA=v=>String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+/* 這一疊（上層在前）。藏起來的圖不列：它不在版上，談不上疊在誰上面（要找回來走左下角那顆 ＋）。
+   貼圖也是一層：跟商品圖疊在同一疊裡（同一份 z），不列的話排順序只排得到一半，
+   而「貼圖壓在哪張圖上面」正是會想調的事。 */
+function layerSummary(){
+  return liveBlocks().filter(stackable).sort((a,b)=>b.z-a.z).map(b=>{
+    const stk=b.kind==='sticker';
+    return { id:b.id, kind:b.kind, z:b.z,
+      name: stk ? '貼圖・'+escA(b.name||'貼紙') : keyLabel(b.key),
+      /* 貼圖的縮圖用它帶著的那張（b.svg：貼紙庫烤好的縮圖網址，舊資料是 data:）。
+         在 30px 裡現場排一張模板，字小到什麼都看不出來。 */
+      thumb: stk ? (b.svg ? `<img src="${escA(b.svg)}" alt="">` : '🏷') : imgHTML(b.key, b.row) };
+  });
+}
+const remoteLayers = () => UI_PANEL && !!STAGE_LAYERS;
+const curLayer = () => remoteLayers() ? STAGE_ACTIVE : activeImg;
+/* 面板按了什麼，轉給版上那一格去做 */
+function layerAct(op, id, ids){
+  try{ parent.postMessage({ boardCell:CELL_ID, layerAct:{ op, id, ids } }, '*'); }catch(_){}
+}
+/* ====== 右側圖層面板：顯示這個格子的圖層 ====== */
 function renderLayers(){
+  if(UI_STAGE) reportLayers();
   const box=$('#layers');
-  // 藏起來的圖不列在圖層裡：它不在版上，談不上疊在誰上面（要找回來走左下角那顆 ＋）
-  const imgs=liveBlocks().filter(b=>b.kind==='img').sort((a,b)=>b.z-a.z); // 上層在前
-  if(!imgs.length){ box.innerHTML='<div class="empty-hint">尚未選商品</div>'; return; }
-  box.innerHTML=imgs.map(b=>
-    `<div class="lrow${activeImg===b.id?' on':''}" data-lyr="${b.id}" draggable="true">
+  if(lyrDrag){ layersLater=true; return; }     // 拖著一列的時候重畫＝把拖著的那一列換掉，放手就落空
+  const remote=remoteLayers();
+  const layers=remote ? STAGE_LAYERS : layerSummary();
+  if(!layers.length){ box.innerHTML='<div class="empty-hint">尚未選商品</div>'; return; }
+  const act=curLayer();
+  box.innerHTML=layers.map(b=>{
+    const stk=b.kind==='sticker';
+    const kill=stk ? '刪掉這張貼圖（Ctrl+Z 可以救回來）' : '刪掉這張圖（左下角那顆 ＋ 可以放回來）';
+    return `<div class="lrow${act===b.id?' on':''}" data-lyr="${escA(b.id)}" data-kind="${b.kind}" draggable="true">
        <span class="lgrip">☰</span>
-       <span class="lthumb">${imgHTML(b.key, b.row)}</span>
-       <span class="lname">${keyLabel(b.key)}</span>
+       <span class="lthumb${stk?' stk':''}">${b.thumb}</span>
+       <span class="lname">${b.name}</span>
        <span class="lz">z${b.z}</span>
-       <button class="mini" data-top="${b.id}" style="margin:0">最上面</button>
-       <button class="mini danger" data-kill="${b.id}" style="margin:0"
-               title="刪掉這張圖（左下角那顆 ＋ 可以放回來）">刪掉</button>
-     </div>`).join('');
+       <button class="mini" data-top="${escA(b.id)}" style="margin:0">最上面</button>
+       <button class="mini danger" data-kill="${escA(b.id)}" style="margin:0" title="${kill}">刪掉</button>
+     </div>`;
+  }).join('');
 
   box.querySelectorAll('.lrow').forEach(el=>{
-    el.onmouseenter=()=>{ if(!lyrDrag){ activeImg=el.dataset.lyr; renderCell(); markLayerActive(); } };
+    el.onmouseenter=()=>{
+      if(lyrDrag) return;
+      const id=el.dataset.lyr;
+      if(remote){ if(id!==STAGE_ACTIVE) layerAct('hover', id); return; }
+      activeImg=id; renderCell(); markLayerActive();
+    };
     /* 點面板＝也在版上選起來。本來只設 activeImg（那只是「滾輪循環到誰」），
        版上那一塊沒有被 selected，於是點完了還要再去版上點一次才搬得動、拉得大 ——
        面板挑的是哪一層，版上就該是哪一層。 */
     el.onclick=()=>{
       const id=el.dataset.lyr;
+      if(remote){ layerAct('select', id); return; }
       activeImg=id;
       selected.clear(); selected.add(id);
       renderCell(); markLayerActive(); renderProps();
     };
   });
   box.querySelectorAll('[data-top]').forEach(b=>b.onclick=ev=>{
-    ev.stopPropagation(); bringTop(b.dataset.top);
+    ev.stopPropagation();
+    if(remote){ layerAct('top', b.dataset.top); return; }
+    bringTop(b.dataset.top);
   });
   /* 刪掉商品圖的入口。本來只有 Delete —— 但版面上那張灰色虛線的預留圖看起來
      就不像「可以點的東西」，沒人會先去選它再按鍵；而工具列是談定不出現的。
      圖層這一排列的剛好就是每一張商品圖（含還沒換圖的那些），刪的入口放這裡。 */
   box.querySelectorAll('[data-kill]').forEach(b=>b.onclick=ev=>{
-    ev.stopPropagation(); hideBlockId(b.dataset.kill);
+    ev.stopPropagation();
+    if(remote){ layerAct('kill', b.dataset.kill); return; }
+    killLayer(b.dataset.kill);
   });
+}
+/* 貼圖沒有「刪掉的」名冊可以進（見 delSticker），走它自己那一支 */
+function killLayer(id){
+  const blk=BLOCKS.find(x=>x.id===id);
+  if(blk && blk.kind==='sticker') delSticker(blk.id); else hideBlockId(id);
+}
+/* 畫布：這一疊變了就報上去。沒變就不報 —— renderLayers／reportBoard 一次操作會叫好幾次。 */
+let lastLayersSent='';
+function reportLayers(){
+  if(!UI_STAGE || window.parent===window) return;
+  const layers=layerSummary();
+  const msg=JSON.stringify([layers, activeImg||'']);
+  if(msg===lastLayersSent) return;
+  lastLayersSent=msg;
+  try{ parent.postMessage({ boardCell:CELL_ID, stageLayers:layers, activeLayer:activeImg||'' }, '*'); }catch(_){}
+}
+/* 畫布：面板轉過來的那一下，照自己平常那幾支做。做完 renderLayers 會再報一份上去。 */
+function applyLayerAct(a){
+  if(!a) return;
+  if(a.op==='order' && Array.isArray(a.ids)){
+    if(ROLE==='pm') return;
+    const n=a.ids.length;
+    a.ids.forEach((id,i)=>{ const b=BLOCKS.find(x=>x.id===id); if(b && stackable(b)) b.z=n-i; });
+    normalizeZ(); renderCell(); renderLayers();
+    return;
+  }
+  const b=BLOCKS.find(x=>x.id===a.id); if(!b) return;
+  if(a.op==='hover'){ activeImg=b.id; renderCell(); renderLayers(); return; }
+  if(a.op==='select'){ activeImg=b.id; selected.clear(); selected.add(b.id); renderCell(); renderLayers(); renderProps(); return; }
+  if(ROLE==='pm') return;                       // 疊放順序和刪掉是排版的事
+  if(a.op==='top'){ bringTop(b.id); return; }
+  if(a.op==='kill'){ killLayer(b.id); return; }
 }
 
 /* ====== 圖層面板拖曳排序（Photoshop 式）====== */
@@ -3542,6 +3702,7 @@ function initLayerDnD(){
     if(lyrDrag) lyrDrag.classList.remove('dragging');
     box.querySelectorAll('.lrow').forEach(x=>x.classList.remove('over'));
     lyrDrag=null;
+    if(layersLater){ layersLater=false; renderLayers(); }   // 拖的途中畫布報了新的一份
   });
   box.addEventListener('dragover',e=>{
     e.preventDefault();
@@ -3562,6 +3723,7 @@ function initLayerDnD(){
 /* 面板由上到下 = z 由大到小 */
 function applyLayerOrder(){
   const ids=[...$('#layers').querySelectorAll('.lrow')].map(el=>el.dataset.lyr);
+  if(remoteLayers()){ layerAct('order', null, ids); return; }
   const n=ids.length;
   ids.forEach((id,i)=>{ const b=BLOCKS.find(x=>x.id===id); if(b) b.z=n-i; });
   renderCell(); renderLayers();
@@ -3853,14 +4015,17 @@ function reportPropsBar(){
 }
 
 function markLayerActive(){
+  const act=curLayer();
   $('#layers').querySelectorAll('.lrow').forEach(el=>
-    el.classList.toggle('on', el.dataset.lyr===activeImg));
+    el.classList.toggle('on', el.dataset.lyr===act));
 }
 
 addEventListener('mouseup',e=>{
   /* 放手才回報：拖的過程每一格都 reportBoard() 的話，外面那層會被存檔洗版。
      renderOne(force) 跟 ＋／− 那條路一樣，重新量一次尺寸再畫。 */
-  if(rz){ rz=null; renderOne(curCell,true); reportBoard(); return; }
+  /* 重畫整格會把把手一起洗掉 —— 不補的話拉完大小，四個角就不見了，
+     看起來像選取被取消（要再點一下才回來）。 */
+  if(rz){ rz=null; renderOne(curCell,true); paintHandles(); reportBoard(); return; }
   if(drag){
     const p=cellPt(e);
     const src=BLOCKS.find(x=>x.id===drag.main);
@@ -4131,6 +4296,7 @@ function reportBoard(){
   reportTimer = setTimeout(()=>{
     try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, state:boardState() }, '*'); }
     catch(_){}
+    reportLayers();          // 搬、縮、疊的順序都可能變了 —— 面板那一排跟著（沒變就不報）
   }, 60);       // 勾了就要看到，別讓上面那張版慢半拍
 }
 function restoreBoard(s){
@@ -4201,11 +4367,30 @@ addEventListener('keydown', e=>{
   }
   if(mod) return;
   if(e.key==='Delete'||e.key==='Backspace'){
-    if(ROLE==='pm' || !STAGE_EDIT || !selected.size) return;
-    e.preventDefault();
-    hideSelected();
+    if(keyDelete()) e.preventDefault();
   }
 });
+/* 按 Delete 會刪掉什麼。鍵盤和上層轉過來的那一下走同一支 —— 各寫一份的話，
+   遲早一邊刪得掉、另一邊刪不掉。
+   ・點開正在編輯的那一格：選起來的全部照舊（商品圖進「刪掉的」名冊，找得回來）。
+   ・沒點開的格子：**只刪貼圖**。貼圖在版上任何一格都選得起來（拿著貼圖或搬移工具
+     本來就是這樣用的），以前這裡整個擋掉，於是選起來按 Delete 完全沒反應 ——
+     看起來就是壞了。品名、價格那些零件照舊要點開那一格才刪得掉。 */
+function keyDelete(){
+  if(ROLE==='pm' || !selected.size) return false;
+  if(STAGE_EDIT){ hideSelected(); return true; }
+  return delSelStickers();
+}
+function delSelStickers(){
+  const ids=new Set(selBlocks().filter(b=>b.kind==='sticker').map(b=>b.id));
+  if(!ids.size) return false;
+  BLOCKS=BLOCKS.filter(b=>!ids.has(b.id));
+  ids.forEach(id=>selected.delete(id));
+  if(ids.has(activeImg)) activeImg=null;
+  renderOne(curCell,true); renderLayers(); reportBoard();
+  reportSel();                   // 選取變了：讓上層知道這一格不再抓著選取
+  return true;
+}
 
 /* ====== 互動 ====== */
 document.getElementById('grid').onclick=e=>{

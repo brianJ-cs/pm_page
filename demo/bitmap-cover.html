@@ -1,0 +1,315 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>點陣圖蓋布</title>
+<style>
+  :root{--bg:#f2f4f8;--surface:#fff;--ink:#1a1f2b;--line-strong:#9aa7b6;--blue:#2f6fed}
+  *{box-sizing:border-box}
+  html,body{height:100%;overflow:hidden}
+  body{margin:0;padding:12px;background:var(--bg);color:var(--ink);
+       font:13px/1.4 system-ui,"Noto Sans TC",sans-serif;
+       display:flex;flex-direction:column;gap:10px}
+  #go{flex:none;align-self:flex-start;font:inherit;font-weight:800;padding:7px 16px;
+      border-radius:8px;cursor:pointer;border:1px solid var(--line-strong);background:var(--surface)}
+  #go:hover{border-color:var(--blue);color:var(--blue)}
+
+  /* 蓋布疊在畫布上，剛好同一個框 */
+  #wrap{flex:1;min-height:0;position:relative;background:var(--surface);
+        border:1px solid var(--line-strong);border-radius:10px;overflow:hidden}
+  #stageFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent}
+  /* ⚠️ 不淡出：蓋布跟底下那一份是「幾乎一樣但不完全一樣」的兩層，
+     淡出等於讓人盯著兩層混色。到齊就直接拿掉。 */
+  #boardCover{position:absolute;inset:0;z-index:3;pointer-events:none;
+              width:100%;height:100%;object-fit:fill;display:none}
+  #boardCover.on{display:block}
+
+  #tip{position:fixed;z-index:9;pointer-events:none;display:none;
+       background:#1a1f2bef;color:#fff;border-radius:7px;padding:6px 9px;
+       font-variant-numeric:tabular-nums;font-size:12px;line-height:1.45;white-space:nowrap}
+  #tip b{color:#8ec1ff} #tip .w{color:#ffc46b} #tip .k{color:#7ee0a8}
+</style>
+
+<div style="flex:none;display:flex;gap:8px">
+  <button id="go">重跑</button>
+  <button id="back">離開再回來</button>
+</div>
+<div id="wrap">
+  <img id="boardCover" alt="">
+  <iframe id="stageFrame" scrolling="no"></iframe>
+</div>
+<div id="tip"></div>
+
+<script>
+/* ==========================================================================
+   一塊要載很久的畫布，用它自己拍的點陣圖蓋住，直到它真的好了。
+   ==========================================================================
+   上層拍不到子文件（跨文件就是看不到），所以點陣圖只能由那一塊畫布自己畫自己
+   再送上來。這是整件事的根。
+   兩段等待都要蓋住，而且它們形狀不一樣：
+     資料庫  一趟，擋住全部（撈 plans／catalogue）→ 整張版空白，然後一次全出現
+     圖      幾十趟，各自到（Storage 上的商品圖）→ 一張一張冒出來
+   ========================================================================== */
+const DB_MS = 700, NET_MS = 900;      // 真實情況裡這兩個是網路，不是設定
+
+const wrap = document.getElementById('wrap');
+const frame = document.getElementById('stageFrame');
+const cover = document.getElementById('boardCover');
+const tip = document.getElementById('tip');
+
+let bitmap = '';      // 上次那塊畫布拍給我的圖。⚠️ 只活在記憶體，重整就沒了
+let run = null;
+
+/* 進場：**先蓋、再生 iframe**。反過來的話第一批冒出來的東西已經被看到了，
+   而那正是蓋布要遮的。 */
+function showBoardCover(){
+  if (!bitmap) return false;
+  cover.src = bitmap;
+  cover.classList.add('on');
+  return true;
+}
+
+/* 掀開：直接拿掉，不淡出。
+   ⚠️ **兩幀 ＋ 120ms**，一幀不夠。畫布回報「我好了」時它自己那一幀排完了，但
+      合成到螢幕上是後面的事，而真的版面是幾十份各自獨立的文件 —— 最後那幾格
+      會在蓋布已經讓開之後才畫上去，那就是「還有一點閃」。
+      多蓋這 120ms 沒有人會發現，少蓋一幀每次都看得到。 */
+const COVER_HOLD_MS = 120;
+function liftBoardCover(){
+  if (!run || run.lifted) return;
+  run.lifted = performance.now() - run.t0;
+  run.missing = run.total - run.loaded;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    setTimeout(() => cover.classList.remove('on'), COVER_HOLD_MS);
+  }));
+  paint();
+}
+
+function start(){
+  run = { t0: performance.now(), total:0, loaded:0, db:0, lifted:0, done:0, shot:false };
+  run.covered = showBoardCover();
+  if (!run.covered) cover.classList.remove('on');
+
+  /* 資料庫那一趟擋住全部：撈到之前畫布是空的，連「排好」都還沒發生。
+     真程式是 pullSome() 回來之後才把 boardRestore 發給每一塊畫布。 */
+  frame.onload = () => {
+    const f = frame.contentWindow;
+    setTimeout(() => {
+      if (!run) return;
+      run.db = performance.now() - run.t0;
+      try { f.postMessage({ boardRestore:1 }, '*'); } catch(_){}
+      paint();
+    }, DB_MS);
+  };
+  frame.srcdoc = stageDoc();
+  paint();
+}
+
+addEventListener('message', e => {
+  const d = e.data || {};
+  if (!run) return;
+  if (d.loaded){ run.loaded = d.loaded; run.total = d.total; }
+  /* ⚠️ 掀開的條件是 stagePainted，而那一句**已經等過圖了**（見畫布的 tellPainted）。
+     只等排版就掀 = 在圖還沒到的時候讓開：剛剛在蓋布上看得到的照片整片消失、
+     再一張一張回來，比蓋著的時候還醜。 */
+  if (d.stagePainted){
+    run.done = performance.now() - run.t0;
+    if (run.covered) liftBoardCover();
+    // 到齊了才拍 —— 拍一張沒載完的，下一趟就是拿半成品去蓋
+    frame.contentWindow.postMessage({ shoot:1 }, '*');
+  }
+  if ('snap' in d){ bitmap = d.snap; run.shot = !!d.snap; }
+  paint();
+});
+
+/* ---- 畫布本人 ------------------------------------------------------------ */
+function stageDoc(){
+  return `<!doctype html><meta charset="utf-8">
+<style>
+ html,body{margin:0;height:100%}
+ body{background:#fff;font:11px/1.2 system-ui,"Noto Sans TC",sans-serif}
+ #stage{display:grid;gap:1px;background:#c9d2dd;width:100%;height:100%;padding:1px}
+ .c{background:#fff;display:flex;flex-direction:column;align-items:center;
+    justify-content:space-between;padding:3px 2px;overflow:hidden}
+ .n{font-size:9px;font-weight:700;text-align:center;white-space:nowrap;overflow:hidden;max-width:100%}
+ .p{flex:1;min-height:0;width:86%;object-fit:cover;background:#eef1f5;display:block}
+ .v{font-size:14px;font-weight:900;color:#d5121a}
+</style>
+<div id="stage"></div>
+<script>
+const N = 60;
+const NAMES = ['iPhone 17 Pro','Galaxy A5','iPad Air','MacBook Pro','AirPods 4',
+               'ANKER 30W','iPad A16','Neo Air M5','Pixel 10','Xperia 5'];
+const TINTS = ['#8fb3e0','#e0b48f','#9fd0b0','#c9a7d8','#e3cf8a','#a9c4d6','#d69fa4','#a8bfa0'];
+const stage = document.getElementById('stage');
+
+/* 商品圖走 blob: 網址 —— **故意不是 data:**。真實情況裡它是 Storage 上的一個網址，
+   而「要另外抓」正是點陣圖那條路會踩到的地雷（見 snapshotStage）。 */
+function photoUrl(tint, i){
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80">'
+    + '<rect width="120" height="80" fill="' + tint + '"/>'
+    + '<circle cx="60" cy="40" r="22" fill="#fff" opacity=".55"/></svg>';
+  return URL.createObjectURL(new Blob([svg], { type:'image/svg+xml' }));
+}
+
+/* ＝ 真程式的 restoreBoard()：上層把內容送下來，這裡才排得出東西 */
+function restoreBoard(){
+  const cols = Math.max(1, Math.round(Math.sqrt(N * (innerWidth/innerHeight))));
+  stage.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+  stage.style.gridTemplateRows = 'repeat(' + Math.ceil(N/cols) + ',1fr)';
+  let loaded = 0;
+  for (let i = 0; i < N; i++){
+    const c = document.createElement('div'); c.className = 'c';
+    const nm = document.createElement('div'); nm.className = 'n';
+    nm.textContent = NAMES[i % NAMES.length];
+    const im = document.createElement('img'); im.className = 'p';
+    const v = document.createElement('div'); v.className = 'v';
+    v.textContent = (i * 137 % 90 + 9) * 100 + 90;
+    c.append(nm, im, v); stage.appendChild(c);
+    im.onload = im.onerror = function(){
+      parent.postMessage({ loaded: ++loaded, total:N }, '*');
+    };
+    /* ⚠️ src **當場就給**，跟真程式一樣（品名、價格、圖的網址是同一批資料裡的，
+       排版時就寫上去了）。
+       這裡踩過一次：本來是 setTimeout 之後才給 src，結果 imagesSettled 掃過去
+       一張「還沒有 src」的圖都不算數，當場就回報好了 —— 蓋布在 0 張圖的時候
+       就掀開，等於白做。**沒有 src 的 <img> 不是「不用等」，是「還沒輪到它」。** */
+    im.src = photoUrl(TINTS[i % TINTS.length], i);
+  }
+  tellPainted();
+}
+
+/* 該載的圖都到了沒。
+   ⚠️ **版面排好 ≠ 好了**：圖是另外抓的，restoreBoard 收完那一刻它們還在路上。
+   ⚠️ 一定要有上限 —— 一張讀不到的圖不能把整張版扣在蓋布底下。 */
+function imagesSettled(cap){
+  const pend = [].slice.call(stage.querySelectorAll('img'))
+    .filter(function(im){ return im.getAttribute('src') && !im.complete; });
+  if (!pend.length) return Promise.resolve();
+  return new Promise(function(res){
+    let n = pend.length, done = false;
+    const fin = function(){ if(!done){ done = true; res(); } };
+    const hit = function(){ if(--n <= 0) fin(); };
+    pend.forEach(function(im){
+      im.addEventListener('load', hit, { once:true });
+      im.addEventListener('error', hit, { once:true });   // 讀不到也算「到了」
+    });
+    setTimeout(fin, cap);
+  });
+}
+
+/* 「我好了」。等排版、等字型（600ms 上限）、**等圖**（4s 上限）。 */
+let paintedSent = false;
+function tellPainted(){
+  if (paintedSent) return;
+  paintedSent = true;
+  const cap = function(p, ms){
+    return Promise.race([p, new Promise(function(r){ setTimeout(r, ms); })]);
+  };
+  const fonts = (document.fonts && document.fonts.ready) || Promise.resolve();
+  Promise.all([ cap(Promise.resolve(fonts).catch(function(){}), 600),
+                imagesSettled(4000) ])
+    .then(function(){
+      requestAnimationFrame(function(){
+        parent.postMessage({ stagePainted:true }, '*');
+      });
+    });
+}
+
+/* ---- 自己拍自己 ----------------------------------------------------------
+   把 #stage 整棵複製進 SVG 的 foreignObject，讓瀏覽器畫到 canvas 上。
+   零相依唯一畫得出點陣圖的路。兩個地雷都在這裡：
+     1. SVG 要用 data:，**不可以 blob:** —— file:// 打開時 blob 是 opaque origin，
+        畫上去畫布就被污染，toDataURL 直接丟 SecurityError。
+     2. foreignObject 裡面**不載任何外部資源** —— 圖不先轉成 data: 就整片空白。 */
+function toDataUrl(u){
+  return fetch(u).then(function(r){ return r.blob(); }).then(function(b){
+    return new Promise(function(res){
+      const r = new FileReader();
+      r.onload = function(){ res(r.result); };
+      r.onerror = function(){ res(''); };
+      r.readAsDataURL(b);
+    });
+  }).catch(function(){ return ''; });
+}
+const xesc = function(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+const b64 = function(s){ return btoa(unescape(encodeURIComponent(s))); };
+
+async function snapshotStage(){
+  const w = Math.max(1, Math.round(innerWidth)), h = Math.max(1, Math.round(innerHeight));
+  const clone = stage.cloneNode(true);
+  await Promise.all([].slice.call(clone.querySelectorAll('img')).map(async function(im){
+    const u = im.getAttribute('src') || '';
+    if (!u || u.indexOf('data:') === 0) return;
+    const d = await toDataUrl(u);
+    if (d) im.setAttribute('src', d); else im.remove();
+  }));
+  const css = (document.querySelector('style') || {}).textContent || '';
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">'
+    + '<foreignObject width="100%" height="100%">'
+    + '<body xmlns="http://www.w3.org/1999/xhtml" style="margin:0;width:' + w + 'px;height:' + h + 'px">'
+    + '<style>' + xesc(css) + '</style>'
+    + new XMLSerializer().serializeToString(clone)
+    + '</body></foreignObject></svg>';
+  const im = new Image();
+  im.onload = function(){
+    let out = '';
+    try{
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d');
+      cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+      cx.drawImage(im, 0, 0);
+      out = cv.toDataURL('image/jpeg', .72);
+    }catch(e){}
+    parent.postMessage({ snap:out }, '*');
+  };
+  im.onerror = function(){ parent.postMessage({ snap:'' }, '*'); };
+  im.src = 'data:image/svg+xml;base64,' + b64(svg);
+}
+
+addEventListener('message', function(e){
+  if (e.data && e.data.boardRestore) restoreBoard();
+  if (e.data && e.data.shoot) snapshotStage();
+});
+<\/script>`;
+}
+
+/* ---- 狀態貼在游標旁 ------------------------------------------------------ */
+let mx = 0, my = 0;
+addEventListener('mousemove', e => { mx = e.clientX; my = e.clientY;
+                                     tip.style.display = 'block'; place(); });
+function place(){
+  tip.style.left = Math.min(mx + 16, innerWidth  - tip.offsetWidth  - 8) + 'px';
+  tip.style.top  = Math.min(my + 18, innerHeight - tip.offsetHeight - 8) + 'px';
+}
+function paint(){
+  if (!run) return;
+  const ms = v => v ? Math.round(v) + 'ms' : '—';
+  const now = Math.round(performance.now() - run.t0);
+  let head;
+  if (!run.covered) head = '<span class="w">沒有點陣圖 —— 這一趟沒得蓋</span>　' + now + 'ms';
+  else if (!run.lifted) head = '<b>蓋著</b>　' + now + 'ms';
+  else head = (run.missing > 0 ? '<span class="w">掀開時還差 ' + run.missing + ' 張</span>'
+                               : '<span class="k">掀開時全到齊</span>') + '　' + ms(run.lifted);
+  tip.innerHTML = head
+    + '<br>' + (run.db ? 'DB ' + ms(run.db) : '<span class="w">等資料庫…</span>')
+    + '　圖 ' + run.loaded + '/' + (run.total || 60)
+    + (run.shot ? '<br><span class="k">已拍下一張，再按重跑</span>' : '');
+  place();
+}
+setInterval(() => { if (run && !run.lifted) paint(); }, 100);
+
+document.getElementById('go').addEventListener('click', start);
+
+/* ---- 離開再回來（＝ 落版 → 拼板）----------------------------------------
+   真程式踩過的那一個：離開時 clearBoardThumbs() 把畫布拆掉，**但版面留著**；
+   回來時版面的簽名沒變、不會重建，可是那幾十支畫布全部要重生。
+   所以「要不要蓋布」**不能問「版面有沒有重建」**（那一趟沒有重建），
+   要問**「等一下有沒有畫布要生」** —— 問錯的下場就是這條最常走的路完全不蓋。 */
+document.getElementById('back').addEventListener('click', () => {
+  frame.removeAttribute('srcdoc');        // 畫布拆掉，外面那層版面留著
+  frame.onload = null;
+  setTimeout(start, 400);                 // 走回來
+});
+
+start();
+</script>

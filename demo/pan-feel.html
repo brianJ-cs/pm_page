@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拖畫面的手感 — 五種做法並排試</title>
+<style>
+  /* 這一頁是**比稿用的**：把 design_and_PM.html 的平移原封不動抄過來當 A，
+     其他四種是常見的變體。目的只有一個 —— 讓「飄」變成一個指得出來的東西。 */
+  :root{
+    --bg:#f2f4f8; --surface:#fff; --ink:#1e2430; --ink-dim:#5b6472;
+    --line:#dfe4ee; --line-strong:#c2cada; --blue:#4a6fdc; --chrome:#ccd5e1;
+    --warn:#c8791b; --ok:#1f8a53;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--chrome);color:var(--ink);
+       font:14px/1.5 "Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+       display:flex;flex-direction:column;overflow:hidden}
+
+  header{display:flex;align-items:center;gap:14px;padding:8px 14px;background:var(--blue);
+         color:#fff;flex:none}
+  header b{font-size:15px}
+  header .sub{opacity:.85;font-size:12.5px}
+
+  main{flex:1;min-height:0;display:flex}
+
+  /* ---- 左邊：選做法 ---- */
+  aside{width:330px;flex:none;overflow:auto;padding:12px;background:var(--surface);
+        border-right:1px solid var(--line)}
+  .grp{margin-bottom:14px}
+  .grp h3{margin:0 0 6px;font-size:12px;letter-spacing:.06em;color:var(--ink-dim);
+          text-transform:uppercase}
+  label.opt{display:block;border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+            margin-bottom:6px;cursor:pointer;background:#fbfcfe}
+  label.opt:hover{border-color:var(--line-strong)}
+  label.opt.on{border-color:var(--blue);background:#eef2fd;box-shadow:0 0 0 1px var(--blue)}
+  label.opt .t{font-weight:700}
+  label.opt .d{font-size:12px;color:var(--ink-dim);margin-top:2px}
+  label.opt input{margin-right:6px}
+  .row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:13px}
+  .row input[type=range]{flex:1}
+  .row .n{font-variant-numeric:tabular-nums;min-width:52px;text-align:right;color:var(--ink-dim)}
+  .note{font-size:12px;color:var(--ink-dim);border-left:3px solid var(--line-strong);
+        padding-left:8px;margin-top:8px}
+  button.btn{border:1px solid var(--line-strong);background:#fff;border-radius:8px;
+             padding:6px 10px;cursor:pointer;font:inherit}
+  button.btn:hover{border-color:var(--blue);color:var(--blue)}
+
+  /* ---- 右邊：一張假的版 ---- */
+  .stage{flex:1;min-width:0;display:flex;flex-direction:column}
+  .meter{flex:none;display:flex;gap:16px;align-items:center;padding:6px 12px;
+         background:var(--surface);border-bottom:1px solid var(--line);font-size:12.5px;
+         font-variant-numeric:tabular-nums}
+  .meter b{font-size:14px}
+  .meter .bad{color:var(--warn)}
+  .meter .good{color:var(--ok)}
+
+  /* 這一塊就是 #sheetMain：一大圈捲動用的空地，版面在中間 */
+  #sheetMain{flex:1;min-width:0;overflow:auto;padding:30vh 40%;background:var(--bg);
+             position:relative}
+  #board{margin:15px auto;position:relative;background:#fff;
+         box-shadow:0 1px 0 var(--line-strong),0 8px 26px rgba(30,40,60,.10)}
+  #board.grabbing,#board.grabbing *{cursor:grabbing}
+  .masthead{border:1.5px dashed var(--line-strong);margin:6px;display:flex;
+            align-items:center;justify-content:center;color:var(--ink-dim);font-weight:700}
+  .brow{display:flex;gap:6px;padding:0 6px 6px}
+  .cell{flex:1;border:1px solid var(--line-strong);display:flex;align-items:center;
+        justify-content:center;color:var(--ink-dim);font-weight:700;background:#fff}
+  .cell:nth-child(3n){background:#fafbfe}
+
+  /* 每一幀畫一條：手走的位置 vs 版面走的位置。差開了就是「不跟手」 */
+  #trace{flex:none;height:76px;background:var(--surface);border-top:1px solid var(--line)}
+  .legend{display:flex;gap:14px;padding:4px 12px;font-size:12px;color:var(--ink-dim);
+          background:var(--surface)}
+  .legend i{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
+</style>
+</head>
+<body>
+<header>
+  <b>拖畫面的手感</b>
+  <span class="sub">左邊挑一種做法，右邊那張版直接拖拖看。底下那條線畫的是「手」和「版面」有沒有走在一起。</span>
+</header>
+
+<main>
+  <aside>
+    <div class="grp">
+      <h3>做法</h3>
+      <label class="opt on"><input type="radio" name="mode" value="direct" checked>
+        <span class="t">A・現在這一版</span>
+        <div class="d">pointermove 當場寫 <code>scrollLeft = 起點 − dx</code>。1:1、沒有邊界、沒有節流。</div></label>
+      <label class="opt"><input type="radio" name="mode" value="clamp">
+        <span class="t">B・夾住邊界</span>
+        <div class="d">同 A，但紙的邊碰到窗口的邊（再多 40px）就停。我上一輪加了這個、你說更糟，留在這裡對照。</div></label>
+      <label class="opt"><input type="radio" name="mode" value="raf">
+        <span class="t">C・每一幀只寫一次（rAF）</span>
+        <div class="d">move 事件只記座標，真正的捲動留到下一幀。滑鼠一秒回報上百次時比較省，但一定慢一幀。</div></label>
+      <label class="opt"><input type="radio" name="mode" value="lerp">
+        <span class="t">D・追過去（平滑跟隨）</span>
+        <div class="d">每一幀往目標走一部分，不是一次到位。這是很多「順手」的畫布在做的事 —— 也是最容易被說成「飄」的那一種。</div></label>
+      <label class="opt"><input type="radio" name="mode" value="inertia">
+        <span class="t">E・慣性（放手後還會滑）</span>
+        <div class="d">A ＋ 放手時照最後的速度滑一段再停。</div></label>
+      <label class="opt"><input type="radio" name="mode" value="transform">
+        <span class="t">F・用 transform 搬</span>
+        <div class="d">不動 scrollLeft，直接 <code>translate</code> 整張版。合成執行緒在跑，最貼手，但捲軸和邊界要自己算。</div></label>
+    </div>
+
+    <div class="grp">
+      <h3>參數</h3>
+      <div class="row"><span>起手門檻</span>
+        <input type="range" id="thr" min="0" max="20" step="1" value="0">
+        <span class="n" id="thrN">0 px</span></div>
+      <div class="row"><span>跟隨強度</span>
+        <input type="range" id="lerp" min="5" max="100" step="5" value="25">
+        <span class="n" id="lerpN">0.25</span></div>
+      <div class="row"><span>慣性摩擦</span>
+        <input type="range" id="fric" min="80" max="99" step="1" value="94">
+        <span class="n" id="fricN">0.94</span></div>
+      <div class="row"><span>縮放</span>
+        <input type="range" id="zoom" min="40" max="400" step="5" value="100">
+        <span class="n" id="zoomN">100%</span></div>
+      <div class="note">跟隨強度只有 D 在用、摩擦只有 E 在用、門檻每一種都吃。
+        縮放拉大到版面塞不下窗口，才試得出「拖到邊」的感覺。</div>
+      <button class="btn" id="reset">回到正中間</button>
+    </div>
+
+    <div class="grp">
+      <h3>怎麼用</h3>
+      <div class="note">
+        一種一種拖，找出跟你手上那個「飄」一樣的那一個，把代號（A–F）告訴我就好。<br><br>
+        底下那條圖：<b>藍</b>＝你的手走了多遠，<b>灰</b>＝版面實際走了多遠。
+        兩條疊在一起＝跟手；灰的落在藍的後面＝慢半拍；放手後灰的還在動＝會滑。
+      </div>
+    </div>
+  </aside>
+
+  <div class="stage">
+    <div class="meter">
+      <span>手 <b id="mHand">0</b> px</span>
+      <span>版面 <b id="mSheet">0</b> px</span>
+      <span>落差 <b id="mGap">0</b> px</span>
+      <span id="mVerdict" class="good">跟手</span>
+      <span style="margin-left:auto;color:var(--ink-dim)" id="mMode">A・現在這一版</span>
+    </div>
+
+    <div id="sheetMain">
+      <div id="board"></div>
+    </div>
+
+    <div class="legend"><span><i style="background:var(--blue)"></i>手</span>
+      <span><i style="background:var(--line-strong)"></i>版面</span>
+      <span>（左到右＝時間，一格約 16ms）</span></div>
+    <canvas id="trace"></canvas>
+  </div>
+</main>
+
+<script>
+/* ==========================================================================
+   一張假的版 —— 只是為了有東西可以拖，格子裡不放任何真的資料
+   ========================================================================== */
+const boardEl = document.getElementById('board');
+const main    = document.getElementById('sheetMain');
+const BASE_W = 900, ROWS = 5, PER_ROW = 7;
+
+function buildBoard(){
+  boardEl.innerHTML = '';
+  const mh = document.createElement('div');
+  mh.className = 'masthead';
+  mh.style.height = '110px';
+  mh.textContent = '刊頭';
+  boardEl.appendChild(mh);
+  for (let r = 0; r < ROWS; r++){
+    const row = document.createElement('div');
+    row.className = 'brow';
+    row.style.height = '92px';
+    for (let c = 0; c < PER_ROW; c++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.textContent = (r * PER_ROW + c + 1);
+      row.appendChild(cell);
+    }
+    boardEl.appendChild(row);
+  }
+}
+buildBoard();
+
+let zoom = 1;
+function applyZoom(){
+  boardEl.style.width = (BASE_W * zoom) + 'px';
+  boardEl.querySelectorAll('.brow').forEach(r => r.style.height = (92 * zoom) + 'px');
+  boardEl.querySelector('.masthead').style.height = (110 * zoom) + 'px';
+  boardEl.style.fontSize = (13 * zoom) + 'px';
+}
+applyZoom();
+
+/* ==========================================================================
+   六種平移
+   --------------------------------------------------------------------------
+   A（direct）就是 design_and_PM.html 現在那一段，逐字抄過來：
+     pointerdown 記起點 → pointermove 寫 scrollLeft/Top → pointerup 收工。
+   其他五種都只是在同一個骨架上換一個地方。
+   ========================================================================== */
+let mode = 'direct';
+let threshold = 0, follow = .25, friction = .94;
+
+let pan = null;          // {x,y,left,top,started}
+let raf = 0;             // C/D 的排程
+let want = null;         // C/D 的目標
+let glide = null;        // E 放手後那一段
+let tx = 0, ty = 0;      // F 的位移
+
+const clampSlack = 40;
+function clampTo(left, top){
+  const br = boardEl.getBoundingClientRect(), mr = main.getBoundingClientRect();
+  const sx = br.left - mr.left + main.scrollLeft;
+  const sy = br.top  - mr.top  + main.scrollTop;
+  const range = (start, size, client) => size <= client
+    ? [start + size / 2 - client / 2 - clampSlack, start + size / 2 - client / 2 + clampSlack]
+    : [start - clampSlack, start + size - client + clampSlack];
+  const [lo, hi] = range(sx, br.width,  main.clientWidth);
+  const [to, bo] = range(sy, br.height, main.clientHeight);
+  return [Math.max(lo, Math.min(hi, left)), Math.max(to, Math.min(bo, top))];
+}
+
+function writeScroll(left, top){
+  if (mode === 'clamp'){ const c = clampTo(left, top); left = c[0]; top = c[1]; }
+  main.scrollLeft = left;
+  main.scrollTop  = top;
+}
+
+function setTransform(x, y){
+  tx = x; ty = y;
+  boardEl.style.transform = (x || y) ? `translate(${x}px,${y}px)` : '';
+}
+
+main.addEventListener('pointerdown', e => {
+  if (e.button !== 0 && e.button !== 1) return;
+  e.preventDefault();
+  stopGlide();
+  pan = { x: e.clientX, y: e.clientY, left: main.scrollLeft, top: main.scrollTop,
+          tx0: tx, ty0: ty, started: threshold === 0,
+          vx: 0, vy: 0, lx: e.clientX, ly: e.clientY, t: performance.now() };
+  if (pan.started) boardEl.classList.add('grabbing');
+  try { main.setPointerCapture(e.pointerId); } catch (_){}
+  traceStart();
+});
+
+main.addEventListener('pointermove', e => {
+  if (!pan) return;
+  const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+  if (!pan.started){
+    if (Math.abs(dx) + Math.abs(dy) < threshold) return;
+    pan.started = true;
+    boardEl.classList.add('grabbing');
+  }
+  // 速度：慣性要用（只記最後一小段，不然放手時滑的是十秒前的方向）
+  const now = performance.now(), dt = Math.max(1, now - pan.t);
+  pan.vx = (e.clientX - pan.lx) / dt * 16;
+  pan.vy = (e.clientY - pan.ly) / dt * 16;
+  pan.lx = e.clientX; pan.ly = e.clientY; pan.t = now;
+
+  traceHand(dx, dy);
+
+  if (mode === 'transform'){ setTransform(pan.tx0 + dx, pan.ty0 + dy); return; }
+
+  const left = pan.left - dx, top = pan.top - dy;
+
+  if (mode === 'raf' || mode === 'lerp'){
+    want = { left, top };
+    if (!raf) raf = requestAnimationFrame(step);
+    return;
+  }
+  writeScroll(left, top);            // A / B / E 都是當場寫
+});
+
+function step(){
+  raf = 0;
+  if (!want) return;
+  if (mode === 'raf'){
+    writeScroll(want.left, want.top);
+    want = null;
+    return;
+  }
+  // D：每一幀往目標走 follow 那麼多
+  const l = main.scrollLeft + (want.left - main.scrollLeft) * follow;
+  const t = main.scrollTop  + (want.top  - main.scrollTop)  * follow;
+  writeScroll(l, t);
+  if (Math.abs(want.left - main.scrollLeft) > .5 || Math.abs(want.top - main.scrollTop) > .5)
+    raf = requestAnimationFrame(step);
+  else want = null;
+}
+
+function endPan(){
+  if (!pan) return;
+  const p = pan;
+  pan = null;
+  boardEl.classList.remove('grabbing');
+  if (mode === 'inertia' && (Math.abs(p.vx) > .5 || Math.abs(p.vy) > .5)) startGlide(p.vx, p.vy);
+  else traceEnd();
+}
+main.addEventListener('pointerup', endPan);
+main.addEventListener('pointercancel', endPan);
+
+function startGlide(vx, vy){
+  glide = { vx, vy };
+  const tick = () => {
+    if (!glide) return;
+    glide.vx *= friction; glide.vy *= friction;
+    writeScroll(main.scrollLeft - glide.vx, main.scrollTop - glide.vy);
+    traceSheetOnly();
+    if (Math.abs(glide.vx) < .2 && Math.abs(glide.vy) < .2){ stopGlide(); traceEnd(); return; }
+    glide.raf = requestAnimationFrame(tick);
+  };
+  glide.raf = requestAnimationFrame(tick);
+}
+function stopGlide(){
+  if (!glide) return;
+  cancelAnimationFrame(glide.raf);
+  glide = null;
+}
+
+/* ==========================================================================
+   量出來：手走了多遠、版面走了多遠
+   --------------------------------------------------------------------------
+   「飄」講的一定是這兩個數字對不起來 —— 要嘛慢半拍（灰的落後），
+   要嘛放手還在動（灰的自己走），要嘛比例不對（灰的走得比藍的多或少）。
+   ========================================================================== */
+const trace = document.getElementById('trace');
+const g = trace.getContext('2d');
+let samples = [], hand0 = null, sheet0 = null;
+
+function traceStart(){
+  samples = [];
+  hand0 = 0;
+  sheet0 = { l: main.scrollLeft, t: main.scrollTop, x: tx, y: ty };
+}
+function sheetMoved(){
+  if (!sheet0) return 0;
+  if (mode === 'transform') return Math.hypot(tx - sheet0.x, ty - sheet0.y);
+  return Math.hypot(main.scrollLeft - sheet0.l, main.scrollTop - sheet0.t);
+}
+function traceHand(dx, dy){
+  hand0 = Math.hypot(dx, dy);
+  push();
+}
+function traceSheetOnly(){ push(); }
+/** 捲到頭了沒 —— 撞到邊的時候手還在走、版面不動，那不是「慢半拍」，
+    是這個方向已經沒有東西可以看了。不分開講的話那條線會誣賴一個沒問題的做法。 */
+function atEdge(){
+  if (mode === 'transform') return false;
+  const m = main;
+  return m.scrollLeft <= 0 || m.scrollTop <= 0
+      || m.scrollLeft >= m.scrollWidth - m.clientWidth - 1
+      || m.scrollTop  >= m.scrollHeight - m.clientHeight - 1;
+}
+
+function push(){
+  samples.push({ hand: hand0, sheet: sheetMoved(), edge: atEdge() });
+  if (samples.length > 600) samples.shift();
+  paintMeter();
+  paintTrace();
+}
+function traceEnd(){ paintMeter(); paintTrace(); }
+
+const mHand = document.getElementById('mHand'), mSheet = document.getElementById('mSheet'),
+      mGap = document.getElementById('mGap'), mVerdict = document.getElementById('mVerdict');
+function paintMeter(){
+  const s = samples[samples.length - 1];
+  if (!s) return;
+  const gap = s.sheet - s.hand;
+  mHand.textContent  = Math.round(s.hand);
+  mSheet.textContent = Math.round(s.sheet);
+  mGap.textContent   = (gap >= 0 ? '+' : '') + Math.round(gap);
+  const bad = Math.abs(gap) > 8;
+  mVerdict.textContent = s.edge ? '撞到捲動邊界（這個方向沒得看了）'
+    : !bad ? '跟手'
+    : gap < 0 ? '版面落後手 —— 慢半拍' : '版面走過頭 —— 自己在跑';
+  mVerdict.className = (bad && !s.edge) ? 'bad' : 'good';
+}
+
+function paintTrace(){
+  const w = trace.clientWidth, h = trace.clientHeight, dpr = devicePixelRatio || 1;
+  if (trace.width !== w * dpr || trace.height !== h * dpr){
+    trace.width = w * dpr; trace.height = h * dpr;
+  }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (samples.length < 2) return;
+  let max = 1;
+  samples.forEach(s => { max = Math.max(max, s.hand, s.sheet); });
+  const X = i => i / (samples.length - 1) * (w - 8) + 4;
+  const Y = v => h - 6 - (v / max) * (h - 14);
+  const line = (key, color, width) => {
+    g.beginPath();
+    samples.forEach((s, i) => i ? g.lineTo(X(i), Y(s[key])) : g.moveTo(X(i), Y(s[key])));
+    g.strokeStyle = color; g.lineWidth = width; g.stroke();
+  };
+  line('sheet', getComputedStyle(document.body).getPropertyValue('--line-strong').trim() || '#c2cada', 3);
+  line('hand',  getComputedStyle(document.body).getPropertyValue('--blue').trim() || '#4a6fdc', 2);
+}
+addEventListener('resize', paintTrace);
+
+/* ---- 控制面板 ---- */
+const modeName = { direct:'A・現在這一版', clamp:'B・夾住邊界', raf:'C・每一幀一次',
+                   lerp:'D・追過去', inertia:'E・慣性', transform:'F・transform' };
+document.querySelectorAll('input[name=mode]').forEach(r => {
+  r.addEventListener('change', () => {
+    mode = r.value;
+    document.querySelectorAll('label.opt').forEach(l => l.classList.toggle('on', l.contains(r)));
+    document.getElementById('mMode').textContent = modeName[mode];
+    // 換做法就把上一種留下的東西收乾淨（transform 的位移最容易忘）
+    stopGlide();
+    if (raf){ cancelAnimationFrame(raf); raf = 0; }
+    want = null;
+    if (mode !== 'transform') setTransform(0, 0);
+    samples = []; paintTrace();
+  });
+});
+const bind = (id, nId, fmt, set) => {
+  const el = document.getElementById(id), n = document.getElementById(nId);
+  const sync = () => { n.textContent = fmt(+el.value); set(+el.value); };
+  el.addEventListener('input', sync); sync();
+};
+bind('thr',  'thrN',  v => v + ' px',        v => threshold = v);
+bind('lerp', 'lerpN', v => (v / 100).toFixed(2), v => follow = v / 100);
+bind('fric', 'fricN', v => (v / 100).toFixed(2), v => friction = v / 100);
+bind('zoom', 'zoomN', v => v + '%',          v => { zoom = v / 100; applyZoom(); });
+
+document.getElementById('reset').addEventListener('click', () => {
+  stopGlide(); setTransform(0, 0);
+  main.scrollLeft = (main.scrollWidth - main.clientWidth) / 2;
+  main.scrollTop  = (main.scrollHeight - main.clientHeight) / 2;
+  samples = []; paintTrace();
+});
+
+/* 滾輪＝縮放，跟真程式一樣（不然一頁上兩種滾輪意思會打架） */
+main.addEventListener('wheel', e => {
+  e.preventDefault();
+  const z = Math.max(.4, Math.min(4, zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
+  if (z === zoom) return;
+  zoom = z;
+  document.getElementById('zoom').value = Math.round(z * 100);
+  document.getElementById('zoomN').textContent = Math.round(z * 100) + '%';
+  applyZoom();
+}, { passive:false });
+
+// 一進來就站在正中間
+requestAnimationFrame(() => document.getElementById('reset').click());
+</script>
+</body>
+</html>

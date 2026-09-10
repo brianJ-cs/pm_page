@@ -28,7 +28,13 @@
     'Content-Type': 'application/json'
   });
 
-  const ok = () => !!BASE;
+  /* 唯讀（config.js 的 readOnly）＝示範版。讀得到共用的商品目錄和商品圖，**什麼都不寫**：
+     ok() 回 false，所以檔期、便利貼、心跳、貼紙庫、上傳全部走「沒接後端」那條路
+     （只存這台瀏覽器），只有 canRead() 那幾條讀的路是通的。
+     為什麼不直接給一份空的設定：那樣商品目錄整片空白，示範的人什麼都挑不到。 */
+  const readOnly = !!CFG.readOnly;
+  const ok = () => !!BASE && !readOnly;
+  const canRead = () => !!BASE;
 
   /* ---------------------------------------------------------------- REST --- */
 
@@ -346,7 +352,7 @@
   const setCatalogueMerge = fn => { catMergeFn = fn; };
 
   async function pullCatalogue() {
-    if (!ok()) return null;
+    if (!canRead()) return null;                       // 示範版（唯讀）也讀
     const r = await fetch(`${BASE}/catalogue?id=eq.${CAT_ID}&select=data,updated_at`,
                           { headers: headers() });
     if (r.status === 404) return null;                 // 表還沒建，當作沒有
@@ -472,6 +478,7 @@
      索引；而先收舊的、插不進去的話那一家會變成沒有圖 —— 所以插失敗要把舊的放回來。
      公司找不到就開一家新的：商品目錄裡打得出這個牌子，就表示公司真的存在。 */
   async function uploadLogo(brand, blob, fileName) {
+    if (readOnly) throw new Error('示範版不會寫進品牌 Logo 庫');
     const c = window.LOGO_SUPABASE || {};
     const u = String(c.url || '').trim().replace(/\/+$/, '');
     const k = String(c.anonKey || '').trim();
@@ -553,9 +560,138 @@
              keys: [normBrand(co.name), normBrand(co.alt_name)].filter(Boolean) };
   }
 
-  window.PlanSync = { ok, pullAll, pullIndex, pullSome, stampOf, setMerge, setSaved,
+  /* ------------------------------------------------------------ 貼紙庫 --- */
+
+  /* 貼紙庫本來只活在做貼紙那台瀏覽器的 localStorage 裡：設計 A 做的貼紙設計 B 看不到，
+     圖轉成 base64 塞進去，大約 5MB 就滿。現在一張貼紙一列（sticker_lib）、
+     分類一個一列（sticker_cats）、圖進 Storage。
+     跟商品目錄不一樣，這裡**不是整包**：兩個人各做各的貼紙，寫的是不同的列，
+     根本沒有東西要合併。真的撞在同一張上，用後存的那份、讓上層講一句 ——
+     貼紙很小，重做很快，逐欄合併不值得。 */
+  const STK_BUCKET = 'stickers';
+  const STK_COLS = ['name', 'category', 'ratio', 'layer_count', 'text_layers',
+                    'template', 'preview', 'updated_by'];
+  /* id -> 伺服器上那一列（**含刪掉的**）。刪掉的也要記：本機快取裡還躺著那一張的話，
+     不知道它刪過就會當成「還沒傳上去的新貼紙」再傳一次，刪掉的又活回來。 */
+  const stkRows = new Map();
+
+  const stickerFileUrl = path => ok() ? `${url}/storage/v1/object/public/${STK_BUCKET}/${path}` : '';
+
+  /* 檔名＝內容的雜湊（sticker_editor 的 addAsset 本來就這樣取名），所以同一個名字
+     永遠是同一張圖：傳過就不必再傳，也沒有「換了圖卻拿到快取裡的舊圖」這回事
+     （商品圖要加 ?v= 就是因為檔名＝品名，換圖時名字不變）。
+     已經有了會回 400 Duplicate —— 那不是失敗，那正是「傳過了」。 */
+  async function uploadStickerFile(path, blob) {
+    if (!ok()) throw new Error('沒有接後端，貼紙的圖存不起來');
+    const r = await fetch(`${url}/storage/v1/object/${STK_BUCKET}/${path}`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: 'Bearer ' + (CFG.accessToken || key),
+                 'Content-Type': (blob && blob.type) || 'application/octet-stream' },
+      body: blob
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      if (!/duplicate|already exists/i.test(t)) throw new Error(`貼紙的圖上傳失敗 ${r.status} ${t}`);
+    }
+    return stickerFileUrl(path);
+  }
+
+  /** 整個貼紙庫。先只問 id 和時間，變了的才抓內容：主程式每次拿起貼圖工具都會問一次，
+      一張貼紙的模板幾 KB，整包抓太浪費。
+      回傳 { rows（含刪掉的）, cats, changed }；表還沒建（404）回 null。 */
+  async function pullStickerLib() {
+    if (!ok()) return null;
+    const r = await fetch(`${BASE}/sticker_lib?select=id,updated_at`, { headers: headers() });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`index sticker_lib ${r.status} ${await r.text()}`);
+    const idx = await r.json();
+    let changed = false;
+    const alive = new Set(idx.map(x => x.id));
+    for (const id of [...stkRows.keys()])            // 在後台整列刪掉的（正常流程只會標記）
+      if (!alive.has(id)) { stkRows.delete(id); changed = true; }
+    const want = idx.filter(x => { const o = stkRows.get(x.id); return !o || o.updated_at !== x.updated_at; })
+                    .map(x => x.id);
+    for (let i = 0; i < want.length; i += 80) {      // 一次八十個，網址才不會長到被擋
+      const list = want.slice(i, i + 80).map(id => '"' + String(id).replace(/"/g, '\\"') + '"').join(',');
+      const q = await fetch(`${BASE}/sticker_lib?id=in.(${list})&select=*`, { headers: headers() });
+      if (!q.ok) throw new Error(`pull sticker_lib ${q.status} ${await q.text()}`);
+      (await q.json()).forEach(row => stkRows.set(row.id, row));
+      changed = true;
+    }
+    let cats = [];
+    const c = await fetch(`${BASE}/sticker_cats?select=name,sort&order=sort.asc,name.asc`, { headers: headers() });
+    if (c.ok) cats = (await c.json()).map(x => x.name);
+    return { rows: [...stkRows.values()], cats, changed };
+  }
+
+  /** 寫一張貼紙。回傳 { row, clobbered }。
+      clobbered ＝伺服器上那一張在我上次看過之後被別人改過：照樣用我的蓋上去，
+      但要讓上層講一句 —— 不然對方剛剛改的東西不見了，兩個人都不知道。
+      keepalive ＝頁面正在關（浮層收起來）：只剩一發的機會，不 CAS、不讀回應。 */
+  async function writeSticker(row, opt) {
+    if (!ok() || !row || !row.id) return null;
+    const keepalive = !!(opt && opt.keepalive);
+    const body = { id: row.id };
+    STK_COLS.forEach(k => { if (row[k] !== undefined) body[k] = row[k]; });
+    body.updated_at = new Date().toISOString();
+    body.deleted_at = null;                          // 存一次＝它是活的（刪掉又從匯入救回來也走這裡）
+    const known = stkRows.get(row.id);
+    let out = null, clobbered = false;
+    if (known && !keepalive) {
+      const r = await fetch(
+        `${BASE}/sticker_lib?id=eq.${encodeURIComponent(row.id)}&updated_at=eq.${encodeURIComponent(known.updated_at)}`, {
+          method: 'PATCH',
+          headers: Object.assign(headers(), { 'Prefer': 'return=representation' }),
+          body: JSON.stringify(body)
+        });
+      if (!r.ok) throw new Error(`write sticker ${r.status} ${await r.text()}`);
+      out = (await r.json())[0] || null;
+      clobbered = !out;
+    }
+    if (!out) {
+      const r = await fetch(`${BASE}/sticker_lib`, {
+        method: 'POST', keepalive,
+        headers: Object.assign(headers(), {
+          'Prefer': 'resolution=merge-duplicates,' + (keepalive ? 'return=minimal' : 'return=representation') }),
+        body: JSON.stringify([body])
+      });
+      if (!r.ok) throw new Error(`upsert sticker ${r.status} ${await r.text()}`);
+      out = keepalive ? body : ((await r.json())[0] || body);
+    }
+    stkRows.set(out.id, out);
+    return { row: out, clobbered };
+  }
+
+  /** 刪一張貼紙＝標記，不抹掉（跟 Logo 庫的回收桶同一套）。伺服器上沒有那一張就什麼都不做。 */
+  async function removeSticker(id, opt) {
+    if (!ok() || !id) return;
+    const stamp = new Date().toISOString();
+    const r = await fetch(`${BASE}/sticker_lib?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH', keepalive: !!(opt && opt.keepalive),
+      headers: Object.assign(headers(), { 'Prefer': 'return=minimal' }),
+      body: JSON.stringify({ deleted_at: stamp, updated_at: stamp })
+    });
+    if (!r.ok) throw new Error(`remove sticker ${r.status} ${await r.text()}`);
+    const o = stkRows.get(id);
+    if (o) stkRows.set(id, Object.assign({}, o, { deleted_at: stamp, updated_at: stamp }));
+  }
+
+  /** 分類清單。只會加（貼紙庫沒有刪分類這件事），所以整份 upsert 就好，順序就是 sort。 */
+  async function writeStickerCats(names) {
+    if (!ok() || !names || !names.length) return;
+    const r = await fetch(`${BASE}/sticker_cats`, {
+      method: 'POST',
+      headers: Object.assign(headers(), { 'Prefer': 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify(names.map((name, sort) => ({ name, sort })))
+    });
+    if (!r.ok) throw new Error(`write sticker_cats ${r.status} ${await r.text()}`);
+  }
+
+  window.PlanSync = { ok, canRead, pullAll, pullIndex, pullSome, stampOf, setMerge, setSaved,
                       pullLogos, uploadLogo, normBrand,
                       pushPresence, pullPresence, dropPresence,
                       upsert, remove, queueUpsert, queueRemove, flush, uploadImage,
-                      pullCatalogue, queueCatalogue, setCatalogueMerge, setCatalogueAfter };
+                      pullCatalogue, queueCatalogue, setCatalogueMerge, setCatalogueAfter,
+                      pullStickerLib, writeSticker, removeSticker, writeStickerCats,
+                      uploadStickerFile, stickerFileUrl };
 })();

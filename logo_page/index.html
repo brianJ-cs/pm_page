@@ -184,6 +184,25 @@
   .add:disabled { opacity: .5; cursor: default; }
   .add-cell .name { color: #4a4a55; font-size: 17px; }
 
+  /* 從 DM 版上那個空的品牌框點進來的那一家（見 FOCUS）。開到這一頁只做了一半 ——
+     二十幾家裡人還得自己找到那一家，所以那一格自己站出來：佔兩欄那麼大、藍框、
+     捲到畫面中間。藍＝放下去的位置（跟拖圖經過時的 dragover 同一種藍）。 */
+  .cell.want { grid-column: span 2; }
+  .cell.want .drop, .cell.want .add {
+    border-color: #2a5cf0; background: #eef3ff; color: #2a5cf0;
+    animation: want-pulse 1.4s ease-in-out infinite;
+  }
+  .cell.want .drop .plus { color: #2a5cf0; }
+  .cell.want .drop:not(.filled)::before {
+    content: '拖 logo 到這裡'; position: absolute; left: 0; right: 0; bottom: 16%;
+    text-align: center; font-size: 17px; font-weight: 800; color: #2a5cf0; pointer-events: none;
+  }
+  .cell.want .name { color: #2a5cf0; font-weight: 800; }
+  @keyframes want-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(42, 92, 240, .40); }
+    50%      { box-shadow: 0 0 0 12px rgba(42, 92, 240, 0); }
+  }
+
   input[type="file"] { display: none; }
 
   /* --- gallery / bin ----------------------------------------------------- */
@@ -482,6 +501,28 @@
   let companies = [];   // every company, binned included
   let view = 'upload';
   let query = '';
+
+  // 從 DM 版上點一個空的品牌框進來的（?focus=品牌名）。名字比對跟主程式那邊
+  // （supabase-sync 的 normBrand）同一套：大小寫、空白、全形空白、. - _ 都不算差別，
+  // 兩種寫法（Panasonic ↔ 國際牌）哪一種對上都算。
+  const FOCUS = new URLSearchParams(location.search).get('focus') || '';
+  const normBrand = v => String(v == null ? '' : v).trim().toLowerCase().replace(/[\s　._\-]+/g, '');
+  let focusScrolled = false;
+  function isFocus(company) {
+    if (!FOCUS || company.deleted_at) return false;
+    const want = normBrand(FOCUS);
+    return normBrand(company.name) === want || normBrand(company.alt_name) === want;
+  }
+  // 找不到那一家就換「新增公司」那一格站出來：商品目錄裡打得出這個牌子，
+  // 就表示那家公司真的存在，只是這裡還沒開它的上傳區。
+  const focusMissing = () => !!FOCUS && !companies.some(isFocus);
+  function scrollToFocus() {
+    if (focusScrolled) return;
+    const w = grid.querySelector('.cell.want');
+    if (!w) return;
+    focusScrolled = true;
+    requestAnimationFrame(() => w.scrollIntoView({ block: 'center' }));
+  }
 
   // --- modal -------------------------------------------------------------
 
@@ -912,7 +953,7 @@
 
   function createCell(company) {
     const cell = document.createElement('div');
-    cell.className = 'cell';
+    cell.className = 'cell' + (isFocus(company) ? ' want' : '');
 
     const drop = document.createElement('div');
     drop.className = 'drop';
@@ -1015,6 +1056,10 @@
     const lbl = document.createElement('div');
     lbl.className = 'name';
     lbl.textContent = '新增公司';
+    if (focusMissing()) {
+      cell.classList.add('want');
+      lbl.textContent = '還沒有「' + FOCUS + '」—— 按這裡新增';
+    }
 
     cell.append(btn, lbl);
 
@@ -1467,6 +1512,7 @@
 
     companies = data.map(c => ({ ...c, logos: c.logos || [] }));
     render();
+    scrollToFocus();
   }
 
   load();
