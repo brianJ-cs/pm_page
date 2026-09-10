@@ -135,7 +135,12 @@ body.padding .cell.cur .safe{display:block}
    寬是 b.w，高是寬乘這張貼紙自己的長寬比。
    ⚠️ 舊資料裡的貼圖只有一張烤好的圖（b.svg），那一種還是照原樣當圖片貼，
    只是改不了字 —— 見 stickerArt。 */
-.blk.sticker{overflow:visible}
+/* ⚠️ 貼圖**不留那一圈內距和框線**（.blk 給每一塊零件留的那一圈）。那一圈是給文字
+   零件不要貼著框線用的，而貼紙是一整張畫好的東西：畫進去的框比 b.w 小十幾個點，
+   字級卻是照 b.w 算的 —— 圓會被畫成橢圓（橫向和縱向被吃掉的量不一樣），字對它
+   自己的框也永遠偏大。手放上去那一圈提示改用 outline：它不佔位置。 */
+.blk.sticker{overflow:visible;padding:0;border-width:0}
+.blk.sticker:hover{outline:1px solid #c3cbd8;outline-offset:0}
 .blk.sticker > img{width:100%;display:block;pointer-events:none}
 .blk.sticker:hover .tobtn{display:block}
 .blk.sticker.sel .tobtn{display:none}
@@ -350,6 +355,17 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 /* 選中就收起來：那正是要拖、要縮的時候，一顆按鈕站在圖上只會擋路。
    要換疊放順序，右邊圖層面板那一排「最上面」一直都在。 */
 .blk.img.sel .tobtn{display:none}
+/* 拿掉這張貼圖。以前唯一的辦法是選起來按 Delete —— 那要先知道有這回事，而且要那一格
+   先收得到鍵盤，按下去沒反應看起來就是程式壞了。看得到的東西才按得到。
+   ⚠️ 站在框的**外面**一點點：選起來的時候四個角是改大小的把手，擠在一起就會按錯。
+   ⚠️ 「最上面」選起來就收掉（那時候要拖、要縮，一顆鈕站在圖上只會擋路），
+   ✕ 反過來要留著 —— 選起來正是打算對它做點什麼的時候。 */
+.delbtn{position:absolute;top:-9px;right:-9px;display:none;appearance:none;
+  width:18px;height:18px;padding:0;border-radius:999px;border:1px solid rgba(0,0,0,.2);
+  background:rgba(255,255,255,.96);color:#c0392b;font:inherit;font-size:11px;line-height:1;
+  font-weight:800;cursor:pointer;z-index:6;box-shadow:0 2px 5px rgba(0,0,0,.2)}
+.delbtn:hover{background:#c0392b;color:#fff;border-color:#c0392b}
+.blk.sticker:hover .delbtn,.blk.sticker.sel .delbtn{display:block}
 /* 圖層面板：位於選商品面板正下方，獨立窗口 */
 #lay{display:none;width:400px;flex:1;min-height:150px;background:#fff;
   border:1px solid var(--line);border-radius:14px;flex-direction:column;overflow:hidden;
@@ -357,17 +373,22 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
 #lay.on{display:flex}
 #lay .side-hd{padding:10px 12px;font-size:12px}
 #lay .side-bd{flex:1;overflow:auto;padding:8px}
-.lyr{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:8px;cursor:pointer;
+/* ⚠️ 這一列叫 .lrow 不叫 .lyr：**.lyr 是貼紙那一疊圖層的名字**（sticker-render.js
+   畫出來的，兩邊共用）。撞名的下場不是版面亂掉，是下面這幾個點的內距和框線
+   悄悄套到每一層貼紙上 —— 而貼紙的字級是照「整張貼紙多大」算的，框卻被擠小了
+   十幾個點（而且那十幾個點不隨貼紙縮放），於是字對它自己的框永遠太大：
+   一擠過臨界點，「48」就折成上下兩行整個爆出紅圈外。看起來像貼紙做壞了。 */
+.lrow{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:8px;cursor:pointer;
   border:1.5px solid transparent;font-size:13px}
-.lyr:hover{background:#f4f6fa}
-.lyr.on{border-color:#007acc;background:rgba(0,122,204,.08)}
-.lyr{cursor:grab}
-.lyr:active{cursor:grabbing}
-.lyr.dragging{opacity:.45}
-.lyr.over{border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
+.lrow:hover{background:#f4f6fa}
+.lrow.on{border-color:#007acc;background:rgba(0,122,204,.08)}
+.lrow{cursor:grab}
+.lrow:active{cursor:grabbing}
+.lrow.dragging{opacity:.45}
+.lrow.over{border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
 .lgrip{color:#b9c1cf;font-size:11px;flex-shrink:0}
-.lyr .mini{font-size:10.5px;padding:3px 7px;opacity:0;flex-shrink:0}
-.lyr:hover .mini,.lyr.on .mini{opacity:1}
+.lrow .mini{font-size:10.5px;padding:3px 7px;opacity:0;flex-shrink:0}
+.lrow:hover .mini,.lrow.on .mini{opacity:1}
 .mini.danger{color:var(--danger-ink)}
 .mini.danger:hover{border-color:var(--danger-ink);color:var(--danger-ink);background:var(--danger-tint)}
 .lthumb{width:30px;height:30px;flex-shrink:0;overflow:hidden;border-radius:5px;background:#f0f2f6}
@@ -2297,7 +2318,8 @@ function blockHTML(b,isCur=true){
     return `<div class="blk sticker${on}${pk(b)}" data-b="${b.id}"
       style="${pos};top:${b.y}px;width:${W.toFixed(1)}px;${H}z-index:${b.z};opacity:${dim}">
       ${stickerArt(b, W, W*stickerRatio(b))}
-      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
+      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button>
+      ${ROLE==='pm' ? '' : `<button class="delbtn" data-del="${b.id}" title="刪掉這張貼圖">✕</button>`}</div>`;
   }
   /* 舊存檔的 brand 零件只有 name（那時候品牌是照商品名查的），所以查不到
      b.brand 就退回那張對照表 —— 不然舊檔期一開起來，品牌全部變成空白。
@@ -3069,7 +3091,7 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   // 不論是否換格，按到任何格子都必定展開兩個窗口
   openPanels(true); renderLayers();
   if(!picked.size) return;
-  if(e.target.closest('.tobtn')) return;   // 按鈕不觸發拖曳
+  if(e.target.closest('.tobtn,.delbtn')) return;   // 按鈕不觸發拖曳
   /* 已經選起來的那張貼圖，按在它的字上＝進去改字。不放行的話這一下會被當成
      「抓著它搬」：整格當場重畫，按住的那個節點被換掉，游標永遠進不到字裡面。 */
   if(e.target.closest('.blk.sticker.sel') && e.target.closest('.ft')) return;
@@ -3306,10 +3328,12 @@ document.getElementById('grid').addEventListener('wheel',e=>{
   renderCell(); renderLayers();
 },{passive:false});
 
-/* 「最上面」按鈕 */
+/* 「最上面」和貼圖那顆 ✕ */
 document.getElementById('grid').addEventListener('click',e=>{
   const btn=e.target.closest('[data-top]');
   if(btn){ e.stopPropagation(); bringTop(btn.dataset.top); }
+  const del=e.target.closest('[data-del]');
+  if(del){ e.stopPropagation(); delSticker(del.dataset.del); }
 });
 
 /* 點一個空框＝把那個庫開起來：商品圖的空框去商品目錄，品牌的空框去品牌 Logo 庫。
@@ -3323,7 +3347,7 @@ let clickAt=null;
 document.getElementById('grid').addEventListener('mousedown',e=>{
   clickAt=null;
   if(window.parent===window) return;             // 單獨開這一頁：沒有那兩個庫可以開
-  if(e.target.closest('[data-top]')) return;
+  if(e.target.closest('[data-top],[data-del]')) return;
   const el=e.target.closest('.blk'); if(!el) return;
   clickAt={x:e.clientX, y:e.clientY, id:el.dataset.b};
 });
@@ -3440,13 +3464,24 @@ function addStickerBlock(s){
   const w=Math.round(Math.min(CW,CH)*0.32);
   /* 高度照這張貼紙自己的長寬比算 —— 用寬當高的話，扁的貼紙一放進來就掉到格子外面。 */
   const ratio=+s.ratio || .4;
+  const h=w*ratio;
+  /* s.at ＝上層放手（或點下去）的那一點，給的是**這份文件自己的客座標**
+     （見 pasteStickerOn）。要再過一次 cellPt 才是排版座標 —— 中間差的是
+     「裝不下就整份縮」那個倍率，只有這邊知道（見 scaleOf 的註解）。
+     那一點是**中心**，不是左上角：手指指著哪裡，東西就該蓋在哪裡。
+     超出去就往裡面收 —— 一半掉在格子外面的貼圖印不出來，而版上看起來只是「歪了」。
+     沒帶落點（舊訊息、或量不到縮放）就照舊擺中間。 */
+  const at = s.at && isFinite(s.at.cx) && isFinite(s.at.cy)
+    ? cellPt({clientX:s.at.cx, clientY:s.at.cy}) : null;
+  const fit=(v,max)=>Math.max(0, Math.min(Math.round(v), Math.max(0, Math.round(max))));
   const b={ id:'bs'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
             kind:'sticker', libId:s.libId||'', name:s.name||'',
             tpl:s.tpl||'',            // 模板整份（字串，跟貼紙庫存的同一份）
             vals:{},                  // 這一格自己改過的字；空的＝照模板
             assets:s.assets||null,    // 這張貼紙用到的圖片，只帶用得到的那幾張
             ratio, svg:s.svg||'', w,
-            x:Math.round((CW-w)/2), y:Math.round((CH-w*ratio)/2), z:maxZ+1 };
+            x: at ? fit(at.x - w/2, CW-w) : Math.round((CW-w)/2),
+            y: at ? fit(at.y - h/2, CH-h) : Math.round((CH-h)/2), z:maxZ+1 };
   holdPlace(b);           // 手動放的，自動排版（雖然現在是關的）不該碰它
   BLOCKS.push(b);
   selected.clear(); selected.add(b.id); activeImg=null;
@@ -3460,7 +3495,7 @@ function renderLayers(){
   const imgs=liveBlocks().filter(b=>b.kind==='img').sort((a,b)=>b.z-a.z); // 上層在前
   if(!imgs.length){ box.innerHTML='<div class="empty-hint">尚未選商品</div>'; return; }
   box.innerHTML=imgs.map(b=>
-    `<div class="lyr${activeImg===b.id?' on':''}" data-lyr="${b.id}" draggable="true">
+    `<div class="lrow${activeImg===b.id?' on':''}" data-lyr="${b.id}" draggable="true">
        <span class="lgrip">☰</span>
        <span class="lthumb">${imgHTML(b.key, b.row)}</span>
        <span class="lname">${keyLabel(b.key)}</span>
@@ -3470,7 +3505,7 @@ function renderLayers(){
                title="刪掉這張圖（左下角那顆 ＋ 可以放回來）">刪掉</button>
      </div>`).join('');
 
-  box.querySelectorAll('.lyr').forEach(el=>{
+  box.querySelectorAll('.lrow').forEach(el=>{
     el.onmouseenter=()=>{ if(!lyrDrag){ activeImg=el.dataset.lyr; renderCell(); markLayerActive(); } };
     /* 點面板＝也在版上選起來。本來只設 activeImg（那只是「滾輪循環到誰」），
        版上那一塊沒有被 selected，於是點完了還要再去版上點一次才搬得動、拉得大 ——
@@ -3498,27 +3533,27 @@ let lyrDrag=null;
 function initLayerDnD(){
   const box=$('#layers');
   box.addEventListener('dragstart',e=>{
-    const it=e.target.closest('.lyr'); if(!it) return;
+    const it=e.target.closest('.lrow'); if(!it) return;
     lyrDrag=it; it.classList.add('dragging');
     e.dataTransfer.effectAllowed='move';
     try{e.dataTransfer.setData('text/plain',it.dataset.lyr);}catch(_){}
   });
   box.addEventListener('dragend',()=>{
     if(lyrDrag) lyrDrag.classList.remove('dragging');
-    box.querySelectorAll('.lyr').forEach(x=>x.classList.remove('over'));
+    box.querySelectorAll('.lrow').forEach(x=>x.classList.remove('over'));
     lyrDrag=null;
   });
   box.addEventListener('dragover',e=>{
     e.preventDefault();
-    const it=e.target.closest('.lyr');
-    box.querySelectorAll('.lyr').forEach(x=>x.classList.remove('over'));
+    const it=e.target.closest('.lrow');
+    box.querySelectorAll('.lrow').forEach(x=>x.classList.remove('over'));
     if(it&&it!==lyrDrag) it.classList.add('over');
   });
   box.addEventListener('drop',e=>{
     e.preventDefault();
-    const tgt=e.target.closest('.lyr');
+    const tgt=e.target.closest('.lrow');
     if(!tgt||!lyrDrag||tgt===lyrDrag) return;
-    const items=[...box.querySelectorAll('.lyr')];
+    const items=[...box.querySelectorAll('.lrow')];
     const from=items.indexOf(lyrDrag), to=items.indexOf(tgt);
     if(from<to) tgt.after(lyrDrag); else tgt.before(lyrDrag);
     applyLayerOrder();
@@ -3526,7 +3561,7 @@ function initLayerDnD(){
 }
 /* 面板由上到下 = z 由大到小 */
 function applyLayerOrder(){
-  const ids=[...$('#layers').querySelectorAll('.lyr')].map(el=>el.dataset.lyr);
+  const ids=[...$('#layers').querySelectorAll('.lrow')].map(el=>el.dataset.lyr);
   const n=ids.length;
   ids.forEach((id,i)=>{ const b=BLOCKS.find(x=>x.id===id); if(b) b.z=n-i; });
   renderCell(); renderLayers();
@@ -3635,6 +3670,20 @@ function hideSelected(){
   if(stickers.size) BLOCKS=BLOCKS.filter(b=>!stickers.has(b.id));
   selected.clear(); activeImg=null;
   /* 少了一塊，右下那一疊要重新靠齊、圖要重新讓開 —— 強制重排一次。 */
+  renderOne(curCell,true); renderLayers(); reportBoard();
+}
+/* 拿掉一張貼圖（貼圖右上角那顆 ✕）。跟 hideSelected 裡貼圖那一條是同一件事：
+   貼圖**不進**「刪掉的東西」那份名冊 —— 那份是給商品圖找回來用的（靠 uid 認出
+   重選商品時要復原哪一塊），而貼圖不是挑出來的，沒有 uid 也沒有「重選」。
+   要叫回來走 Ctrl+Z：刪除本來就記成一步（主程式收到回報就 commitAction）。 */
+function delSticker(id){
+  if(ROLE==='pm') return;                     // 貼圖是印出去的素材，只有設計動得了
+  const b=BLOCKS.find(x=>x.id===id);
+  if(!b || b.kind!=='sticker') return;
+  BLOCKS=BLOCKS.filter(x=>x.id!==id);
+  selected.delete(id);
+  if(activeImg===id) activeImg=null;
+  /* 少了一塊，右下那一疊要重新靠齊、圖要重新讓開 —— 跟 hideSelected 一樣強制重排。 */
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
 /* 指名刪一塊（圖層面板那顆「刪掉」）。跟 hideSelected 同一份名冊，
@@ -3804,7 +3853,7 @@ function reportPropsBar(){
 }
 
 function markLayerActive(){
-  $('#layers').querySelectorAll('.lyr').forEach(el=>
+  $('#layers').querySelectorAll('.lrow').forEach(el=>
     el.classList.toggle('on', el.dataset.lyr===activeImg));
 }
 

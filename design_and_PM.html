@@ -2008,8 +2008,9 @@
     margin:12px 0 6px;font-size:11px;font-weight:800;letter-spacing:.06em;color:var(--muted);
   }
   .stk-grid{display:flex;flex-wrap:wrap;gap:6px}
+  /* 手勢寫著它拿得起來：這一片的主要用法就是把縮圖拖到格子上 */
   .stk-th{
-    position:relative;width:82px;height:82px;padding:3px;border-radius:8px;cursor:pointer;
+    position:relative;width:82px;height:82px;padding:3px;border-radius:8px;cursor:grab;
     border:1.5px solid var(--line-strong);background:var(--bg);
     display:flex;align-items:center;justify-content:center;overflow:hidden;
   }
@@ -2022,14 +2023,21 @@
     color:#fff;background:rgba(0,0,0,.55);padding:1px 3px;line-height:1.3;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
+  .stk-th:active{cursor:grabbing}
   .stk-empty{font-size:11px;color:var(--ink-dim);line-height:1.6;padding:2px}
+  /* 拖曳途中手上那一張：看不到自己拿著什麼的話，拖到一半跟畫面當掉分不出來。
+     它不吃指標（要量的是它底下那一格是誰）。 */
+  .stk-ghost{
+    position:fixed;z-index:900;width:74px;height:74px;transform:translate(-50%,-50%);
+    pointer-events:none;border-radius:8px;background:var(--bg);border:1.5px solid var(--blue);
+    box-shadow:0 8px 20px rgba(0,0,0,.22);opacity:.92;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;font-weight:800;color:var(--ink-dim);text-align:center;
+  }
+  .stk-ghost img{max-width:100%;max-height:100%;object-fit:contain}
   /* 「開貼紙庫」：滿寬，長得像這一片的一部分而不是另一顆工具 —— 它做的事跟
      上面那些縮圖是同一件（挑貼紙），只是要去更遠的地方拿。 */
   .stk-more{display:block;width:100%;margin-top:14px;font-size:11.5px}
-  .stk-note{
-    margin-top:9px;padding-top:8px;border-top:1px solid var(--line);
-    font-size:10.5px;color:var(--ink-dim);line-height:1.55;
-  }
   /* 拿著 貼圖 的時候游標也換掉，跟上色同一條理由：手上拿著哪一件事要看得出來 */
   #sheetMain.tool-sticker,#sheetMain.tool-sticker .cell{cursor:crosshair}
 
@@ -3202,8 +3210,6 @@
           <!-- 缺貼紙的時候不必先走出這本 DM：這顆開的就是檔期列表上那顆「貼紙庫」
                開的同一張浮層。關掉之後這一片會重讀一次（見 closeApp）。 -->
           <button class="btn stk-more" id="stickerMore">🏷➕ 開貼紙庫（新增／修改）</button>
-          <div class="stk-note">點一張拿在手上，再點版上一格貼上去。<br>
-            貼上去之後，點那張貼紙再點它的字就能改成這一格自己的字。</div>
         </div>
       </div>
     </div>
@@ -3311,7 +3317,7 @@
               title="選零件 (S)：在格子裡選、拖品名、價格、商品圖">✥</button>
       <!-- 移動畫面：連格子上都能拖著跑，不怕誤觸到格子裡的東西 -->
       <button class="tool" data-tool="pan" data-key="D"
-              title="拖畫面 (D)：拖哪裡都是移動畫面，包括格子上">✋</button>
+              title="拖畫面 (D)：拖哪裡都是移動畫面，包括格子上">🔍</button>
       <!-- 上色：一格一個底色。它是工具（點下去會發生什麼），所以跟其他三顆互斥。
            下緣那一條寫著現在拿著什麼顏色 —— 這個工具的結果不只看工具本身。
            ⚠️ 這條工具列是 落版 和 拼板 共用的同一顆 DOM（hostSheet 搬來搬去），
@@ -3326,7 +3332,7 @@
            跟 上色 一樣只在 拼板 才有意義（配色／配圖都要看著真正的貨），
            而且只有設計動得了——這兩條規矩都在 syncStickerTool() 裡一次講完。 -->
       <button class="tool" data-tool="sticker" data-key="T"
-              title="貼圖 (T)：從貼紙庫挑一張，點一格貼上去">🏷️</button>
+              title="貼圖 (T)：把縮圖拖到格子上，或挑一張再點格子的空白處。格子裡的零件照樣搬得動">🏷️</button>
       <!-- ⚠️ 審核通過那一顆**不在這裡**：它站在意見欄、貼紙那一疊底下（#passBtn）——
            校對那幾關那是整頁要做的那一件事，而 PM 在 拼板 連這條工具列都沒有。 -->
       <div class="zoom-val" id="zoomVal">100%</div>
@@ -7519,7 +7525,11 @@ function setTool(name){
      函式下面，開機時 setTool 會比它早跑到。 */
   const ov = document.getElementById('boardOverview');
   if (ov){
-    ov.classList.toggle('tooling', name !== 'edit');
+    /* ⚠️ 貼圖 不在這一串裡：它要的是「S 那顆的本事再加上一件事」——
+       格子裡的零件照樣選得到、搬得動，按在格子的空白處才是貼上去
+       （那一下畫布會轉出來，見 stagePass → 格子的 click）。
+       關掉畫布的話，剛貼上去那張自己也搬不動，只能先換回 S 再回來。 */
+    ov.classList.toggle('tooling', name !== 'edit' && name !== 'sticker');
     /* 上色時 hover 不用藍色蓋掉格子的底色（見 #boardOverview.tool-paint）。
        取色更不能：壓暗或蓋一層藍之後，那一格看起來的顏色就不是它真正的色碼，
        而取色取的就是那個顏色。 */
@@ -9993,6 +10003,9 @@ boardOv.addEventListener('click', e => {
      而便利貼是對話：PM 在 製作 那一關想問一句，那正是最該問得到的時候。 */
   // 手上拿著貼紙：這一下是貼上去，不是進去編輯
   if (armedKind){ dropNote(armedKind, el, e.clientX, e.clientY); return; }
+  /* 手上拿著 貼圖：按在格子的空白處＝貼一張上去（畫布把那一下轉出來，見 stagePass）。
+     按在零件上的那一下根本走不到這裡 —— 那是格子裡的事，跟 S 那顆一樣。 */
+  if (activeTool === 'sticker'){ pasteStickerOn(el, null, e); return; }
   /* 手上拿著 搬移／複製：點一格是那個工具的事（pointerdown 已經接走了），
      不是進去編輯。貼紙排在前面 —— 那是一個模式，比工具更優先。 */
   if (activeTool !== 'edit') return;
@@ -12024,9 +12037,14 @@ function syncStickerTool(){
 const stkUseOf = p => (p && p.stkUse && typeof p.stkUse === 'object') ? p.stkUse : {};
 
 function stkThumb(r){
+  /* 拖得動：直接把縮圖丟到版上那一格就是貼上去（點一下拿在手上那條路照舊）。
+     ⚠️ **不用瀏覽器原生的拖曳**（便利貼那一疊用的那種）：那一套從 <button> 起不來，
+     而縮圖就是一顆按鈕；何況拿著 貼圖 的時候格子裡的畫布是收指標的（見上面的
+     tooling），原生拖曳會掉進那份文件裡，外面永遠等不到放手那一下。
+     指標捕捉沒有這兩個問題：按下去之後每一下都送回這顆縮圖，蓋在上面的是誰都沒差。 */
   return `<button class="stk-th${stickerArmed && stickerArmed.id === r.id ? ' on' : ''}"
       data-stk="${r.id}" title="${escapeHtml(r.name || '')}">
-      ${r.preview ? `<img src="${svgToDataUrl(r.preview)}" alt="">` : ''}
+      ${r.preview ? `<img src="${svgToDataUrl(r.preview)}" alt="" draggable="false">` : ''}
       <span class="nm">${escapeHtml(r.name || '')}</span></button>`;
 }
 
@@ -12091,6 +12109,69 @@ document.getElementById('secStk').addEventListener('click', e => {
   stickerArmed = row;
   renderStickerPanel();
 });
+/* ---- 把縮圖拖到格子上 ----
+   手上帶著一張跟著游標走的縮圖（`.stk-ghost`）：拖曳途中看不到自己拿著什麼的話，
+   跟畫面當掉分不出來。經過的那一格照便利貼那一套亮起來（同一支 hotCell）。
+   拖到一半反悔、放在版外：手上那張還拿著，跟點一下的結果一樣，不是白拖一趟。 */
+let stkDrag = null, stkGhostEl = null;
+/** 只換「現在拿著哪一張」那一圈藍框 —— 拖曳途中不能重畫整片，見下面那段。 */
+function markStkArmed(){
+  document.querySelectorAll('#secStk .stk-th').forEach(b =>
+    b.classList.toggle('on', !!stickerArmed && b.dataset.stk === stickerArmed.id));
+}
+function stkGhostShow(row){
+  stkGhostEl = document.createElement('div');
+  stkGhostEl.className = 'stk-ghost';
+  stkGhostEl.innerHTML = row.preview
+    ? `<img src="${svgToDataUrl(row.preview)}" alt="">`
+    : escapeHtml(row.name || '');
+  document.body.appendChild(stkGhostEl);
+}
+function stkGhostEnd(){
+  if (stkGhostEl){ stkGhostEl.remove(); stkGhostEl = null; }
+  hotCell(null);
+}
+document.getElementById('secStk').addEventListener('pointerdown', e => {
+  const btn = e.target.closest('[data-stk]');
+  if (!btn || e.button !== 0) return;
+  const row = stickerLib.find(r => r.id === btn.dataset.stk);
+  if (!row) return;
+  stkDrag = { row, btn, id: e.pointerId, x0: e.clientX, y0: e.clientY, on: false };
+  try { btn.setPointerCapture(e.pointerId); } catch (_){}
+});
+document.getElementById('secStk').addEventListener('pointermove', e => {
+  if (!stkDrag || e.pointerId !== stkDrag.id) return;
+  /* 走了 5px 才算拖 —— 不然按下去手抖一下，每一次點選都變成一趟拖曳。 */
+  if (!stkDrag.on){
+    if (Math.abs(e.clientX - stkDrag.x0) + Math.abs(e.clientY - stkDrag.y0) < 5) return;
+    stkDrag.on = true;
+    stickerArmed = stkDrag.row;      // 拖起來就等於拿在手上（半路放掉也還拿著）
+    /* ⚠️ 這裡**不可以** renderStickerPanel()：那一支會把整片縮圖重畫一次，
+       而指標捕捉抓著的就是剛剛按下去那一顆 —— 節點被換掉，捕捉當場失效，
+       接下來的每一下都掉到游標底下那個東西上，於是手上那張縮圖停在原地不動、
+       放手那一下也永遠等不到（拖了半天什麼都沒發生，還留下一張浮在畫面上的圖）。
+       藍框自己換就好，那正是這一趟唯一變了的東西。 */
+    markStkArmed();
+    stkGhostShow(stkDrag.row);
+  }
+  stkGhostEl.style.left = e.clientX + 'px';
+  stkGhostEl.style.top  = e.clientY + 'px';
+  hotCell(cellUnder(e.clientX, e.clientY));
+});
+function stkDragEnd(e){
+  if (!stkDrag || e.pointerId !== stkDrag.id) return;
+  const d = stkDrag; stkDrag = null;
+  try { d.btn.releasePointerCapture(d.id); } catch (_){}
+  if (!d.on) return;                 // 沒動過＝這是一次點選，交給 click 那條
+  const cel = cellUnder(e.clientX, e.clientY);
+  stkGhostEnd();
+  if (cel) pasteStickerOn(cel, d.row, e);      // 放手那一點就是它的中心
+}
+document.getElementById('secStk').addEventListener('pointerup', stkDragEnd);
+document.getElementById('secStk').addEventListener('pointercancel', e => {
+  if (!stkDrag || e.pointerId !== stkDrag.id) return;
+  stkDrag = null; stkGhostEnd();
+});
 
 /* 貼上去的時候要送給那一格的一整包。**不是只送一張烤好的圖**：
    ・tpl ＝這張貼紙的模板整份（字串，跟貼紙庫存的同一份）—— 格子那邊照它現場排，
@@ -12137,36 +12218,46 @@ document.getElementById('stickerClose').addEventListener('click', () => {
   syncStickerTool();
 });
 
-/* 貼圖的手勢：拿著 貼圖 的時候，點一格＝把手上那張貼紙放進那一格。
-   ⚠️ 沒有拖框那一步——貼紙是單一物件，一次貼一張，不是批次動作，所以點在格子
-   以外什麼都不發生（不像 上色 還要接住從空地起手的框選）。 */
-boardEl.addEventListener('pointerdown', e => {
-  if (activeTool !== 'sticker' || activeTab !== 'board' || e.button !== 0) return;
-  if (handMode) return;                      // 空白鍵 pan 先拿到指標
-  if (e.target.closest('.grip, .rowbtns, .masthead, #boardStage')) return;
-  const cel = e.target.closest('.cell[data-cell-id]');
-  if (!cel) return;
-  if (activeMode !== 'design'){ toast('貼圖由設計決定', 'info', 1800); return; }
-  if (!stickerArmed){ toast('先在貼紙庫挑一張', 'info', 1800); return; }
-  e.preventDefault();
-  e.stopPropagation();
+/* 貼上去只有這一支：手上拿著點一格、和把縮圖拖到那一格，走的是同一條路。
+   兩條入口各寫一份的話，「還沒挑貨」「不是設計」「最近用過」遲早會有一邊漏掉。 */
+function pasteStickerOn(cel, row, at){
+  if (activeMode !== 'design'){ toast('貼圖由設計決定', 'info', 1800); return false; }
+  const r = row || stickerArmed;
+  if (!r){ toast('先在貼紙庫挑一張', 'info', 1800); return false; }
   const cell = cellById(cel.dataset.cellId);
-  if (!cell) return;
+  if (!cell) return false;
   const f = canvasFrame(cell.id);
   /* 還沒挑貨的格子沒有畫布（見 paintOneCanvas：有貨才生），貼紙沒有地方站。
      安靜地什麼都不做的話，看起來就是「貼圖壞了」—— 講一句。 */
-  if (!f || !f.contentWindow){ toast('這一格還沒挑貨，貼紙沒有地方站', 'info', 2200); return; }
+  if (!f || !f.contentWindow){ toast('這一格還沒挑貨，貼紙沒有地方站', 'info', 2200); return false; }
+  const load = stickerPayload(r);
+  /* 放手（或點下去）的那一點就是這張貼圖的中心 —— 照便利貼那條規矩：東西落在
+     你放它的地方，不是格子正中間。
+     ⚠️ 送過去的是**畫布那份文件自己的**客座標（先除掉 iframe 上那個 transform，
+     見 canvasScale），**不是排版座標**。排版座標還要再除一個「裝不下就整份縮」
+     的倍率，而那個倍率只有畫布那邊知道（見 2cell 的 scaleOf／cellPt）——
+     在這裡換算的話，縮過的格子會差一個倍率，貼圖就落在完全別的地方。
+     量不到就不給，格子那邊自己會擺中間。 */
+  if (at){
+    const fr = f.getBoundingClientRect(), cs = canvasScale(f);
+    if (cs) load.at = { cx: (at.clientX - fr.left) / cs, cy: (at.clientY - fr.top) / cs };
+  }
   try {
-    f.contentWindow.postMessage({ addSticker: stickerPayload(stickerArmed) }, '*');
+    f.contentWindow.postMessage({ addSticker: load }, '*');
     /* 最近用過數的是「貼了幾次」。存進這一檔，跟色盤的「最常用」同一種東西
        （只會加，所以合併時取兩邊的增量，見 mergePaintInto）。 */
     const use = Object.assign({}, stkUseOf(currentPlan));
-    use[stickerArmed.id] = (use[stickerArmed.id] || 0) + 1;
+    use[r.id] = (use[r.id] || 0) + 1;
     currentPlan.stkUse = use;
     renderStickerPanel();
     toast('貼上了 —— 點那張貼紙再點它的字就能改', 'ok', 2000);
-  } catch (_){}
-});
+    return true;
+  } catch (_){ return false; }
+}
+/* ⚠️ 貼上去那一下**不接 pointerdown**（上色、取色那幾支是接的）：拿著 貼圖 的時候
+   格子裡的畫布是活的，按在格子上的那一下多半根本不會傳到這一層。走 click 那條，
+   格子裡按空白處轉出來的那一下（stagePass 補的就是 click）跟真的點到格子邊上
+   那一下才會是同一條路 —— 兩邊各接一份的話，會有一種按法貼得上、另一種按不動。
 
 /* ---- 取色 ----
    取的是那一格存著的色碼（cell.bg），不是螢幕上那幾顆像素：格子上蓋著壓暗、hover、
