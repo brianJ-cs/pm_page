@@ -103,9 +103,6 @@
 
   /* ---- 復原 / 重做 (步驟記錄) ---- */
   .hist{display:flex;align-items:center;gap:6px;margin-left:6px}
-  /* 固定大小：它是一個標記，不是版面上的東西 */
-  .hist-n{font-size:12px;font-weight:800;color:var(--ink-dim);min-width:14px}
-  .hist-n:empty{display:none}
   .btn.icon{
     position:relative;padding:7px 13px 11px;font-size:17px;line-height:1;
     color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint);
@@ -1762,8 +1759,25 @@
   .prog-col{padding:16px 18px 18px}
   .prog-col + .prog-col{border-left:1px solid var(--line)}
   .prog-col > h4{font-size:12.5px;font-weight:800;color:var(--muted);margin-bottom:10px}
+  /* 十關一條：做完的淡、現在這一關框起來並塗上**那一關是誰的**顏色（PM 黃／設計天藍，
+     跟便利貼、身分色同一套名字）、還沒到的灰字。日期寫在底下 —— 「一校」本身講不出是哪一天。 */
+  .prog-stages{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;padding:14px 18px 0}
+  .prog-stage{border:1px solid var(--line);border-radius:8px;padding:5px 2px 4px;text-align:center;
+    font-size:12px;font-weight:800;color:var(--muted);background:var(--surface);white-space:nowrap;overflow:hidden}
+  .prog-stage small{display:block;font-size:10px;font-weight:700;margin-top:2px}
+  .prog-stage.done{color:var(--ink-dim);background:var(--surface-2)}
+  .prog-stage.done b::before{content:"✓ "}
+  .prog-stage.now{color:var(--ink);border:2px solid var(--ink);padding:4px 1px 3px}
+  .prog-stage.now.pm{background:color-mix(in srgb, var(--sticky-pm) 40%, var(--surface))}
+  .prog-stage.now.design{background:color-mix(in srgb, var(--sticky-design) 40%, var(--surface))}
+  @media (max-width:680px){ .prog-stages{grid-template-columns:repeat(5,minmax(0,1fr))} }
+  .prog-now{padding:10px 18px 12px;font-size:13.5px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line)}
+  .prog-now .sub{color:var(--muted);font-weight:700;margin-left:10px}
+  /* [hidden] 是瀏覽器內建規則，權重比上面那幾條 display 低 —— 要自己講一次 */
+  .prog-stages[hidden],.prog-now[hidden],.prog-bar[hidden]{display:none}
   .prog-big{font-size:34px;font-weight:800;line-height:1;color:var(--ink)}
   .prog-big small{font-size:14px;color:var(--muted);margin-left:7px;font-weight:800}
+  .prog-big.words{font-size:18px}
   .prog-bar{height:8px;border-radius:999px;background:var(--surface-3,#eef1f6);overflow:hidden;margin:10px 0 4px}
   .prog-bar i{display:block;height:100%;background:var(--green-rule);border-radius:999px}
   /* 面板裡的小地圖：跟左欄那張同一個形狀，只是不能點。
@@ -1787,13 +1801,19 @@
   .prog-blk.done{background:#dff0e5;border-color:var(--green-rule);color:var(--green-ink)}
   .prog-blk.none{background:#e9ecf2;border-color:#cdd4e0;color:#98a1b2}
   .prog-side{font-size:12px;color:var(--muted);margin-top:9px}
-  .prog-row{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .prog-row{display:flex;align-items:center;gap:9px;padding:7px 4px;border-bottom:1px dashed var(--line);
+    cursor:pointer;border-radius:6px}
+  .prog-row:hover{background:var(--surface-2)}
   .prog-row:last-child{border-bottom:0}
-  .prog-row .nm{font-size:13px;font-weight:800;width:78px;flex:none}
+  .prog-row .nm{font-size:13px;font-weight:800;width:128px;flex:none;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .prog-row .bar{flex:1;height:7px;border-radius:999px;background:var(--surface-3,#eef1f6);overflow:hidden}
   .prog-row .bar i{display:block;height:100%;background:var(--blue);border-radius:999px}
-  .prog-row .n{font-size:12.5px;font-weight:800;color:var(--ink-dim);width:66px;text-align:right;flex:none}
+  .prog-row .n{font-size:12.5px;font-weight:800;color:var(--ink-dim);min-width:92px;text-align:right;flex:none}
   .prog-empty{font-size:12.5px;color:var(--muted);padding:10px 0}
+  /* 做完的、還沒排版的收成一行字：它們沒事要做，一條一條列出來只會把還差的那幾塊擠到下面去 */
+  .prog-rest{font-size:12px;color:var(--muted);padding:9px 4px 0;line-height:1.5}
+  .prog-rest b{color:var(--ink-dim)}
 
   /* --- 工具 rail --- */
   #toolRail{
@@ -2158,11 +2178,12 @@
   }
   @keyframes coverPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.72)}}
   @media (prefers-reduced-motion:reduce){ #coverLoad::before{animation:none} }
-  /* 蓋著的時候真的那一層**整個藏起來**（不是被蓋住而已）：蓋布沒畫到的地方
-     就不會有東西從底下透出來。列和刊頭各自淡，`#board` 本身不動 ——
-     蓋布是它的小孩，一起淡掉就等於沒蓋。 */
-  #board.covered > .row, #board.covered > .masthead{opacity:0}
-  #board > .row, #board > .masthead{transition:opacity .24s ease}
+  /* 蓋著的**只有那幾格的畫布**（見 showBoardCover 的 coverIds）。
+     以前是整張版的列和刊頭一起藏：只要有一格要重新載入，已經載好的其他幾十格
+     也被藏到一張舊照片後面，照片裡沒有的就是一片白 —— 蓋住的正是已經好了的東西。
+     格子本身（框、底色、便利貼記號）不藏，它們本來就在。 */
+  #board .cell.under-cover > .ccanvas{opacity:0}
+  #board .cell > .ccanvas{transition:opacity .24s ease}
   /* ⚠️ 蓋布**沒有**淡出（見 liftBoardCover）：它跟底下那一份是「幾乎一樣、
      但不完全一樣」的兩層，淡出等於讓人看著兩層混色 260ms —— 那正是使用者
      講的「還是有一下閃」。到齊就直接拿掉。 */
@@ -2402,6 +2423,13 @@
      被切掉一半的牌子比壓在一格上面更難懂。 */
   .blk-grab.v.flip .blk-lab{left:auto;right:100%;transform:translate(-2px,-50%)}
   .blk-grab.h.flip .blk-lab{top:auto;bottom:100%;transform:translate(-50%,-2px)}
+  /* 左邊、上面那兩根（有鄰居才有）：站在紙的另一側，牌子也擺在外面、塞不下才翻進來 */
+  .blk-grab.v.start{right:auto;left:-8px}
+  .blk-grab.h.start{bottom:auto;top:-8px}
+  .blk-grab.v.start .blk-lab{left:auto;right:100%;transform:translate(-2px,-50%)}
+  .blk-grab.h.start .blk-lab{top:auto;bottom:100%;transform:translate(-50%,-2px)}
+  .blk-grab.v.start.flip .blk-lab{right:auto;left:100%;transform:translate(2px,-50%)}
+  .blk-grab.h.start.flip .blk-lab{bottom:auto;top:100%;transform:translate(-50%,2px)}
   .blk-grab:hover .blk-lab,body.blk-resizing .blk-lab{border-color:var(--blue);color:var(--blue)}
   /* 拼板 不改版位的形狀（跟刊頭把手同一條理由：那是 落版 談好的事） */
   #boardOverview .blk-grab{display:none}
@@ -2926,11 +2954,28 @@
        這時候要印的不是某一個版位，所以把 #board 也一起收掉 —— 上面那幾條
        是無條件放行它的。 */
     body.print-dm #board{visibility:hidden !important}
+    /* 整本匯出：**別的東西整個不排版**（display:none），不是藏起來。
+       藏起來（visibility）還是佔位置，而這一份是好幾頁、要照紙往下排的 ——
+       前面有一整個編輯器的高度，第一頁就是空的。畫布那幾支 iframe 被 display:none
+       不會重載（只有搬節點才會），印完就回來。
+       紙多大寫在另一段（見 exportDm 的 dmPageStyle）：那是照這一檔的 DM 類別算的，
+       CSS 寫不出來。 */
+    body.print-dm{visibility:visible !important}
+    body.print-dm > :not(#dmPrintHost){display:none !important}
     #dmPrintHost{
-      visibility:visible !important;left:0 !important;
-      transform:scale(var(--pk,1));transform-origin:top left;
+      visibility:visible !important;position:static !important;display:block !important;
+      left:auto !important;gap:0 !important;
     }
     #dmPrintHost *{visibility:visible !important}
+    /* 一頁一面，剛好一張紙：沒有邊、沒有縫。 */
+    #dmPrintHost .dmp-page{display:flex;overflow:hidden;break-after:page;page-break-after:always}
+    #dmPrintHost .dmp-page:last-child{break-after:auto;page-break-after:auto}
+    /* 版位的框、摺線、空格子的框都是螢幕上給人認位置的線，印刷品上沒有。
+       空格子的底色要留（那是設計上的色），所以要指名 exact。 */
+    #dmPrintHost .pv-blk{border:0 !important}
+    #dmPrintHost .pv-fold{display:none !important}
+    #dmPrintHost .pv-empty{border:0 !important;
+      -webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
     /* 「還沒看過」那塊斜線是資訊，不是裝飾：印出來的那一份也要看得出哪裡沒有圖
        （底色預設會被丟掉，所以要指名 exact —— 跟格子的底色同一條）。 */
     #dmPrintHost .pv-none{
@@ -3020,11 +3065,12 @@
     <button class="pilltab" id="progBtn"
             title="看這個檔期交出去多少、每位 PM 拼完幾格">進度</button>
     <div class="hist">
-      <button class="btn icon" id="undoBtn" data-key="⌘Z" title="復原 (⌘/Ctrl+Z)" disabled>↶</button>
-      <button class="btn icon" id="redoBtn" data-key="⇧⌘Z" title="重做 (⌘/Ctrl+Shift+Z)" disabled>↷</button>
-      <!-- 還退得回幾步。以前這個數字只寫在 title 裡（要把滑鼠停上去才看得到），
-           於是「還剩幾步」變成一件要試出來的事 —— 按到沒反應才知道到底了。 -->
-      <span class="hist-n" id="histN" title="還可以復原幾步"></span>
+      <!-- 角落那個快捷鍵照這台電腦寫（見 HIST_KEYS）。這裡寫的是 Windows 那一份。 -->
+      <button class="btn icon" id="undoBtn" data-key="Ctrl+Z" title="復原 (Ctrl+Z)" disabled>↶</button>
+      <button class="btn icon" id="redoBtn" data-key="Ctrl+Y" title="重做 (Ctrl+Y)" disabled>↷</button>
+      <!-- ⚠️ 這裡曾經有一個「還退得回幾步」的數字（#histN）。拿掉了（2026-09-11）：
+           它每做一步就跳一次，擺在最上面那條列上一直在動，而鈕會不會變灰已經說了
+           「還有沒有得退」—— 那才是按之前要知道的事。 -->
     </div>
     <!-- 切在幾公分：填了就照數字切，空著就照點下去的位置切。跟開檔那支同一條規矩，
          擺的位置也一樣（最上面那條），只有 總體 拿起 切分 時才出現。 -->
@@ -3038,8 +3084,8 @@
            title="從你指著那一塊的上緣量起 —— 填了就是橫切一刀"
            >cm<button class="btn" id="cutGo" type="button" disabled>切下去</button></div>
     <div class="right">
-      <!-- 匯出乾淨版：走瀏覽器的列印，目的地選「另存為 PDF」就是一份 PDF。
-           見 stylesheet 最後的 @media print。 -->
+      <!-- 匯出：整本 DM（正面、背面各一頁）。走瀏覽器的列印，目的地選「另存為 PDF」
+           就是一份 PDF。見 exportDm() 和 stylesheet 最後的 @media print。 -->
       <!-- 提交給設計：只有行銷、只有還是草稿的檔期看得到。每一塊版位都填齊了才按得下去。 -->
       <!-- 回上一頁：草稿那一段的另一半 —— 上一步就是開檔表（名稱、標籤、時程）。
            跟 提交 一樣是 position:fixed 的一顆大鈕，一左一右。 -->
@@ -3054,7 +3100,7 @@
       <button class="btn" id="dmPrevBtn"
               title="整本 DM 現在長什麼樣：正面背面攤在一起，用每一格拍下來的圖拼">整本預覽</button>
       <button class="btn" id="exportBtn"
-              title="把這個版位印成乾淨版：沒有便利貼、按鈕、把手、壓暗和標籤。在列印對話框把目的地選成「另存為 PDF」">匯出乾淨版</button>
+              title="整本 DM 印成 PDF：正面、背面各一頁，紙就是版面的實際大小。在列印對話框把目的地選成「另存為 PDF」">匯出</button>
       <span id="hereNow"></span>
       <span class="prog" id="bannerProg"></span>
       <span id="saveState"></span>
@@ -3423,17 +3469,20 @@
   <div id="progBox">
     <h3><span>進度</span><span id="progName" style="color:var(--muted);font-weight:800"></span>
       <button class="close" id="progClose">關閉</button></h3>
+    <!-- 上：時間走到哪（十關一條）。中：這一關要數的那一件事。下：一塊一塊還差哪裡。 -->
+    <div class="prog-stages" id="progStages"></div>
+    <div class="prog-now" id="progNow"></div>
     <div class="prog-cols">
       <div class="prog-col">
-        <h4>整本　挑到哪了</h4>
+        <h4 id="progWhat"></h4>
         <div class="prog-big" id="progPct"></div>
-        <div class="prog-bar"><i id="progBarFill"></i></div>
+        <div class="prog-bar" id="progBar"><i id="progBarFill"></i></div>
         <div class="prog-side" id="progCount"></div>
         <div class="prog-maps" id="progGrid"></div>
         <div class="prog-side" id="progSides"></div>
       </div>
       <div class="prog-col">
-        <h4>一塊一塊　還缺哪裡</h4>
+        <h4>一塊一塊　還差哪裡</h4>
         <div id="progPms"></div>
       </div>
     </div>
@@ -3844,7 +3893,13 @@ let histQuiet = 0;
 
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
-const histN   = document.getElementById('histN');
+/* 鈕角落寫的快捷鍵照**這台電腦**的慣例：Windows 是 Ctrl+Z／Ctrl+Y，Mac 是 ⌘Z／⌘Y。
+   以前寫死 ⌘Z／⇧⌘Z —— Mac 的符號，Windows 上看起來像一串亂碼，而且 ⇧⌘Z 那個
+   ⇧ 很容易被讀成別的鍵。三組鍵照舊都認（Ctrl+Z、Ctrl+Y、Ctrl+Shift+Z，見 keydown）。 */
+const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+const HIST_KEYS = IS_MAC ? { undo: '⌘Z', redo: '⌘Y' } : { undo: 'Ctrl+Z', redo: 'Ctrl+Y' };
+undoBtn.dataset.key = HIST_KEYS.undo;
+redoBtn.dataset.key = HIST_KEYS.redo;
 
 /** Grey the arrows out when there is nowhere to go, so the stack is visible. */
 function syncHistoryBtns(){
@@ -3852,13 +3907,8 @@ function syncHistoryBtns(){
   const canRedo = !!currentPlan && histAt < histStack.length - 1;
   undoBtn.disabled = !canUndo;
   redoBtn.disabled = !canRedo;
-  undoBtn.title = canUndo ? `復原 (⌘/Ctrl+Z)　剩 ${histAt} 步` : '沒有可復原的步驟';
-  redoBtn.title = canRedo
-    ? `重做 (⌘/Ctrl+Shift+Z)　剩 ${histStack.length - 1 - histAt} 步`
-    : '沒有可重做的步驟';
-  /* 直接寫在鈕旁邊。只寫「還能退幾步」一個數字 —— 能重做幾步是按了復原之後
-     才有的事，兩個數字並排會變成一組要先讀懂的東西。 */
-  histN.textContent = canUndo ? String(histAt) : '';
+  undoBtn.title = canUndo ? `復原 (${HIST_KEYS.undo})` : '沒有可復原的步驟';
+  redoBtn.title = canRedo ? `重做 (${HIST_KEYS.redo})` : '沒有可重做的步驟';
 }
 
 undoBtn.addEventListener('click', () => undo());
@@ -3919,18 +3969,42 @@ function restoreNotes(layout, map){
     })));
 }
 
+/** 每一格「看起來」由什麼決定：畫布的內容＋底色（底色是烤進照片裡的）。
+    鑰匙帶版位 id：照片是一塊版位一份，改過的那一格要記到它那一塊上。 */
+function cellLooks(p){
+  const out = Object.create(null);
+  if (!p || !p.layout) return out;
+  collectBlocks(p.layout.front, []).concat(collectBlocks(p.layout.back, [])).forEach(b =>
+    ((b.sheet || {}).cells || []).forEach(c => {
+      out[b.id + '\u0000' + c.id] = j([(c.board || {}).state || null, bgOf(c) || '']);
+    }));
+  return out;
+}
+
 function applySnapshot(json){
   const keepNotes = collectNotes(currentPlan.layout);
   const snap = JSON.parse(json);
+  /* 換掉之前記一份：哪幾格的內容會被這一步改掉。
+     ・wasCells：退完之後只把變了的那幾格重送給活著的畫布（見 rebuildAll 的 undoFrom）。
+     ・wasLooks：變了的那幾格，手上那張照片就過期了 —— 不記的話蓋布會拿退之前拍的照片
+       蓋在剛退回來的那一格上，你按了 Ctrl+Z 看到的還是沒退的樣子。 */
+  const wasCells = cellStateMap(currentPlan);
+  const wasLooks = cellLooks(currentPlan);
   currentPlan.layout = snap.layout;
   restoreNotes(currentPlan.layout, keepNotes);
   currentPlan.guides = snap.guides || { front: [], back: [] };
   if (snap.palette) currentPlan.palette = snap.palette; else delete currentPlan.palette;
   if (snap.bgUse)   currentPlan.bgUse   = snap.bgUse;   else delete currentPlan.bgUse;
   if (snap.stkUse)  currentPlan.stkUse  = snap.stkUse;  else delete currentPlan.stkUse;
+  const nowLooks = cellLooks(currentPlan);
+  Object.keys(nowLooks).forEach(k => {
+    if (nowLooks[k] === wasLooks[k]) return;
+    const at = k.indexOf('\u0000');
+    staleSnapCell(k.slice(at + 1), { id: k.slice(0, at) });
+  });
   histLock = true;                          // rebuilding must not re-record
   histQuiet = Date.now() + 700;                // 連帶擋掉畫布晚一步的回報
-  try { rebuildAll(snap.active); } finally { histLock = false; }
+  try { rebuildAll(snap.active, { cells: wasCells }); } finally { histLock = false; }
   markDirty();
   syncHistoryBtns();
 }
@@ -5364,35 +5438,63 @@ function renderMinimap(){
    所以整張改成講一件事：現在是哪一關、還缺哪幾塊的貨。 */
 const progMask = document.getElementById('progMask');
 
-/** 一塊一塊看：這一塊的格子挑好貨的有幾格。
-    分母是整塊的格數 —— 挑貨是這本 DM 唯一還會一塊一塊各走各的事，
-    而問題永遠是「還缺哪裡」。（以前這裡先照「哪一位 PM」分、後來照「在誰手上」
-    篩，那兩件事都沒有了。）
-    還沒排版的那幾塊不列：沒有格子就沒有分母，畫一條 0/0 的空槓不講任何事。 */
-function pmProgress(){
-  const rows = new Map();
-  allBlocks().forEach(b => {
+/** 一塊版位在進度上叫什麼：**跟版上寫的一樣**（品類，例：手機・筆電・平板）。
+    ⚠️ 以前讀的是 node.name —— 那是切出來那一刻存的名字，品類改過之後不會跟著變，
+    於是這一頁寫「通訊數位商品」、總體和小地圖寫「手機(18) 筆電(12)」，對不起來。 */
+function sectionLabel(node){
+  const gs = realGroups(node);
+  return gs.length ? gs.map(g => g.name).join('・') : '還沒填品類';
+}
+
+/** 這一關要數的是什麼。**照關走**：提明細數挑貨、校對那三關數通過、設計在改的那幾關數
+    還沒處理的意見。蓋章確認、出稿現在只是名字（還沒有對應的功能），不數 —— 回 null。
+    以前不管哪一關都數挑貨，於是一校的時候那一頁寫著一個大大的「0%」，看起來像這本 DM
+    什麼都沒做，而那一關真正在長的數字（通過幾格）只寫在最上面那條列上。
+    沒排時程的檔期（沒有 durs）照舊數挑貨。 */
+const FIX_STAGES = ['製作', '一改', '二改', '蓋章修改'];
+function progMeasure(plan){
+  const st = stageNow(plan);
+  const name = st ? st.name : '提明細';
+  if (name === '提明細')
+    return { kind:'cells', what:'挑貨', verb:'挑好', has: cellPicked,
+             white:'還有格子沒挑貨', green:'這一塊都挑好了' };
+  if (REVIEW_STAGES.includes(name))
+    return { kind:'cells', what:name, verb:name + '通過', has: c => passedAt(c, name),
+             white:'還有格子沒通過', green:`這一塊${name}都通過了` };
+  if (FIX_STAGES.includes(name))
+    return { kind:'notes', what:'意見', white:'還有意見沒處理', green:'沒有要處理的意見' };
+  return null;
+}
+
+/** 每一塊版位照這一關量一次。state：none＝還沒排版（沒有格子）、done＝這一關沒事了、todo。 */
+function progRows(measure){
+  return allBlocks().map(b => {
     const cells = ((b.sheet || {}).cells) || [];
-    if (!cells.length) return;
-    rows.set(b.name || '未命名',
-             { done: cells.filter(cellPicked).length, total: cells.length });
+    const row = { node: b, label: sectionLabel(b), total: cells.length };
+    if (!cells.length) return Object.assign(row, { state:'none', left:0 });
+    if (!measure) return Object.assign(row, { state:'todo', left:0 });
+    if (measure.kind === 'notes'){
+      const open = cells.reduce((t, c) => t + openNotes(c), 0);
+      return Object.assign(row, { state: open ? 'todo' : 'done', left: open });
+    }
+    const done = cells.filter(measure.has).length;
+    return Object.assign(row, { done, left: cells.length - done,
+                                state: done === cells.length ? 'done' : 'todo' });
   });
-  return rows;
 }
 
 /* 進度面板裡那張小地圖：跟 renderMiniNode 同一套幾何，但不掛任何事件也不看
    activeBlock —— 它是一張報表，不是操作介面。所以另外寫一個薄的，
    不去污染那支已經被四個地方共用的函式。 */
-function progNode(node){
+function progNode(node, byNode){
   if (isLeaf(node)){
-    const sh = node.sheet || {};
-    const st = blockState(sh);
+    const r = byNode && byNode.get(node);
     const el = document.createElement('div');
-    /* 挑到一半的版位畫成「還缺貨」那一格：綠色留給整塊都挑齊的，
-       不然一眼掃過去會以為都好了。字上面寫得出 n/m，顏色寫不出。 */
-    el.className = 'prog-blk' + (st.k === 's-done' ? ' done' : (st.k === 's-none' ? ' none' : ''));
-    el.textContent = node.name;
-    el.title = `${node.name}　${st.t}`;
+    /* 顏色講的是**這一關**的事（見 progMeasure）。做到一半的畫白的：綠色留給整塊都好了的，
+       不然一眼掃過去會以為都好了。這一關不數（null）就不上色 —— 塗了等於講一件沒有在量的事。 */
+    el.className = 'prog-blk' + (!r ? '' : r.state === 'done' ? ' done' : r.state === 'none' ? ' none' : '');
+    el.textContent = sectionLabel(node);
+    el.title = sectionLabel(node) + (r && r.title ? '　' + r.title : '');
     return el;
   }
   const el = document.createElement('div');
@@ -5405,7 +5507,7 @@ function progNode(node){
       f.className = 'prog-fold';
       el.appendChild(f);
     }
-    const kidEl = progNode(kid);
+    const kidEl = progNode(kid, byNode);
     kidEl.style.flex = `${sizes[i]} 1 0%`;
     kidEl.style.minWidth = '0px';
     kidEl.style.minHeight = '0px';
@@ -5416,57 +5518,138 @@ function progNode(node){
 
 function openProgress(){
   if (!currentPlan) return;
-  const p = planProgress(currentPlan);
-  const pct = (p && p.total) ? Math.round(p.done / p.total * 100) : 0;
-  const st = stageNow(currentPlan);
+  const plan = currentPlan;
+  const st = stageNow(plan);
+  const measure = progMeasure(plan);
+  const rows = progRows(measure);
+  const byNode = new Map(rows.map(r => [r.node, r]));
+  rows.forEach(r => {
+    r.title = r.state === 'none' ? '還沒排版'
+            : !measure ? ''
+            : measure.kind === 'notes' ? (r.left ? `還有 ${r.left} 則意見沒處理` : '沒有要處理的意見')
+            : `${measure.verb} ${r.done}/${r.total} 格`;
+  });
+  document.getElementById('progName').textContent = plan.name || '';
 
-  document.getElementById('progName').textContent = currentPlan.name || '';
-  document.getElementById('progPct').innerHTML = pct + '<small>%</small>';
-  document.getElementById('progBarFill').style.width = pct + '%';
-  /* 兩件事一起講：**現在是哪一關**（時間說的，誰都改不動）和**挑好幾格**
-     （唯一還在長的那個數字）。少了關名的話那個百分比會被讀成「這本 DM 做完幾成」。 */
-  document.getElementById('progCount').textContent =
-    (st ? `現在：${st.name}（${st.by}）　` : '')
-    + (p ? `挑好 ${p.done}/${p.total} 格` : '還沒排版');
+  /* ---- 上：十關一條 ＋ 現在這一關那一句 ---- */
+  const strip = document.getElementById('progStages');
+  const nowEl = document.getElementById('progNow');
+  strip.innerHTML = '';
+  if (st){
+    const stages = planStages(plan);
+    stages.forEach((s, i) => {
+      const el = document.createElement('div');
+      const past = st.over || i < st.i;
+      el.className = 'prog-stage' + (past ? ' done' : i === st.i ? ' now ' + STAGE_SIDE[i] : '');
+      el.innerHTML = `<b></b><small>${stageRange(s)}</small>`;
+      el.querySelector('b').textContent = STAGES[i];
+      el.title = `${STAGES[i]}（${STAGE_SIDE[i] === 'pm' ? 'PM' : '設計'}）${stageRange(s)}`;
+      strip.appendChild(el);
+    });
+    const last = stages[stages.length - 1].to;
+    const endTxt = `出稿 ${fmtMD(last)}(${WD[last.getDay()]})`;
+    if (st.over){
+      nowEl.innerHTML = `檔期已結束<span class="sub">${endTxt}</span>`;
+    } else {
+      const dl = st.deadline;
+      const left = dl ? dl.getTime() - nowMs() : 0;
+      nowEl.innerHTML = `現在：${st.name}（${st.by}${myTurn() ? '・輪到你' : ''}）`
+        + (dl ? `<span class="sub">${fmtMD(dl)}(${WD[dl.getDay()]}) ${DEADLINE_HOUR}:00 截止・${left > 0 ? fmtCountdown(left) : '已過期限'}</span>` : '')
+        + `<span class="sub">${endTxt}</span>`;
+    }
+    strip.hidden = false; nowEl.hidden = false;
+  } else {
+    strip.hidden = true; nowEl.hidden = true;     // 沒排時程：沒有關可以畫
+  }
 
-  /* 真正的小地圖：照版面比例畫兩張，一眼看得出還沒交的是哪幾塊、在哪、有多大 */
+  /* ---- 中：這一關要數的那一件事，寫成一句話 ---- */
+  const laid = rows.filter(r => r.state !== 'none');
+  const big = document.getElementById('progPct');
+  const bar = document.getElementById('progBar');
+  const cnt = document.getElementById('progCount');
+  big.classList.remove('words');
+  if (!measure){
+    document.getElementById('progWhat').textContent = `整本　${st ? st.name : ''}`;
+    big.classList.add('words');
+    big.textContent = '這一關不計數';
+    cnt.textContent = '看上面的截止時間就好';
+    bar.hidden = true;
+  } else if (measure.kind === 'notes'){
+    const open = laid.reduce((t, r) => t + r.left, 0);
+    document.getElementById('progWhat').textContent = `整本　還沒處理的意見`;
+    big.innerHTML = `${open}<small>則</small>`;
+    cnt.textContent = open ? `${st.name}：還有 ${open} 則意見沒處理，分在 ${laid.filter(r => r.left).length} 塊版位`
+                           : `${st.name}：沒有要處理的意見`;
+    bar.hidden = true;
+  } else {
+    const done = laid.reduce((t, r) => t + r.done, 0), total = laid.reduce((t, r) => t + r.total, 0);
+    document.getElementById('progWhat').textContent = `整本　${measure.what}`;
+    /* 不寫百分比：「0%」單獨擺著會被讀成「這本 DM 做了 0%」。寫幾格、還差幾格。 */
+    big.innerHTML = total ? `${done}<small>/ ${total} 格</small>` : '<small>還沒有格子</small>';
+    cnt.textContent = total ? `${measure.verb} ${done} 格，還差 ${total - done} 格` : '填完品類和支數才排得出格子';
+    bar.hidden = !total;
+    document.getElementById('progBarFill').style.width = (total ? done / total * 100 : 0) + '%';
+  }
+
+  /* 小地圖：顏色跟上面那個數同一件事 */
   const grid = document.getElementById('progGrid');
   grid.innerHTML = '';
   ['front', 'back'].forEach(side => {
-    const bs = collectBlocks(layout[side], []);
-    let d = 0, t = 0;
-    bs.forEach(b => { const cs = (b.sheet && b.sheet.cells) || [];
-                      t += cs.length; d += cs.filter(cellPicked).length; });
     const wrap = document.createElement('div');
     wrap.className = 'prog-map';
     const lb = document.createElement('div');
     lb.className = 'lb';
-    lb.textContent = `${side === 'front' ? '正面' : '背面'}　${d}/${t} 格`;
+    lb.textContent = side === 'front' ? '正面' : '背面';
     const page = document.createElement('div');
     page.className = 'prog-page';
-    page.appendChild(progNode(layout[side]));
+    page.appendChild(progNode(layout[side], measure ? byNode : null));
     wrap.appendChild(lb); wrap.appendChild(page);
     grid.appendChild(wrap);
   });
-  document.getElementById('progSides').textContent =
-    '灰＝還沒排版　白＝還缺貨　綠＝這一塊都挑好了';
+  document.getElementById('progSides').textContent = measure
+    ? `灰＝還沒排版　白＝${measure.white}　綠＝${measure.green}` : '';
 
+  /* ---- 下：一塊一塊。還差最多的排最上面；好了的、還沒排版的收成一行 ---- */
   const host = document.getElementById('progPms');
-  const rows = pmProgress();
   host.innerHTML = '';
-  if (!rows.size){
+  if (!laid.length){
     host.innerHTML = '<div class="prog-empty">還沒有版位排出格子 —— 填完品類和支數，這裡才算得出進度。</div>';
+  } else if (!measure){
+    host.innerHTML = '<div class="prog-empty">這一關不計數 —— 看上面的截止時間就好。</div>';
   } else {
-    rows.forEach((r, name) => {
-      const p = r.total ? Math.round(r.done / r.total * 100) : 0;
+    const todo = rows.filter(r => r.state === 'todo').sort((a, b) => b.left - a.left);
+    if (!todo.length){
+      const ok = document.createElement('div');
+      ok.className = 'prog-empty';
+      ok.textContent = measure.kind === 'notes' ? '每一塊都沒有要處理的意見。' : `每一塊都${measure.verb}了。`;
+      host.appendChild(ok);
+    }
+    todo.forEach(r => {
       const row = document.createElement('div');
       row.className = 'prog-row';
-      row.innerHTML = `<span class="nm"></span><span class="bar"><i></i></span>`
-                    + `<span class="n">${r.done} / ${r.total} 格</span>`;
-      row.querySelector('.nm').textContent = name;
-      row.querySelector('.bar i').style.width = p + '%';
+      row.title = `${r.label}　${r.title}　—— 點一下跳到這一塊`;
+      if (measure.kind === 'notes'){
+        row.innerHTML = `<span class="nm"></span><span class="bar" style="visibility:hidden"></span><span class="n">${r.left} 則沒處理</span>`;
+      } else {
+        row.innerHTML = `<span class="nm"></span><span class="bar"><i></i></span>`
+                      + `<span class="n">還差 ${r.left} 格（${r.done}/${r.total}）</span>`;
+        row.querySelector('.bar i').style.width = (r.done / r.total * 100) + '%';
+      }
+      row.querySelector('.nm').textContent = r.label;
+      row.addEventListener('click', () => { closeProgress(); switchBlock(r.node); });
       host.appendChild(row);
     });
+    const rest = (list, head) => {
+      if (!list.length) return;
+      const el = document.createElement('div');
+      el.className = 'prog-rest';
+      el.innerHTML = `<b></b>`;
+      el.querySelector('b').textContent = head + '：';
+      el.appendChild(document.createTextNode(list.map(r => r.label).join('、')));
+      host.appendChild(el);
+    };
+    rest(rows.filter(r => r.state === 'done'), measure.kind === 'notes' ? '沒有意見' : '都好了');
+    rest(rows.filter(r => r.state === 'none'), '還沒排版');
   }
   progMask.classList.add('on');
 }
@@ -5620,61 +5803,124 @@ function pathToNode(root, target, out){
   return null;
 }
 
-/** 決定這一塊「寬」（或「高」）的是哪一刀：從它往上找，第一個沿著這條軸分的容器。
-    中間那幾層分的是另一條軸，所以那一段每一層的寬度都一樣 —— 改那個容器裡的
-    比例，就是改這一塊的寬。找不到＝這一塊在這條軸上就是整張版，改不了。 */
-function axisOwner(block, horizontal){
+/** 這一塊的某一條邊是哪一刀：從它往上找，第一個沿著這條軸分、而且它（或包著它的
+    那一層）在那一側還有鄰居的容器。回傳那個容器、這一側的小孩和鄰居。
+    找不到＝那條邊就是紙邊，推不動。
+    ⚠️ 右邊和左邊可能是**不同層的兩刀**：[P, [B1, B2]] 裡 B1 的右邊是 B1|B2 那一刀，
+    左邊是 P|[B1,B2] 那一刀。所以一定要分邊找，不能只找「決定寬度的那一個容器」。 */
+function blockSeam(block, edge){
+  const horizontal = edge === 'left' || edge === 'right';
+  const after = edge === 'right' || edge === 'bottom';
   const dir = horizontal ? 'row' : 'col';
   for (const side of ['front','back']){
     const path = pathToNode(layout[side], block, []);
     if (!path) continue;
     for (let i = path.length - 2; i >= 0; i--){
-      if (path[i].dir === dir && path[i].children.length > 1)
-        return { par: path[i], kid: path[i + 1] };
+      const par = path[i], kid = path[i + 1];
+      if (par.dir !== dir) continue;
+      const idx = par.children.indexOf(kid);
+      if (after ? idx < par.children.length - 1 : idx > 0)
+        return { side, path, par, idx, other: idx + (after ? 1 : -1), horizontal, after };
     }
     return null;
   }
   return null;
 }
+/** 這一軸改得動嗎：兩條邊至少有一條有鄰居。 */
+function canResizeAxis(block, horizontal){
+  return !!(blockSeam(block, horizontal ? 'right' : 'bottom') || blockSeam(block, horizontal ? 'left' : 'top'));
+}
+/** 打數字改寬／高時動哪一條邊：右（下）邊有鄰居就動那一條 —— 左上角不動，
+    跟「從左上往右下長」的直覺一樣。只有最右（最下）那一塊才動左（上）邊。 */
+function typedEdge(block, horizontal){
+  if (horizontal) return blockSeam(block, 'right') ? 'right' : 'left';
+  return blockSeam(block, 'bottom') ? 'bottom' : 'top';
+}
+const EDGE_NAME = { right:'右邊', left:'左邊', bottom:'下面', top:'上面' };
+/** 這一塊跟誰綁在一起一起變：同一欄上下疊著的版位寬度一定一樣（同一列左右的高度一樣）。 */
+function edgeSharedNote(block, edge){
+  const seam = blockSeam(block, edge);
+  if (!seam) return '';
+  const cross = seam.horizontal ? 'col' : 'row';
+  const shared = seam.path.slice(seam.path.indexOf(seam.par) + 1, -1)
+    .some(n => !isLeaf(n) && n.dir === cross && n.children.length > 1);
+  return shared ? (seam.horizontal ? '同一欄上下疊著的版位會一起變寬。' : '同一列左右並排的版位會一起變高。') : '';
+}
 
-/** 把這一塊改成 cm 公分寬（或高）。動的是那一刀的比例，旁邊那幾塊照原來的比例
-    分掉剩下的 —— 整張版的大小是紙的事實，不會因為誰變寬就跟著長大。
+/** 把這一塊的某一條邊推到「這一塊變成 cm 公分寬（高）」的位置。
+    **只動那一刀兩邊的東西**：這一側長出來的、那一側的鄰居讓出來，其他每一塊一個 px 都不動 ——
+    以前是「旁邊那幾塊照原來的比例分掉剩下的」，於是拉右邊的時候左邊的鄰居也跟著縮，
+    這一塊的左緣自己跑掉，看起來像是從左邊長出來的。
+    ⚠️ 光改那一刀的比例不夠：兩側可能各是一疊同一條軸的容器（[B1, B2] 這種），
+    照比例縮放的話裡面每一刀都會跟著挪。所以先記下兩側每一層、每個小孩原本多寬，
+    改完再一層一層把它們寫回去 —— **只有貼著那條邊的那一個**吃掉差額。
     回傳沒改成的理由（空字串＝改好了）。 */
-function setBlockCm(block, horizontal, cm){
-  const own = axisOwner(block, horizontal);
-  if (!own) return horizontal ? '這一塊已經是整張版的寬度' : '這一塊已經是整張版的高度';
-  const { par, kid } = own;
-  /* fold ＝ 紙對折的那條線。以前這裡整條擋掉（「摺線不能推」），可是多數版面
-     就是「一刀對折、每半邊往下切」—— 那表示**每一塊版位的寬都改不了**，
-     而寬正是排版的人最常要調的一個數字。所以現在推得動：兩半的比例會變，
-     摺線跟著挪到新的位置（印出來就是不對稱的對折）。整張紙的大小照樣不動。 */
+function moveBlockEdge(block, edge, cm){
+  const seam = blockSeam(block, edge);
+  if (!seam) return `這一塊的${EDGE_NAME[edge]}就是紙邊，推不動`;
+  const { par, idx, other, horizontal, after } = seam;
+  const ax = horizontal ? 'w' : 'h', dir = horizontal ? 'row' : 'col';
+  const ref = boardPx(), k = boardCm().w / ref.w;           // px → cm（兩軸一樣長，見 boardPx）
+  const root = layout[seam.side];
+  const px = n => { const r = regionSize(root, n, ref.w, ref.h); return r ? r[ax] : 0; };
+  const availOf = n => px(n) - (n.fold ? FOLD_PX : RESIZE_PX) * (n.children.length - 1);
+  const lo = CONFIG.minPercent;
 
-  const ref = boardPx();
-  const k = boardCm().w / ref.w;
-  let rp = null;
-  for (const s of ['front','back']){
-    rp = regionSize(layout[s], par, ref.w, ref.h);
-    if (rp) break;
-  }
-  if (!rp) return '找不到這一塊在哪一張版上';
+  /* 兩側各記一份：每一個同軸的容器、每個小孩原本幾 px、誰是貼著那條邊的。
+     長的那一側貼的是「被推的那條邊」，讓的那一側貼的是「那一刀」—— 方向剛好相反。 */
+  const recs = [];
+  const walk = (n, atEnd, grow) => {
+    if (isLeaf(n)) return;
+    if (n.dir === dir) recs.push({ n, grow, kids: n.children.map(px), abs: atEnd ? n.children.length - 1 : 0 });
+    n.children.forEach(c => walk(c, atEnd, grow));
+  };
+  const growNode = par.children[idx], giveNode = par.children[other];
+  walk(growNode, after, true);
+  walk(giveNode, !after, false);
 
-  const n = par.children.length;
-  const divPx = par.fold ? FOLD_PX : RESIZE_PX;
-  const avail = (horizontal ? rp.w : rp.h) - divPx * (n - 1);
-  if (!(avail > 0)) return '';
+  /* 推得動多少：讓的那一側每一層貼著那一刀的那一個都不能小於下限；
+     縮的時候（這一塊變小）換長的那一側受限。 */
+  const room = (node, isGrow) => {
+    let m = px(node) - lo / 100 * availOf(par);
+    recs.filter(r => r.grow === isGrow).forEach(r => {
+      m = Math.min(m, r.kids[r.abs] - lo / 100 * availOf(r.n));
+    });
+    return Math.max(0, m);
+  };
+  let d = cm / k - px(block);
+  d = Math.max(-room(growNode, true), Math.min(room(giveNode, false), d));
+  if (Math.abs(d) < 1e-6) return '';
 
+  const avail = availOf(par);
   const sizes = effSizes(par);
-  const idx = par.children.indexOf(kid);
-  const lo = CONFIG.minPercent, hi = 100 - CONFIG.minPercent * (n - 1);
-  const want = Math.max(lo, Math.min(hi, (cm / k) / avail * 100));
+  sizes[idx]   += d / avail * 100;
+  sizes[other] -= d / avail * 100;
+  const assign = (n, vals) => n.children.forEach((c, i) => { c.size = i === n.children.length - 1 ? null : vals[i]; });
+  assign(par, sizes);
 
-  // 剩下的照原來的比例分掉 100 - want
-  const restNow = 100 - sizes[idx] || 1;
-  par.children.forEach((c, i) => {
-    const v = i === idx ? want : sizes[i] / restNow * (100 - want);
-    c.size = i === n - 1 ? null : v;
+  // 由上往下寫回去（walk 是先父後子，recs 本來就是這個順序）
+  recs.forEach(r => {
+    const a = availOf(r.n);
+    if (!(a > 0)) return;
+    const pct = r.kids.map(v => v / a * 100);
+    const rest = 100 - pct.reduce((t, v, i) => i === r.abs ? t : t + v, 0);
+    pct[r.abs] = Math.max(lo, rest);
+    // 萬一貼邊那一個被夾在下限（極端情況），其他的一起讓一點，總和一定要是 100
+    const over = pct.reduce((t, v) => t + v, 0) - 100;
+    if (over > 1e-6){
+      const others = pct.reduce((t, v, i) => i === r.abs ? t : t + v, 0);
+      pct.forEach((v, i) => { if (i !== r.abs) pct[i] = v - over * v / others; });
+    }
+    assign(r.n, pct);
   });
   return '';
+}
+
+/** 打字改寬／高（見 typedEdge 動哪一條邊）。 */
+function setBlockCm(block, horizontal, cm){
+  if (!canResizeAxis(block, horizontal))
+    return horizontal ? '這一塊已經是整張版的寬度' : '這一塊已經是整張版的高度';
+  return moveBlockEdge(block, typedEdge(block, horizontal), cm);
 }
 
 /* ==========================================================================
@@ -5701,18 +5947,23 @@ function showBlkTip(e, w, h){
   placeTip(e);
 }
 
-function startBlkResize(ev, horizontal){
+function startBlkResize(ev, edge){
   if (ev.button !== 0 || !activeBlock || activeTab !== 'sheet') return;
   ev.preventDefault();
   ev.stopPropagation();                 // 這不是拖畫面，也不是搬一列
+  const horizontal = edge === 'left' || edge === 'right';
   const cm = blockCm(activeBlock);
   const m = lastMetrics;
   const pxPerCm = (m && m.pxPerCm > 0) ? m.pxPerCm : 20;   // 螢幕上的（已經乘過縮放）
   const r0 = boardEl.getBoundingClientRect();
-  blkResize = { horizontal, sx: ev.clientX, sy: ev.clientY,
+  /* 釘在螢幕上的是**沒在動的那兩條邊**：拉右邊釘左邊、拉左邊釘右邊。
+     釘錯邊的話拉左邊時整塊往右跑，手底下那條邊反而不跟著手。 */
+  const sideX = edge === 'left' ? 'right' : 'left', sideY = edge === 'top' ? 'bottom' : 'top';
+  blkResize = { edge, horizontal, sign: (edge === 'right' || edge === 'bottom') ? 1 : -1,
+                sx: ev.clientX, sy: ev.clientY,
                 start: horizontal ? cm.w : cm.h, cur: horizontal ? cm.w : cm.h,
                 w0: cm.w, h0: cm.h, pxPerCm, changed: false,
-                ax: r0.left, ay: r0.top };
+                sideX, sideY, ax: r0[sideX], ay: r0[sideY] };
   /* 這一趟畫面用真實比例，不再塞滿窗口。⚠️ 除掉縮放：sheetMetrics 釘住之後會再乘一次 */
   blkScalePin = pxPerCm / (sheetZoom || 1);
   document.body.classList.add('blk-resizing', horizontal ? 'ew' : 'ns');
@@ -5721,18 +5972,19 @@ function startBlkResize(ev, horizontal){
   blkKeepAnchor();
 }
 
-/** 版位的左上角留在按下去那一刻的位置：量一次、差多少捲多少（同 zoomKeepPoint）。 */
-function blkKeepAnchor(ax, ay){
-  if (ax == null){ if (!blkResize) return; ax = blkResize.ax; ay = blkResize.ay; }
+/** 沒在動的那兩條邊留在按下去那一刻的位置：量一次、差多少捲多少（同 zoomKeepPoint）。 */
+function blkKeepAnchor(a){
+  a = a || blkResize;
+  if (!a) return;
   const r = boardEl.getBoundingClientRect();
-  sheetMainEl.scrollLeft += r.left - ax;
-  sheetMainEl.scrollTop  += r.top  - ay;
+  sheetMainEl.scrollLeft += r[a.sideX] - a.ax;
+  sheetMainEl.scrollTop  += r[a.sideY] - a.ay;
 }
 
 document.addEventListener('pointermove', e => {
   if (!blkResize) return;
   const d = blkResize.horizontal ? e.clientX - blkResize.sx : e.clientY - blkResize.sy;
-  let v = blkResize.start + d / blkResize.pxPerCm;
+  let v = blkResize.start + blkResize.sign * d / blkResize.pxPerCm;   // 左（上）邊往外拉＝變大
   v = Math.max(1, Math.round(v * 10) / 10);
   const cm = blockCm(activeBlock);
   showBlkTip(e, blkResize.horizontal ? v.toFixed(1) : cm.w.toFixed(1),
@@ -5743,7 +5995,7 @@ document.addEventListener('pointermove', e => {
   blkFrame = requestAnimationFrame(() => {
     blkFrame = 0;
     if (!blkResize) return;
-    const err = setBlockCm(activeBlock, blkResize.horizontal, blkResize.cur);
+    const err = moveBlockEdge(activeBlock, blkResize.edge, blkResize.cur);
     if (err) return;
     blkResize.changed = true;
     syncSheetCm();                      // 版位的公分是底下每一條算式的來源
@@ -5759,7 +6011,7 @@ function endBlkResize(){
   if (!blkResize) return;
   if (blkFrame){ cancelAnimationFrame(blkFrame); blkFrame = 0; }
   const changed = blkResize.changed;
-  const { ax, ay } = blkResize;
+  const anchor = { sideX: blkResize.sideX, sideY: blkResize.sideY, ax: blkResize.ax, ay: blkResize.ay };
   const onScreen = blkScalePin * (sheetZoom || 1);   // 拖的時候螢幕上一公分多長
   blkResize = null;
   blkScalePin = 0;                      // 版面的算法回到「塞滿這塊窗口」
@@ -5782,29 +6034,41 @@ function endBlkResize(){
       zoomVal.textContent = Math.round(sheetZoom * 100) + '%';
       syncZoomHint();
     }
-    blkKeepAnchor(ax, ay);
+    blkKeepAnchor(anchor);
   }
 }
 document.addEventListener('pointerup', endBlkResize);
 document.addEventListener('pointercancel', endBlkResize);
 
-/** 版位那兩條邊的把手。改不了的那一軸不畫 —— 畫著卻拉不動比沒有更難懂
-    （同 addBlockCmFields 那兩個反灰的欄位）。 */
+/** 版位的把手：**每一條有鄰居的邊一根**（2026-09-11，以前只有右邊和下面）。
+    最右邊那一塊的右邊是紙邊，以前它的寬只能從左邊長 —— 而把手偏偏畫在右邊。
+    沒有鄰居的邊不畫：畫著卻拉不動比沒有更難懂（同 addBlockCmFields 那兩個反灰的欄位）。 */
 function ensureBlkGrabs(){
   if (!boardEl) return;
-  [true, false].forEach(horizontal => {
-    const sel = horizontal ? '.blk-grab.v' : '.blk-grab.h';
-    let g = boardEl.querySelector(sel);
-    const can = !!(activeBlock && axisOwner(activeBlock, horizontal));
+  ['right', 'left', 'bottom', 'top'].forEach(edge => {
+    const horizontal = edge === 'left' || edge === 'right';
+    const start = edge === 'left' || edge === 'top';
+    let g = boardEl.querySelector(`.blk-grab[data-edge="${edge}"]`);
+    const can = !!(activeBlock && blockSeam(activeBlock, edge));
     if (!can){ if (g) g.remove(); return; }
     if (!g){
       g = document.createElement('div');
-      g.className = 'blk-grab ' + (horizontal ? 'v' : 'h');
-      g.title = horizontal ? '拖著改版位的寬（旁邊那幾塊讓出空間）'
-                           : '拖著改版位的高（上下那幾塊讓出空間）';
+      g.className = 'blk-grab ' + (horizontal ? 'v' : 'h') + (start ? ' start' : '');
+      g.dataset.edge = edge;
       g.appendChild(Object.assign(document.createElement('span'), { className:'blk-lab' }));
-      g.addEventListener('pointerdown', ev => startBlkResize(ev, horizontal));
+      g.addEventListener('pointerdown', ev => startBlkResize(ev, edge));
       boardEl.appendChild(g);
+    }
+    g.title = `拖著改版位的${horizontal ? '寬' : '高'}（${EDGE_NAME[edge]}那一塊讓出空間，另一邊不動）`
+            + edgeSharedNote(activeBlock, edge);
+    /* 左邊那根要站在**紙的左緣**，不是 #board 的左緣：每一列左邊還坐著搬列那根 ⋮⋮
+       （14px ＋ 6px，不是版面的一部分，見 boardInkRect）。右邊和上面沒有這個問題。 */
+    if (start){
+      const ink = boardInkRect(), bb = boardEl.getBoundingClientRect();
+      if (ink){
+        if (horizontal) g.style.left = (ink.left - bb.left - 8) + 'px';
+        else            g.style.top  = (ink.top  - bb.top  - 8) + 'px';
+      }
     }
     const lab = g.querySelector('.blk-lab');
     if (lab){
@@ -5818,8 +6082,10 @@ function ensureBlkGrabs(){
       if (!blkResize){
         g.classList.remove('flip');
         const lr = lab.getBoundingClientRect(), mr = sheetMainEl.getBoundingClientRect();
-        if (horizontal ? lr.right > mr.right - 4 : lr.bottom > mr.bottom - 4)
-          g.classList.add('flip');
+        const out = horizontal
+          ? (start ? lr.left < mr.left + 4 : lr.right > mr.right - 4)
+          : (start ? lr.top < mr.top + 4 : lr.bottom > mr.bottom - 4);
+        if (out) g.classList.add('flip');
       }
     }
   });
@@ -5855,8 +6121,8 @@ function addBlockCmFields(sh){
     }
     const cm = blockCm(activeBlock);
     const cur = Math.round((horizontal ? cm.w : cm.h) * 10) / 10;
-    const own = axisOwner(activeBlock, horizontal);
-    const why = !own ? `這一塊就是整張版的${horizontal ? '寬' : '高'}` : '';
+    const why = !canResizeAxis(activeBlock, horizontal) ? `這一塊就是整張版的${horizontal ? '寬' : '高'}` : '';
+    const edge = why ? '' : typedEdge(activeBlock, horizontal);
 
     const inp = document.createElement('input');
     inp.type = 'number';
@@ -5864,7 +6130,8 @@ function addBlockCmFields(sh){
     inp.min = '1'; inp.step = '0.1';
     inp.value = cur;
     inp.disabled = !!why;
-    inp.title = why || `這一塊${horizontal ? '寬' : '高'}幾公分。改了旁邊那幾塊會照原來的比例讓出空間。`;
+    inp.title = why || (`這一塊${horizontal ? '寬' : '高'}幾公分。改了由${EDGE_NAME[edge]}那一塊讓出空間，另一邊不動。`
+                       + edgeSharedNote(activeBlock, edge));
     inp.addEventListener('change', () => {
       const v = parseFloat(inp.value);
       if (!isFinite(v) || v <= 0){ inp.value = cur; return; }
@@ -8569,7 +8836,13 @@ addEventListener('message', e => {
   /* 「這一格畫好了」。**蓋布不再聽這一句** —— 換成真的只由「使用者動手了」決定
      （見 armCoverIntent）。這一句還留著是因為**預熱**要它：暗房要等每一格畫好
      才拍得到東西（見 farmBlock）。 */
-  if (d.stagePainted){ noteCoverPainted(target.id, e.source); return; }
+  if (d.stagePainted){
+    noteCoverPainted(target.id, e.source);
+    /* 上一輪來要圖的時候它可能還沒畫好（那一次回的是空的），現在好了就再排一次。
+       有防抖，而且拍過、沒改過的那幾格會自己跳過（見 captureBlockSnap）。 */
+    if (activeTab === 'board') scheduleSnap();
+    return;
+  }
 
   /* 使用者在某一格的畫布裡動手了 → 蓋布可以掀了（見 2cell 的 tellAct）。
      ⚠️ 這一句是**必要的**，不是保險：armCoverIntent 聽的是這一頁的
@@ -8790,7 +9063,7 @@ addEventListener('message', e => {
   /* 這一格報了新的需求＝同組的最小值可能變了，整個版位重算一次再發回去。
      排隊等一下：一次挑好幾格會連著報好幾次，收在一起算一次就好。 */
   queueType();
-  noteBoardChange(target, wasBoard);  // 圖搬到哪裡是一步；只是開起來看不是
+  noteBoardChange(target, wasBoard, !!d.quiet);  // 圖搬到哪裡是一步；只是開起來看不是
 });
 
 /* ==========================================================================
@@ -9083,9 +9356,17 @@ const boardStateJson = c => JSON.stringify((c.board && c.board.state) || null);
     `cell.board` 從沒有變成有 —— 資料上確實變了，但使用者什麼都沒做。
     照樣 commitAction() 的話，光是點開一格看一眼，復原鍵就亮起來說「剩 1 步」，
     而那一步退回去會把畫布狀態整個拿掉。存檔照舊（markDirty），只是不進歷史。 */
-function noteBoardChange(c, was){
+/* 畫布現在會在狀態最後附上「這份座標是在多大的框裡排的」（fw／fh，見 2cell 的 boardState）。
+   舊資料沒有這一筆，所以每一格第一次開起來報上來都會「不一樣」—— 那不是誰做了什麼，
+   當成一步的話一進 拼板 復原鍵就多出六十步。 */
+const noFrame = t => String(t).replace(/,"fw":[\d.]+,"fh":[\d.]+\}$/, '}');
+function noteBoardChange(c, was, quiet){
   const now = boardStateJson(c);
   const boot = was === 'null' && !pickedOf(c).length;   // 空格子開機報到
+  if (!boot && now !== was && (quiet || noFrame(now) === noFrame(was))){
+    markDirty();                  // 換框換算、或只是補上框的大小：存起來，但不是一步
+    return;
+  }
   if (!boot && now !== was){
     /* 這一格真的變了（挑了貨、搬了零件、刪了東西）→ 它的點陣圖過期了。
        開機報到那一種不算：那時候畫面上什麼都沒改。 */
@@ -9900,17 +10181,38 @@ function sheetRefCmH(block){
   });
   return min;
 }
+/* 參考格的**面積**（cm²）。畫布的座標框照面積開之後（見 2cell 的 areaFrame），字多大跟
+   √面積 成正比 —— 同一個版位要字一樣大，就要照面積打折，照高度打折不再對。
+   一樣取最小的那一格：別的格子只會更空。refCmh 照送，給還沒換新的畫布用。 */
+function sheetRefCmArea(block){
+  let min = 0;
+  (sheetOf(block).cells || []).forEach(c => {
+    const cm = cellCm(c, cardEl(c.id));
+    if (cm && cm.w > 0 && cm.h > 0) min = min ? Math.min(min, cm.w * cm.h) : cm.w * cm.h;
+  });
+  return min;
+}
 
+/* 每一塊版位上一次送出去的字級設定（拿來認「這一次是不是真的改了」，見 pushType）。 */
+const typeSent = new Map();
 /** 把這個版位的字級設定送給它底下每一塊畫布。 */
 /* find：這一格的畫布在哪。預設是版上那一份；預熱時傳的是暗房裡那一批
    （見 farmBlock）—— 字級是排版的一部分，不送的話拍到的那張跟版上長得不一樣。 */
 function pushType(block, find){
   if (!block) return;
+  const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh), refH = sheetRefCmH(block), refA = sheetRefCmArea(block);
   /* 字級一改，這一塊**每一格**畫出來都不一樣了 → 整塊的點陣圖過期。
-     不必逐格記，把「上次拍是什麼時候」清掉就等於整塊重拍（見 captureBlockSnap）。
+     ⚠️ **只有真的改了才算**。這一支每次重掛畫布、每一格回報都會叫（為了把設定送給新的
+     畫布），以前不管有沒有變都把整塊標成過期 —— 當時的代價只是多拍幾次，但現在蓋布會問
+     「這張照片是不是在最後一次改動之後拍的」，每一下都標的話就沒有一張照片算數，蓋布永遠不出現。
+     這個工作階段第一次送的那一下不算改（手上沒有上一份可以比）。
      ⚠️ 預熱那條路傳 find 進來，那是拍給別的版位用的，不算「使用者改了什麼」。 */
-  if (!find && block === activeBlock){ staleSnapBlock(block); scheduleSnap(); }
-  const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh), refH = sheetRefCmH(block);
+  if (!find && block === activeBlock){
+    const k = currentPlan ? snapKey(currentPlan.id, block.id) : '';
+    const sig = j([t, g, refH, refA]);
+    if (typeSent.has(k) && typeSent.get(k) !== sig){ staleSnapBlock(block); scheduleSnap(); }
+    typeSent.set(k, sig);
+  }
   (sh.cells || []).forEach(c => {
     const f = find ? find(c.id) : canvasFrame(c.id);
     if (!f || !f.contentWindow) return;
@@ -9924,7 +10226,8 @@ function pushType(block, find){
         mul: { brand: t.brand, name: t.name, model: t.model, img: t.img },
         priceMul: +dial || 1,                      // 1 ＝ 沒調過，就是自動算的那一級
         groupFs: (n && n <= 3 && g[n]) ? g[n] : 0,
-        refCmh: refH || 0          // 字級的基準格高（cm）—— 一個版位一個
+        refCmh: refH || 0,         // 字級的基準格高（cm）—— 一個版位一個（舊畫布用）
+        refCmA: refA || 0          // 字級的基準格面積（cm²）—— 照面積開框的畫布用這個
       } }, '*');
     } catch (_){}
   });
@@ -10254,6 +10557,18 @@ document.addEventListener('keydown', e => {
   try { stageSelWin.postMessage({ stageDelete: 1 }, '*'); } catch (_){}
 });
 
+/* 畫布說「零件被點了一下」（見 2cell 的 openDown）＝打開那一格。跟下面 stagePass 一樣
+   轉成一次點在格子上的 click，工具、身分、貼紙那幾道檢查都在那一條路上。 */
+addEventListener('message', e => {
+  const p = e.data && e.data.stageOpen;
+  if (!p || activeTab !== 'board') return;
+  const f = [...boardOv.querySelectorAll('.ccanvas')].find(n => n.contentWindow === e.source);
+  const cell = f && f.closest('.cell');
+  if (!cell) return;
+  const r = f.getBoundingClientRect(), cs = canvasScale(f);
+  cell.dispatchEvent(new MouseEvent('click',
+    { bubbles: true, clientX: r.left + p.cx * cs, clientY: r.top + p.cy * cs }));
+});
 addEventListener('message', e => {
   const p = e.data && e.data.stagePass;
   if (!p || activeTab !== 'board' || p.button !== 0) return;
@@ -10591,71 +10906,100 @@ function allBlocks(){
 
 
 /* ==========================================================================
-   匯出乾淨版
-   走瀏覽器的列印，目的地選「另存為 PDF」就是一份 PDF —— 文字還是向量的，
-   Illustrator 打得開。為什麼不直接吐一個 .ai／自己產 PDF：這支程式沒有相依套件
-   （見 CLAUDE.md），而手寫 PDF 產生器要自己嵌一整套中文字型才印得出品名，
-   那是另一個專案，不是這顆按鈕。
-   印的是**現在開著的那個版位**：一次只有一個版位的畫布真的掛在 DOM 上，
-   其他版位在畫面上是小地圖，不是版面。
-   長什麼樣在 stylesheet 最後那段 @media print，這裡只負責算縮放和收乾淨。
+   匯出＝整本 DM
+   走瀏覽器的列印，目的地選「另存為 PDF」就是一份 PDF。正面一頁、背面一頁，
+   **紙就是那一面的實際大小**（DM_SIZE，全省對開＝78.7×54.5cm），沒有邊。
+   為什麼是用拍好的圖拼、不是版上的畫布：一次只有**開著的那一個版位**的畫布掛在
+   DOM 上，其他版位根本沒有畫布；把整本幾百格的畫布同時生出來印，瀏覽器會卡死。
+   所以跟「整本預覽」用同一批圖（pvNode），代價是格子裡的字是圖、不是文字 ——
+   拿來看稿、給人對，不是給印刷廠。
+   為什麼不直接吐一個 .ai／自己產 PDF：這支程式沒有相依套件（見 CLAUDE.md），
+   手寫 PDF 產生器要自己嵌一整套中文字型，那是另一個專案。
    ========================================================================== */
-/* A4 橫式扣掉 8mm 邊，96dpi 下的 px。紙的尺寸是固定的事實，不必也不該讓人調。 */
-const PAPER = { w: 1085, h: 756 };
+let exportBusy = false;
 
-/* 整本點陣圖開著的時候，匯出的就是**你現在看到的那個** —— 兩張版攤在一起，
-   而不是某一個版位。「匯出」該匯出畫面上這一份，不該有第二種答案。
-   不直接印 #totalScroll：那裡面還坐著尺規、標題和小工具列，而尺規是 grid 的
-   兩條軌道，display:none 之後整個 grid 會重排。所以複製那兩層出來單獨印。 */
-function exportDmBitmap(){
-  const overs = [...document.querySelectorAll('.pv-over')];
-  if (!overs.length){ toast('還沒有點陣圖可以匯出', 'warn', 2600); return; }
-  const host = document.createElement('div');
-  host.id = 'dmPrintHost';
-  let w = 0, h = 0;
-  overs.forEach((o, i) => {
-    const r = o.getBoundingClientRect();
-    const page = document.createElement('div');
-    page.className = 'dmp-page';
-    page.style.width = r.width + 'px';
-    page.style.height = r.height + 'px';
-    page.appendChild(o.cloneNode(true));
-    host.appendChild(page);
-    w += r.width + (i ? 24 : 0);
-    h = Math.max(h, r.height);
+/** 這一塊印之前要不要（重）拍：沒有圖、有格子還沒拍到（新長出來的）、
+    或拍完之後又被改過。沒挑貨的格子也要有一筆（框和底色），不然那一塊印出來是一片
+    「還沒挑貨」的斜線，而它在印刷品上就是一塊空的版面。 */
+function exportNeedsShot(plan, block){
+  const key = snapKey(plan.id, block.id);
+  const store = SNAPS.get(key);
+  if (!store || !store.size) return true;
+  return (sheetOf(block).cells || []).some(c => {
+    const rec = store.get(String(c.id));
+    if (!rec) return true;
+    if (!pickedOf(c).length) return false;
+    return !rec.url || snapOutdated(key, c.id, rec);
   });
-  document.body.appendChild(host);
-  host.style.setProperty('--pk', Math.min(1, PAPER.w / w, PAPER.h / h));
-  document.body.classList.add('print-dm');
-  toast('在列印對話框把「目的地」選成『另存為 PDF』', 'info', 5000);
-  setTimeout(() => window.print(), 200);
 }
 
-function exportClean(){
-  /* 暗房是 position:fixed 的，而 fixed 的東西會跟著印（它是透明的，但一屋子
-     溢出去的版面照樣算進版面高度）。要印之前先拆掉 —— 回到這一頁還會再排一次。 */
-  farmStop();
-  if (dmBitmapOn && activeTab === 'total') return exportDmBitmap();
-  if (!currentPlan || !activeBlock){ toast('先選一個版位再匯出', 'warn', 2600); return; }
-  // 面板、選起來的便利貼都是螢幕上的東西，印之前先收乾淨
+async function exportDm(){
+  if (exportBusy) return;
+  if (!currentPlan || !layout){ toast('先打開一個檔期再匯出', 'warn', 2600); return; }
+  exportBusy = true;
+  const plan = currentPlan;
   closeBoardCell(); clearNoteSel();
-  const r = boardEl.getBoundingClientRect();
-  if (!r.width || !r.height){
-    toast('先切到 落版 或 拼板，那裡才有版面可以印', 'warn', 3000);
-    return;
+  const note = toast('準備匯出…', 'info', 600000);
+  try {
+    /* 開著的那一塊在 拼板 上：畫布就在版上，直接照它重拍（不節流）。
+       暗房不拍它 —— 同一格兩邊同時要圖，snapPend 會互相蓋掉。 */
+    const live = activeTab === 'board' ? activeBlock : null;
+    if (live){
+      const key = snapKey(plan.id, live.id);
+      snapAt.delete(key);
+      captureBlockSnap();
+      const t0 = Date.now();
+      while (Date.now() - t0 < 6000 && [...snapPend.values()].some(g => g.key === key))
+        await farmSleep(150);
+    }
+    /* 其他缺圖、或拍完又改過的版位：暗房一塊一塊補。平常的預熱在 拼板 上不跑
+       （見 farmSweep），這裡是按了匯出才跑，所以不管在哪一頁都照跑。 */
+    farmStop();
+    while (farmBusy) await farmSleep(100);
+    const todo = allBlocks().filter(b => b !== live && exportNeedsShot(plan, b));
+    for (let i = 0; i < todo.length; i++){
+      if (currentPlan !== plan) return;
+      note.textContent = `準備匯出… 拍 ${i + 1}/${todo.length} 個版位`;
+      await farmBlock(todo[i]);
+    }
+    farmStop();
+    if (currentPlan !== plan) return;
+    printDm(plan);
+  } finally {
+    exportBusy = false;
+    note.remove();
   }
-  /* 只縮不放：版位比紙小的時候放大它只會把畫布裡的商品圖糊掉（那些是縮好的
-     點陣圖），而且印出來比實際尺寸大，拿去對稿反而更麻煩。 */
-  const k = Math.min(1, PAPER.w / r.width, PAPER.h / r.height);
-  boardEl.style.setProperty('--pk', k);
-  /* 每一格的畫布是另一份文件，這邊的 @media print 管不到它裡面 —— 選起來的那一塊
-     零件會連著藍框和把手一起印出去。所以喊一聲請它們把選取收起來。 */
-  boardOv.querySelectorAll('.ccanvas').forEach(f => {
-    try { f.contentWindow.postMessage({ stageClearSel: 1 }, '*'); } catch (_){}
+}
+
+/** 照這一檔排好兩頁，叫出列印對話框。 */
+function printDm(plan){
+  const cm = DM_SIZE[plan.type] || DM_SIZE_FALLBACK;
+  const old = document.getElementById('dmPrintHost');
+  if (old) old.remove();
+  const host = document.createElement('div');
+  host.id = 'dmPrintHost';
+  ['front', 'back'].forEach(side => {
+    if (!layout[side]) return;
+    const page = document.createElement('div');
+    page.className = 'dmp-page';
+    page.style.width = cm.w + 'cm';
+    page.style.height = cm.h + 'cm';
+    const tree = pvNode(layout[side], plan);
+    tree.style.flex = '1 1 auto';
+    tree.style.minWidth = '0px';
+    page.appendChild(tree);
+    host.appendChild(page);
   });
+  document.body.appendChild(host);
+  /* 紙的大小。@page 吃不到 CSS 變數，只能現寫一段；寫在最後面，蓋過 stylesheet 裡
+     那條 A4（那一條留給直接按 Ctrl+P 印眼前那一個版位用）。 */
+  let st = document.getElementById('dmPageStyle');
+  if (!st){ st = document.createElement('style'); st.id = 'dmPageStyle'; document.head.appendChild(st); }
+  st.textContent = `@media print{@page{size:${cm.w}cm ${cm.h}cm;margin:0}}`;
+  document.body.classList.add('print-dm');
   toast('在列印對話框把「目的地」選成『另存為 PDF』', 'info', 5000);
-  // 讓 toast 和各格的重畫先跑完，不然列印預覽抓到的是收乾淨之前那一張
-  setTimeout(() => window.print(), 200);
+  // 圖是 data: 的，解碼很快；等一下讓它們排好再叫對話框，不然預覽抓到的是空的
+  setTimeout(() => window.print(), 300);
 }
 /* 印完把縮放拿掉：--pk 只在列印那一刻成立（@media print 以外沒有人讀它，
    但留著就是一個會過期的數字 —— 版位大小一變它就錯了）。 */
@@ -10664,9 +11008,11 @@ addEventListener('afterprint', () => {
   document.body.classList.remove('print-dm');
   const h = document.getElementById('dmPrintHost');
   if (h) h.remove();               // 那一份是印完就丟的，留著只會過期
-  farmSweep(1500);                 // 印之前把暗房停了（見 exportClean），印完接回去
+  const st = document.getElementById('dmPageStyle');
+  if (st) st.remove();             // 紙的大小也是：留著的話 Ctrl+P 印眼前那一塊會印成整張 DM 的紙
+  farmSweep(1500);                 // 印之前把暗房停了（見 exportDm），印完接回去
 });
-exportBtn.addEventListener('click', exportClean);
+exportBtn.addEventListener('click', exportDm);
 progBtn.addEventListener('click', openProgress);
 
 /* ==========================================================================
@@ -10715,12 +11061,24 @@ function staleSnapCell(cellId, block){
   const key = snapKey(currentPlan.id, b.id);
   if (!snapStale.has(key)) snapStale.set(key, new Set());
   snapStale.get(key).add(String(cellId));
+  snapChangedAt.set(key + '|' + cellId, Date.now());
+}
+/* 每一格**最後一次改是什麼時候**（這個工作階段裡）。snapStale 在「開始重拍」那一刻就清掉了，
+   而重拍可能根本沒拍到（那一格還沒畫好，見 2cell 的 snapshotStage）—— 只靠它的話，
+   改過的那一格會帶著一張舊照片被當成新的。所以另外記一個時間，跟照片的 at 比。
+   照片的 at 是**開口要圖的那一刻**，不是收到圖的那一刻：中間改了的話那張就是舊的。 */
+const snapChangedAt = new Map();   // `${key}|${cellId}` 或 `${key}|*` → ms
+function snapOutdated(key, id, rec){
+  const at = (rec && rec.at) || 0;
+  return at < (snapChangedAt.get(key + '|' + id) || 0)
+      || at < (snapChangedAt.get(key + '|*') || 0);
 }
 /** 整塊都要重拍（字級、刊頭這種一改就每一格都不一樣的東西）。 */
 function staleSnapBlock(block){
   const b = block || activeBlock;
   if (!currentPlan || !b) return;
   snapAt.delete(snapKey(currentPlan.id, b.id));
+  snapChangedAt.set(snapKey(currentPlan.id, b.id) + '|*', Date.now());
 }
 /** 這一塊「印出去的那一片」有多大。
     ⚠️ **不可以拿 `#board` 的 rect 當基準**：每一列左邊還坐著一支拖曳把手
@@ -10761,7 +11119,8 @@ function captureBlockSnap(){
   const stale = snapStale.get(key);
   snapStale.delete(key);          // 這一趟就是為了它們拍的
   captureInto(boardEl, key,
-    id => fresh && !!(have.get(id) || {}).url && !(stale && stale.has(id)));
+    id => fresh && !!(have.get(id) || {}).url && !(stale && stale.has(id))
+               && !snapOutdated(key, id, have.get(id)));
 }
 
 /** 這一片版面上的每一格都拍一張，收進 `SNAPS[key]`。
@@ -10803,7 +11162,9 @@ function captureInto(root, key, skip){
        所以兩份都記。圖裡本來就含那一格的底色（stageSnapshot 帶 bg），
        所以撐到整格就是滿的。 */
     const cr = el.getBoundingClientRect();
-    snapPend.set(id, { key,
+    /* at：開口要圖的時間（見 snapOutdated）。ar：格子的長寬比 —— 版位換過尺寸之後
+       這張照片撐進新的格子會變形，蓋布拿它來認「形狀還對不對」。 */
+    snapPend.set(id, { key, at: Date.now(), ar: cr.width / cr.height,
       x:(r.left - br.left) / br.width, y:(r.top - br.top) / br.height,
       w:r.width / br.width,            h:r.height / br.height,
       cx:(cr.left - br.left) / br.width, cy:(cr.top - br.top) / br.height,
@@ -10849,7 +11210,13 @@ function captureInto(root, key, skip){
    ⚠️ IndexedDB 開不起來（file:// 某些設定、無痕、配額滿）就整個功能安靜地關掉 ——
    退回原本「只活在記憶體」的行為，不能讓它擋住程式起來。
    ========================================================================== */
-const SNAP_DB = 'pm_snaps_v1', SNAP_STORE = 'snaps';
+/* v2（2026-09-11）：v1 那一庫裡可能有**還沒畫好就拍的白圖**（見 2cell 的 snapshotStage），
+   那些圖長得跟真的一樣被存著，每次進場都拿來蓋。分不出哪幾張是白的，所以整庫換掉 ——
+   代價是每一塊版位下一次進場沒有蓋布，之後自己會拍回來。舊的那一庫順手刪掉，不留著佔配額。 */
+const SNAP_DB = 'pm_snaps_v3', SNAP_STORE = 'snaps';
+/* v3（同一天稍晚）：畫布的座標框改成照面積開（見 2cell 的 areaFrame），扁的、瘦的格子裡
+   東西的大小整個不一樣了 —— v2 的照片蓋上去就是一張跟底下對不起來的圖。 */
+try { indexedDB.deleteDatabase('pm_snaps_v1'); indexedDB.deleteDatabase('pm_snaps_v2'); } catch (_){}
 const snapDirty = new Set();          // 這一輪有哪幾塊要寫回去
 let snapDbP = null;
 
@@ -10967,7 +11334,7 @@ addEventListener('message', e => {
   const store = SNAPS.get(g.key);
   if (store && s.url){
     store.set(s.id, { url:s.url, x:g.x, y:g.y, w:g.w, h:g.h,
-                      cx:g.cx, cy:g.cy, cw:g.cw, ch:g.ch });
+                      cx:g.cx, cy:g.cy, cw:g.cw, ch:g.ch, at:g.at, ar:g.ar });
     snapDirty.add(g.key);          // 一分鐘後寫進 IndexedDB（見 flushSnaps）
   }
   // 預熱那一趟要知道還剩幾格沒回報（回報完就可以拆掉那一屋子 iframe）
@@ -11034,24 +11401,31 @@ function noteCoverPainted(id, src){
   coverDone++;
   paintCoverBadge();
 }
+/* 現在被蓋著的是哪幾格（cellId 字串）。 */
+let coverIds = new Set();
+/* 把「這一格被蓋著」掛到格子上（CSS 照它把那一格的畫布藏起來）。
+   版面重建之後格子是新的節點，所以每次重新對位都要再掛一次（見 placeBoardCover）。 */
+function paintCoverCells(){
+  boardEl.querySelectorAll('.cell').forEach(el =>
+    el.classList.toggle('under-cover', coverIds.has(el.dataset.cellId)));
+}
 function hideBoardCover(){
   clearTimeout(coverTimer);
   disarmCoverIntent();
   coverWait = null; coverDone = 0;
-  boardEl.classList.remove('covered');   // 忘了這一句，真的那一層會一直是透明的
+  coverIds = new Set();
+  paintCoverCells();          // 忘了這一句，那幾格的畫布會一直是透明的
   const el = document.getElementById('boardCover');
   if (el) el.remove();
   const bd = document.getElementById('coverLoad');
   if (bd) bd.remove();
 }
 /** 把蓋布擺到「印出去的那一片」上，不是整個 #board —— 幾何是照那一片算的
-    （見 boardInkRect：左邊那條把手不算）。差的就是那 20px，不對齊的話每一格
-    都會往右偏一點點，看起來像沒對準。
-    ⚠️ **每次版面換大小都要再擺一次**（renderGrid 兩條路的出口都叫它）。
-    切進 拼板 的那一趟裡版面會再動兩次：意見欄站好之後 reflowBoard() 重量一次，
-    接著 zoomToFit() 換一個倍率 —— 只在貼上去的那一刻算一次的話，蓋布會停在
-    舊的尺寸上，於是螢幕上是**兩份錯開的版面疊在一起**（真的那份在底下透出來），
-    比不蓋還糟。裡面每一張圖都是百分比，所以外框對了就全對了。 */
+    （見 boardInkRect：左邊那條把手不算）。
+    ⚠️ **每次版面換大小都要再擺一次**（renderGrid 兩條路的出口都叫它）：切進 拼板 的那一趟裡
+    版面還會再動兩次（意見欄站好之後 reflowBoard、接著 zoomToFit），只算一次的話
+    照片會停在舊的位置，跟底下真的那一格錯開。裡面每一塊都是照這一片的比例畫的，
+    所以外框對了就全對了。 */
 function placeBoardCover(){
   placeCoverBadge();
   const cover = document.getElementById('boardCover');
@@ -11063,23 +11437,47 @@ function placeBoardCover(){
   cover.style.top    = (ink.top  - bb.top)  + 'px';
   cover.style.width  = ink.width  + 'px';
   cover.style.height = ink.height + 'px';
+  paintCoverCells();
 }
 
+/** 蓋布：**只蓋「等一下真的要重新載入、而且手上有一張對得上的照片」的那幾格**。
+    waitFor ＝ 這一趟會生新畫布的格子（paintBoardThumbs 算的）。
+    以前是只要有一格要載入就整張版蓋起來、真的那一層整個藏掉，沒照片的格子畫一個白框 ——
+    兩個後果都是使用者講的「一片白蓋在已經載好的東西上面」：
+      ・別人挑貨多長出一格、或 Ctrl+Z，五十幾支早就好了的畫布被藏到一張舊照片後面；
+      ・照片是白的（還沒畫好就拍了）或根本沒有，那幾格就是白的，一直白到你動手。
+    現在這幾種格子一律露出真的那一份：
+      ・畫布本來就活著（不在 waitFor 裡）；
+      ・沒有照片；
+      ・照片是在它最後一次被改之前拍的（snapOutdated）—— 蓋上去就是蓋掉剛剛改的東西；
+      ・格子的形狀跟拍照時不一樣（版位換過尺寸）—— 撐進去是一張變形的圖。
+    代價是那幾格看得到自己長出來。那是真的在發生的事，比一張錯的照片好。
+    ⚠️ 幾何一律**現場量**（每一格的 rect），只有「圖」來自快照。 */
 function showBoardCover(waitFor){
   hideBoardCover();
   if (!currentPlan || !activeBlock) return;
-  const store = blockSnap(currentPlan.id, activeBlock.id);
+  const key = snapKey(currentPlan.id, activeBlock.id);
+  const store = SNAPS.get(key);
   if (!store || !store.size) return;
+  const want = new Set([...(waitFor || [])].map(String));
+  const hit = [];
+  boardEl.querySelectorAll('.cell').forEach(el => {
+    const id = el.dataset.cellId;
+    if (!id || !want.has(id)) return;
+    const rec = store.get(id);
+    if (!rec || !rec.url || snapOutdated(key, id, rec)) return;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    if (rec.ar && Math.abs((r.width / r.height) / rec.ar - 1) > .03) return;
+    hit.push([id, rec, r]);
+  });
+  if (!hit.length) return;
   const ink = boardInkRect();
   if (!ink || !ink.width || !ink.height) return;
 
-  /* 蓋布是**整張版一張圖**（一塊 canvas），不是一格一張。
-     一格一張的毛病是它只蓋得到「上次拍到的那幾格」—— 中間挑過貨的、剛切出來的
-     都是洞，而洞裡就是真的版面在一個一個長出來。整張畫的話沒有洞可言：
-     有圖的格子貼圖，沒圖的由這一層自己畫出框和底色，**每一格都被蓋住**。
-     ⚠️ 幾何一律**現場量**（每一格的 rect），只有「圖」來自快照 ——
-     快照裡那份幾何可能是上一次的版面，拿它來擺就會整片錯開。
-     ⚠️ 解析度見 coverQuality()：跟著螢幕的實際畫素走，但有畫素預算擋著。 */
+  /* 還是**一塊 canvas**（不是一格一張 <img>）：幾十張疊在版面上，每一次重新對位都要
+     一張一張搬。一塊的話外框對了裡面就全對了（見 placeBoardCover）。
+     沒被蓋的地方就是透明的。解析度見 coverQuality()。 */
   const q = coverQuality(ink.width, ink.height);
   const cv = document.createElement('canvas');
   cv.id = 'boardCover';
@@ -11090,66 +11488,38 @@ function showBoardCover(waitFor){
   cx.imageSmoothingEnabled = true;
   cx.imageSmoothingQuality = 'high';
 
-  const rel = r => ({ x: r.left - ink.left, y: r.top - ink.top, w: r.width, h: r.height });
-  const frame = (b, bg) => {
-    cx.fillStyle = bg || '#fff';
-    cx.fillRect(b.x, b.y, b.w, b.h);
-    cx.strokeStyle = 'rgba(0,0,0,.16)';
-    cx.lineWidth = 1;
-    cx.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
-  };
-
-  /* 先把骨架畫滿（每一格的框和底色），再把有圖的貼上去。
-     骨架是同步畫完的，所以蓋布**貼上去那一刻就是滿的** —— 圖是 data: 的，
-     解碼很快，下一兩幀就補上。 */
-  const jobs = [];
-  boardEl.querySelectorAll('.cell').forEach(el => {
-    const id = el.dataset.cellId;
-    const b = rel(el.getBoundingClientRect());
-    if (!b.w || !b.h) return;
-    frame(b, getComputedStyle(el).backgroundColor);
-    const s = id && store.get(String(id));
-    if (s && s.url) jobs.push([s.url, b]);
-  });
-  const mh = boardEl.querySelector('.masthead');
-  if (mh){
-    const b = rel(mh.getBoundingClientRect());
-    if (b.w && b.h){
-      frame(b, '#fff');
-      const mi = mh.querySelector('img');
-      const src = (mi && mi.getAttribute('src')) || (store.get('__mast') || {}).url;
-      if (src) jobs.push([src, b]);
-    }
-  }
-
   const bb = boardEl.getBoundingClientRect();
   cv.style.left   = (ink.left - bb.left) + 'px';
   cv.style.top    = (ink.top  - bb.top)  + 'px';
   cv.style.width  = ink.width  + 'px';
   cv.style.height = ink.height + 'px';
   boardEl.appendChild(cv);
-  /* 真的那一層整個藏起來 —— 不是「蓋在上面」而是「換掉」。
-     蓋在上面的話，蓋布沒畫到的地方（新切出來的格子、還沒拍過的）就是一個洞，
-     而洞裡正在一個一個長東西。 */
-  boardEl.classList.add('covered');
+  coverIds = new Set(hit.map(h => h[0]));
+  paintCoverCells();
 
-  jobs.forEach(([url, b]) => {
+  hit.forEach(([, rec, r]) => {
+    /* 照片拍的是**畫布那支 iframe**，它是縮好之後置中擺在格子的框線裡面的（見 fitCellCanvases），
+       比格子小一圈。撐滿整格的話每個字都往外偏一兩 px，蓋布一掀就看得到跳一下。
+       拍照時兩個框都記了（x/y/w/h 是畫布、cx/cy/cw/ch 是格子），照「畫布在格子裡的哪裡」擺回去。 */
+    const ok = rec.cw > 0 && rec.ch > 0 && rec.w > 0 && rec.h > 0;
+    const ox = ok ? (rec.x - rec.cx) / rec.cw : 0, oy = ok ? (rec.y - rec.cy) / rec.ch : 0;
+    const sw = ok ? rec.w / rec.cw : 1,           sh = ok ? rec.h / rec.ch : 1;
     const im = new Image();
     im.onload = () => {
       if (document.getElementById('boardCover') !== cv) return;   // 已經換掉了
-      cx.drawImage(im, b.x, b.y, b.w, b.h);
+      cx.drawImage(im, r.left - ink.left + ox * r.width, r.top - ink.top + oy * r.height,
+                   sw * r.width, sh * r.height);
     };
-    im.src = url;
+    im.src = rec.url;
   });
 
   armCoverIntent();
-  /* 記號跟著蓋布一起出現：這一趟在等幾格，就從 0/n 開始數。 */
-  coverWait = new Set([...(waitFor || [])].map(String));
+  /* 記號數的是**被蓋著的**那幾格：沒蓋的格子本來就看得到自己在載入。 */
+  coverWait = new Set(coverIds);
   coverDone = 0;
   paintCoverBadge();
   /* 保險：一直沒有人動手也不能永遠蓋著一張照片 —— 版面底下是會變的
-     （每 5 秒合併一次別人的改動），而蓋布看起來跟真的一模一樣。
-     這不是「載好了沒」的判斷，只是一個上限。 */
+     （每 5 秒合併一次別人的改動），而蓋布看起來跟真的一模一樣。 */
   coverTimer = setTimeout(liftBoardCover, 12000);
 }
 
@@ -11196,7 +11566,7 @@ function liftBoardCover(){
   if (!cover || cover.classList.contains('gone')) return;
   /* 慢一幀再開始：畫布回報時它自己那一幀排完了，但合成到螢幕上是後面的事。 */
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    boardEl.classList.remove('covered');     // 真的那一層淡回來
+    coverIds = new Set(); paintCoverCells();   // 那幾格的畫布淡回來
     cover.classList.add('gone');             // 蓋布淡出
     setTimeout(() => cover.remove(), COVER_FADE_MS + 40);
   }));
@@ -15324,7 +15694,13 @@ function showPlanForm(){
    whatever tree `layout` now points at. Undo/redo swaps the tree wholesale, so
    every DOM node that referenced the old one has to go — `keepId` re-finds the
    block the user was working on inside the new tree. */
-function rebuildAll(keepId){
+/* undoFrom：這一趟是 Ctrl+Z／Ctrl+Y（帶著退之前每一格的內容）。
+   在 拼板 上那一種**不強迫版面重建**：以前每按一次都把整張版的格子重生、幾十支畫布
+   全部重開，於是整張版被蓋布蓋住（蓋的是退之前拍的照片），而且每一下都要重新載入。
+   格子的排法沒變（簽名一樣）的話卡片和畫布留著，變了內容的那幾格直接把內容送過去 ——
+   跟別人的改動每 5 秒進來的那一條（adoptRemote）同一個做法。
+   排法真的變了（加減格、列數、刊頭）簽名就不一樣，renderGrid 照樣整批重建。 */
+function rebuildAll(keepId, undoFrom){
   layout = currentPlan.layout;
   /* 版位的形狀變了（切一刀、刪一塊、對調、Ctrl+Z），它的公分就變了 ——
      落版 上那兩個數字讀的是 sh.mastheadW，這裡不寫回去它就停在上一個形狀。 */
@@ -15339,7 +15715,8 @@ function rebuildAll(keepId){
 
   const all = collectBlocks(layout.front, []).concat(collectBlocks(layout.back, []));
   activeBlock = all.find(b => b.id === keepId) || null;
-  boardSig = null;                 // the old board DOM is gone; force a rebuild
+  const softUndo = !!undoFrom && activeTab === 'board';
+  if (!softUndo) boardSig = null;  // the old board DOM is gone; force a rebuild
 
   if (activeTab === 'sheet'){
     if (!activeBlock) activeBlock = all[0] || null;
@@ -15354,6 +15731,9 @@ function rebuildAll(keepId){
     renderMinimap();
     renderHead(); renderGrid(activeBlock);
     paintBoardThumbs(); renderRail(); applyFocusCell();
+    /* 留下來的畫布不會自己知道內容被退回去了（它只在 ready 那一刻拿過一次）。
+       剛剛重生的那幾支不在這裡送 —— 它們照 ready 那條路自己拿。 */
+    if (softUndo) pushCellStates(undoFrom.cells);
   }
   updateProgress();
   /* 切一刀、改品類、Undo 都走這裡 —— 「還有幾塊沒填」跟著重算，

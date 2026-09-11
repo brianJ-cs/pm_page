@@ -111,22 +111,22 @@ body.padding .cell.cur .safe{display:block}
    沒調過就沒有 --bs，calc 吃預設的 1，跟以前一模一樣。價格不走 CSS 這條路 ——
    它的字級是 JS 算好寫成 inline style 的，但**規矩是同一條**：
    基準（轉盤／同組）乘上這一塊自己的倍率（見 priceFsRaw）。 */
-.blk.name{font-size:calc(var(--fs-name,30px) * var(--bs,1));font-weight:800;letter-spacing:.5px;line-height:1.12}
+.blk.name{font-size:calc(var(--fs-name,30px) * var(--bs,1) * var(--fit,1));font-weight:800;letter-spacing:.5px;line-height:1.12}
 /* ⚠️ font-weight 已經頂到 900 了，再往上沒有東西 —— 這個字型堆疊裡 700／800／900
    對到的是同一個粗體face（量過：400 是 279.6，700 之後一律 286.5，只差 2.5%）。
    小字配淺灰看起來就是不夠重，所以再補兩件事：描邊把筆畫真的加粗，顏色壓深一點。
    描邊用 currentColor，選取變色時不會露出舊顏色的邊。 */
-.blk.model{font-size:calc(var(--fs-model,13px) * var(--bs,1));font-weight:900;color:#4a4a4a;
+.blk.model{font-size:calc(var(--fs-model,13px) * var(--bs,1) * var(--fit,1));font-weight:900;color:#4a4a4a;
   letter-spacing:.3px;-webkit-text-stroke:.028em currentColor}
 /* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
-.blk.brand .bimg{height:calc(var(--h-brand,26px) * var(--bs,1));display:block;pointer-events:none}
+.blk.brand .bimg{height:calc(var(--h-brand,26px) * var(--bs,1) * var(--fit,1));display:block;pointer-events:none}
 /* 去背匯出的圖四周留著一大圈透明，那圈空白會頂著品名 —— 這一層把它切掉，
    框的大小就是看得見的那一塊（見 brandGeom）。寬高都由 inline style 指定，
    所以上面那條 --h-brand 在這裡要讓開。 */
 .blk.brand .bcrop{display:block;overflow:hidden;pointer-events:none}
 .blk.brand .bcrop .bimg{height:auto;max-width:none;display:block}
 .bph{position:relative;display:inline-block;
-  width:calc(var(--bph-w,120px) * var(--bs,1));height:calc(var(--bph-h,28px) * var(--bs,1))}
+  width:calc(var(--bph-w,120px) * var(--bs,1) * var(--fit,1));height:calc(var(--bph-h,28px) * var(--bs,1) * var(--fit,1))}
 .bph svg{width:100%;height:100%;display:block}
 .bph i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-style:normal;font-size:12px;font-weight:800;color:#98a2b3;letter-spacing:.5px}
@@ -216,13 +216,13 @@ body.padding .cell.cur .safe{display:block}
 .blk.price{font-family:Anton,sans-serif;color:var(--accent);font-size:var(--fs-price,52px);line-height:1}
 .spec{display:inline-block;border:var(--bd,1.5px) solid #111;border-radius:var(--r,6px);
   padding:var(--sp-v,1px) var(--sp-h,8px);
-  font-size:calc(var(--fs-spec,14px) * var(--bs,1));font-weight:800;margin-bottom:var(--sp-mb,3px)}
+  font-size:calc(var(--fs-spec,14px) * var(--bs,1) * var(--fit,1));font-weight:800;margin-bottom:var(--sp-mb,3px)}
 /* SKU 的基準是版位那支轉盤（--sku-fs），單塊微調是再乘上去 —— 乘的是轉盤現在
    那一級，不是寫死的 12，所以轉盤一動，調過的那幾塊也跟著一起動。 */
 /* 顏色、字重、字距一律跟機型（.blk.model）同一套 —— 那兩行是同一種東西
    （這是哪一台），本來 SKU 比機型深一階（#1f1f1f 對 #4a4a4a），
    併排在同一行之後那一階看起來就是「這兩行不同類」。 */
-.sku{font-size:calc(var(--sku-fs,12px) * var(--bs,1));font-weight:900;color:#4a4a4a;
+.sku{font-size:calc(var(--sku-fs,12px) * var(--bs,1) * var(--fit,1));font-weight:900;color:#4a4a4a;
   letter-spacing:.3px;
   line-height:1.35;white-space:nowrap;-webkit-text-stroke:.028em currentColor}
 /* 規格／SKU／價格整欄靠右：右緣對齊欄的右邊界，字級放大時往左溢出、右緣不動。
@@ -1083,11 +1083,15 @@ const oy = v => v * CH / O_H;
    要乘 --cs，而 --cs 是照這一格的實際尺寸算的。所以物理大小仍然跟格高成正比。
    同一個版位裡格子高度不一樣的時候，就照參考格（上層送最矮的那一格 cm）打折，
    讓實際印出來一樣大。格子一樣高（絕大多數）→ 比例是 1 → 就是原版的數字。 */
-let REF_CM_H = 0;                      // 參考格高（cm）；0 ＝ 沒有，就用自己的
+let REF_CM_H = 0;                      // 參考格高（cm）；0 ＝ 沒有，就用自己的（舊的上層才只送這個）
+/* 參考格的面積（cm²）。座標框照面積開之後（見 areaFrame），一個單位的實際長度跟 √面積 成正比，
+   所以「同一個版位字一樣大」要照面積打折，不是照高度。上層送最小的那一格。 */
+let REF_CM_A = 0;
 /* 這一格的座標是不是已經是新座標系（v4）。新排的（buildBlocks）當然是；
    舊檔要換算成功才算。沒換算成功就不能蓋 v4 那個版本章 —— 見 restoreBoard。 */
 let COORDS_V4 = true;
-const ty = v => v * (REF_CM_H && CM_H ? REF_CM_H / CM_H : 1);
+const ty = v => v * (REF_CM_A && CM_W && CM_H ? Math.sqrt(REF_CM_A / (CM_W * CM_H))
+                  : REF_CM_H && CM_H ? REF_CM_H / CM_H : 1);
 
 /* ---- 字級：照原版的比例算，一個版位一個基準 ----------------------------
    PRICE_BASE 不再是寫死的 px，而是「原版那個 52」換算到這一格（priceBase()）。
@@ -1194,6 +1198,8 @@ function applyType(t){
      沒有它的話（單獨開這一頁）就用自己這一格，＝ 原版的數字本人。 */
   const rh = +t.refCmh || 0;
   if(rh && Math.abs(rh - REF_CM_H) > .001){ REF_CM_H = rh; applyMetrics(); hit = true; }
+  const ra = +t.refCmA || 0;
+  if(ra && Math.abs(ra - REF_CM_A) > .001){ REF_CM_A = ra; applyMetrics(); hit = true; }
   let marginHit = false;
   if(t.marginPx != null){
     const px = Math.max(0, +t.marginPx || 0);
@@ -1287,22 +1293,37 @@ if(UI_STAGE) document.body.classList.add('ui-stage');
    吃掉，而那些是該重排的。 */
 const REFRAME_TOL = .005;
 
-function adoptStageCm(w, h){
-  w = +w || 0; h = +h || 0;
-  if(!w || !h) return false;
-  /* 框的長寬比照這一格（版面才填得滿），大小取「兩邊都不小於原版」那一個：
-       扁的格子（比 540:420 寬）→ 高度定在 420，寬度照長寬比拉長
-       瘦的格子（比 540:420 窄）→ 寬度定在 540，高度照長寬比拉高
-     為什麼要兩邊都顧：原版的數字（價格 52、三欄各 168 寬…）是照 540×420 排的。
-     只固定高度的話，瘦格子的框只有 279 寬，三個價格並排就爆出右邊界 ——
-     那張圖是「44900 被切掉一半」。只固定寬度的話，扁格子換成上下爆。
-     取大的那一邊 → 原版的數字永遠放得進去 → 兩個方向都不會溢出。
-     剛好是 540:420 的格子兩條算出來一樣，＝ 原版本人（對帳就是拿那個比例驗的）。 */
+/* 舊的那一套框（2026-09-11 以前）：長寬比照格子，大小取「兩邊都不小於原版」——
+     扁的格子高度定在 420、瘦的格子寬度定在 540。
+   它的毛病是**東西只跟著比較短的那一邊長大**：格子只變寬（扁格子）或只變高（瘦格子），
+   座標框跟著變寬變高，字和圖佔的座標單位不變，而一個單位在螢幕上的長度也不變 ——
+   於是版位拉大了、格子變大了，裡面的東西一點都沒有變大。
+   留著這一支只為了讀舊資料：沒蓋 fw／fh 的 v4 座標是照它排的（見 restoreBoard）。 */
+function containFrame(w, h){
   const aspect = w / h;
   let nw, nh;
   if(aspect >= O_W / O_H){ nh = O_H; nw = Math.round(O_H * aspect); }
   else                   { nw = O_W; nh = Math.round(O_W / aspect); }
-  nw = Math.max(80, nw); nh = Math.max(80, nh);
+  return { w: Math.max(80, nw), h: Math.max(80, nh) };
+}
+/* 現在這一套：長寬比照格子，**面積固定等於原版（540×420）**。
+   一個座標單位在螢幕上多長＝√(格子面積 ÷ 原版面積)，所以字、圖、邊界一律**跟著格子的面積長大** ——
+   只變寬、只變高都會長一點，兩邊一起變大就整個跟著變大（2026-09-11 談定，CSS 的
+   container 單位裡介於 cqmin 和 cqmax 之間的那一種）。
+   代價是扁的、瘦的格子會比原版那個比例更擠：一個方向上的座標單位比 540／420 少。
+   接住它的是 keepInside（每一塊都要在格子裡，放不進就只縮那一塊）和 fitSpreadPrices。
+   剛好是 540:420 的格子算出來就是 540×420，＝ 原版本人（對帳照舊成立）。 */
+function areaFrame(w, h){
+  const aspect = w / h;
+  return { w: Math.max(80, Math.round(Math.sqrt(O_W * O_H * aspect))),
+           h: Math.max(80, Math.round(Math.sqrt(O_W * O_H / aspect))) };
+}
+
+function adoptStageCm(w, h){
+  w = +w || 0; h = +h || 0;
+  if(!w || !h) return false;
+  const fr = areaFrame(w, h);
+  const nw = fr.w, nh = fr.h;
   if(nw === CW && nh === CH && CM_W) return false;
   /* ⚠️ 縮放不准換座標系。換一次＝每一塊的 x/y/w 乘一次（版面被縮放改掉，而且
      會存下去）＋ renderOne(force) 整格 innerHTML 重寫（商品圖那個 <img> 重生，
@@ -1390,14 +1411,43 @@ if(UI_STAGE) addEventListener('resize', () => {
   fitTimer = setTimeout(() => { if(BLOCKS.length) renderOne(curCell, true); }, 80);
 });
 
+/* 把一份座標從舊框換到新框。畫布活著時換了尺寸（applyStageCm）和畫布死著時換了
+   尺寸、下次打開才發現（restoreBoard）走的是**同一支** —— 以前兩條路各算各的，
+   同一個改動在 落版 做和在 拼板 做，出來的圖大小不一樣。
+   **只換位置**（照各自的軸），**大小（圖和貼圖的寬）留在原本的單位**：座標框是照面積開的
+   （見 areaFrame），單位本身就跟著格子的面積變長變短，所以留著單位＝跟字一樣跟著格子長大。
+   以前這裡照 min(kx,ky) 縮，於是格子只變寬的時候圖一步都不長。
+   長大之後放不下的，交給 keepInside（滑回格子裡，還放不下才只縮那一塊）。 */
+function reframeBlocks(arrs, kx, ky){
+  if(!(kx > 0) || !(ky > 0) || !isFinite(kx) || !isFinite(ky)) return;
+  if(kx === 1 && ky === 1) return;
+  const seen = new Set();
+  arrs.forEach(arr => {
+    if(!arr || seen.has(arr)) return;
+    seen.add(arr);
+    arr.forEach(b => {
+      b.x = (+b.x || 0) * kx;
+      b.y = (+b.y || 0) * ky;
+    });
+  });
+}
+/* 還沒拿到格子尺寸就先收到內容時，那份內容是在哪個框裡排的（見 restoreBoard）。
+   尺寸晚一步到的時候照它換算，而不是照預設的 540×420。{legacy:true}＝沒蓋框的舊資料，
+   等尺寸到了照 containFrame 推回去。 */
+let DATA_FRAME = null;
+
 /* 上層說這一格的實際尺寸換了（列數變了、刊頭大小改了）：換座標系再重排一次。
    座標系換了尺標，已經擺好的零件要照同一個比例跟著走 —— 自動排的那些下面
    會重排看不出來，但手動搬過的位置不跟著換就整個跑掉。
    BLOCKS 和 cell().blocks 常常是同一個陣列，所以記下處理過的，別縮兩次。 */
 function applyStageCm(cm){
-  const pw = CW, ph = CH;
   const firstCm = !CM_W;
+  const df = (firstCm && DATA_FRAME && cm)
+    ? (DATA_FRAME.legacy ? containFrame(+cm.w || 1, +cm.h || 1) : DATA_FRAME) : null;
+  const pw = df ? df.w : CW;
+  const ph = df ? df.h : CH;
   if(!cm || !adoptStageCm(cm.w, cm.h)) return;
+  DATA_FRAME = null;
   /* 尺寸是現在才第一次拿到的，而手上這份座標還是舊的（restoreBoard 當時沒得換算）
      —— 補做那一次換算，然後才輪到下面的等比例調整。 */
   if(firstCm && !COORDS_V4 && CM_W && CM_H){
@@ -1422,20 +1472,7 @@ function applyStageCm(cm){
      只換算寬度的話，格子形狀一變，整份版面就留在舊的高度尺標裡：
      量到過價格停在 49.7% 高、整格內容擠在上半部，而框已經是 813 高了。 */
   const kx = pw ? CW / pw : 1, ky = ph ? CH / ph : 1;
-  if(kx !== 1 || ky !== 1){
-    const seen = new Set();
-    const scale = arr => {
-      if(!arr || seen.has(arr)) return;
-      seen.add(arr);
-      arr.forEach(b => {
-        b.x = (+b.x || 0) * kx;
-        b.y = (+b.y || 0) * ky;
-        if(b.w) b.w = (+b.w || 0) * kx;      // 商品圖的寬也在同一套尺標裡
-      });
-    };
-    CELLS.forEach(c => scale(c.blocks));
-    scale(BLOCKS);
-  }
+  reframeBlocks(CELLS.map(c => c.blocks).concat([BLOCKS]), kx, ky);
   fitStage();
   if(BLOCKS.length) renderOne(curCell, true);
 }
@@ -2321,7 +2358,10 @@ function xrayDim(b){
 }
 
 /* 這一塊自己調過的倍率。沒調過就不寫，CSS 那邊 var(--bs,1) 吃預設值。 */
-function bsVar(b){ return (b.sc && b.sc!==1) ? `;--bs:${b.sc}` : ''; }
+function bsVar(b){ return ((b.sc && b.sc!==1) ? `;--bs:${b.sc}` : '') + fitVar(b); }
+/* 放不進格子時這一塊縮幾成（見 keepInside）。1 ＝沒縮，不寫。 */
+const fitOf = b => (b && b.fit > 0 && b.fit < 1) ? b.fit : 1;
+function fitVar(b){ return fitOf(b) < 1 ? `;--fit:${fitOf(b)}` : ''; }
 
 /* 集體移動開著時，選起來的那幾塊改畫紅虛線：同樣是「選到的」，但那一下拖出去
    動的是每一格。藍和紅不疊 —— 兩個記號指同一件事只會讓人以為它們不一樣。 */
@@ -2336,11 +2376,17 @@ function blockHTML(b,isCur=true){
   /* 右緣錨點：右下那一組用 right 定位（見 buildBlocks）。搬過之後就換回 left ——
      手動位置是絕對的，不該再跟著右邊界跑（見 mousedown 那邊的 unpin）。 */
   const pos = b.rx != null ? `right:${(+b.rx).toFixed(1)}px` : `left:${b.x}px`;
-  if(b.kind==='name')  return `<div class="blk name${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}">${b.text}</div>`;
+  /* 品名會換行，而絕對定位的字換行是換在**格子的邊**，不是邊界線 —— 長一點的品名右緣永遠壓在
+     邊界線外面那一圈。寫一個 max-width 讓它在邊界線以內換行（扣掉這一塊自己的內距和框線，
+     量的是字不是框）。keepInside 因此只需要管品名的高度。 */
+  if(b.kind==='name'){
+    const room = Math.max(40, CW - MARGIN - (b.rx != null ? MARGIN : (+b.x||0)));
+    return `<div class="blk name${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs};max-width:calc(${room.toFixed(1)}px - var(--ph,4px) - var(--bd,1.5px))">${b.text}</div>`;
+  }
   if(b.kind==='img'){
     const dim = isCur?xrayDim(b):1;
     const noimg = imgUrlOf(b.key) ? '' : ' noimg';   // 還沒換圖＝框紅的
-    const iw=((+b.w||0) * TYPE_MUL.img).toFixed(1);   // 轉盤的倍率乘在畫的時候
+    const iw=((+b.w||0) * TYPE_MUL.img * fitOf(b)).toFixed(1);   // 轉盤的倍率、放不進時的縮，都乘在畫的時候
     /* 拉過高度的圖（PPT 的邊中點把手）帶著自己的高度走；沒拉過就讓高度跟著寬度
        等比例（.ph 的 --h-ph / 真圖的 height:auto）。 */
     /* 高度一律跟著寬度等比例（.ph 的 aspect-ratio／真圖的 height:auto）。
@@ -2358,7 +2404,7 @@ function blockHTML(b,isCur=true){
      庫裡刪掉了，版上這一張也不該跟著消失。 */
   if(b.kind==='sticker'){
     const dim = isCur?xrayDim(b):1;
-    const W = +b.w||0;
+    const W = (+b.w||0) * fitOf(b);
     /* 高度只有照模板排的時候才寫死（圖層是絕對定位的，沒有高度就疊在一起）。
        舊資料那種一張烤好的圖不寫 —— 高度跟著圖片自己的比例走就對了。 */
     const H = b.tpl ? `height:${(W*stickerRatio(b)).toFixed(1)}px;` : '';
@@ -2376,7 +2422,7 @@ function blockHTML(b,isCur=true){
     const g = img ? brandGeom(img) : null;
     /* 單位換算跟 applyMetrics 那幾條一樣：排版單位 → px，再乘這一塊自己的 --bs。 */
     const u = v => ty(v * SZ_BRAND * TYPE_MUL.brand).toFixed(2);
-    const px = v => `calc(${u(v)}px * var(--bs,1))`;
+    const px = v => `calc(${u(v)}px * var(--bs,1) * var(--fit,1))`;
     let inner;
     if(g && g.crop){
       /* 外面這一層就是墨水框（看得見的那一塊），裡面那張圖放大之後往左上位移，
@@ -2403,7 +2449,7 @@ function blockHTML(b,isCur=true){
     const fs=priceFs(b);
     return `<div class="blk price${on}${pk(b)}${b.cross?' crossed':''}" data-b="${b.id}" style="${pos};top:${b.y}px${
       b.w2?`;width:${b.w2}px`:''}${
-      fs?`;font-size:${(priceBase()*fs).toFixed(1)}px`:''}">${b.price}</div>`;
+      fs?`;font-size:${(priceBase()*fs*fitOf(b)).toFixed(1)}px`:''}">${b.price}</div>`;
   }
   // sku
   return `<div class="blk skub${on}${pk(b)}${b.rx == null ? ' atleft' : ''}" data-b="${b.id}" style="${pos};top:${b.y}px${bs}${b.w2?`;width:${b.w2}px`:''}">`+
@@ -2604,6 +2650,11 @@ function renderOne(i, force){
      對一次下緣、再畫一次。只有重建或強制的時候會走到，不是每次重畫。 */
   paint(waitLogo);
   if((rebuilt||force) && isCur){
+    /* 放不進格子時縮的那一成（b.fit）每一趟重排都從 1 重新算：格子變大、轉盤調小之後
+       它要能長回來，而「從上一次的結果往回推原本多大」對會換行的品名不成立
+       （縮一點就少一行、高度忽然少一半，推回去又放大、又多一行 —— 量到過來回跳）。
+       所以先全部放回原本的大小畫一次，底下那幾趟照原本的大小排，最後 keepInside 只准往小縮。 */
+    if(blocks.some(b => b.fit)){ blocks.forEach(b => { delete b.fit; }); paint(waitLogo); }
     // 先把上面那一疊推開（放大的那塊要先佔到位），再對齊四邊
     try{ if(spreadStack(blocks)) paint(waitLogo); }catch(_){}
     /* 攤開那幾組價格要**先夾**到塞得進自己那一欄：夾了字級，寬和高都會變，
@@ -2616,7 +2667,64 @@ function renderOne(i, force){
        早一步算的話量到的是還沒對齊前的位置 —— 那時候價格離右邊界還有一段，
        圖就以為左邊只剩那麼點空間，於是縮得莫名其妙的小（量到過該有 78 卻只給 45）。 */
     try{ if(stickImage(blocks)) paint(waitLogo); }catch(_){}
+    /* 最後一道：每一塊都要在格子裡（邊界線以內）。量一次、挪一次、再畫 —— 縮了的那一塊
+       要再量一次才知道挪多少；幾塊同時出界時要好幾趟才收斂，上限六趟（沒事的格子一趟就停）。 */
+    try{ for(let i = 0; i < 8 && keepInside(blocks); i++) paint(waitLogo); }catch(_){}
   }
+}
+
+/* ====== 放得進格子 ==========================================================
+   座標框照面積開之後（見 areaFrame），扁的、瘦的格子在一個方向上比原版擠，
+   字級轉盤也可以把東西放大到超出格子。以前沒有人管：品名、價格就這樣掛在格子外面，
+   被 overflow 切掉一截（量到過字級放大到 2.5 倍時品名出界 92 個單位）。
+   規矩兩條，照順序：
+     1. 出界＝**滑回來**。自己搬過的也一樣（挪的量是剛好回到邊界線上，不多挪）。
+     2. 滑回來還是比格子大＝**只縮那一塊**（b.fit），別塊不動、轉盤的設定也不動 ——
+        同一個版位裡空間夠的格子照樣是那個大小。
+   b.fit **只往小縮**：每一趟照現在量到的比例再乘一次（f × 可用 ÷ 量到的）。會換行的字縮一點
+   可能就少一行，照「原本多大」去推會來回跳；只往小走就一定收斂。
+   要長回來靠 renderOne 每一趟重排開頭把 fit 全部放回 1（見那裡）。
+   ⚠️ 圖、貼圖、商標量的是框（它們的 textContent 是按鈕上的字或 placeholder 的字，
+   拿去量墨水會量到別的東西）；字才量墨水（inkBox）。 */
+const INK_KINDS = new Set(['name', 'model', 'spec', 'sku', 'price']);
+function keepInside(blocks){
+  const L = MARGIN, T = MARGIN, R = CW - MARGIN, B = CH - MARGIN;
+  const aw = R - L, ah = B - T;
+  if(!(aw > 0) || !(ah > 0)) return false;
+  let moved = false;
+  (blocks || []).forEach(b => {
+    const n = bEl(b.id); if(!n) return;
+    let k = null;
+    if(INK_KINDS.has(b.kind)){ try{ k = inkBox(b.id); }catch(_){} }
+    if(!k) k = { ox:0, oy:0, w:n.offsetWidth, h:n.offsetHeight };
+    /* 字比自己的框還寬（價格那種靠右、nowrap、direction:rtl 的，溢出去是往左長）：
+       inkBox 量到的寬被框夾住了，看起來放得下、其實整串掛在框外面。補上溢出的那一截。 */
+    const spill = n.scrollWidth - n.clientWidth;
+    if(spill > 1){
+      const rtl = getComputedStyle(n).direction === 'rtl';
+      k = { ox: rtl ? k.ox - spill : k.ox, oy: k.oy, w: k.w + spill, h: k.h };
+    }
+    if(!(k.w > 0) || !(k.h > 0)) return;
+    const f0 = fitOf(b);
+    /* 品名的寬由 max-width 在邊界線以內換行（見 blockHTML），寬不會超過；縮它只看高。
+       照寬去縮的話，換行的字寬度永遠等於那一行的空間，縮了也不會變窄 —— 一趟一趟縮到很小。 */
+    const shrink = Math.min(1, b.kind === 'name' ? 1 : aw / k.w, ah / k.h);
+    if(shrink < .99){
+      b.fit = +(f0 * shrink).toFixed(3);
+      moved = true;
+      return;                      // 大小變了，下一趟量到新的大小再挪
+    }
+    const l = n.offsetLeft + k.ox, t = n.offsetTop + k.oy;
+    let dx = 0, dy = 0;
+    if(l < L) dx = L - l; else if(l + k.w > R) dx = R - (l + k.w);
+    if(t < T) dy = T - t; else if(t + k.h > B) dy = B - (t + k.h);
+    if(Math.abs(dx) > .5){
+      if(b.rx != null) b.rx = Math.max(0, (+b.rx || 0) - dx); else b.x = (+b.x || 0) + dx;
+      moved = true;
+    }
+    if(Math.abs(dy) > .5){ b.y = (+b.y || 0) + dy; moved = true; }
+  });
+  return moved;
 }
 
 /* 畫完之後把「看得見的邊」對到邊界上。
@@ -2803,7 +2911,14 @@ function fitSpreadPrices(blocks){
    寫死一個百分比的話，字一大圖就被壓到，字一小中間就開一個洞。
    自己搬過（placed）或自己縮放過（w0）的不碰，那是使用者的東西。 */
 function stickImage(blocks){
-  const imgs=(blocks||[]).filter(b=>b.kind==='img' && b.stick && !b.placed && !b.w0);
+  /* ⚠️ **張數算全部貼著的圖，只寫還沒被動過的那幾張**。
+     以前這裡只數沒動過的：一格三張圖，拉其中一張的角 → 那張立刻不算 → 剩下兩張照
+     「兩張」重新分寬度、重新排間距，而且拖曳中每動一下都重算一次。
+     看起來就是「我只拉這一張，旁邊那兩張自己變大、自己跑位」。
+     張數跟著「挑了幾樣貨」走，不跟著「動過哪幾張」走，動過的那張照樣佔著它那一格。 */
+  const all=(blocks||[]).filter(b=>b.kind==='img' && b.stick);
+  const mine=b=>!b.placed && !b.w0;
+  const imgs=all.filter(mine);
   if(!imgs.length) return false;
   const stack=(blocks||[]).filter(b=>b.rx==null && !b.placed
     && ['brand','name','model','sku'].includes(b.kind));
@@ -2814,7 +2929,7 @@ function stickImage(blocks){
   });
   if(!isFinite(bottom)) return false;
   const top=bottom+ty(STACK_GAP);
-  const n=imgs.length;
+  const n=all.length;
   /* 讓開右下那一組（規格／SKU／價格），一格都不許疊到。
      那一組有兩種讓法，**取畫得比較大的那一種**：
        ・站在它左邊（beside）：往下填到下邊界，寬度到那一組的左緣為止。
@@ -2855,7 +2970,8 @@ function stickImage(blocks){
   const iy=Math.max(MARGIN, Math.min(top, low-w));
   const step=n>1 ? Math.max(w, (availW-w)/(n-1)) : 0;
   let moved=false;
-  imgs.forEach((b,i)=>{
+  all.forEach((b,i)=>{
+    if(!mine(b)) return;
     const wx=MARGIN+i*step;
     if(Math.abs((+b.w||0)-w)>.5){ b.w=w; moved=true; }
     if(Math.abs((+b.y||0)-iy)>.5){ b.y=iy; moved=true; }
@@ -3349,6 +3465,27 @@ if(UI_STAGE) addEventListener('pointerdown',e=>{
   try{ parent.postMessage({ stagePass:{ cx:e.clientX, cy:e.clientY,
                                         button:e.button } }, '*'); }catch(_){}
 }, true);
+
+/* 點一下格子裡的零件＝**把這一格打開**（2026-09-11），跟點格子的空白處一樣。
+   以前沒點開的格子裡照樣選得起來、拖得動，但 Delete 只刪得掉貼圖（見 keyDelete）——
+   選起來了卻刪不掉，看起來就是壞了。開起來之後那一格就是「正在編輯的那一格」，
+   Delete 照原本那條路刪（找得回來的那一份名冊）。
+   只認「按下去、沒動、放開」：拖零件是在搬它，不是要開面板。
+   ⚠️ 按下去那一刻就記：mousedown 會把整格重畫，放開時手底下的節點已經換過了。
+   上層照「點這一格」那條路處理（工具、身分、貼紙那幾道檢查都在那裡）。 */
+let openDown = null;
+if(UI_STAGE){
+  addEventListener('pointerdown', e => {
+    const t = e.target;
+    openDown = (e.button === 0 && !STAGE_EDIT && t.closest && t.closest('.blk')
+                && !t.closest('.tobtn,.delbtn,.rz')) ? { x:e.clientX, y:e.clientY } : null;
+  }, true);
+  addEventListener('pointerup', e => {
+    const d = openDown; openDown = null;
+    if(!d || STAGE_EDIT || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
+    try{ parent.postMessage({ stageOpen:{ cx:e.clientX, cy:e.clientY } }, '*'); }catch(_){}
+  }, true);
+}
 
 function relayWheel(e){
   if(!UI_STAGE) return false;
@@ -4283,18 +4420,28 @@ function boardState(){
      （見 restoreBoard）。蓋了章就不會再換算第二次。
      nPrice／wantFs 是報給上層分組用的：這一格有幾個價格、自己需要縮到多少。
      上層收齊同一組的 wantFs 取最小再廣播回來，同組才會一樣大。 */
-  return { v:(COORDS_V4?4:3), picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
+  /* fw／fh：這份座標是在多大的框裡排的。**畫布沒開著的時候格子也會換尺寸**
+     （落版 拖版位的邊、改列數），下次打開時新框已經定了，沒有這一筆就不知道要換算 ——
+     以前就是原封不動照用：動過的圖停在舊框的大小，沒動過的重新貼齊，於是「有幾張自己變了」。
+     只在真的知道格子多大的時候寫（單獨開這一頁時 CW 是預設值，寫了等於說謊）。
+     ⚠️ 一定放在最後：上層比對「是不是只差這一筆」是照字串尾巴比的（見 noteBoardChange）。 */
+  const st = { v:(COORDS_V4?4:3), picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
            img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
            off: c.off || {},          // 刪掉的零件（uid → 名字），左下角那顆 ＋ 列的就是它
            nPrice: priceCount(c.blocks, c.off), wantFs: priceWanted };
+  if(CM_W){ st.fw = CW; st.fh = CH; }
+  return st;
 }
-let reportTimer = 0;
+let reportTimer = 0, reportQuiet = false;
 function reportBoard(){
   if(window.parent === window) return;          // 單獨開檔就什麼都不必報
   clearTimeout(reportTimer);
   // 拖曳中每一格畫面都會叫一次，等手停下來再報一次就好
   reportTimer = setTimeout(()=>{
-    try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, state:boardState() }, '*'); }
+    /* quiet：這一份不是使用者做的（換框換算完存回去），上層只存檔、不記成一步 ——
+       記成一步的話按 Ctrl+Z 會退回舊框的座標，下次打開又換算一次，沒完沒了。 */
+    const quiet = reportQuiet; reportQuiet = false;
+    try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, state:boardState(), quiet }, '*'); }
     catch(_){}
     reportLayers();          // 搬、縮、疊的順序都可能變了 —— 面板那一排跟著（沒變就不報）
   }, 60);       // 勾了就要看到，別讓上面那張版慢半拍
@@ -4340,12 +4487,31 @@ function restoreBoard(s){
       });
     }
   }
+  /* 這份座標是在別的框裡排的（畫布沒開著的時候格子換過尺寸）：照 applyStageCm 那一支換過來。
+     換完要**強制重排一次**：沒動過的圖要重新貼齊新的格子，不強制的話 layoutKey 對得上，
+     renderOne 只照舊座標畫。換算的結果要存回去（不然下次打開又換一次），但那不是一步。 */
+  let reframed = false;
+  DATA_FRAME = null;
+  /* ⚠️ 只看**存進來的時候**是不是 v4（s.v）：上面那兩段剛從舊版換算過來的，已經是現在這個框了。
+     沒蓋 fw／fh 的 v4 是 2026-09-11 以前存的，那時候的框是 containFrame —— 照這一格現在的
+     尺寸推回去（跟以前「原封不動照用」同一個假設：存完之後格子沒換過形狀）。 */
+  if(s.v >= 4){
+    const stamped = s.fw > 0 && s.fh > 0;
+    if(CM_W){
+      const f = stamped ? { w:s.fw, h:s.fh } : containFrame(CM_W, CM_H);
+      if(Math.abs(f.w - CW) > CW * REFRAME_TOL || Math.abs(f.h - CH) > CH * REFRAME_TOL){
+        reframeBlocks([BLOCKS], CW / f.w, CH / f.h); reframed = true;
+      }
+    } else DATA_FRAME = stamped ? { w:s.fw, h:s.fh } : { legacy:true };
+  }
   /* 舊版排的版沒有欄號，價格是按估算的字寬硬擺的，兩個價格會疊在一起。
      認得出是舊的就重排一次 — 那一版的手動位置留不住，但至少讀得出來。 */
   if(oldLayout(BLOCKS)) layoutKey='';
   saveCell();
   selected.clear();
+  if(reframed) reportQuiet = true;
   refreshAll();
+  if(reframed && BLOCKS.length){ renderOne(curCell, true); reportBoard(); }
 }
 
 /* ====== 鍵盤 ==============================================================
@@ -4675,6 +4841,15 @@ const SNAP_SS = 1.8, SNAP_Q = .86;
 
 async function snapshotStage(req){
   const id = (req && req.id) || '';
+  /* ⚠️ **內容還沒排回畫面上就不拍**。上層是手停 2.5 秒就來要圖的，而一塊六十格的版位
+     那時候常常還有一半的畫布沒收到上次的內容 —— 照拍就是一張只有底色的白圖，
+     上層把它當成真的圖收下、一分鐘內不再重拍、還存進 IndexedDB，
+     下次進場的蓋布就是一片白蓋在已經載好的版面上。
+     回一個空的，上層會留著上一張好的，下一輪再來問。 */
+  if(!stagePaintedOk){
+    try{ parent.postMessage({ boardCell:CELL_ID, stageSnap:{ id, url:'', why:'not-painted' } }, '*'); }catch(_){}
+    return;
+  }
   /* 失敗要講得出是哪一種。三種的處理完全不一樣：SVG 解不開是這一頁自己組錯了，
      畫布被污染是某一張圖沒帶 CORS，拋例外是別的事 —— 沒有這一句就只剩「空的」。 */
   const send = (url, why) => {
@@ -4803,6 +4978,9 @@ if(UI_STAGE){
 }
 
 let paintedSent = false;
+/* 真的畫好了（上次的內容排回來、圖和字型也等過了）。拍照只認這一個 —— paintedSent 是
+   「開始等」的那一刻就立起來的，那時候還什麼都沒有。 */
+let stagePaintedOk = false;
 function tellPainted(){
   if(paintedSent || !UI_STAGE || window.parent === window) return;
   paintedSent = true;
@@ -4817,6 +4995,7 @@ function tellPainted(){
   Promise.all([ cap(Promise.resolve(fonts).catch(() => {}), 600),
                 imagesSettled(9000) ])
     .then(() => requestAnimationFrame(() => {
+      stagePaintedOk = true;
       try{ parent.postMessage({ boardCell:CELL_ID, stagePainted:true }, '*'); }catch(_){}
     }));
 }
@@ -4842,6 +5021,7 @@ if(document.fonts && document.fonts.ready){
   document.fonts.ready.then(()=>{
     if(!BLOCKS.length) return;
     renderOne(curCell, true);      // 重排一次：inkBox 這時量到的才是 Anton
+    reportQuiet = true;            // 這一趟不是使用者做的：存起來，但不是復原鍵上的一步
     reportBoard();
   }).catch(()=>{});
 }
