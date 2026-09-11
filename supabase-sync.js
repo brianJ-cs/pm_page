@@ -600,7 +600,9 @@
       一張貼紙的模板幾 KB，整包抓太浪費。
       回傳 { rows（含刪掉的）, cats, changed }；表還沒建（404）回 null。 */
   async function pullStickerLib() {
-    if (!ok()) return null;
+    /* 這是**讀**，照 canRead() 不照 ok()：示範版（唯讀）一樣要看得到共用的貼紙 ——
+       以前擋在 ok()，示範版上那一排貼紙永遠是「還沒有貼紙」，看起來就是一直載不出來。 */
+    if (!canRead()) return null;
     const r = await fetch(`${BASE}/sticker_lib?select=id,updated_at`, { headers: headers() });
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`index sticker_lib ${r.status} ${await r.text()}`);

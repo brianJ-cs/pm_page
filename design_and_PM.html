@@ -3331,7 +3331,7 @@
           <input id="stkSearch" class="stk-search" type="search" placeholder="找貼紙…"
                  spellcheck="false" autocomplete="off">
           <button class="stk-x" id="stickerClose"
-                  title="收起來（貼圖筆還拿在手上）">✕</button>
+                  title="收起來（按 🏷️ 貼圖 再打開）">✕</button>
         </div>
         <!-- 第一張永遠是「＋ 新貼紙」（開貼紙庫），接著是貼紙本人 —— 見 renderStickerPanel -->
         <div class="stk-items" id="stkGrid"></div>
@@ -12472,9 +12472,19 @@ document.addEventListener('pointercancel', () => endPaintDrag(true));
    伺服器上那一份；沒接後端、或還沒拉到之前，讀貼紙庫那一頁留在這台瀏覽器的快取
    （同一個網站、同一個瀏覽器，localStorage 讀得到）。 */
 const STK_LSK = 'stk.db';                 // sticker_editor.html 的本機快取那把鑰匙
+/* 上一次從伺服器拿到的那一份貼紙清單，存在這台電腦上。
+   ⚠️ 沒有它的話，每次重新打開都是「還沒有貼紙」→ 等伺服器回來 → 再一張一張冒出來 ——
+   量過整份清單才 15KB、半秒內回來，慢的是**什麼都沒有的那一段**。開機先照這一份畫，
+   伺服器那一份回來、真的變了才重畫。它只是快取：讀不到、壞掉就當作沒有。 */
+const STK_REMOTE_LSK = 'pm_stk_remote_v1';
 let stickerLib = [];                      // 每次要用才重讀——貼紙庫可能剛被改過
 /* 伺服器上那一份（**含刪掉的**），null＝還沒拉到或沒接後端。見 refreshStickerLib。 */
 let stkRemote = null, stkPulledAt = 0, stkPulling = null, stkRenderLater = false;
+let stkPullFailed = false;                // 問過伺服器但沒問到：那就別一直寫「載入中」
+try {
+  const cached = JSON.parse(localStorage.getItem(STK_REMOTE_LSK) || 'null');
+  if (Array.isArray(cached)) stkRemote = cached;
+} catch (e){}
 let stickerPopShut = false;
 
 function readStickerLib(){
@@ -12499,7 +12509,8 @@ function readStickerLib(){
    所以拿起工具就問一次也不貴；還是隔 15 秒才再問，免得來回切工具一直打。
    ⚠️ 拖著一張縮圖的時候**不可以**重畫那一片（見 pointermove 那條）：記下來，放手再畫。 */
 async function refreshStickerLib(force){
-  const s = sync();
+  /* 讀的路照 canRead()（示範版也讀得到），不照 sync()（那是「寫得動」）。 */
+  const s = (window.PlanSync && window.PlanSync.canRead && window.PlanSync.canRead()) ? window.PlanSync : null;
   if (!s || !s.pullStickerLib) return;
   if (stkPulling) return stkPulling;
   if (!force && Date.now() - stkPulledAt < 15000) return;
@@ -12508,13 +12519,19 @@ async function refreshStickerLib(force){
     try {
       const got = await s.pullStickerLib();
       if (!got) return;                  // 表還沒建：照舊讀快取
-      const first = !stkRemote;
+      const was = JSON.stringify(stkRemote);
       stkRemote = got.rows.slice().sort((a, b) =>
         String(a.created_at || '').replace('T', ' ').localeCompare(String(b.created_at || '').replace('T', ' ')));
-      if (!(first || got.changed) || !stickerPanelOn()) return;
+      const now = JSON.stringify(stkRemote);
+      try { localStorage.setItem(STK_REMOTE_LSK, now); } catch (e){}
+      /* 縮圖先叫瀏覽器抓起來：那一排打開的時候圖已經在快取裡，不是一張一張冒出來 */
+      stkRemote.forEach(r => { if (!r.deleted_at && r.preview){ const im = new Image(); im.src = previewSrc(r); } });
+      if (was === now || !stickerPanelOn()) return;
       if (stkDrag) stkRenderLater = true; else renderStickerPanel();
     } catch (e){
+      stkPullFailed = true;
       console.warn('共用貼紙庫拉不到，先用這台電腦上的', e);
+      if (stickerPanelOn() && !stkDrag) renderStickerPanel();   // 「載入中」換成真話
     } finally { stkPulling = null; }
   })();
   return stkPulling;
@@ -12536,12 +12553,14 @@ function previewSrc(row){
 let stkQuery = '';                 // 搜尋框打的字
 let stkCat   = '';                 // 挑了哪一類，'' ＝全部
 
-/** 面板開不開著：拿著 貼圖、人在 拼板、而且是設計。照 syncPaintPop 那一套規矩 ——
-    工具列是兩頁共用的，落版 沒有貼圖這件事；PM／行銷在 拼板 也看不到（貼圖是
-    版面素材，只有設計放得上去，跟刊頭圖同一條理由）。 */
+/** 那一排開不開著：人在 拼板、而且是設計 —— **預設就開著**（2026-09-11），不必先拿起 貼圖。
+    以前要先按 🏷️ 才長出來、長出來才去問伺服器，於是每一次都是「找工具 → 等 → 一張一張冒出來」。
+    貼紙是拖到格子上貼的，拖曳本來就不看手上拿著什麼工具（見 pasteStickerOn），所以不必綁在工具上。
+    ✕ 收起來之後按 🏷️（T）再打開。
+    落版 沒有貼圖這件事；PM／行銷在 拼板 也看不到（貼圖是版面素材，只有設計放得上去，
+    跟刊頭圖同一條理由）。 */
 function stickerPanelOn(){
-  return activeTool === 'sticker' && activeTab === 'board'
-      && activeMode === 'design' && !stickerPopShut;
+  return activeTab === 'board' && activeMode === 'design' && !stickerPopShut;
 }
 
 function syncStickerTool(){
@@ -12566,7 +12585,7 @@ function stkThumb(r){
      指標捕捉沒有這兩個問題：按下去之後每一下都送回這顆縮圖，蓋在上面的是誰都沒差。 */
   return `<button class="stk-th" data-stk="${r.id}"
       title="${escapeHtml(r.name || '')} —— 拖到格子上就貼上去">
-      <span class="tb">${r.preview ? `<img src="${previewSrc(r)}" alt="" draggable="false">` : ''}</span>
+      <span class="tb">${r.preview ? `<img src="${previewSrc(r)}" alt="" draggable="false" decoding="async">` : ''}</span>
       <span class="nm">${escapeHtml(r.name || '')}</span></button>`;
 }
 
@@ -12595,9 +12614,13 @@ function renderStickerPanel(){
     (!q || String(r.name || '').toLowerCase().indexOf(q) >= 0))
     .sort((a, b) => (use[b.id] || 0) - (use[a.id] || 0));
 
+  /* 空的有兩種：真的沒有貼紙，和「伺服器那一份還沒回來」。後者寫「還沒有貼紙」的話，
+     看起來就是貼紙不見了、或這一排壞了 —— 其實半秒後就長出來。 */
+  const loading = !stickerLib.length && !stkRemote && !stkPullFailed
+    && !!(window.PlanSync && window.PlanSync.canRead && window.PlanSync.canRead());
   const em = stickerLib.length
     ? (rows.length ? '' : '找不到符合的貼紙')
-    : '還沒有貼紙 —— 按「＋ 新貼紙」做幾張';
+    : loading ? '載入貼紙中…' : '還沒有貼紙 —— 按「＋ 新貼紙」做幾張';
   document.getElementById('stkGrid').innerHTML =
     `<button class="stk-add" data-more title="開貼紙庫（新增／修改）"><span class="p">＋</span><span>新貼紙</span></button>`
     + rows.map(stkThumb).join('')
@@ -12735,7 +12758,7 @@ function openStickerLib(){
 }
 
 document.getElementById('stickerClose').addEventListener('click', () => {
-  stickerPopShut = true;         // 工具還拿在手上，只是盤子收起來（跟 上色 同一條規矩）
+  stickerPopShut = true;         // 收起來；按 🏷️ 貼圖 再打開（setTool 那邊會把它放回 false）
   syncStickerTool();
 });
 
@@ -15819,6 +15842,9 @@ function openPlan(plan){
      永遠沒有東西可以蓋**，而那是使用者最常遇到的一次。不 await：撈到就補上，
      撈不到也不能擋住檔期開起來。 */
   loadSnaps(plan);
+  /* 設計開檔期就先去拿貼紙清單（不 await）：人多半是先看一眼 總體 才切到 拼板，
+     等切過去的時候那一排已經好了 —— 而不是切過去才開始問伺服器。 */
+  if (activeMode === 'design') refreshStickerLib();
 }
 
 
