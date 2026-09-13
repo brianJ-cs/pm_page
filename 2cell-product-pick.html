@@ -205,7 +205,8 @@ body.padding .cell.cur .safe{display:block}
 .blk.img.noimg > .tobtn{bottom:calc(var(--pv,2px) + var(--cw) * .15 + 3px)}
 .blk.img.noimg:hover > .ph{outline:var(--bd,1.5px) solid #c3cbd8}
 .blk.img.noimg.actimg > .ph{outline:var(--bd,1.5px) solid #007acc;box-shadow:0 0 12px rgba(0,122,204,.45)}
-.blk.img.noimg.msel > .ph{outline:var(--bd,1.5px) solid var(--select);box-shadow:0 0 0 1px var(--select)}
+/* 選起來那一圈由 .selbox 畫（selRect 對還沒有圖的那一種量的就是灰圖）——
+   這裡只留「滾輪切到的那一層」（.actimg），那是另一件事。 */
 .blk.img.noimg.bpick::after{
   inset:auto;
   left:calc(var(--ph,4px) + var(--cw) * .15 - 3px);
@@ -313,26 +314,42 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
    固定大小、不跟著版面縮放：它是操作用的，不是版面的一部分。
    （試過改成 Canva 那一套：細藍框＋圓點角＋長條邊中點、把手固定螢幕大小。
      談定不要 —— 版面上多一圈線就是多一圈線，不好看。） */
-/* 只有四個角 —— 邊中點那四顆拿掉了，見 paintHandles。 */
-/* 白底、細環、正圓 —— 照 canvas-image-editor 那一套（顏色留這裡原本的藍，
-   也沒有旋轉那一顆）。實際大小由 paintHandles 逐顆算：螢幕上固定大小，
-   而且夾住不讓它蓋掉要改的那塊零件。 */
+/* 只有四個角 —— 邊中點那四顆拿掉了，見 paintHandles。談定：商品圖拉扁就不是
+   那個商品的樣子了，而四個角一律等比例。 */
+/* 白底、細環、**方角** —— 照貼紙庫那一支（sticker_editor 的 .hd），兩邊選起來
+   長得一樣。顏色用這一支自己的 --select（藍＝你正在點的東西），不抄那邊的 hex。
+   實際大小由 paintHandles 逐顆算：螢幕上固定大小，而且夾住不讓它蓋掉要改的那塊零件。 */
 .rz{
   position:absolute;width:10px;height:10px;z-index:70;
-  background:#fff;border:1.5px solid #2b7fd4;border-radius:50%;
+  background:#fff;border:1.5px solid var(--select);border-radius:0;
   box-shadow:0 1px 2px rgba(0,0,0,.28);
 }
-/* 把手貼在邊框「裡面」，不是掛在外面：靠右下的零件（價格、SKU 本來就對齊右下）
-   如果把手往外突出，就會掉到畫布外被裁掉 —— 看不到也抓不到。 */
+/* 選取框。**畫在看得到的那一塊上**（selRect → visBox），不是零件的外框 ——
+   外框比看得到的東西大很多：6 單位的圓角、上下左右的內距、1.5 的框線，而價格／
+   SKU／規格還帶著一個靠右對齊用的欄寬框（b.w2），字在右邊、框的左半截是空的。
+   ⚠️ 直角：它不再跟著 .blk 的圓角彎（那是框的形狀，不是這塊零件的形狀）。
+   ⚠️ 線寬 --px1 ＝**一個螢幕像素**換算回排版單位（見 syncHairline）：這一層外面
+   套著 --cs 和 --ss 兩層縮放，寫死 1.5px 的話拉近看就變成一條粗藍線，
+   而它是記號、不是版面的一部分。
+   ⚠️ 用一顆自己的節點不用 ::before/::after：那兩個在 .blk.bpick（集體移動的螞蟻線）
+   和 .blk.price.crossed（劃掉的價格）身上已經被用掉了。 */
+.selbox{
+  position:absolute;z-index:69;pointer-events:none;
+  border:var(--px1,1px) solid var(--select);border-radius:0;
+}
+/* 位置一律由 placeHandles 寫成行內樣式（騎在框上，貼到畫布邊緣才收回來），
+   這四條只剩游標還算數。 */
 .rz-nw{left:0;top:0;cursor:nwse-resize}
 .rz-ne{right:0;top:0;cursor:nesw-resize}
 .rz-se{right:0;bottom:0;cursor:nwse-resize}
 .rz-sw{left:0;bottom:0;cursor:nesw-resize}
-/* 選取框拿掉了（見上面 .blk.sel 那一段）—— 八顆把手自己就站得出來，
-   它們本來是「騎在框上」的，現在就是選取本身。
-   ⚠️ 只有「剛好選了一塊」才有把手，所以多選要自己畫得出來：框一圈藍
-   （藍＝你正在點的東西）。這幾塊會一起被拖走，看不見就等於沒選到。 */
-.blk.msel{border-color:var(--select);box-shadow:0 0 0 1px var(--select)}
+/* 選起來就有一圈藍框（2026-09-12 加回來，照貼紙庫那一套 #art .lyr.sel）。
+   以前只有四顆角上的點，理由是「版面上多一圈線就是多一圈線」—— 但那是**選取**的線，
+   不是版面的線：它只在選起來的時候在，而且列印時本來就洗掉。沒有它的時候
+   「我現在抓著的是哪一塊」要靠四個小點自己拼出來，零件一大就看不出來。
+   ⚠️ 那一圈**不畫在 .blk 上**（本來是 box-shadow，量到過比字寬一大截）——
+   一律畫在 .selbox 上，位置照 selRect()。多選就是每一塊各一個 .selbox，
+   把手只給「剛好選了一塊」（四個角是拉大小用的，一次拉一塊）。 */
 /* 一把看得到的尺，開著就一直在。壓在最底下（z-index:0）—— 它是背景不是內容，
    蓋在商品圖上會被當成版面的一部分。 */
 /* 集體移動開著時選起來的那幾塊：外圈跑一圈虛線，跟 落版「送給 PM」那顆鈕同一個做法
@@ -1030,13 +1047,17 @@ function clampToMargin(){
     const bs = (c===cell())?BLOCKS:c.blocks;
     const el = document.getElementById('cell'+i);
     if(!el||!bs.length) return;
-    const k=(el.clientWidth||CW)/CW;
     bs.forEach(b=>{
-      const n=el.querySelector(`[data-b="${b.id}"]`);
-      const w=n?n.getBoundingClientRect().width/k:0;
-      const h=n?n.getBoundingClientRect().height/k:0;
-      b.x=Math.max(MARGIN,Math.min(b.x,CW-MARGIN-w));
-      b.y=Math.max(MARGIN,Math.min(b.y,CH-MARGIN-h));
+      /* 量 visBox（跟牆同一份）。以前量整塊的外框（含內距和框線），邊界一改，
+         零件被拉到離線還有一截的地方；右下那一組（b.rx）更是拿 undefined 去算。 */
+      const n=el.querySelector('[data-b="'+b.id+'"]'); if(!n) return;
+      const v=visBox(n); if(!(v.w>0)) return;
+      const l=n.offsetLeft+v.ox, t=n.offsetTop+v.oy;
+      let dx=0, dy=0;
+      if(l<MARGIN) dx=MARGIN-l; else if(l+v.w>CW-MARGIN) dx=(CW-MARGIN)-(l+v.w);
+      if(t<MARGIN) dy=MARGIN-t; else if(t+v.h>CH-MARGIN) dy=(CH-MARGIN)-(t+v.h);
+      if(Math.abs(dx)>.5){ if(b.rx!=null) b.rx=Math.max(0,(+b.rx||0)-dx); else b.x=(+b.x||0)+dx; }
+      if(Math.abs(dy)>.5) b.y=(+b.y||0)+dy;
     });
   });
 }
@@ -1428,6 +1449,8 @@ function reframeBlocks(arrs, kx, ky){
     arr.forEach(b => {
       b.x = (+b.x || 0) * kx;
       b.y = (+b.y || 0) * ky;
+      if(b.pushX) b.pushX = +(b.pushX * kx).toFixed(1);   // 被推開的那一段也是座標
+      if(b.pushY) b.pushY = +(b.pushY * ky).toFixed(1);
     });
   });
 }
@@ -1519,8 +1542,8 @@ function applyBulkMove(m, except){
   /* 先量再搬：墨水框的 w/h/ox/oy 跟位置無關，所以搬之前量到的一樣能用，
      而 clampAll 沒有 sizes 會直接 return（＝完全沒夾到）。 */
   const sizes = {};
-  hit.forEach(b => { try{ sizes[b.id] = inkBox(b.id); }catch(_){} });
-  hit.forEach(b => { unpin(b); b.x = (+b.x||0) + dx; b.y = (+b.y||0) + dy; holdPlace(b); });
+  hit.forEach(b => { try{ sizes[b.id] = visBox(b.id); }catch(_){} });
+  hit.forEach(b => { unpin(b); bakePush(b); b.x = (+b.x||0) + dx; b.y = (+b.y||0) + dy; holdPlace(b); });
   try{ clampAll(hit.map(b=>b.id), sizes); }catch(_){}
   saveCell();
   renderCell();
@@ -1592,7 +1615,7 @@ addEventListener('message',e=>{
     document.documentElement.style.setProperty('--ss', STAGE_SCALE.toFixed(4)); }
   /* 上層轉過來的 Delete：焦點停在上層那一頁（例如剛把貼紙拖進來）時，
      這一格收不到鍵盤，上層認得出選取在哪一格，就轉給那一格。 */
-  if(d.stageDelete) keyDelete();
+  if(d.stageDelete){ userAct(); keyDelete(); }
   /* 開關集體移動＝已經選起來的那幾塊要換個顏色（藍↔紅），所以要重畫。
      沒有選取就什麼都不必動。 */
   if(d.bulkMode !== undefined){
@@ -1605,7 +1628,7 @@ addEventListener('message',e=>{
       (+d.bulkPreview.dxMm||0)/10*per, (+d.bulkPreview.dyMm||0)/10*per);
   }
   if(d.bulkPreviewEnd) clearBulkPreview();
-  if(d.bulkApply){ clearBulkPreview(); applyBulkMove(d.bulkApply); }
+  if(d.bulkApply){ userAct(d.bulkApply.act); clearBulkPreview(); applyBulkMove(d.bulkApply); }   // 跟來源那一格同一步
   if(d.stageEditing !== undefined) applyStageEditing(d.stageEditing);
   if(d.stageClearSel) clearStageSel();      // 上層要印乾淨版了，把選取收起來
   if(d.stageSnapshot) snapshotStage(d.stageSnapshot);   // 上層要這一格的點陣圖
@@ -1618,7 +1641,7 @@ addEventListener('message',e=>{
     if(g !== SHOW_GRID){ SHOW_GRID = g; setTimeout(()=>{ try{ renderCell(); }catch(_){} },0); }
   }
   if(d.type) applyType(d.type);          // 這個版位的字級設定（SKU、價格）
-  if(d.addSticker) addStickerBlock(d.addSticker);   // 拼板 那顆「貼圖」工具點了這一格
+  if(d.addSticker){ userAct(); addStickerBlock(d.addSticker); }   // 拼板 那顆「貼圖」工具點了這一格
   /* 共用的商品目錄要在 restoreBoard 之前收：picked 存的是 SKU，目錄還是內建的
      那份時對不上，畫布會整格空掉。 */
   if(d.catalogue) applyCatalogue(d.catalogue);
@@ -1628,17 +1651,17 @@ addEventListener('message',e=>{
      上層那張蓋布是照這一句掀的。
      ⚠️ 空的那一格（boardRestore 是 null）也要回報：restoreBoard 會直接 return，
      不報的話那一格會被蓋到 6 秒的保險才掀開，而它根本沒有東西要等。 */
-  if(d.boardRestore !== undefined){ restoreBoard(d.boardRestore); tellPainted(); }
+  if(d.boardRestore !== undefined){ ACT_UNTIL = 0; restoreBoard(d.boardRestore); tellPainted(); }
   // 旁邊那塊面板剛剛勾了什麼 — 畫布照著重排（挑了什麼是面板說了算）
   if(d.boardPicked) applyPicked(d.boardPicked);
   // 面板那邊按了「刪掉」— uid 兩邊算出來是同一個，所以指名就認得出是哪一塊
-  if(d.boardOff) applyOff(d.boardOff);
+  if(d.boardOff){ userAct(); applyOff(d.boardOff); }
   /* 圖層那一排：畫布報的那一份（面板照它畫），和面板按下去轉回來的那一下（畫布照做）。 */
   if(d.stageLayers && UI_PANEL){
     STAGE_LAYERS=d.stageLayers; STAGE_ACTIVE=d.activeLayer||'';
     renderLayers();
   }
-  if(d.layerAct && UI_STAGE) applyLayerAct(d.layerAct);
+  if(d.layerAct && UI_STAGE){ userAct(); applyLayerAct(d.layerAct); }
   /* 別的地方（別一格的畫布、商品目錄那一頁）換了某一個商品的圖。
      只補這一把鑰匙、只重畫用得到它的格 —— 這正是不走整包 catalogue 的理由：
      那條路會把每一格的 layoutKey 清掉重排一次。 */
@@ -1821,6 +1844,7 @@ async function putProductImage(key, file, el){
     delete c[key]; delete c[imgKeyBase(key)];
     saveCell();
     setProductImg(key, url);
+    userAct();             // 傳圖要等網路，傳完那一下才算這一步
     reportBoard();         // 這一格的 img override 少了一筆，要存回檔期
     say('換好了');
   }catch(err){
@@ -2079,6 +2103,10 @@ function keyLabel(k){
              + (a[3] ? '　' + a[3] : '');
 }
 let BLOCKS = [];
+let PUSH_NOW = false;     // 這一趟重排是不是「改商品圖的大小」（見 pushImgs）
+let PUSH_FAIL = false;    // 上一次推開的時候有沒有讓不開
+/* 這一格現在的改動是哪一下手勢造成的（見 userAct）。 */
+let ACT_ID = '', ACT_UNTIL = 0;
 /* picked 與 BLOCKS 是「目前格」的視圖，切格時同步 */
 function loadCell(i){
   if(cell(i)===undefined) return;
@@ -2381,7 +2409,12 @@ function blockHTML(b,isCur=true){
      量的是字不是框）。keepInside 因此只需要管品名的高度。 */
   if(b.kind==='name'){
     const room = Math.max(40, CW - MARGIN - (b.rx != null ? MARGIN : (+b.x||0)));
-    return `<div class="blk name${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs};max-width:calc(${room.toFixed(1)}px - var(--ph,4px) - var(--bd,1.5px))">${b.text}</div>`;
+    /* .blk 是 border-box（寬含左右兩圈內距和框線），所以上限＝到牆的距離**加上**右邊那一圈 ——
+       字的右緣貼牆的時候，右邊的內距和框線本來就站在牆外（透明的，看不見）。
+       以前寫成「減掉」（content-box 的算法），上限窄了左右兩圈（約 11 個單位）：長品名離牆還有
+       一截就折行，拖到右邊的牆上更是一定折成兩行，整塊停在離牆 113 的地方（2026-09-13 量到的）。
+       多 .5 是捨入：字寬剛好等於上限的時候瀏覽器照樣折行。 */
+    return `<div class="blk name${on}${pk(b)}" data-b="${b.id}" style="${pos};top:${b.y}px${bs};max-width:calc(${(room + .5).toFixed(1)}px + var(--ph,4px) + var(--bd,1.5px))">${b.text}</div>`;
   }
   if(b.kind==='img'){
     const dim = isCur?xrayDim(b):1;
@@ -2392,8 +2425,11 @@ function blockHTML(b,isCur=true){
     /* 高度一律跟著寬度等比例（.ph 的 aspect-ratio／真圖的 height:auto）。
        舊資料可能還留著 b.h（單向拉伸那個功能留下來的），不理它 —— 拉不回來的
        扁圖留在版上，比「不能改長寬比」這條規矩本身更糟。 */
+    /* 被別張圖推開的那一段（b.pushX／b.pushY，見 pushImgs）只加在畫的時候：
+       b.x／b.y 還是它自己的位置，推它的那張縮回去，它才回得去。 */
+    const ix=(+b.x||0)+(+b.pushX||0), iy=(+b.y||0)+(+b.pushY||0);
     return `<div class="blk img${on}${noimg}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
-      style="${pos};top:${b.y}px;width:${iw}px;${noimg?`--iw:${iw}px;`:''}z-index:${b.z};opacity:${dim}">
+      style="left:${ix}px;top:${iy}px;width:${iw}px;${noimg?`--iw:${iw}px;`:''}z-index:${b.z};opacity:${dim}">
       ${imgHTML(b.key, b.row)}
       <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
   }
@@ -2488,6 +2524,15 @@ const HANDLE_PX = 10;          // 想要的螢幕大小（白底細環，見 .rz
    —— 上層會用 stageScale 報進來（見 fitCellCanvases）。單獨開這一頁時沒有人報，
    那就是 1。 */
 let STAGE_SCALE = 1;
+/* 一個螢幕像素等於幾個排版單位 —— 選取框的線寬（--px1）讀它。
+   跟 handleSize 同一個算式：外面套著 --cs（畫布縮進格子）和 --ss（那一格在版上
+   又被縮過一次）。寫死線寬的話，拉近看那一圈就變成一條粗藍線。 */
+function syncHairline(){
+  const cs = (parseFloat(getComputedStyle(document.documentElement)
+               .getPropertyValue('--cs')) || 1) * (STAGE_SCALE || 1);
+  document.documentElement.style.setProperty('--px1',
+    Math.max(.2, 1 / (cs || 1)).toFixed(2) + 'px');
+}
 const HANDLE_MIN = 6;          // 排版單位的下限
 const HANDLE_MAX_FRAC = .34;   // 最多吃掉這一塊短邊的幾成
 function handleSize(el){
@@ -2498,59 +2543,226 @@ function handleSize(el){
   return Math.max(HANDLE_MIN, Math.min(want, Math.max(HANDLE_MIN, cap)));
 }
 
-/* 只把既有的那四顆改大小。--cs 變了但版面沒重排時走這條 —— 直接叫 paintHandles
-   會再 append 一組，變成八顆疊著。 */
+/* 這一塊**真的畫出了什麼**（螢幕座標）：把每一個孩子和每一段文字量一遍取聯集。
+   ⚠️ **不量框**：零件的外框比畫出來的東西大很多 —— 上下左右的內距、1.5 的框線，
+   而價格／SKU／規格還帶著一個靠右對齊用的欄寬框（b.w2），字在右邊、框的左半截
+   是空的（量到過選取框比「44900」寬三倍）。
+   ⚠️ 這幾支是 visBox 的內臟：選取框和牆**讀同一份**。以前牆用自己的一份估算
+   （字框、內容框），選取框量 DOM —— 「拖不到邊界」每一次都是那兩份對不起來。
+   ⚠️ 記號本身要跳過（.selbox／.rz／.tobtn／.delbtn）：它們是 UI 不是內容，
+   而且 resizeHandles 重量的時候它們就在 DOM 裡，量進去的話那一圈會越長越大。 */
+const SEL_SKIP = 'selbox rz tobtn delbtn'.split(' ');
+/* 圖、svg、canvas 畫的就是它自己那一塊，不往裡面問。 */
+const REPLACED = new Set(['img', 'svg', 'canvas', 'video']);
+let glyphCv = null;
+const glyphM = new Map();      // 字型＋字串 → 字形量到多高；同一趟重排同一串字會被問好幾次
+/* 這個孩子畫出來多大。
+   ⚠️ **沒有框也沒有底的容器要再往裡面問一次**（.blk.skub 裡那層 .sku 就是：
+   它是一個 div，佔滿一整行，而畫出來的只有靠右那幾個字）。有框有底的
+   （.spec 那顆藥丸、真的圖）就是它自己那一塊，不必再往下。 */
+function paintedRect(n, sc){
+  const cs=getComputedStyle(n);
+  if(cs.display==='none') return null;
+  const own=n.getBoundingClientRect();
+  if(!own.width || !own.height) return null;
+  if(REPLACED.has(String(n.nodeName).toLowerCase())) return own;
+  const clear = cs.backgroundImage==='none'
+    && (cs.backgroundColor==='rgba(0, 0, 0, 0)' || cs.backgroundColor==='transparent')
+    && !parseFloat(cs.borderTopWidth) && !parseFloat(cs.borderLeftWidth)
+    && !parseFloat(cs.borderRightWidth) && !parseFloat(cs.borderBottomWidth);
+  if(clear && n.childNodes.length){
+    const inner=inkRect(n, sc);
+    /* ⚠️ **會裁掉孩子的容器（overflow:hidden）要跟自己的框取交集**：品牌圖的 .bcrop
+       就是 —— 裡面那張圖放大、往左上位移，四周那圈透明被裁掉，而圖自己的框還是
+       整張（含被裁掉的那一圈）。不交集的話 HITACHI 那種四周留白很多的 logo，
+       選取框比看得到的那一塊大一大圈。 */
+    if(inner && /hidden|clip/.test(cs.overflowX + ' ' + cs.overflowY)){
+      const L=Math.max(inner.left,own.left), T=Math.max(inner.top,own.top),
+            R=Math.min(inner.right,own.right), B=Math.min(inner.bottom,own.bottom);
+      return (R>L && B>T) ? { left:L, top:T, right:R, bottom:B, width:R-L, height:B-T } : null;
+    }
+    if(inner) return inner;
+  }
+  return own;
+}
+function inkRect(el, sc){
+  let L=Infinity,T=Infinity,R=-Infinity,B=-Infinity;
+  el.childNodes.forEach(n=>{
+    let r=null;
+    if(n.nodeType===3){
+      if(!String(n.nodeValue||'').trim()) return;
+      const rg=document.createRange(); rg.selectNode(n); r=glyphRect(rg.getBoundingClientRect(), n, sc);
+    } else if(n.nodeType===1){
+      if(SEL_SKIP.some(c=>n.classList.contains(c))) return;
+      r=paintedRect(n, sc);
+    }
+    if(!r || !r.width || !r.height) return;
+    L=Math.min(L,r.left); T=Math.min(T,r.top);
+    R=Math.max(R,r.right); B=Math.max(B,r.bottom);
+  });
+  /* ⚠️ right／bottom 一定要一起回：往裡面遞迴問回來的那一份也會被拿去取聯集，
+     少了就是 max(-Infinity, undefined) ＝ NaN，而寬高寫成 NaNpx 會被整條丟掉，
+     選取框當場縮成一個點（.blk.skub 量到 1x1 就是這樣來的）。 */
+  return isFinite(L) ? { left:L, top:T, right:R, bottom:B, width:R-L, height:B-T } : null;
+}
+
+/* 選取框和四顆把手站的地方（排版單位，從絕對定位的原點 ＝ 內距框算起）。
+   量不到就退回整塊的內距框 —— 沒有記號比畫錯地方好一點。 */
+function selRect(el){
+  const v = visBox(el);
+  return { L:v.ox - el.clientLeft, T:v.oy - el.clientTop, W:v.w, H:v.h };
+}
+
+/* 一段字的上下緣收到**字形的墨水**：Range 量到的是字框（字型的 ascent＋descent），
+   Anton 那種 line-height:1 的數字，字框比數字高一大截 —— 照字框算的話，
+   數字離上下邊界線永遠還有一截推不過去（量到過 18 個單位）。
+   左右不收：Range 的左右就是字真的畫在哪，連價格溢出自己那一欄的那一截都量得到。
+   ⚠️ 快取靠字型字串當鑰匙，Anton 到齊前後字串一樣 —— 所以 fonts.ready 那一段要清掉它。 */
+function glyphRect(r, t, sc){
+  const p = t.parentElement;
+  const txt = String(t.nodeValue || '').trim();
+  if(!p || !txt || !(sc > 0) || !r.height) return r;
+  const cs = getComputedStyle(p);
+  const font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+  const key = font + '\u0000' + txt;
+  let m = glyphM.get(key);
+  if(!m){
+    try{
+      glyphCv = glyphCv || document.createElement('canvas').getContext('2d');
+      glyphCv.font = font;
+      const q = glyphCv.measureText(txt);
+      m = { fa:q.fontBoundingBoxAscent, fd:q.fontBoundingBoxDescent,
+            aa:q.actualBoundingBoxAscent, ad:q.actualBoundingBoxDescent };
+    }catch(_){ m = {}; }
+    if(glyphM.size > 400) glyphM.clear();
+    glyphM.set(key, m);
+  }
+  if(!(m.fa > 0) || !(m.aa >= 0) || !isFinite(m.ad) || !isFinite(m.fd)) return r;
+  const top = r.top + Math.max(0, m.fa - m.aa) * sc;
+  const bottom = r.bottom - Math.max(0, m.fd - m.ad) * sc;
+  if(!(bottom > top)) return r;
+  return { left:r.left, right:r.right, width:r.width, top, bottom, height:bottom - top };
+}
+
+/* ====== 一塊零件看得見的邊在哪 —— **唯一的一份**（2026-09-13） ==================
+   選取框、四顆把手、拖曳的牆、改大小的牆、對齊線、出界滑回來（keepInside）、
+   改邊界時拉回來（clampToMargin）、圖片互相排開、預設版面對齊邊界 —— 全部讀這一支。
+   以前是五份各量各的：牆用 visBox（字框估算、圖量內容框）、選取框量 DOM、keepInside
+   圖量外框、clampToMargin 量整塊的外框、排開量灰圖。「拖不到邊界」修過好幾次，
+   每一次都是其中兩份對不起來 —— 經過和規矩在 .claude/skills/cell-wall。
+   做法照 tldraw（一個形狀一份 geometry，點選、框選、吸附、邊界都從它來）和 Konva
+   （拖曳夾的、改大小擋的是同一個 getClientRect）。
+   **加一種新零件、或改一種零件的畫法，只准改這裡**，改完跑 cell-wall 的 wall.mjs。
+   回傳排版單位，從零件的外框原點（offsetLeft／offsetTop 那一點）量起：{ ox, oy, w, h }。
+   ・字：左右＝字真的畫在哪，上下＝字形的墨水（glyphRect）；
+   ・圖／svg／canvas＝它自己；還沒有圖的＝灰圖（.ph 本身就是一張 svg）；
+   ・有底色或框線的（規格那顆藥丸）＝它自己；透明的容器再往裡面問；
+   ・會裁掉孩子的容器（品牌的 .bcrop）跟自己的框取交集；
+   ・選取記號自己跳過（SEL_SKIP）。
+   ⚠️ 零件**自己那一層不交集**：價格溢出自己那一欄是真的畫在外面，量不到的話
+   keepInside 就不會把它縮回來。
+   量不到（還沒排版、整塊是空的）才退回內容框。 */
+function visBox(id){
+  const n = (id && id.nodeType === 1) ? id : bEl(id);
+  if(!n) return { ox:0, oy:0, w:0, h:0 };
+  const er = n.getBoundingClientRect();
+  if(er.width && n.offsetWidth){
+    const sc = er.width / n.offsetWidth;              // 螢幕 px ／ 排版單位（外面縮過好幾層）
+    const ink = inkRect(n, sc);
+    if(ink && ink.width > 0 && ink.height > 0)
+      return { ox:(ink.left - er.left) / sc, oy:(ink.top - er.top) / sc,
+               w:ink.width / sc, h:ink.height / sc };
+  }
+  const cs = getComputedStyle(n);
+  const pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+  const pt = parseFloat(cs.paddingTop) || 0, pb = parseFloat(cs.paddingBottom) || 0;
+  return { ox:n.clientLeft + pl, oy:n.clientTop + pt,
+           w:Math.max(0, n.clientWidth - pl - pr), h:Math.max(0, n.clientHeight - pt - pb) };
+}
+function placeSelBox(box, r){
+  box.style.left   = r.L.toFixed(1)+'px';
+  box.style.top    = r.T.toFixed(1)+'px';
+  box.style.width  = Math.max(0, r.W).toFixed(1)+'px';
+  box.style.height = Math.max(0, r.H).toFixed(1)+'px';
+}
+
+/* 只把既有的記號重新量一次。--cs 或 --ss 變了但版面沒重排時走這條 ——
+   直接叫 paintHandles 會再 append 一組，變成八顆疊著。 */
 function resizeHandles(){
-  const el = selected.size===1 ? bEl([...selected][0]) : null; if(!el) return;
-  const hs = el.querySelectorAll('.rz'); if(!hs.length) return;
-  const sz = handleSize(el), bd = Math.max(1, sz / 9);
-  hs.forEach(h=>{ h.style.width = h.style.height = sz.toFixed(1)+'px';
-                  h.style.borderWidth = bd.toFixed(2)+'px'; });
-  placeHandles(el, hs, sz);
+  if(!selected.size) return;
+  syncHairline();
+  [...selected].forEach(id=>{
+    const el = bEl(id); if(!el) return;
+    const box = el.querySelector(':scope > .selbox');
+    const hs = el.querySelectorAll(':scope > .rz');
+    if(!box && !hs.length) return;
+    const r = selRect(el);
+    if(box) placeSelBox(box, r);
+    if(!hs.length) return;
+    const sz = handleSize(el), bd = Math.max(1, sz / 9);
+    hs.forEach(h=>{ h.style.width = h.style.height = sz.toFixed(1)+'px';
+                    h.style.borderWidth = bd.toFixed(2)+'px'; });
+    placeHandles(el, hs, sz, r);
+  });
 }
 
 /* 還沒有圖的那一塊：四顆把手站在**灰圖**的四個角，不是框的四個角
    （見 .blk.img.noimg 那一段）。量出來再擺 —— 灰圖在框裡的位置是 CSS 的百分比
    加內距加框線算出來的，這裡照抄一份算式遲早對不上。
    有圖的那幾塊把 inline 的位置清掉，交還給 .rz-nw／.rz-se 那幾條。 */
-function placeHandles(el, hs, sz){
-  const ph = el.classList.contains('noimg') ? el.querySelector(':scope > .ph') : null;
-  const er = el.getBoundingClientRect();
-  if(!ph || !er.width){
-    hs.forEach(h=>{ h.style.left = h.style.top = h.style.right = h.style.bottom = ''; });
-    return;
-  }
-  const pr = ph.getBoundingClientRect();
-  const k = el.offsetWidth / er.width;                 // 螢幕 px → 排版單位（外面還縮過好幾層）
-  const L = (pr.left - er.left) * k - el.clientLeft;   // 絕對定位從框線裡面算起
-  const T = (pr.top  - er.top)  * k - el.clientTop;
-  const W = pr.width * k, H = pr.height * k;
+function placeHandles(el, hs, sz, r){
+  const half = sz / 2;
+  // 站在選取框的四個角上（見 selRect）—— 框和把手要對得起來，不然像兩套記號
+  const L = r.L, T = r.T, W = r.W, H = r.H;
+  /* 把手**騎在框上**（一半在裡面一半在外面），照貼紙庫那一套 —— 選取框和把手
+     對得起來，才看得出那一圈就是這塊零件的邊。
+     ⚠️ 但貼著畫布邊緣的那幾塊要收回來：價格、SKU 本來就對齊右下，而 .cell 是
+     overflow:hidden —— 騎出去的那一半會被裁掉，看不到也抓不到。
+     （以前四顆是無條件塞在框線裡面的，就是為了這件事；現在只有真的貼邊才收。） */
+  const ox = el.offsetLeft + el.clientLeft, oy = el.offsetTop + el.clientTop;
   hs.forEach(h=>{
     const c = h.dataset.corner || '';
-    h.style.left = (c.includes('w') ? L : L + W - sz).toFixed(1)+'px';
-    h.style.top  = (c.includes('n') ? T : T + H - sz).toFixed(1)+'px';
+    let x = (c.includes('w') ? L : L + W) - half;
+    let y = (c.includes('n') ? T : T + H) - half;
+    x = Math.max(-ox, Math.min(x, CW - sz - ox));
+    y = Math.max(-oy, Math.min(y, CH - sz - oy));
+    h.style.left = x.toFixed(1)+'px';
+    h.style.top  = y.toFixed(1)+'px';
     h.style.right = h.style.bottom = 'auto';
   });
 }
 
+/* 選取記號：**選起來的每一塊各一個框**，只有「剛好選了一塊」才長把手。
+   （名字留著沒改：renderCell、拉完大小那幾條都在叫它。） */
 function paintHandles(){
-  if(ROLE==='pm' || selected.size!==1) return;
-  const el=bEl([...selected][0]); if(!el) return;
-  /* 一律只有四個角。圖片本來多四顆邊中點可以單向拉伸（PPT 那一套），
-     談定拿掉：商品圖拉扁就不是那個商品的樣子了，而印出去改不回來。
-     四個角是等比例的，所以「拉大小」這件事永遠不會動到長寬比。 */
-  const corners = ['nw','ne','sw','se'];
-  const sz = handleSize(el), bd = Math.max(1, sz / 9);
-  corners.forEach(c=>{
-    const h=document.createElement('i');
-    h.className='rz rz-'+c;
-    h.dataset.corner=c;
-    h.title='拖曳改大小（按住 Shift 微調）';
-    h.style.width = h.style.height = sz.toFixed(1)+'px';
-    h.style.borderWidth = bd.toFixed(2)+'px';
-    el.appendChild(h);
+  if(ROLE==='pm' || !selected.size) return;
+  syncHairline();
+  const one = selected.size === 1;
+  [...selected].forEach(id=>{
+    const el = bEl(id); if(!el) return;
+    // 重畫過的格子身上不會有舊的；沒重畫就直接來的那幾條（拉完大小）要先清掉
+    el.querySelectorAll(':scope > .selbox, :scope > .rz').forEach(n=>n.remove());
+    const r = selRect(el);
+    const box = document.createElement('i');
+    box.className = 'selbox';
+    placeSelBox(box, r);
+    el.appendChild(box);
+    if(!one) return;
+    /* 一律只有四個角。圖片本來多四顆邊中點可以單向拉伸（PPT 那一套），
+       談定拿掉：商品圖拉扁就不是那個商品的樣子了，而印出去改不回來。
+       四個角是等比例的，所以「拉大小」這件事永遠不會動到長寬比。 */
+    const sz = handleSize(el), bd = Math.max(1, sz / 9);
+    ['nw','ne','sw','se'].forEach(c=>{
+      const h=document.createElement('i');
+      h.className='rz rz-'+c;
+      h.dataset.corner=c;
+      h.title='拖曳改大小（按住 Shift 微調）';
+      h.style.width = h.style.height = sz.toFixed(1)+'px';
+      h.style.borderWidth = bd.toFixed(2)+'px';
+      el.appendChild(h);
+    });
+    placeHandles(el, el.querySelectorAll(':scope > .rz'), sz, r);
   });
-  placeHandles(el, el.querySelectorAll('.rz'), sz);
 }
 
 /* 渲染單一格子（i 可為任一格） */
@@ -2586,6 +2798,20 @@ function paintKeepingImgs(el, html){
   });
 }
 
+/* 貼圖接到新生的那一份零件上：位置、大小、字、藏起來沒有，全部照舊。
+   疊的順序墊在新的商品圖上面（貼圖是蓋在圖上的徽章），貼圖彼此的先後不變。
+   ⚠️ 不用 stackable()：那是下面才宣告的 const，這一支在開機那一趟就會被叫到。 */
+function carryStickers(B, carry){
+  if(!carry || !carry.length) return;
+  const top=B.filter(b=>b.kind==='img'||b.kind==='sticker').reduce((m,x)=>Math.max(m,+x.z||0),0);
+  carry.slice().sort((a,b)=>(+a.z||0)-(+b.z||0)).forEach((st,i)=>{
+    st.z=top+1+i; stkUid(st); B.push(st);
+  });
+}
+/* 貼圖在「刪掉的，打勾放回來」那份名冊裡的身分。商品零件的 uid 是照挑的貨推出來的，
+   貼圖不是挑出來的，就用它自己的 id（全域唯一，重排也不會變）。 */
+function stkUid(b){ if(b && !b.uid) b.uid='sticker|'+b.id; return b ? b.uid : ''; }
+
 function renderOne(i, force){
   const el=document.getElementById('cell'+i);
   if(!el) return;
@@ -2594,11 +2820,30 @@ function renderOne(i, force){
   const row1 = i<GC ? ' row1':'';
   const pk = isCur?picked:c.picked;
   if(!pk.size){
-    el.className='cell empty'+(isCur?' cur':'')+row1;
-    el.innerHTML='點一下選商品';
     // 必須清掉 layoutKey，否則之後重選同一組會與舊 key 相同而不重建
     c.layoutKey='';
-    if(isCur){ BLOCKS=[]; layoutKey=''; } else c.blocks=[];
+    /* 貼圖不是挑出來的，貨全部拿掉也不該跟著不見：留在這一格身上，
+       再挑貨的時候照原樣回來。 */
+    const keepStk=(isCur?BLOCKS:(c.blocks||[])).filter(b=>b.kind==='sticker');
+    if(isCur){ BLOCKS=keepStk; layoutKey=''; } else c.blocks=keepStk;
+    if(!keepStk.length){
+      el.className='cell empty'+(isCur?' cur':'')+row1;
+      el.innerHTML='點一下選商品';
+      return;
+    }
+    /* **還沒挑貨也貼得上貼圖**（2026-09-12，上層 pasteStickerOn 會現生一支畫布）——
+       所以這一格要畫得出來，不然貼上去的那張是看不見的。
+       ⚠️ 不加 .empty：那個 class 是把中間那行字置中用的（flex 置中），
+       留著的話 .cstage 會被當成那行字擺到正中間去。 */
+    el.className='cell'+(isCur?' cur':'')+row1;
+    const hid0=c.off||{};
+    const stk=keepStk.filter(b=>!hid0[b.uid]);
+    paintKeepingImgs(el,'<div class="cstage">'
+      + stk.map(b=>blockHTML(b,isCur)).join('')
+      + '<div class="marquee" id="marquee'+i+'"></div>'
+      + '<div class="safe"></div></div>');
+    try{ StickerRender.fitTexts(el); }catch(_){}
+    if(isCur) setTimeout(()=>{ renderProps(); renderRestore(); },0);
     return;
   }
   const k=[...pk].sort((a,b)=>a-b).join(',');
@@ -2607,7 +2852,10 @@ function renderOne(i, force){
     c.layoutKey=k;
     if(isCur){ layoutKey=k; selected.clear(); activeImg=null; }
     const savedP=picked, savedB=BLOCKS;
-    picked=pk; buildBlocks(); c.blocks=BLOCKS;
+    /* 重排是照挑的貨從頭生一份零件 —— 貼圖不在那份清單裡，不接過去就整批不見
+       （以前勾一個規格，這一格貼過的貼圖就全沒了）。 */
+    const carry=(isCur?BLOCKS:(c.blocks||[])).filter(b=>b.kind==='sticker');
+    picked=pk; buildBlocks(); carryStickers(BLOCKS, carry); c.blocks=BLOCKS;
     if(isCur){ setTimeout(()=>{
         document.getElementById('lay').classList.toggle('on',panelsOn&&ROLE!=='pm');
         renderLayers();
@@ -2655,6 +2903,11 @@ function renderOne(i, force){
        （縮一點就少一行、高度忽然少一半，推回去又放大、又多一行 —— 量到過來回跳）。
        所以先全部放回原本的大小畫一次，底下那幾趟照原本的大小排，最後 keepInside 只准往小縮。 */
     if(blocks.some(b => b.fit)){ blocks.forEach(b => { delete b.fit; }); paint(waitLogo); }
+    /* 推開要從每一張圖**自己的位置**重算，所以先全部放回去再排（見 pushImgs）。
+       不是改圖大小的那一趟就留著上一次推開的結果：推開只跟著「改大小」這個動作走。 */
+    if(PUSH_NOW && blocks.some(b => b.pushX || b.pushY)){
+      blocks.forEach(b => { delete b.pushX; delete b.pushY; }); paint(waitLogo);
+    }
     // 先把上面那一疊推開（放大的那塊要先佔到位），再對齊四邊
     try{ if(spreadStack(blocks)) paint(waitLogo); }catch(_){}
     /* 攤開那幾組價格要**先夾**到塞得進自己那一欄：夾了字級，寬和高都會變，
@@ -2667,10 +2920,110 @@ function renderOne(i, force){
        早一步算的話量到的是還沒對齊前的位置 —— 那時候價格離右邊界還有一段，
        圖就以為左邊只剩那麼點空間，於是縮得莫名其妙的小（量到過該有 78 卻只給 45）。 */
     try{ if(stickImage(blocks)) paint(waitLogo); }catch(_){}
+    try{ if(PUSH_NOW && pushImgs(blocks)) paint(waitLogo); }catch(_){ PUSH_FAIL = true; }
     /* 最後一道：每一塊都要在格子裡（邊界線以內）。量一次、挪一次、再畫 —— 縮了的那一塊
        要再量一次才知道挪多少；幾塊同時出界時要好幾趟才收斂，上限六趟（沒事的格子一趟就停）。 */
     try{ for(let i = 0; i < 8 && keepInside(blocks); i++) paint(waitLogo); }catch(_){}
   }
+}
+
+/* ====== 圖片互相排開 ========================================================
+   **拉大一張商品圖，被它蓋到的圖往旁邊讓，大小不變**（談定的：排開＝搬，不是縮）。
+   規矩：
+     ・只有「改圖的大小」會推（拉角、工具列 ＋／−、重設大小）。**搬一張圖不推** ——
+       拖到別張上面就是疊著，那是人自己放的。所以這一支只在 PUSH_NOW 的那一趟跑。
+     ・推的是「手動改過大小的圖」（b.w0），最近改的那張最大：兩張都改過又疊到，
+       後改的那張站著、先改的那張讓。沒改過大小的圖只會被推，不會去推別人。
+     ・被推的那張照樣可以再推下一張（連鎖）。
+     ・往**比較短**的那一邊讓：橫的（離推它的那張中心遠的那一側）或往下。不往上 ——
+       上面是品名那一疊。
+     ・讓不開（撞到邊界線、或撞到右下那一組價格）＝這一下拉大不算，停在上一個大小
+       （PUSH_FAIL，拉角那邊照「撞到邊界」同一條還原）。
+     ・被推開的量存在 b.pushX／b.pushY，**不寫進 b.x／b.y**：每一趟都從自己的位置重算，
+       推它的那張縮回去，它就回得去（能回多少回多少）。
+   貼圖不參加：貼圖像印在商品圖上的徽章（能效標章、保固章），疊在圖上是它的本分，
+   照樣在圖層那一疊裡排順序。
+   量的是**看得到的那一塊**：還沒有圖的只畫框的 70%（灰圖，見 .blk.img.noimg），
+   照框量的話兩張灰圖中間明明空著一截也算撞到。 */
+function imgVisBox(b){
+  const el = bEl(b.id); if(!el) return null;
+  const v = visBox(el); if(!(v.w > 0)) return null;
+  return { x:(+b.x||0) + v.ox, y:(+b.y||0) + v.oy, w:v.w, h:v.h };
+}
+function pushImgs(blocks){
+  PUSH_FAIL = false;
+  const imgs = (blocks || []).filter(b => b.kind === 'img');
+  const items = imgs.map(b => { const v = imgVisBox(b); if(!v) return null;
+    /* 位置先放回「自己的位置」（上面那一行已經把 pushX 清掉、重畫過了）。 */
+    return { b, hx:v.x, hy:v.y, x:v.x, y:v.y, w:v.w, h:v.h,
+             rank: b.w0 ? (+b.rzAt || 1) : 0, moved:false };
+  }).filter(Boolean);
+  const walls = [];
+  (blocks || []).forEach(b => { if(b.rx == null) return;
+    const el = bEl(b.id); if(!el) return;
+    let k = null; try{ k = visBox(b.id); }catch(_){}
+    walls.push({ x:el.offsetLeft + (k ? k.ox : 0), y:el.offsetTop + (k ? k.oy : 0),
+                 w:k ? k.w : el.offsetWidth, h:k ? k.h : el.offsetHeight });
+  });
+  const hit = (a, c) => a.x < c.x + c.w - .5 && c.x < a.x + a.w - .5
+                     && a.y < c.y + c.h - .5 && c.y < a.y + a.h - .5;
+  const L = MARGIN, T = MARGIN, R = CW - MARGIN, B = CH - MARGIN;
+  /* 強弱：改過大小的（越近改的越強）> 已經被推過的 > 沒動的。
+     同樣強的兩張，自己的位置比較右下的那張讓 —— 一排圖是由左往右推過去的。 */
+  const power = it => it.rank > 0 ? 2 + it.rank : (it.moved ? 1 : 0);
+  let ok = true;
+  for(let guard = 0; ; guard++){
+    let pair = null;
+    for(let i = 0; i < items.length && !pair; i++)
+      for(let j = i + 1; j < items.length && !pair; j++){
+        const a = items[i], c = items[j];
+        if(!power(a) && !power(c)) continue;          // 兩張都沒被改過大小、也沒被推：人自己疊的，不管
+        if(hit(a, c)) pair = [a, c];
+      }
+    if(!pair) break;
+    if(guard > 60){ ok = false; break; }
+    let [a, c] = pair;
+    const pa = power(a), pc = power(c);
+    const strong = (pa > pc || (pa === pc && a.hx + a.hy <= c.hx + c.hy)) ? a : c;
+    const weak = strong === a ? c : a;
+    /* 它自己的位置本來就壓著的價格不算數 —— 那是人放的，不是推出來的。 */
+    const homeBox = { x:weak.hx, y:weak.hy, w:weak.w, h:weak.h };
+    const okWalls = walls.filter(w => !hit(homeBox, w));
+    const side = (weak.x + weak.w / 2) >= (strong.x + strong.w / 2)
+      ? { x:strong.x + strong.w, y:weak.y }             // 往右讓
+      : { x:strong.x - weak.w,   y:weak.y };            // 往左讓
+    const down = { x:weak.x, y:strong.y + strong.h };   // 往下讓
+    const fits = q => q.x >= L - .5 && q.y >= T - .5 && q.x + weak.w <= R + .5 && q.y + weak.h <= B + .5
+                   && !okWalls.some(w => hit({ x:q.x, y:q.y, w:weak.w, h:weak.h }, w));
+    const cands = [side, down].filter(fits)
+      .sort((u, v) => Math.hypot(u.x - weak.x, u.y - weak.y) - Math.hypot(v.x - weak.x, v.y - weak.y));
+    if(!cands.length){ ok = false; break; }
+    weak.x = cands[0].x; weak.y = cands[0].y; weak.moved = true;
+  }
+  PUSH_FAIL = !ok;
+  let changed = false;
+  items.forEach(it => {
+    const dx = +(it.x - it.hx).toFixed(1), dy = +(it.y - it.hy).toFixed(1);
+    const b = it.b;
+    if(Math.abs(dx) > .5){ if(b.pushX !== dx){ b.pushX = dx; changed = true; } }
+    else if(b.pushX != null){ delete b.pushX; changed = true; }
+    if(Math.abs(dy) > .5){ if(b.pushY !== dy){ b.pushY = dy; changed = true; } }
+    else if(b.pushY != null){ delete b.pushY; changed = true; }
+  });
+  return changed;
+}
+/* 改圖的大小＝這一趟要重算推開。包成一支，三條路（拉角、＋／−、重設）都走它。 */
+function renderPushing(){
+  PUSH_NOW = true;
+  try{ renderOne(curCell, true); } finally { PUSH_NOW = false; }
+}
+/* 被推開的圖一被人拿去搬，推開的那一段就變成它自己的位置：
+   人是看著它現在在哪裡搬的，搬完不該再跳回一個看不到的「原本的位置」。 */
+function bakePush(b, orig){
+  if(!b || !(b.pushX || b.pushY)) return;
+  if(orig){ orig.x = (+orig.x || 0) + (+b.pushX || 0); orig.y = (+orig.y || 0) + (+b.pushY || 0); }
+  else { b.x = (+b.x || 0) + (+b.pushX || 0); b.y = (+b.y || 0) + (+b.pushY || 0); }
+  delete b.pushX; delete b.pushY;
 }
 
 /* ====== 放得進格子 ==========================================================
@@ -2684,9 +3037,8 @@ function renderOne(i, force){
    b.fit **只往小縮**：每一趟照現在量到的比例再乘一次（f × 可用 ÷ 量到的）。會換行的字縮一點
    可能就少一行，照「原本多大」去推會來回跳；只往小走就一定收斂。
    要長回來靠 renderOne 每一趟重排開頭把 fit 全部放回 1（見那裡）。
-   ⚠️ 圖、貼圖、商標量的是框（它們的 textContent 是按鈕上的字或 placeholder 的字，
-   拿去量墨水會量到別的東西）；字才量墨水（inkBox）。 */
-const INK_KINDS = new Set(['name', 'model', 'spec', 'sku', 'price']);
+   ⚠️ 量的是 visBox（跟拖曳的牆同一份）。以前圖量外框、字量墨水 —— 拖到邊界放手，
+   這一趟又照另一份把它往裡拉一截（圖 5 個單位、劃線的價格 10 個）。 */
 function keepInside(blocks){
   const L = MARGIN, T = MARGIN, R = CW - MARGIN, B = CH - MARGIN;
   const aw = R - L, ah = B - T;
@@ -2694,16 +3046,7 @@ function keepInside(blocks){
   let moved = false;
   (blocks || []).forEach(b => {
     const n = bEl(b.id); if(!n) return;
-    let k = null;
-    if(INK_KINDS.has(b.kind)){ try{ k = inkBox(b.id); }catch(_){} }
-    if(!k) k = { ox:0, oy:0, w:n.offsetWidth, h:n.offsetHeight };
-    /* 字比自己的框還寬（價格那種靠右、nowrap、direction:rtl 的，溢出去是往左長）：
-       inkBox 量到的寬被框夾住了，看起來放得下、其實整串掛在框外面。補上溢出的那一截。 */
-    const spill = n.scrollWidth - n.clientWidth;
-    if(spill > 1){
-      const rtl = getComputedStyle(n).direction === 'rtl';
-      k = { ox: rtl ? k.ox - spill : k.ox, oy: k.oy, w: k.w + spill, h: k.h };
-    }
+    const k = visBox(n);     // 溢出自己那一欄的價格，Range 量到的就是溢出去的真實位置
     if(!(k.w > 0) || !(k.h > 0)) return;
     const f0 = fitOf(b);
     /* 品名的寬由 max-width 在邊界線以內換行（見 blockHTML），寬不會超過；縮它只看高。
@@ -2754,11 +3097,11 @@ function spreadStack(blocks){
     return m;
   }
   list.sort((a,b)=>(+a.y||0)-(+b.y||0));
-  /* ⚠️ 量的是**看得見的**上下緣（inkBox），不是框。字框比字高一大截（Anton、
+  /* ⚠️ 量的是**看得見的**上下緣（visBox），不是框。字框比字高一大截（Anton、
      大字級的品名尤其明顯），照框排出來的「6 個單位」在畫面上是一大條空白 ——
      商標和品名中間那個大縫就是這樣來的。改用墨水框，縫多寬就是看起來多寬。 */
   const ink=list.map(b=>{
-    let k=null; try{ k=inkBox(b.id); }catch(_){}
+    let k=null; try{ k=visBox(b.id); }catch(_){}
     const n=bEl(b.id);
     const h=(k && k.h) ? k.h : (n && n.offsetHeight ? n.offsetHeight : ty(24));
     return { oy:(k ? k.oy : 0), h };
@@ -2793,7 +3136,7 @@ function spreadStack(blocks){
    排的時候一行給 ty(24*SZ_SKU) ＝ 39 個單位，可是那一行的字畫出來只有 26；
    價格更誇張 —— Anton 的字框比數字高一大截（line-height:1 也一樣），
    所以「SKU 在上、價格在下」中間會空出一條看起來莫名其妙的縫。
-   照墨水（inkBox）疊就沒有這件事：縫多寬就是看起來多寬。
+   照墨水（visBox）疊就沒有這件事：縫多寬就是看起來多寬。
 
    規格小框在哪也在這裡決定，因為它是「哪一行」的一部分：
      ・上下疊（一價、二價）→ 併進 SKU 那一行、站在它左邊
@@ -2806,7 +3149,7 @@ function packPriceGroups(blocks){
   const cols=[...new Set(grp.map(b=>b.col))].sort((a,b)=>a-b);
   const spread=cols.length>=3;              // 跟 buildBlocks 同一條規矩
   const ink=b=>{ const el=bEl(b.id); if(!el) return null;
-                 let k=null; try{ k=inkBox(b.id); }catch(_){}
+                 let k=null; try{ k=visBox(b.id); }catch(_){}
                  return k ? { el, ...k }
                           : { el, ox:0, oy:0, w:el.offsetWidth, h:el.offsetHeight }; };
   // 起點＝這一組現在最上面那一塊的墨水上緣。整組要挪到哪是 nudgeGroupBottom 的事，
@@ -2862,7 +3205,7 @@ function inlineSku(blocks){
   const mn=bEl(mdl.id), sn=bEl(sku.id);
   if(!mn || !sn) return false;
   let mk=null, sk=null;
-  try{ mk=inkBox(mdl.id); sk=inkBox(sku.id); }catch(_){}
+  try{ mk=visBox(mdl.id); sk=visBox(sku.id); }catch(_){}
   if(!mk || !sk) return false;
   const gap=ty(14);
   // 機型墨水的右緣（版面座標）＋空隙，再退掉 SKU 自己的左內距
@@ -2892,7 +3235,7 @@ function fitSpreadPrices(blocks){
   let k=1;
   ps.forEach(b=>{
     const el=bEl(b.id); if(!el) return;
-    let ink=null; try{ ink=inkBox(b.id); }catch(_){}
+    let ink=null; try{ ink=visBox(b.id); }catch(_){}
     const w=(ink && ink.w) ? ink.w : el.offsetWidth;
     if(!(w>0)) return;
     /* 量到的寬度是**現在這個 shrink 之下**的，所以要先還原回沒夾過的寬度，
@@ -2924,7 +3267,7 @@ function stickImage(blocks){
     && ['brand','name','model','sku'].includes(b.kind));
   let bottom=-Infinity;
   stack.forEach(b=>{ const n=bEl(b.id); if(!n) return;
-    let k=null; try{ k=inkBox(b.id); }catch(_){}
+    let k=null; try{ k=visBox(b.id); }catch(_){}
     bottom=Math.max(bottom, n.offsetTop+(k?k.oy+k.h:n.offsetHeight));
   });
   if(!isFinite(bottom)) return false;
@@ -2942,7 +3285,7 @@ function stickImage(blocks){
   let right=CW-MARGIN, high=CH-MARGIN;
   (blocks||[]).forEach(b=>{ if(b.rx==null) return;
     const el=bEl(b.id); if(!el) return;
-    let k=null; try{ k=inkBox(b.id); }catch(_){}
+    let k=null; try{ k=visBox(b.id); }catch(_){}
     right=Math.min(right, el.offsetLeft+(k?k.ox:0));
     high =Math.min(high,  el.offsetTop +(k?k.oy:0));
   });
@@ -2984,7 +3327,7 @@ function nudgeGroupBottom(blocks){
   const el=cellEl(); if(!el) return false;
   if(!el.querySelector('.cstage')) return false;
   const list=(blocks||[]).filter(b=>!b.placed);
-  const inkOf=b=>{ const n=bEl(b.id); return n?{n,k:inkBox(b.id)}:null; };
+  const inkOf=b=>{ const n=bEl(b.id); return n?{n,k:visBox(b.id)}:null; };
   let moved=false;
 
   // 左上那一疊：每一塊各自對左緣（框的內距不一樣），整疊一起對上緣
@@ -3015,7 +3358,13 @@ function nudgeGroupBottom(blocks){
   const imgs=list.filter(b=>b.kind==='img');
   if(imgs.length){
     let left=Infinity;
-    imgs.forEach(b=>{ const o=inkOf(b); if(o) left=Math.min(left, o.n.offsetLeft+o.k.ox); });
+    /* ⚠️ 還沒有圖的那幾張對的是**框的內容區**（真圖來了畫在那裡），不是灰圖：灰圖只有框的 70%，
+       照灰圖對邊界的話框凸出去 15%，圖一到就被 keepInside 拉回來、整排跳一下。
+       這是「草稿放哪裡」的決定，不是牆 —— 牆照樣是灰圖（visBox）。 */
+    imgs.forEach(b=>{ const o=inkOf(b); if(!o) return;
+      const cs=getComputedStyle(o.n);
+      const ox=o.n.classList.contains('noimg') ? o.n.clientLeft+(parseFloat(cs.paddingLeft)||0) : o.k.ox;
+      left=Math.min(left, o.n.offsetLeft+ox); });
     if(isFinite(left)){
       const dx=MARGIN-left;
       if(Math.abs(dx)>.5){ imgs.forEach(b=>{ b.x=(+b.x||0)+dx; }); moved=true; }
@@ -3096,46 +3445,12 @@ function outerSize(id){
    而字還有自己的空隙 —— 數字用 Anton、line-height:1，字框比數字高一大截
    （量到過：框貼齊下邊界時，數字離邊界還有 18px，右邊卻只有 5px。同樣是「10」的
    邊界，看起來一邊是另一邊的三倍多）。
-   對齊線、磁吸、夾邊界都改用這個框，看到的東西才會真的對齊。 */
-let inkCv=null;
-function inkBox(id){
-  const n=bEl(id);
-  if(!n) return { ox:0, oy:0, w:0, h:0 };
-  const cs=getComputedStyle(n);
-  const bl=parseFloat(cs.borderLeftWidth)||0, bt=parseFloat(cs.borderTopWidth)||0;
-  const br=parseFloat(cs.borderRightWidth)||0, bb=parseFloat(cs.borderBottomWidth)||0;
-  const pl=parseFloat(cs.paddingLeft)||0, pt=parseFloat(cs.paddingTop)||0;
-  const pr=parseFloat(cs.paddingRight)||0, pb=parseFloat(cs.paddingBottom)||0;
-  // 先退到 content box —— 每一種零件都適用，而且一定比 border box 準
-  const box={ ox:bl+pl, oy:bt+pt,
-              w:Math.max(0,n.offsetWidth-bl-br-pl-pr),
-              h:Math.max(0,n.offsetHeight-bt-bb-pt-pb) };
-  /* 單行的字再往裡量一次真正的墨水範圍。多行（品名會換行）就停在 content box：
-     一行一行量得先拆行，那是另一件事，而且品名的字框空隙小很多。 */
-  const txt=(n.textContent||'').trim();
-  const lh=parseFloat(cs.lineHeight)||0;
-  if(!txt || !lh || box.h > lh*1.6) return box;
-  try{
-    inkCv = inkCv || document.createElement('canvas').getContext('2d');
-    inkCv.font = cs.fontWeight+' '+cs.fontSize+' '+cs.fontFamily;
-    const m=inkCv.measureText(txt);
-    const fa=m.fontBoundingBoxAscent, fd=m.fontBoundingBoxDescent;
-    const aa=m.actualBoundingBoxAscent, ad=m.actualBoundingBoxDescent;
-    if(!(fa>=0)||!(aa>=0)) return box;
-    // 半行距：line-height 和字框的差，上下各分一半 —— 基線就從這裡算
-    const base=box.oy+(lh-(fa+fd))/2+fa;
-    const top=base-aa, bot=base+ad;
-    const w=Math.min(box.w, m.width||box.w);
-    // 靠右對齊的（價格／SKU／規格）墨水貼右緣，其餘貼左緣
-    const rightAligned = cs.textAlign==='right' || cs.direction==='rtl';
-    const ox = rightAligned ? box.ox+box.w-w : box.ox;
-    return { ox, oy:top, w, h:Math.max(0,bot-top) };
-  }catch(_){ return box; }
-}
+   對齊線、磁吸、夾邊界都改用這個框，看到的東西才會真的對齊。
+   （2026-09-13：這個框現在就是 visBox —— 跟選取框同一份，舊的估算那一支拿掉了。） */
 
 function measure(){
   const m={};
-  for(const b of BLOCKS) m[b.id]=inkBox(b.id);
+  for(const b of BLOCKS) m[b.id]=visBox(b.id);
   return m;
 }
 
@@ -3145,7 +3460,7 @@ function measure(){
    卻被判定凸出去」的零件，每次改大小就被整份還原回去。 */
 function withinMargin(id){
   const n=bEl(id); if(!n) return true;
-  const k=inkBox(id);
+  const k=visBox(id);
   const l=n.offsetLeft+k.ox, t=n.offsetTop+k.oy;
   return l >= MARGIN-.5 && t >= MARGIN-.5
       && l + k.w <= CW - MARGIN + .5
@@ -3218,7 +3533,8 @@ function snap(movingIds, sizes){
   for(const b of BLOCKS){
     if(movingIds.includes(b.id) || isOff(b)) continue;   // 藏起來的不當對齊線
     const s=sizes[b.id]||{w:0,h:0,ox:0,oy:0};
-    const p=blockXY(b); if(!p) continue;
+    /* 照**畫在哪**算：被推開的圖畫在 b.x＋pushX，visBox 量的是畫出來的那一塊。 */
+    const bn=bEl(b.id), p=bn ? { x:bn.offsetLeft, y:bn.offsetTop } : blockXY(b); if(!p) continue;
     const x=p.x+(s.ox||0), y=p.y+(s.oy||0);
     tV.push({v:x},{v:x+s.w/2},{v:x+s.w});
     tH.push({v:y},{v:y+s.h/2},{v:y+s.h});
@@ -3272,6 +3588,7 @@ function blockAt(x,y,exceptId){
 
 document.getElementById('grid').addEventListener('mousedown',e=>{
   const ce=e.target.closest('.cell'); if(!ce) return;
+  userAct();                        // 按下去之後改到的東西（搬、縮、刪、最上面）都算這一步
   const idx=+ce.dataset.cell;
   if(idx!==curCell){ saveCell(); loadCell(idx); selected.clear(); activeImg=null;
     CELLS.forEach((c,i)=>renderOne(i));
@@ -3295,6 +3612,7 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
       const pe=hz.parentElement, phEl=pe.classList.contains('noimg') && pe.querySelector(':scope > .ph');
       const r=(phEl||pe).getBoundingClientRect(), k=scaleOf();
       const c=hz.dataset.corner;
+      if(b.kind==='img') b.rzAt=Date.now();     // 最近改大小的那張最大（見 pushImgs）
       rz={ id:b.id, corner:c, base:scaleBase(b),
            w0:+b.w||r.width/k, h0:r.height/k,
            mx:e.clientX, my:e.clientY,
@@ -3359,6 +3677,7 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
 });
 
 addEventListener('mousemove',e=>{
+  if(rz||drag) actKeep();           // 拖得再久也還是同一步
   if(rz){
     const b=BLOCKS.find(x=>x.id===rz.id);
     if(b){
@@ -3368,6 +3687,8 @@ addEventListener('mousemove',e=>{
          為什麼是「改完再檢查」而不是先算出上限：一塊零件畫出來多大要含字框、
          border、padding，那三樣只有瀏覽器算得準（拖曳那邊漏掉它們就是 4 個單位的洞）。 */
       const snap0 = { x:b.x, y:b.y, w:b.w, h:b.h, sc:b.sc, fsFix:b.fsFix, w0:b.w0 };
+      /* 推開寫在別張圖身上，還原的時候那幾張也要回去。 */
+      const push0 = BLOCKS.map(x => [x, x.pushX, x.pushY]);
       /* 四個角，一律等比例：量的是「游標離對角那一點多遠」的變化，
          整塊只有一個倍率，所以長寬比不可能被拉走。 */
       {
@@ -3378,8 +3699,14 @@ addEventListener('mousemove',e=>{
       }
       holdPlace(b);                     // 拉過大小就釘住，別再被自動排版搬走
       dragHappened=true;
-      renderOne(curCell,true);          // 尺寸變了要重量，不然把手停在舊位置
-      if(!withinMargin(b.id)){          // 撞到邊界：這一步不算，停在上一個尺寸
+      /* 尺寸變了要重量，不然把手停在舊位置。改的是商品圖＝順便把蓋到的圖推開；
+         貼圖不推（它是疊在圖上的徽章）。 */
+      if(b.kind==='img') renderPushing(); else { PUSH_FAIL=false; renderOne(curCell,true); }
+      if(!withinMargin(b.id) || PUSH_FAIL){   // 撞到邊界、或旁邊的圖讓不開：這一步不算，停在上一個尺寸
+        push0.forEach(([x, px, py]) => {
+          if(px!=null) x.pushX=px; else delete x.pushX;
+          if(py!=null) x.pushY=py; else delete x.pushY;
+        });
         b.x=snap0.x; b.y=snap0.y;
         if(snap0.w!=null) b.w=snap0.w; else delete b.w;
         if(snap0.h!=null) b.h=snap0.h; else delete b.h;
@@ -3395,7 +3722,10 @@ addEventListener('mousemove',e=>{
   }
   if(drag){
     const p=cellPt(e), dx=p.x-drag.start.x, dy=p.y-drag.start.y;
-    if(Math.abs(dx)>2||Math.abs(dy)>2) drag.moved=true;
+    if(!drag.moved && (Math.abs(dx)>2||Math.abs(dy)>2)){
+      drag.moved=true;
+      drag.ids.forEach(id=>bakePush(BLOCKS.find(x=>x.id===id), drag.orig[id]));
+    }
     /* 零件放哪裡就是哪裡：格線只是給眼睛的尺，不是軌道。本來拖曳先吸到 10 的倍數上，
        等於「只能放在線上」，微調得按著 Alt 才做得到 —— 那是把工具的方便加在使用者頭上。 */
     const gx=dx, gy=dy;
@@ -3477,8 +3807,11 @@ let openDown = null;
 if(UI_STAGE){
   addEventListener('pointerdown', e => {
     const t = e.target;
-    openDown = (e.button === 0 && !STAGE_EDIT && t.closest && t.closest('.blk')
-                && !t.closest('.tobtn,.delbtn,.rz')) ? { x:e.clientX, y:e.clientY } : null;
+    /* 還沒挑貨的格子上可能只有一張貼圖，其他地方是空的 —— 那一片也要點得開，
+       不然整格被畫布蓋住之後「點一下選商品」就再也點不到了。 */
+    const openable = t.closest && (t.closest('.blk') || !picked.size);
+    openDown = (e.button === 0 && !STAGE_EDIT && openable
+                && !(t.closest && t.closest('.tobtn,.delbtn,.rz'))) ? { x:e.clientX, y:e.clientY } : null;
   }, true);
   addEventListener('pointerup', e => {
     const d = openDown; openDown = null;
@@ -3663,6 +3996,7 @@ document.addEventListener('focusout', e=>{
   if(txt===ft.dataset.before) return;
   b.vals=Object.assign({}, b.vals);
   b.vals[lid]=Object.assign({}, b.vals[lid], {content:txt});
+  userAct();             // 打字可以打很久，離開那一下才算這一步
   renderCell();          // 形狀跟著字長，改完要重排一次（順便報給上層存檔）
 });
 /* Enter ＝打完了（Shift+Enter 才是換行）：貼紙上的字多半是一行，
@@ -3701,6 +4035,7 @@ function addStickerBlock(s){
             ratio, svg:s.svg||'', w,
             x: at ? fit(at.x - w/2, CW-w) : Math.round((CW-w)/2),
             y: at ? fit(at.y - h/2, CH-h) : Math.round((CH-h)/2), z:maxZ+1 };
+  stkUid(b);              // 刪掉之後「打勾放回來」那份名冊認它用的
   holdPlace(b);           // 手動放的，自動排版（雖然現在是關的）不該碰它
   BLOCKS.push(b);
   selected.clear(); selected.add(b.id); activeImg=null;
@@ -3911,7 +4246,7 @@ function scaleBlock(b, mul){
   b.sc = +clampSc((b.sc||1) * mul).toFixed(3);
 }
 function resetBlock(b){
-  if(b.kind==='img'||b.kind==='sticker'){ if(b.w0){ b.w=b.w0; delete b.w0; } return; }
+  if(b.kind==='img'||b.kind==='sticker'){ if(b.w0){ b.w=b.w0; delete b.w0; } delete b.rzAt; return; }
   if(b.kind==='price'){ delete b.fsFix; return; }
   delete b.sc;
 }
@@ -3932,13 +4267,19 @@ function holdPlace(b){ b.placed=true; }
 
 function scaleSelected(mul){
   const sel=selBlocks(); if(!sel.length) return;
-  sel.forEach(b=>{ scaleBlock(b,mul); holdPlace(b); });
-  renderOne(curCell,true); reportBoard();
+  userAct();
+  const now=Date.now();
+  sel.forEach(b=>{ scaleBlock(b,mul); holdPlace(b); if(b.kind==='img') b.rzAt=now; });
+  if(sel.some(b=>b.kind==='img')) renderPushing(); else renderOne(curCell,true);
+  reportBoard();
 }
 function resetSelected(){
   const sel=selBlocks(); if(!sel.length) return;
+  userAct();
   sel.forEach(resetBlock);
-  renderOne(curCell,true); reportBoard();
+  /* 重設大小的圖不再推別人（沒有 w0 了）—— 重算一次，被它推開的就回去。 */
+  if(sel.some(b=>b.kind==='img')) renderPushing(); else renderOne(curCell,true);
+  reportBoard();
 }
 
 /* ====== 刪掉／找回來 ========================================================
@@ -3961,25 +4302,23 @@ function labelOf(b){
 function hideSelected(){
   const sel=selBlocks(); if(!sel.length) return;
   const off=offMap();
-  const stickers=new Set();
   sel.forEach(b=>{
-    if(b.kind==='sticker'){ stickers.add(b.id); return; }
+    if(b.kind==='sticker') stkUid(b);        // 貼圖也進名冊，打勾放得回來
     if(b.uid) off[b.uid]=labelOf(b);
   });
-  if(stickers.size) BLOCKS=BLOCKS.filter(b=>!stickers.has(b.id));
   selected.clear(); activeImg=null;
   /* 少了一塊，右下那一疊要重新靠齊、圖要重新讓開 —— 強制重排一次。 */
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
-/* 拿掉一張貼圖（貼圖右上角那顆 ✕）。跟 hideSelected 裡貼圖那一條是同一件事：
-   貼圖**不進**「刪掉的東西」那份名冊 —— 那份是給商品圖找回來用的（靠 uid 認出
-   重選商品時要復原哪一塊），而貼圖不是挑出來的，沒有 uid 也沒有「重選」。
-   要叫回來走 Ctrl+Z：刪除本來就記成一步（主程式收到回報就 commitAction）。 */
+/* 拿掉一張貼圖（貼圖右上角那顆 ✕）。跟 hideSelected 同一份名冊（2026-09-12 改）：
+   左下角那顆 ＋ 打勾就回到原來的位置、大小、字。以前貼圖是真的從 BLOCKS 拿掉，
+   只有 Ctrl+Z 叫得回來 —— 而名冊就是「刪掉的東西去哪裡找」的那一個地方。
+   名冊靠 uid 認人，貼圖的 uid 是它自己的 id（見 stkUid）。 */
 function delSticker(id){
   if(ROLE==='pm') return;                     // 貼圖是印出去的素材，只有設計動得了
   const b=BLOCKS.find(x=>x.id===id);
   if(!b || b.kind!=='sticker') return;
-  BLOCKS=BLOCKS.filter(x=>x.id!==id);
+  offMap()[stkUid(b)]=labelOf(b);
   selected.delete(id);
   if(activeImg===id) activeImg=null;
   /* 少了一塊，右下那一疊要重新靠齊、圖要重新讓開 —— 跟 hideSelected 一樣強制重排。 */
@@ -3989,6 +4328,7 @@ function delSticker(id){
    所以左下角那顆 ＋ 一樣找得回來。 */
 function hideBlockId(id){
   const b=BLOCKS.find(x=>x.id===id);
+  if(b && b.kind==='sticker') stkUid(b);
   if(!b || !b.uid) return;
   offMap()[b.uid]=labelOf(b);
   selected.delete(b.id);
@@ -4014,6 +4354,7 @@ function applyOff(o){
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
 function restoreUid(uid){
+  userAct();
   delete offMap()[uid];
   renderOne(curCell,true); renderLayers(); reportBoard();
 }
@@ -4158,6 +4499,7 @@ function markLayerActive(){
 }
 
 addEventListener('mouseup',e=>{
+  if(rz||drag) actKeep();
   /* 放手才回報：拖的過程每一格都 reportBoard() 的話，外面那層會被存檔洗版。
      renderOne(force) 跟 ＋／− 那條路一樣，重新量一次尺寸再畫。 */
   /* 重畫整格會把把手一起洗掉 —— 不補的話拉完大小，四個角就不見了，
@@ -4194,7 +4536,7 @@ addEventListener('mouseup',e=>{
         const dy = (+src.y||0) - (+drag.orig[src.id].y||0);
         clearBulkPreview();
         if(per > 0 && (Math.abs(dx) > .5 || Math.abs(dy) > .5)){
-          const mm = { keys:bulkTargets(src),
+          const mm = { act:ACT_ID, keys:bulkTargets(src),
                        dxMm:+(dx/per*10).toFixed(3), dyMm:+(dy/per*10).toFixed(3) };
           /* 本格裡同一種的其他零件（例如兩個 SKU 拖了其中一個）也要跟著走 ——
              上層轉發時會跳過來源那一格，所以它們只能在這裡處理。 */
@@ -4432,6 +4774,23 @@ function boardState(){
   if(CM_W){ st.fw = CW; st.fh = CH; }
   return st;
 }
+/* ====== 復原鍵上的一步＝人做的一件事 =======================================
+   以前這一格每報一次「變了」，上層就記一步。可是大部分的「變了」不是人做的：
+   別處改了字級、挑了貨、加減一格、按了 Ctrl+Z，這一格照新的條件重排一次再報上來 ——
+   於是按一次 Ctrl+Z 只退掉那一趟看不見的重排，要按好幾下才退到真正做過的那件事。
+   所以報上去的時候說清楚：
+     ・act ＝ 這是哪一下手勢（按下去、刪掉、貼上、改字…）造成的。同一下手勢報好幾次
+       （拖到一半停一下、集體移動每一格各報一次）上層併成同一步。
+     ・沒有 act ＝ 這一格自己排的。上層只存檔、不記成一步。
+   手勢開頭叫 userAct()（新的一步），拖的途中和放手叫 actKeep()（還是同一步）。
+   ⚠️ 上層把狀態送回來（Ctrl+Z、合併）時要把手上的 act 收掉：那一趟的重排不是人做的，
+   帶著剛才那一下的 act 報上去會被併進（或另開）一步。 */
+function userAct(id){
+  ACT_ID = id || (CELL_ID + '@' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5));
+  ACT_UNTIL = Date.now() + 1500;
+  return ACT_ID;
+}
+function actKeep(){ if(ACT_ID) ACT_UNTIL = Date.now() + 1500; }
 let reportTimer = 0, reportQuiet = false;
 function reportBoard(){
   if(window.parent === window) return;          // 單獨開檔就什麼都不必報
@@ -4441,7 +4800,8 @@ function reportBoard(){
     /* quiet：這一份不是使用者做的（換框換算完存回去），上層只存檔、不記成一步 ——
        記成一步的話按 Ctrl+Z 會退回舊框的座標，下次打開又換算一次，沒完沒了。 */
     const quiet = reportQuiet; reportQuiet = false;
-    try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, state:boardState(), quiet }, '*'); }
+    const act = (Date.now() < ACT_UNTIL) ? ACT_ID : '';
+    try{ parent.postMessage({ boardCell:CELL_ID, src:UI_SRC, state:boardState(), quiet, act }, '*'); }
     catch(_){}
     reportLayers();          // 搬、縮、疊的順序都可能變了 —— 面板那一排跟著（沒變就不報）
   }, 60);       // 勾了就要看到，別讓上面那張版慢半拍
@@ -4528,14 +4888,79 @@ addEventListener('keydown', e=>{
     if(window.parent===window) return;            // 單獨開這一頁就沒有上一層可以問
     e.preventDefault();
     const redo = (e.key==='y'||e.key==='Y') || e.shiftKey;
+    ACT_UNTIL = 0;                                  // 退回來那一趟的重排不是人做的
     try{ parent.postMessage({ boardCell:CELL_ID, boardHistory: redo?'redo':'undo' }, '*'); }catch(_){}
+    return;
+  }
+  if(mod && (e.key==='d'||e.key==='D')){
+    e.preventDefault();
+    dupSelected();
     return;
   }
   if(mod) return;
   if(e.key==='Delete'||e.key==='Backspace'){
+    userAct();
     if(keyDelete()) e.preventDefault();
   }
+  const N={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]};
+  if(N[e.key]){
+    const k = e.shiftKey ? 10 : 1;                 // Shift 走大步，跟貼紙庫那一支同一組鍵
+    if(nudgeSelected(N[e.key][0]*k, N[e.key][1]*k)) e.preventDefault();
+  }
 });
+
+/* 選起來之後用方向鍵推 —— 貼紙庫那一支本來就有，這邊沒有。
+   拖曳到不了「再左邊一點點」，而排版最後那幾下做的就是那件事。
+   ⚠️ 連著按是**同一步**：停了 0.7 秒再按才算新的一步（上層照 act 分，見 noteBoardChange）——
+   不然按十下方向鍵，Ctrl+Z 要按十下才退得回去。 */
+let nudgeAt = 0;
+function nudgeSelected(dx, dy){
+  if(ROLE==='pm' || !selected.size) return false;
+  const ids=[...selected].filter(id=>{ const b=BLOCKS.find(x=>x.id===id); return b && !isOff(b); });
+  if(!ids.length) return false;
+  if(Date.now() - nudgeAt > 700) userAct(); else actKeep();
+  nudgeAt = Date.now();
+  const sizes = measure();          // 夾在邊界裡要知道每一塊畫出來多大
+  ids.forEach(id=>{
+    const b=BLOCKS.find(x=>x.id===id); if(!b) return;
+    unpin(b);        // 右緣錨點那幾塊先換成絕對座標，不然畫出來還是貼著右邊界
+    bakePush(b);     // 被別張圖推開的那一段先收進自己的位置（跟拖曳第一下同一個處理）
+    b.x=(+b.x||0)+dx; b.y=(+b.y||0)+dy;
+    holdPlace(b);    // 推過就是手動放的，自動排版不該再碰它
+  });
+  clampAll(ids, sizes);
+  renderCell();      // 重畫 ＋ 補把手 ＋ 報上去（見它自己）
+  return true;
+}
+
+/* Ctrl+D 複製。**只複製貼圖**：商品那幾塊零件是照挑的貨從頭生的（buildBlocks），
+   多出來的那一份沒有對應的貨 —— 下次改挑貨就整個不見，而且它的 uid 會跟本尊撞
+   （「刪掉的，打勾放回來」那份名冊認的就是 uid）。
+   選到的不是貼圖就講一句：安靜地什麼都不做的話，看起來就是壞了。 */
+function dupSelected(){
+  if(ROLE==='pm' || !selected.size) return false;
+  const stk=selBlocks().filter(b=>b.kind==='sticker' && !isOff(b));
+  if(!stk.length){ say('只有貼圖複製得了'); return false; }
+  userAct();
+  const sizes = measure();
+  const top=BLOCKS.filter(stackable).reduce((m,x)=>Math.max(m,+x.z||0),0);
+  const made=[];
+  stk.forEach((b,i)=>{
+    const c=JSON.parse(JSON.stringify(b));
+    c.id='bs'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    delete c.uid; stkUid(c);                    // 新的身分，不然名冊上兩張是同一個人
+    c.x=(+b.x||0)+8; c.y=(+b.y||0)+8;           // 錯開一點，不然看起來像沒複製到
+    c.z=top+1+i;
+    holdPlace(c);
+    sizes[c.id]=sizes[b.id];                    // 跟本尊一樣大，夾邊界照它算
+    BLOCKS.push(c); made.push(c.id);
+  });
+  selected.clear(); made.forEach(id=>selected.add(id));
+  activeImg=null;
+  clampAll(made, sizes);
+  renderCell(); renderLayers();
+  return true;
+}
 /* 按 Delete 會刪掉什麼。鍵盤和上層轉過來的那一下走同一支 —— 各寫一份的話，
    遲早一邊刪得掉、另一邊刪不掉。
    ・點開正在編輯的那一格：選起來的全部照舊（商品圖進「刪掉的」名冊，找得回來）。
@@ -4548,9 +4973,11 @@ function keyDelete(){
   return delSelStickers();
 }
 function delSelStickers(){
-  const ids=new Set(selBlocks().filter(b=>b.kind==='sticker').map(b=>b.id));
+  const stk=selBlocks().filter(b=>b.kind==='sticker');
+  const ids=new Set(stk.map(b=>b.id));
   if(!ids.size) return false;
-  BLOCKS=BLOCKS.filter(b=>!ids.has(b.id));
+  const off=offMap();
+  stk.forEach(b=>{ off[stkUid(b)]=labelOf(b); });   // 進名冊，打勾放得回來
   ids.forEach(id=>selected.delete(id));
   if(ids.has(activeImg)) activeImg=null;
   renderOne(curCell,true); renderLayers(); reportBoard();
@@ -4678,8 +5105,9 @@ function stressCheck(){
   const ps=BLOCKS.filter(b=>b.kind==='price');
   let inb=true, ov=false;
   for(const p of ps){ const n=q(p.id); if(!n) continue;
-    if(p.placed){ if(p.x<MARGIN-1||p.x+n.offsetWidth>CW-MARGIN+1||p.y<MARGIN-1||p.y+n.offsetHeight>CH-MARGIN+1) inb=false; }
-    else if(p.x+n.offsetWidth>CW-MARGIN+1) ov=true;
+    const v=visBox(n), l=n.offsetLeft+v.ox, t=n.offsetTop+v.oy;   // 跟牆同一份
+    if(p.placed){ if(l<MARGIN-1||l+v.w>CW-MARGIN+1||t<MARGIN-1||t+v.h>CH-MARGIN+1) inb=false; }
+    else if(l+v.w>CW-MARGIN+1) ov=true;
   }
   /* 「再排一次不變」要留 1px 容差：量測→定位→再量測本來就有 getComputedStyle／
      offsetWidth 的次像素捨入，那不是版位在跳，是浮點雜訊。>1px 才算真的不穩。 */
@@ -4863,6 +5291,8 @@ async function snapshotStage(req){
        那是「等一下就會跳一次」的遮擋，不是這一格的樣子。照著拍會拍出一張全白，
        而那張圖會被當成蓋布和整本預覽貼出去。 */
     clone.querySelectorAll('.cstage.measuring').forEach(el => el.classList.remove('measuring'));
+    // 選取記號不是印出去的東西（蓋布和整本預覽貼的就是這張圖）
+    clone.querySelectorAll('.selbox,.rz').forEach(el => el.remove());
     await Promise.all([...clone.querySelectorAll('img')].map(async im => {
       const u = im.getAttribute('src') || '';
       if(!u || u.startsWith('data:')) return;
@@ -5014,13 +5444,14 @@ if(window.parent !== window){
 }
 
 /* 位置是算出來的（buildBlocks），字型換不換都在同一個位置 —— 這一段本來可以不要。
-   但「看得見的下緣貼齊邊界」是量墨水量出來的（inkBox），而 Anton 是網路字型：
+   但「看得見的下緣貼齊邊界」是量墨水量出來的（visBox），而 Anton 是網路字型：
    它到齊之前量到的是替代字的字框，數字的位置就會差一截。所以字型好了要再對一次。
    只做這一件事，而且只做一次（fonts.ready 只 resolve 一次）。 */
 if(document.fonts && document.fonts.ready){
   document.fonts.ready.then(()=>{
     if(!BLOCKS.length) return;
-    renderOne(curCell, true);      // 重排一次：inkBox 這時量到的才是 Anton
+    glyphM.clear();                // 字型換了，字形要重量（鑰匙是字型字串，前後一樣）
+    renderOne(curCell, true);      // 重排一次：visBox 這時量到的才是 Anton
     reportQuiet = true;            // 這一趟不是使用者做的：存起來，但不是復原鍵上的一步
     reportBoard();
   }).catch(()=>{});

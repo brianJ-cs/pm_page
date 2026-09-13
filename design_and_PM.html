@@ -709,42 +709,59 @@
      PM 看倒數、行銷排整條時程。只有一種人測得動的 devtool 等於沒有。
      長相照 devtool 那一族（虛線、灰字，跟「壓力測試」那顆同一種）：它不是流程裡的
      按鈕，不該長得像流程裡的按鈕。 */
-  #clockBtn{
+  /* 測試工具那一顆（🛠）。**一顆鈕、一張有分頁的浮層** —— 以前是 🕒 和 🧪 兩顆並排，
+     而它們是同一族東西（都是「這個瀏覽器分頁的狀態」，不是這本 DM 的資料），
+     再多一個工具那條列就開始長。開著的時候整顆變琥珀色並寫出開著的是哪幾個：
+     一個被動過手腳的環境要一直看得見。 */
+  #devBtn{
     font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;
     display:flex;align-items:center;gap:5px;
     border:1px dashed var(--chrome-line);border-radius:999px;padding:3px 9px;
     background:transparent;color:var(--chrome-muted);
   }
-  #clockBtn:hover{border-color:var(--blue);color:var(--blue)}
+  #devBtn:hover{border-color:var(--blue);color:var(--blue)}
   /* 撥開的時候整顆變琥珀色，而且把日期寫出來 —— 一個被撥過的時鐘一定要一直
      看得見，不然過兩天回來滿畫面的日期都不對，第一個念頭會是資料壞了。 */
-  #clockBtn.shifted{
+  #devBtn.shifted{
     border-style:solid;border-color:var(--amber);
     background:var(--warn-tint,#fff6e6);color:#8a5a12;
   }
   /* 浮層掛在 body 上、位置用量的：名牌那顆會被搬到不同的列裡，掛在它底下的話
      總有一條列會把它裁掉（那幾條列都是 overflow 有限的一行）。 */
-  #clockPop{
+  #devPop{
     position:fixed;z-index:720;display:none;width:250px;
     background:var(--surface);border:1px solid var(--line);border-radius:12px;
     padding:11px;box-shadow:0 14px 34px rgba(16,24,40,.24);
     font-size:12.5px;font-weight:700;color:var(--ink);
   }
-  #clockPop.on{display:block}
-  #clockPop h5{font-size:13px;font-weight:800;color:var(--ink-strong);margin-bottom:2px}
-  #clockPop .cp-sub{color:var(--muted);font-weight:700;line-height:1.45;margin-bottom:8px}
-  #clockPop input[type=datetime-local]{
+  #devPop.on{display:block}
+  #devPop h5{font-size:13px;font-weight:800;color:var(--ink-strong);margin-bottom:2px}
+  #devPop .cp-sub{color:var(--muted);font-weight:700;line-height:1.45;margin-bottom:8px}
+  #devPop input[type=datetime-local]{
     font:inherit;width:100%;padding:5px 7px;margin-bottom:8px;
     border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);
   }
-  #clockPop .cp-row{display:flex;gap:5px;margin-bottom:6px}
-  #clockPop button{
+  #devPop .cp-row{display:flex;gap:5px;margin-bottom:6px}
+  #devPop button{
     flex:1;font:inherit;font-size:12px;font-weight:800;cursor:pointer;
     border:1px solid var(--line);border-radius:8px;padding:5px 2px;
     background:var(--card);color:var(--ink);
   }
-  #clockPop button:hover{border-color:var(--blue);color:var(--blue)}
-  #clockPop .cp-now{border-color:var(--blue);background:var(--accent-tint);color:var(--blue)}
+  #devPop button:hover{border-color:var(--blue);color:var(--blue)}
+  #devPop .cp-now{border-color:var(--blue);background:var(--accent-tint);color:var(--blue)}
+  /* 分頁：一個工具一頁。藍的那個＝現在看的（藍＝你正在點的東西）。 */
+  #devPop .dev-tabs{display:flex;gap:4px;margin-bottom:9px}
+  #devPop .dev-tab{
+    flex:1;position:relative;font-size:12px;font-weight:800;padding:5px 6px;
+    border:1px solid var(--line);border-radius:8px;
+    background:var(--surface);color:var(--muted);cursor:pointer;
+  }
+  #devPop .dev-tab.on{border-color:var(--blue);background:var(--accent-tint);color:var(--blue)}
+  /* 角落那顆點＝這個工具正開著。鈕上的琥珀色說的是「有東西開著」，
+     這一顆說的是「是哪一個」—— 浮層收起來的時候前者才有得看。 */
+  #devPop .dev-tab.live::after{content:'';position:absolute;top:3px;right:4px;
+    width:6px;height:6px;border-radius:50%;background:var(--amber)}
+  #devPop .dev-warn{color:#8a5a12}
 
   /* 跟編輯器那一條（.bar）同一條規矩：這條列上的東西一律不折行。
      中文沒有空白，flex 擠不下時每一項的最小寬度就是**一個字** —— 標題和每顆鈕
@@ -861,7 +878,8 @@
     overflow-y:auto;overflow-x:hidden;padding-right:8px;margin-right:10px;
     border-right:1px solid var(--line);transition:width .14s ease;
   }
-  #pmStack.mini{width:0;padding-right:0;margin-right:0;border-right:0}
+  /* !important：推過寬度的話寬寫在行內，收起來那一下要壓得過它 */
+  #pmStack.mini{width:0 !important;padding-right:0;margin-right:0;border-right:0}
   #pmStack.mini > *{display:none}
   /* 進了這一疊就不再是「一欄」：自己的寬度、捲軸、分隔線全交出去，只留內容 */
   #pmStack #sheetSide{
@@ -956,14 +974,24 @@
        tool-paint 上色／取色（點一格＝上色、拖一個框＝一次一片）
        tool-pass  審核通過（點一格＝這格過了、拖一個框＝一次一片）
        arming   手上拿著貼紙，下一下是貼上去
+       notedrag 正在拖一張便利貼，下一下是放手貼上去
      按在格子裡的空白處不必特別處理：那一下畫布會轉出來（stagePass），而在格子上
      本來就不平移，所以外面直接當成「點這一格」就好。 */
-  #boardOverview:not(.pm):not(.tooling):not(.tool-paint):not(.tool-dropper):not(.tool-pass):not(.arming)
+  #boardOverview:not(.pm):not(.tooling):not(.tool-paint):not(.tool-dropper):not(.tool-pass):not(.arming):not(.notedrag)
     .ccanvas{pointer-events:auto}
   /* 從桌面拖一張圖進來的那幾秒：畫布整個浮上來收 drop。平常它 pointer-events:none
      又壓在卡片底下（z-index:-1），不先點進那一格根本收不到 —— 但拖圖換商品圖
      不該還要先點兩下，看到哪一格就丟哪一格。 */
   #boardOverview.filedrag .ccanvas{pointer-events:auto;z-index:1}
+  /* ⚠️ 拖著一張便利貼的那幾秒要把畫布整層關掉（`notedrag`，2026-09-12），而那件事
+     只能寫成上面那條 `:not(.notedrag)`，**不可以另外加一條** `#boardOverview.notedrag
+     .ccanvas{pointer-events:none}`：上面那條是 id ＋ 六個 `:not()`（每個都算一個 class），
+     分數比 id ＋ 一個 class 高，寫在後面也蓋不過去 —— 量過，加了那一條之後拖曳中量到的
+     還是 `auto`，游標底下還是那支 iframe。
+     為什麼要關：便利貼走的是瀏覽器原生的拖曳，而有貨的格子上面蓋著一支**活的** iframe，
+     拖到它上面時 dragover／drop 是送進那份文件裡的，外面這一層永遠收不到，放手那一下
+     什麼都沒發生 —— 只有放在格子與格子之間的縫、或還沒挑貨的格子才貼得上，
+     所以看起來是「試了好幾次才成功一次」。 */
   /* 拼過的格子上，落版打的字收起來 —— 那裡畫布才是主角。
      還沒拼的格子沒有東西可看，字就是它唯一的身分，一直留著。
      （以前有一顆「顯示落版文字」可以把字叫回來。落版 已經不打品名了，
@@ -1016,7 +1044,7 @@
     transition:width .14s ease;
   }
   #view-board{padding-right:calc(var(--railw,340px) + 10px)}
-  .app.rail-mini{--railw:26px}
+  .app.rail-mini{--railw:26px !important}
   #boardRail.mini{padding:10px 4px}
   /* 開著某一格的面板時，意見欄讓位，只留一條看得懂的邊：紅字就是還欠幾則。
      面板和意見欄輪流上場，畫面上永遠只有一個「右邊」。 */
@@ -1386,17 +1414,23 @@
     outline:3px solid var(--blue);outline-offset:-3px;
     box-shadow:inset 0 0 0 9999px rgba(74,111,220,.07);
   }
-  /* ---- 總體 的小工具列。照 #toolRail 那條長，只是矮一點：這一頁的工具只有三個，
-     不必佔滿整個高度。 ---- */
-  /* 釘在左上角：這一頁的兩張版比畫面寬，而且是置中排的 —— 不釘的話工具列會被推到
-     捲軸的左邊外面，變成一條看不到也捲不回來的東西。
-     ⚠️ **兩軸都要釘**：滾輪縮放進來之後版面也會比畫面高，只釘 left 的話一往下捲
-     工具列就跟著上去不見了（那時候正是最需要它的時候：拉近看就是為了切一刀）。 */
+  /* ---- 總體 的小工具列。**站在捲動區外面，自己就是一欄**（2026-09-12 改）——
+     跟 落版 的 #toolRail、拼板 的 #typeWrap 同一個位置、同一組尺寸，切分頁的時候
+     那條藍不會跳位置也不會變寬。
+     ⚠️ 以前它站在 #totalScroll **裡面**，靠 position:sticky(left+top) 黏著。那樣有三個
+     代價：它**浮在紙上面**（往右捲就蓋住正面那張版的左緣）、它**算在置中裡面**
+     （所以 fitBoards 得特地扣掉「工具列寬 ＋ 兩道縫」，不扣的話背面那張被切掉右邊）、
+     而且滾輪停在它身上也會縮放版面。搬出來之後三件事一起沒了。
+     ⚠️ 搬出來的另一半在 fitBoards()：縫從兩道變一道、不再扣工具列的寬。
+     .tool 留在 36px（這一頁只有五個工具，本來就談定矮一號）。 ---- */
   #totalRail{
-    position:sticky;left:4px;top:4px;z-index:20;
-    flex:none;width:52px;margin:26px 10px 10px 4px;border-radius:8px;align-self:flex-start;
+    position:relative;
+    flex:none;width:58px;margin:2px 18px 10px;border-radius:8px;
     background:var(--blue);color:var(--surface);display:flex;flex-direction:column;
     align-items:center;gap:8px;padding:11px 0 10px;user-select:none;
+    /* 畫面矮的時候最下面那幾顆會被切掉，而一條齊頭齊尾的藍看不出下面還有東西 */
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.55) transparent;
   }
   #totalRail .rail-title{font-size:15px;letter-spacing:3px;margin-bottom:4px}
   #totalRail .tool{width:36px;height:36px;font-size:17px}
@@ -1470,6 +1504,12 @@
   #itemPop .ip-add{display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:9px;
                    border-top:1px dashed var(--line)}
   #itemPop .ip-note{margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.5}
+  /* 有沒有刊頭：切版的時候就該決定的事，所以它站在填品類的同一張浮層裡。
+     跟上面那幾列隔一條虛線 —— 它講的不是「這一塊放什麼貨」。 */
+  #itemPop .ip-mh{display:flex;align-items:center;gap:7px;cursor:pointer;
+    margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);
+    font-size:12.5px;font-weight:800;color:var(--ink)}
+  #itemPop .ip-mh input{width:auto;margin:0;cursor:pointer}
   /* 藍＝「你正在點的東西」，而這張小卡上最後要點的就是它。滿寬、站在最下面：
      一路往下填，手停在哪它就在哪。 */
   #itemPop .ip-ok{
@@ -2000,9 +2040,21 @@
      「你在哪一本 DM、哪一塊」，拿著筆的時候照樣要看得到；而一排橫的卡片只吃掉版面
      底下一截高度，版面的寬度一點都不動。 */
   #stkDock{
-    display:none;flex:none;height:150px;flex-direction:column;
+    display:none;flex:none;height:var(--stkh,150px);flex-direction:column;position:relative;
     background:var(--surface);border-top:1px solid var(--line-strong);
   }
+  /* 上緣那一條：上下拖改高度（2026-09-12）。收起來還是那顆 ✕。
+     拉高到放得下兩排卡片（.tall）就換成一格一格往下排、直的捲。 */
+  .stk-grip{
+    position:absolute;left:0;right:0;top:-6px;height:12px;z-index:5;
+    cursor:ns-resize;touch-action:none;
+  }
+  .stk-grip::after{
+    content:'';position:absolute;left:50%;top:4px;width:48px;height:4px;margin-left:-24px;
+    border-radius:4px;background:var(--line-strong);
+  }
+  .stk-grip:hover::after,.stk-grip.on::after{background:var(--blue)}
+  #stkDock.tall .stk-items{flex-wrap:wrap;align-content:flex-start;overflow-x:hidden;overflow-y:auto}
   #stkDock.on{display:flex}
   .stk-top{
     display:flex;align-items:center;gap:8px;padding:6px 13px;
@@ -2132,12 +2184,21 @@
   /* 寬度是讀的，不是改的：寫成一般的字就好。以前它有框有底色，看起來比旁邊那個
      真的能打字的高度欄還像輸入框 —— 能動的東西要看起來能動，反過來不行。 */
   .mh-fixed{font-size:14px;font-weight:800;color:var(--muted);padding:4px 2px;cursor:default}
-  #addMasthead{
+  /* 這一塊有沒有刊頭 —— 一顆**永遠看得見**的開關。
+     以前是兩顆躲起來的：有刊頭的時候只有滑過刊頭才冒出來的 ✕，沒刊頭的時候才長出來的
+     「＋刊頭」，而且站在這條列的最尾巴（欄位一多就被推出畫面）。兩顆都要「先知道它在
+     那裡」才找得到，那等於沒有。
+     關著的時候長得像一個空格子（虛線藍＝可以點的提議），開著的時候是一顆普通的鈕。 */
+  #mhToggle{
     font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
-    border:1px dashed var(--blue);border-radius:7px;padding:5px 12px;
+    border:1px dashed var(--blue);border-radius:7px;padding:4px 11px;
     background:var(--accent-tint);color:var(--blue);
   }
-  #addMasthead:hover{background:var(--accent-tint-2)}
+  #mhToggle.on{
+    border-style:solid;border-color:var(--line);
+    background:var(--surface);color:var(--ink);
+  }
+  #mhToggle:hover{border-color:var(--blue);color:var(--blue);background:var(--accent-tint-2)}
 
   /* 版面本身：卡片相接成一塊完整的方塊，四周才留邊 */
   #board{display:flex;flex-direction:column;gap:var(--gap);margin:15px auto;
@@ -2587,7 +2648,7 @@
     display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;
   }
   /* 底下那一條貼紙開著：提示站到它上面去 —— 「貼上了」那一句蓋住的正是下一張要拖的卡片 */
-  body.stk-dock-on #toastHost{bottom:184px}
+  body.stk-dock-on #toastHost{bottom:calc(var(--stkh,150px) + 34px)}
   .toast{
     font-size:14.5px;font-weight:800;padding:10px 20px;border-radius:9px;
     background:var(--ink);color:var(--surface);box-shadow:0 4px 16px rgba(30,40,60,.28);
@@ -3023,8 +3084,7 @@
     <!-- 撥時鐘：devtool，三個身分、每一頁都看得到（跟著名牌一起被 hostWho 搬）。
          走到第幾關完全由時間決定（見 planSide），而「二改那一關長什麼樣」本來
          只能等到那一天 —— 這是唯一測得到的路。 -->
-    <span id="whoBadge"><b id="whoName"></b><button id="clockBtn"
-            title="撥時鐘（測試用）：把這台機器的「現在」撥到別的日子"></button><button
+    <span id="whoBadge"><b id="whoName"></b><button id="devBtn"></button><button
             class="btn" id="logoutBtn" title="回到登入頁換一個人">登出</button></span>
   </div>
   <input type="file" id="importInput" accept=".json,.html,.htm" multiple hidden>
@@ -3133,6 +3193,9 @@
     <!-- 品類清單：看得到有哪些、點一下就填進去。原本是瀏覽器的 datalist ——
          那個要先打字才掉得下來，等於「你得先知道有什麼」才找得到它。 -->
     <div id="catMenu"></div>
+    <!-- 有沒有刊頭。以前只有 落版 那條標題列上改得動，而切完一塊版的下一件事
+         多半就是「這一塊要不要刊頭」—— 那時候人還在 總體。 -->
+    <label class="ip-mh"><input type="checkbox" id="ipMh"> 這一塊有刊頭</label>
     <div class="ip-note">支數改了，格子跟著加減 —— 已經拼好的那幾格不動。</div>
     <!-- 填完了。改一列就存一次（見 applyItems），所以這一顆不是「送出」——
          它是「這一塊填好了」那一下，而沒有它的話最後一筆填完只能點到旁邊或按 ✕，
@@ -3197,11 +3260,10 @@
   <!-- 總體 的小工具。預設是 選擇（只看、只點得亮一塊），切分和移動都要自己拿起來 ——
        這一頁動的是整本 DM 的骨架，不該用「滑過去就改掉了」的方式做。
        長得跟 落版 那條工具列一樣：同一件事（我現在拿著什麼）就該長同一個樣子。 -->
-  <!-- 左欄（#boardSide）由 hostSide() 搬進來站在最前面；版面連同它的小工具列
-       收在 #totalScroll 裡自己捲 —— 捲的是那張紙，左欄不該跟著跑掉。
-       （所以「這一頁是紙」的底色也跟著搬到 #totalScroll 上：左欄站的是桌面。） -->
+  <!-- 左欄（#boardSide）由 hostSide() 搬進來站在最前面，接著是工具列，最後才是
+       那張紙（#totalScroll，只有它自己捲）—— 三個分頁的排法從此一模一樣。
+       （「這一頁是紙」的底色在 #totalScroll 上：左欄和工具列站的是桌面。） -->
   <div class="panel" id="view-total">
-    <div id="totalScroll">
     <div id="totalRail">
       <div class="rail-title">工具</div>
       <button class="tool active" data-ttool="pick" title="選擇：點一塊把它點亮，版面不會被動到">⬚</button>
@@ -3224,7 +3286,7 @@
            永遠在那裡的數字。Ctrl+0 回到符合視窗。 -->
       <div id="totalZoomVal" title="Ctrl+0 回到符合視窗" style="display:none"></div>
     </div>
-    </div>
+    <div id="totalScroll"></div>
   </div>
 
   <!-- 拼板：小地圖一直留在左邊當定位，右邊在「整張版」和「拼一格」之間換。
@@ -3325,6 +3387,7 @@
            為什麼在底下、不在左欄：左欄講的是「你在哪一本 DM、哪一塊」，拿著筆的時候
            那件事照樣要看得到；一條橫的只吃掉版面底下一截，版面的寬一點都不動。 -->
       <div id="stkDock">
+        <div class="stk-grip" id="stkGrip" title="上下拖＝改這一條的高度"></div>
         <div class="stk-top">
           <span class="stk-tag">貼紙</span>
           <div class="stk-cats" id="stkCats"></div>
@@ -3391,7 +3454,7 @@
            跟 上色 一樣只在 拼板 才有意義（配色／配圖都要看著真正的貨），
            而且只有設計動得了——這兩條規矩都在 syncStickerTool() 裡一次講完。 -->
       <button class="tool" data-tool="sticker" data-key="T"
-              title="貼圖 (T)：把縮圖拖到格子上，或挑一張再點格子的空白處。格子裡的零件照樣搬得動">🏷️</button>
+              title="貼圖 (T)：開／關版面底下那一排貼紙，把縮圖拖到格子上就貼上去">🏷️</button>
       <!-- ⚠️ 審核通過那一顆**不在這裡**：它站在意見欄、貼紙那一疊底下（#passBtn）——
            校對那幾關那是整頁要做的那一件事，而 PM 在 拼板 連這條工具列都沒有。 -->
       <div class="zoom-val" id="zoomVal">100%</div>
@@ -3490,7 +3553,14 @@
 </div>
 
 <!-- 撥時鐘的小浮層。掛在 body 上（不是名牌底下）：名牌會被搬到三條不同的列裡。 -->
-<div id="clockPop">
+<!-- 測試工具。一頁一個工具，**跟著名牌走遍三條列**（hostWho）——
+     要測的時候人多半在 拼板，退回檔期列表才按得到的開關等於沒有。 -->
+<div id="devPop">
+  <div class="dev-tabs">
+    <button class="dev-tab" data-dev="clock">🕒 時鐘</button>
+    <button class="dev-tab" data-dev="demo">🧪 測試商品</button>
+  </div>
+  <div class="dev-pane" data-pane="clock">
   <h5>撥時鐘（測試用）</h5>
   <div class="cp-sub">改的是<b>這台機器</b>眼裡的「現在」——
     所有檔期的日期、倒數、以及版面上「球在誰手上」都跟著跳。不會動到任何人的資料。</div>
@@ -3505,6 +3575,18 @@
     <button data-shift="-0.125">−3 時</button>
     <button data-shift="0.125">＋3 時</button>
     <button class="cp-now" id="clockReset">回到現在</button>
+  </div>
+  </div>
+
+  <div class="dev-pane" data-pane="demo" hidden>
+    <h5>測試商品（測試用）</h5>
+    <div class="cp-sub">在挑貨清單裡加一批<b>有規格</b>的假商品（iPhone、iPad、MacBook…）。
+      共用目錄裡的真商品多半只有型號，而「規格那一塊怎麼排、同一組價格怎麼一起縮」
+      要拿到有規格的貨才看得出來。</div>
+    <div class="cp-row"><button id="demoSwitch" style="flex:1"></button></div>
+    <div class="cp-sub" id="demoState"></div>
+    <div class="cp-sub dev-warn">⚠️ 只在這台瀏覽器，<b>不會寫進共用目錄</b>。
+      但拿它挑進去的格子，別人會看到那幾格的商品不見了（他的目錄裡沒有這些 SKU）。</div>
   </div>
 </div>
 
@@ -3890,6 +3972,9 @@ let histStack = [], histAt = -1, histLock = false, histBytes = 0;
 /* 復原之後，格子裡的畫布會重新載入、再自己回報一次內容 —— 那不是你做的一步。
    剛復原完的那一下子，回報一律不記帳，否則重做那一疊會被它清掉。 */
 let histQuiet = 0;
+/* 復原鍵上最上面那一步是哪一下手勢造成的（畫布報上來的 act，見 noteBoardChange）。
+   同一下手勢報好幾次就併成這一步；上層自己的動作（commitAction 不帶 act）會把它清掉。 */
+let lastAct = '';
 
 const undoBtn = document.getElementById('undoBtn');
 const redoBtn = document.getElementById('redoBtn');
@@ -3981,9 +4066,15 @@ function cellLooks(p){
   return out;
 }
 
-function applySnapshot(json){
+/* prefer ＝ 復原完要停在哪一塊。快照裡的 active 是「那一步存下來時開著哪一塊」，
+   而退一步套用的是**上一步**的快照 —— 上一步在別的版位做的話，拿掉刊頭再 Ctrl+Z
+   就被帶去那一塊。所以 undo 傳「被退掉的那一步」的版位；那一塊退完不存在了
+   （退掉的是切出它的那一刀）才用快照自己的。 */
+function applySnapshot(json, prefer){
   const keepNotes = collectNotes(currentPlan.layout);
   const snap = JSON.parse(json);
+  if (prefer && collectBlocks(snap.layout.front, []).concat(collectBlocks(snap.layout.back, []))
+                  .some(b => b.id === prefer)) snap.active = prefer;
   /* 換掉之前記一份：哪幾格的內容會被這一步改掉。
      ・wasCells：退完之後只把變了的那幾格重送給活著的畫布（見 rebuildAll 的 undoFrom）。
      ・wasLooks：變了的那幾格，手上那張照片就過期了 —— 不記的話蓋布會拿退之前拍的照片
@@ -4011,8 +4102,9 @@ function applySnapshot(json){
 
 function undo(){
   if (!currentPlan || histAt <= 0){ toast('沒有可復原的步驟', 'info', 1400); return; }
+  const undone = JSON.parse(histStack[histAt]).active;
   histAt--;
-  applySnapshot(histStack[histAt]);
+  applySnapshot(histStack[histAt], undone);
   toast('已復原', 'info', 1200);
 }
 
@@ -4025,8 +4117,20 @@ function redo(){
   toast('已重做', 'info', 1200);
 }
 
-/** One committed action: record it and schedule the save. */
-function commitAction(){ pushHistory(); markDirty(); }
+/** One committed action: record it and schedule the save.
+    act ＝ 畫布那一下手勢的名字：之後同一個 act 再報上來，就併進這一步（amendAction）。 */
+function commitAction(act){ pushHistory(); markDirty(); lastAct = act || ''; }
+/* 把現在的樣子寫進最上面那一步，不另開一步：同一下手勢的後續（拖到一半停一下、
+   集體移動每一格各報一次）。退過之後（最上面不是現在這一步）、或正在套用快照，
+   就只存檔 —— 改到退回去的那一份，重做會接不起來。 */
+function amendAction(){
+  if (!currentPlan || histLock || Date.now() < histQuiet
+      || histAt < 0 || histAt !== histStack.length - 1){ markDirty(); return; }
+  const s = snapshot();
+  histBytes += s.length - histStack[histAt].length;
+  histStack[histAt] = s;
+  markDirty();
+}
 
 /* ==========================================================================
    TREE
@@ -4529,13 +4633,11 @@ function fitBoards(){
   if (!document.getElementById('view-total').classList.contains('active')) return;
   const host = document.getElementById('totalScroll');
   const RW = 30;                                   // must match --ruler-w
-  /* 小工具列也站在這條 flex 上，它吃掉的寬要先扣（52px ＋ 左右 14px 的 margin）。
-     以前沒扣也看不出來 —— 那時候這一頁整片都是紙，剩下的空間吸收得掉；
-     左欄站進來之後就吸收不掉了，背面那張版直接被切掉右邊一截。 */
-  const rail = document.getElementById('totalRail');
-  const railW = rail ? rail.offsetWidth + 14 : 0;
-  // 34px 的 gap 有兩道，不是一道：工具列也站在這條 flex 上（工具｜正面｜背面）
-  const availW = (host.clientWidth - railW - 34 * 2 - 8) / 2 - RW;
+  /* 小工具列**不在這條 flex 上**（2026-09-12 搬到 #totalScroll 外面去了），所以
+     它的寬不必扣，34px 的縫也只剩一道（正面｜背面）。
+     ⚠️ 這兩件事要一起改：還照「兩道縫＋工具列寬」算的話，兩張版會一起縮小一截，
+     而畫面上看起來只是「怎麼變小了」。 */
+  const availW = (host.clientWidth - 34 - 8) / 2 - RW;
   const availH = host.clientHeight - 42 - RW;
   const ref = boardPx();
   const kFit = Math.max(0.25, Math.min(1, availW / ref.w, availH / ref.h));
@@ -5202,6 +5304,37 @@ function sheetOf(block){
   return block.sheet;
 }
 
+/* 這一塊有沒有刊頭。**還沒排版的時候答案在 noMasthead 上** —— sheet.cells 是進
+   落版 才生的（見上面那一支），在 總體 問的時候多半還沒有，而那正是決定這件事的地方。 */
+function mastheadOn(node){
+  return (node && node.sheet && node.sheet.cells) ? !!node.sheet.masthead : !(node && node.noMasthead);
+}
+
+/** 開關刊頭。兩個入口共用（落版 標題列那顆、總體 ✏ 浮層那一列），所以規矩只寫一次。
+    ⚠️ **noMasthead 一定要一起寫**：cells 還沒生的時候 sheetOf() 就是照它決定的，
+    只改 sheet.masthead 的話一進 落版 又被生回來（而在 總體 按的那一下看起來就沒算數）。
+    ⚠️ 關掉的時候把圖、高度、站哪裡收進 sh.mhLast，開回來照原樣 —— 「關一下再開」是
+    最常見的一種試，每試一次就掉一張主視覺的話沒有人敢按。 */
+function setMastheadOn(node, on){
+  if (!node) return;
+  node.noMasthead = !on;
+  const sh = node.sheet;
+  if (!sh || !sh.cells) return;         // 還沒排版：等 sheetOf() 生的時候照 noMasthead 來
+  if (on){
+    const L = sh.mhLast || null;
+    sh.masthead = { image: (L && L.image) || null };
+    sh.mhSide = (L && L.side) || null;
+    if (L && L.h > 0) sh.mastheadH = L.h;
+    delete sh.mhLast;
+  } else if (sh.masthead){
+    sh.mhLast = { image: sh.masthead.image || null, h: sh.mastheadH, side: sh.mhSide || null };
+    sh.masthead = null;
+    sh.mhSide = null;                   // 站哪裡的記錄跟著刊頭一起走
+  }
+  /* 換圖看得見靠這個數字（sheetSig 讀它，不讀網址）—— 刊頭整個換掉更要算一次。 */
+  sh.mhRev = (sh.mhRev || 0) + 1;
+}
+
 /* ==========================================================================
    MINIMAP  (adapted from dm-block-zoom.html: #minimap / renderMinimap /
    switchBlock — same click-to-switch + .active model, but the boards are
@@ -5212,7 +5345,13 @@ function sheetOf(block){
 /* 小地圖那張紙：寬固定，高照真實公分比算 —— 它是同一張版的縮圖，
    比例跟 總體 那張不一樣的話，同一個版位在兩邊會長得不一樣胖。
    （CSS 的 .mini-page 只是還沒開檔期時的預設值，開了就由這裡覆蓋。） */
-const MINI_PAGE = { w: 252, h: 179 };     // h 只是預設；真正的高看 miniPageH()
+/* 寬跟著左欄走（左欄推得動了，見 sideFold）：欄寬扣掉捲軸、內距那 34px。 */
+function miniPageW(){
+  const st = document.getElementById('pmStack');
+  const w = st ? parseFloat(st.style.width) : NaN;
+  return Math.max(180, Math.round((w > 0 ? w : 286) - 34));
+}
+const MINI_PAGE = { get w(){ return miniPageW(); }, h: 179 };   // h 只是預設；真正的高看 miniPageH()
 const miniPageH = () => Math.round(MINI_PAGE.w * boardCm().h / boardCm().w);
 const MINI_LH = 1.28, MINI_CHROME = 7;    // line-height, padding + border
 const MINI_FOLD_PX = 3;
@@ -5328,8 +5467,11 @@ function makeFoldBar(side, resolve, title, opts){
      欄位寬度是你自己決定的，不是只有「全開」和「全關」兩種。 */
   const RAIL = h => h && h.id === 'boardRail';
   const appEl = () => document.querySelector('.app');
-  const MINW = 170, MAXW = 560;
+  const MINW = (opts && opts.min) || 170, MAXW = (opts && opts.max) || 560;
+  const KEY = opts && opts.key;         // 推出來的寬度記在這台電腦上（每個人自己的習慣）
   let lastW = 0;                        // 收起來之前的寬度，展開就回到那裡
+  try { const w = +localStorage.getItem(KEY); if (KEY && w >= MINW && w <= MAXW) lastW = w; } catch (_) {}
+  const resized = final => { if (opts && opts.onResize) opts.onResize(final); };
 
   const widthNow = host => RAIL(host)
     ? (parseFloat(getComputedStyle(appEl()).getPropertyValue('--railw')) || 340)
@@ -5376,10 +5518,12 @@ function makeFoldBar(side, resolve, title, opts){
     }
     // 左邊那欄往右推是變寬，右邊那欄往左推才是變寬
     const want = push.w + (side === 'left' ? dx : -dx);
-    if (want < MINW * .6){ setMini(push.host, true); return; }
+    /* ⚠️ **推不會把它收起來**（2026-09-12）：推到最窄就停在最窄。以前推過某一條線就
+       整條收掉，想推窄一點的人一不小心欄位就不見了。收起來只有「點一下」這一條路。 */
     setMini(push.host, false);
     lastW = Math.max(MINW, Math.min(MAXW, want));
     setWidth(push.host, lastW);
+    resized(false);
   });
   function endPush(){
     if (!push) return;
@@ -5387,21 +5531,44 @@ function makeFoldBar(side, resolve, title, opts){
     push = null;
     bar.classList.remove('pushing');
     p.host.classList.remove('no-anim');
-    if (p.moved) return;                                  // 推過了就不是點擊
+    if (p.moved){                                         // 推過了就不是點擊
+      try { if (KEY && lastW) localStorage.setItem(KEY, String(lastW)); } catch (_) {}
+      resized(true);
+      return;
+    }
     setMini(p.host, !p.host.classList.contains('mini'));  // 點一下＝整條收起／展開
   }
   tab.addEventListener('pointerup', endPush);
   tab.addEventListener('pointercancel', endPush);
   bar.paint = paint;
+  /* 上次推出來的寬度：開機就照它（收著的就等展開再用）。 */
+  if (lastW){ const h = resolve(); if (h && !h.classList.contains('mini')) setWidth(h, lastW); }
   paint();
   return bar;
 }
 
+/* 欄位推寬推窄之後：版面要照新的寬度重排。推的途中只重畫小地圖（它的寬跟著左欄走），
+   放手才整張重排一次 —— 走的就是視窗縮放那一條（fitBoards／redrawSheet／面板位置），
+   同一件事不寫第二份。 */
+let paneResizeFrame = 0;
+function afterPaneResize(final){
+  if (!currentPlan || !layout) return;
+  if (!final){
+    if (paneResizeFrame) return;
+    paneResizeFrame = requestAnimationFrame(() => { paneResizeFrame = 0; renderMinimap(); });
+    return;
+  }
+  renderMinimap();
+  window.dispatchEvent(new Event('resize'));
+}
+
 /* 左邊那一欄三個分頁共用同一疊（#pmStack），所以把手管的永遠是它。
-   只有「收起／展開」兩種狀態：那一欄的寬度是照內容量好的，推寬推窄只會兩邊
-   都不好看。要推的是右邊那條意見欄。 */
+   **拖得動**（2026-09-12，以前只有收起／展開）：左右拖改寬度，點一下收起來。
+   以前不給推的理由是「寬度是照內容量好的」—— 那量的是小地圖那張 252px 的紙，
+   現在那張紙跟著欄寬走（miniPageW），清單本來就是一行一檔、會自己省略。 */
 const sideFold = makeFoldBar('left', () => document.getElementById('pmStack'),
-                             '收起／展開左邊這一欄', { push:false });
+                             '收起／展開左邊這一欄',
+                             { min: 220, max: 560, key: 'pm_side_w_v1', onResize: afterPaneResize });
 
 function renderMinimap(){
   const wasMini = sheetSide.classList.contains('mini');
@@ -5420,6 +5587,7 @@ function renderMinimap(){
     const page = document.createElement('div');
     page.className = 'mini-page';
     const h = miniPageH();
+    page.style.width = MINI_PAGE.w + 'px';
     page.style.height = h + 'px';
     page.appendChild(renderMiniNode(layout[side], MINI_PAGE.w - 4, h - 4));
     sheetSide.appendChild(lab);
@@ -6217,11 +6385,38 @@ function renderHead(){
      改的是那一刀的比例：整張紙的大小是事實，旁邊那幾塊照原比例讓出空間。 */
   addBlockCmFields(sh);
 
-  if (sh.masthead){
-    const mhLbl = document.createElement('span');
-    mhLbl.className = 'sub';
-    mhLbl.textContent = '刊頭';
-    blockHead.appendChild(mhLbl);
+  /* 刊頭那一組永遠都在：開關、寬、高。**關著也畫**（尺寸反灰）——
+     「這一塊沒有刊頭」跟「這一塊有一個 0 公分的刊頭」是兩件事，而只有前者
+     需要一顆看得見的開關才講得清楚。
+     ⚠️ 只有設計換得動（跟刊頭圖同一條理由：那是印出去的一塊實體）。別人看到的
+     是同一組數字，只是沒有那顆鈕 —— 寫著卻按不動比沒有更難懂。 */
+  {
+    const mhIn = !!sh.masthead;
+    if (activeMode === 'design'){
+      const tg = document.createElement('button');
+      tg.id = 'mhToggle';
+      tg.className = mhIn ? 'on' : '';
+      tg.textContent = (mhIn ? '☑' : '☐') + ' 刊頭';
+      tg.title = mhIn
+        ? '這一塊有刊頭。按一下拿掉 —— 圖和高度先留著，加回來照原樣（⌘/Ctrl+Z 也退得回去）'
+        : '這一塊沒有刊頭。按一下加回來';
+      tg.addEventListener('click', () => {
+        setMastheadOn(activeBlock, !mhIn);
+        renderHead(); renderGrid(activeBlock);
+        commitAction();
+        toast(mhIn ? '拿掉刊頭　⌘/Ctrl+Z 可復原' : '加了刊頭', 'info', 2400);
+      });
+      blockHead.appendChild(tg);
+    } else {
+      const mhLbl = document.createElement('span');
+      mhLbl.className = 'sub';
+      mhLbl.textContent = mhIn ? '刊頭' : '沒有刊頭（由設計決定）';
+      blockHead.appendChild(mhLbl);
+    }
+  }
+
+  {
+    const mhOff = !sh.masthead;          // 關著：照畫，但是反灰（見下面那顆輸入框）
     /* 寬和高兩個都寫出來，躺著站著都一樣。刊頭是要發出去做的一塊實體印刷品，
        它的規格就是「寬 × 高」—— 即使躺著的時候寬度永遠等於版位寬、不會變，
        那也是這塊東西的尺寸，不是可以省略的常數。
@@ -6249,11 +6444,17 @@ function renderHead(){
     inp.type = 'number';
     inp.className = 'mh-num';
     inp.min = '1'; inp.max = String(maxH); inp.step = '0.5';
-    inp.value = sh.mhSide ? Math.round(blockHcm * 10) / 10 : sh.mastheadH;
+    /* 關著的時候寫的是「加回來會是多大」—— 收在 sh.mhLast 裡的那個高度
+       （見 setMastheadOn），沒有就是預設值。 */
+    inp.value = mhOff ? ((sh.mhLast && sh.mhLast.h) || sh.mastheadH)
+              : sh.mhSide ? Math.round(blockHcm * 10) / 10 : sh.mastheadH;
     // 站在卡片旁邊時高度就是版位的高，不是這裡能決定的
-    inp.disabled = !!sh.mhSide;
-    inp.title = `1 – ${maxH} cm（版位高 ${blockHcm.toFixed(1)}cm）`;
+    inp.disabled = mhOff || !!sh.mhSide;
+    inp.title = mhOff
+      ? '這一塊沒有刊頭 —— 左邊那顆「☐ 刊頭」加得回來，高度會是這個數字'
+      : `1 – ${maxH} cm（版位高 ${blockHcm.toFixed(1)}cm）`;
     const apply = () => {
+      if (!sh.masthead) return;              // 關著的時候這一欄本來就按不動
       const v = parseFloat(inp.value);
       if (!isFinite(v) || v <= 0){ inp.value = sh.mastheadH; return; }
       sh.mastheadH = Math.min(maxH, Math.round(v * 10) / 10);
@@ -6280,18 +6481,8 @@ function renderHead(){
   addRowCountField(sh);
 
 
-  if (!sh.masthead){
-    const add = document.createElement('button');
-    add.id = 'addMasthead';
-    add.textContent = '＋刊頭';
-    add.addEventListener('click', () => {
-      sh.masthead = { image: null };
-      sh.mhSide = null;                // 重新加的刊頭先當一條橫帶
-      renderHead(); renderGrid(activeBlock);
-      commitAction();
-    });
-    blockHead.appendChild(add);
-  }
+  /* 這裡以前有一顆「＋刊頭」—— 只在沒有刊頭的時候才長出來，而且排在整條列的最尾巴。
+     現在那件事由上面那顆開關講（它永遠在，而且說得出現在是開是關）。 */
 }
 
 /* 落版的格子只回答一件事：這一格有沒有人動過。
@@ -7005,14 +7196,14 @@ function buildMasthead(sh, pxPerCm, maxHcm, atBottom){
     const x = document.createElement('button');
     x.className = 'mh-x';
     x.textContent = '✕';
-    x.title = '刪除刊頭';
+    x.title = '拿掉刊頭（標題列上那顆 ☑ 刊頭 加得回來）';
     x.addEventListener('click', ev => {
       ev.stopPropagation();
-      sh.masthead = null;
-      sh.mhSide = null;                  // 站哪裡的記錄跟著刊頭一起走
+      // 跟標題列那顆開關同一支：圖和高度收進 sh.mhLast，加回來照原樣
+      setMastheadOn(activeBlock, false);
       renderHead(); renderGrid(activeBlock);
       commitAction();                    // deleting a 刊頭 must be undoable
-      toast('已刪除刊頭　⌘/Ctrl+Z 可復原', 'info', 2600);
+      toast('拿掉刊頭　⌘/Ctrl+Z 可復原', 'info', 2600);
     });
     mh.appendChild(x);
 
@@ -7824,9 +8015,12 @@ function setTool(name){
      但它是另一組模式（data-ttool），掃到它會把兩條工具列的亮法攪在一起。 */
   /* 取色在工具列上沒有自己的一顆（它站在取色盤裡），拿著它的時候亮的還是 🎨 ——
      不然整條工具列會一顆都不亮，看起來像手上什麼都沒拿。 */
-  document.querySelectorAll('.tool[data-tool]').forEach(t =>
+  /* 🏷️ 不歸這裡管：它是那一排貼紙開不開著的開關，亮不亮看 syncStickerTool()。 */
+  document.querySelectorAll('.tool[data-tool]').forEach(t => {
+    if (t.dataset.tool === 'sticker') return;
     t.classList.toggle('active',
-      t.dataset.tool === name || (name === 'dropper' && t.dataset.tool === 'paint')));
+      t.dataset.tool === name || (name === 'dropper' && t.dataset.tool === 'paint'));
+  });
   sheetMainEl.classList.toggle('tool-zoom', name === 'pan');
   sheetMainEl.classList.toggle('tool-move', name === 'move');
   sheetMainEl.classList.toggle('tool-paint', name === 'paint');
@@ -7837,7 +8031,6 @@ function setTool(name){
      不是「以後都別出現」—— 收掉之後再也叫不回來的東西就等於沒有那個功能。
      取色也算：取到的顏色就是落在盤子上那一格，看不到的話等於沒有發生。 */
   if (name === 'paint' || name === 'dropper') paintPopShut = false;
-  if (name === 'sticker') stickerPopShut = false;   // 貼圖同一條規矩
   syncPaintPop();
   syncStickerTool();
   syncPassTool();          // 意見欄那顆大的要跟著亮／暗（它是一個模式）
@@ -7860,7 +8053,8 @@ function setTool(name){
   }
 }
 document.querySelectorAll('.tool[data-tool]').forEach(b =>
-  b.addEventListener('click', () => setTool(b.dataset.tool)));
+  b.addEventListener('click', () =>
+    b.dataset.tool === 'sticker' ? toggleStickerDock() : setTool(b.dataset.tool)));
 
 /* ==========================================================================
    ZOOM — one path for the wheel, the keyboard and the 縮放 tool's clicks
@@ -8254,7 +8448,7 @@ document.addEventListener('keydown', e => {
      不換工具 —— 換了會拿著一個工具列上根本沒有的東西。 */
   else if (k === 'a' && activeTab === 'board' && reviewing()){ e.preventDefault(); setTool('pass'); }
   /* T＝貼圖。跟 上色 同一條規矩：只有 拼板、只有設計。 */
-  else if (k === 't' && activeTab === 'board' && activeMode === 'design'){ e.preventDefault(); setTool('sticker'); }
+  else if (k === 't' && activeTab === 'board' && activeMode === 'design'){ e.preventDefault(); toggleStickerDock(); }
 });
 
 document.addEventListener('keyup', e => {
@@ -8804,6 +8998,14 @@ function canvasScale(f){
   return f.getBoundingClientRect().width / lay || 1;
 }
 const pickedOf = c => ((c.board && c.board.state && c.board.state.picked) || []);
+/* 這一格身上的貼圖。它跟「挑了哪些貨」是兩回事：貨是 PM 挑的，貼圖是設計貼上去的
+   素材（能效標章、促銷章），**貨全部拿掉也留著**（見 2cell 的 renderOne）。 */
+const stickersOf = c => ((c.board && c.board.state && c.board.state.blocks) || [])
+  .filter(b => b && b.kind === 'sticker');
+/* 這一格要不要一支畫布 —— 有貨、**或有貼圖**（2026-09-12）。
+   以前只問有沒有貨，於是還沒挑貨的格子貼不上貼圖（沒有畫布，貼紙沒有地方站）。
+   ⚠️ 進度、落版 的「有填寫」都不讀這一支：貼圖不是挑貨。 */
+const cellLive = c => !!(pickedOf(c).length || stickersOf(c).length);
 /* 每一格的畫布最後一次報上來的圖層那一排（見 stageLayers）。只是轉手用的，不存檔。 */
 const stageLayersOf = Object.create(null);
 function tellPanelLayers(id){
@@ -8853,7 +9055,7 @@ addEventListener('message', e => {
 
   if (d.ready){                       // iframe 起來了：身分、共用目錄和上次的內容送回去
     e.source.postMessage({ boardRole: canvasRole(),
-                           catalogue: CATALOGUE || undefined,
+                           catalogue: catalogueOut() || undefined,
                            logos: LOGOS || undefined,
                            /* 底色跟身分一樣要在它一起來的時候就給：版面重畫時畫布是
                               整批重掛的，晚一步送就會先閃一次白。
@@ -8866,6 +9068,13 @@ addEventListener('message', e => {
                            stageEditing: boardCell ? String(boardCell.cell.id) : '',
                            gridLines,       // 工具列那顆開關現在是開是關
                            boardRestore: (target.board || {}).state || null }, '*');
+    /* 為了貼圖才現生的那一支空畫布：它一起來就把那張貼圖送過去（見 pasteStickerOn）。
+       ⚠️ 一定排在 boardRestore **後面** —— 反過來的話 restore 會把剛加的那張蓋掉。 */
+    const wait = stkPending.get(String(target.id));
+    if (wait){
+      stkPending.delete(String(target.id));
+      try { e.source.postMessage({ addSticker: wait }, '*'); } catch (_){}
+    }
     if (d.src === 'panel') tellPanelLayers(target.id);
     /* 換格時面板是蓋著的（見 openBoardCell）：上面那一句 restore 就是它要的最後一樣
        東西，收下之後那一頁就是這一格的樣子了 —— 下一幀（畫完）才掀開，
@@ -8907,7 +9116,8 @@ addEventListener('message', e => {
   /* 後台改了商品目錄（加一列、貼一批、改機型或品牌）。目錄是全公司共用的，
      所以由這裡收下來、存上去、再發給其他每一塊畫布 —— 不然只有動手的那一格會變。 */
   if (d.catalogueSave){
-    CATALOGUE = d.catalogueSave;
+    // ⚠️ 先濾掉測試商品：正本進得去資料庫，那一批不行（見 stripDemo）
+    CATALOGUE = stripDemo(d.catalogueSave);
     const s = sync();
     if (s) s.queueCatalogue(CATALOGUE);
     /* 連動手的那一格也發回去。它的 ROWS 雖然已經是新的，但版面上的零件是照舊的
@@ -9055,15 +9265,19 @@ addEventListener('message', e => {
   /* 畫布開機時會先報一次「還沒排好」的空狀態，那一下不能把已經挑進這一格的
      品項清掉 —— 挑了什麼是面板（src==='panel'）說了算，畫布這一路只管位置。
      一次鋪滿 60 格特別容易撞到：整排畫布同時開機、同時報空，就把塞好的洗光。 */
-  if ((!d.state.picked || !d.state.picked.length) && pickedOf(target).length) return;
+  /* ⚠️ 「空的」要連貼圖一起看（2026-09-12）：只有貨的話，貼圖貼在沒挑貨的格子上時，
+     那一支畫布開機報的空狀態會把剛貼上去的那張洗掉。 */
+  const bare = (!d.state.picked || !d.state.picked.length)
+            && !(d.state.blocks || []).some(b => b && b.kind === 'sticker');
+  if (bare && cellLive(target)) return;
   const wasBoard = boardStateJson(target);
   target.board = { state: d.state };  // 畫布報的（含每一塊的位置）
-  if (!pickedOf(target).length) paintOneCanvas(target);   // 全取消了就把畫布撤掉
+  if (!cellLive(target)) paintOneCanvas(target);   // 貨和貼圖都沒了才把畫布撤掉
   else markBadge(target);
   /* 這一格報了新的需求＝同組的最小值可能變了，整個版位重算一次再發回去。
      排隊等一下：一次挑好幾格會連著報好幾次，收在一起算一次就好。 */
   queueType();
-  noteBoardChange(target, wasBoard, !!d.quiet);  // 圖搬到哪裡是一步；只是開起來看不是
+  noteBoardChange(target, wasBoard, !!d.quiet, d.act || '');  // 人搬的是一步；畫布自己排的不是
 });
 
 /* ==========================================================================
@@ -9080,12 +9294,12 @@ addEventListener('message', e => {
   const d = e.data || {};
   if (!d.productPage) return;
   if (d.want){                       // 那一頁起來了：把手上這份共用目錄給它
-    try { e.source.postMessage({ productPage: 1, catalogue: CATALOGUE || null,
+    try { e.source.postMessage({ productPage: 1, catalogue: catalogueOut() || null,
                                  logos: LOGOS || null, ready: catReady }, '*'); } catch (_){}
     return;
   }
   if (d.catalogueSave){
-    CATALOGUE = d.catalogueSave;
+    CATALOGUE = stripDemo(d.catalogueSave);      // 同上：測試商品不進正本
     const s = sync();
     if (s) s.queueCatalogue(CATALOGUE);
     pushCatalogue();                 // 每一塊畫布當場換成新的目錄
@@ -9360,7 +9574,14 @@ const boardStateJson = c => JSON.stringify((c.board && c.board.state) || null);
    舊資料沒有這一筆，所以每一格第一次開起來報上來都會「不一樣」—— 那不是誰做了什麼，
    當成一步的話一進 拼板 復原鍵就多出六十步。 */
 const noFrame = t => String(t).replace(/,"fw":[\d.]+,"fh":[\d.]+\}$/, '}');
-function noteBoardChange(c, was, quiet){
+/* 這一格的畫布報上來「變了」。記不記成一步（2026-09-12 改）：
+   ・act 是 undefined ＝ 上層自己的動作（面板挑貨那一條）→ 一步。
+   ・act 是空字串 ＝ 畫布自己排的（別處改了字級、加減一格、挑了貨、Ctrl+Z 退回來之後
+     照新條件重排）→ 只存檔。以前這種也記成一步，於是按一次 Ctrl+Z 只退掉一趟看不見的
+     重排，要按好幾下才退到真正做過的那件事。
+   ・act 跟上一步一樣 ＝ 同一下手勢的後續 → 併進那一步。
+   ・新的 act ＝ 人在這一格做了一件事 → 一步。 */
+function noteBoardChange(c, was, quiet, act){
   const now = boardStateJson(c);
   const boot = was === 'null' && !pickedOf(c).length;   // 空格子開機報到
   if (!boot && now !== was && (quiet || noFrame(now) === noFrame(was))){
@@ -9372,7 +9593,10 @@ function noteBoardChange(c, was, quiet){
        開機報到那一種不算：那時候畫面上什麼都沒改。 */
     staleSnapCell(c.id);
     scheduleSnap();               // 手一停就重拍那一格
-    commitAction();
+    if (act === undefined) commitAction();
+    else if (!act) markDirty();                   // 畫布自己排的：存起來，不是一步
+    else if (act === lastAct) amendAction();      // 同一下手勢的後續：併進去
+    else commitAction(act);
   } else markDirty();
 }
 
@@ -9528,7 +9752,9 @@ NOTE_KINDS.forEach(k => {
     armKind(null);
     e.dataTransfer.setData('text/plain', 'note:' + k.key);
     e.dataTransfer.effectAllowed = 'copy';
+    noteDragOn(true);            // 格子上那幾支畫布先讓開，不然放手那一下掉進 iframe 裡
   });
+  b.addEventListener('dragend', () => noteDragOn(false));
   b.addEventListener('click', () => armKind(armedKind === k.key ? null : k.key));
   document.getElementById('stickRow').appendChild(b);
 });
@@ -9565,6 +9791,19 @@ function armKind(key){
 }
 
 /* ---- 拖到格子上 ---- */
+/* 拖著便利貼的那幾秒把畫布那層關掉（見 .notedrag 那條 CSS）。跟拖檔案那一段
+   （enableFileDropOnBoards）是同一件事的反面：那邊要畫布**收**得到 drop，這邊要它**別**收。
+   ⚠️ 還要一道「停了就關」的保險：放在視窗外面、或拖到別的分頁上，dragend 不一定回得來，
+   而卡在開著的狀態＝格子裡的零件全部拖不動。 */
+let noteDragOff = 0;
+function noteDragOn(on){
+  const board = document.getElementById('boardOverview');
+  if (!board) return;
+  clearTimeout(noteDragOff); noteDragOff = 0;
+  board.classList.toggle('notedrag', on);
+  if (on) noteDragOff = setTimeout(() => board.classList.remove('notedrag'), 15000);
+}
+['drop', 'dragend'].forEach(t => document.addEventListener(t, () => noteDragOn(false), true));
 /* 哪一格在游標底下。以前這裡還擋著「不是你的回合的格不給貼新便利貼」——
    現在整本一起走（見 planSide），擋起來就變成「不是你的關就一句話都不能說」，
    而便利貼是對話，不是版面的一部分。 */
@@ -10059,7 +10298,8 @@ function updateRailTab(){
 /* 意見欄的把手：貼在它左緣的正中間，凸在版面上，收起來也還在原地。
    上面那顆紅點是「還沒處理」的數量 —— 收起來了也看得到還欠幾件。 */
 const railFold = makeFoldBar('right', () => document.getElementById('boardRail'),
-                             '收起／展開意見欄');
+                             '收起／展開意見欄',
+                             { min: 240, max: 560, key: 'pm_rail_w_v1', onResize: afterPaneResize });   // 再窄那三顆鈕就擠成「★…」
 railFold.tabCount = document.createElement('span');
 railFold.tabCount.className = 'n';
 railFold.querySelector('.fold-tab').appendChild(railFold.tabCount);
@@ -10282,11 +10522,14 @@ function pushCellCm(){
   });
 }
 
-function paintOneCanvas(c){
+/* force ＝「就算這一格現在什麼都沒有也生一支」。只有一個人用它：把貼紙拖到還沒
+   挑貨的格子上那一下（見 pasteStickerOn）—— 那時候貼圖還沒進到資料裡，cellLive
+   還是 false，可是畫布得先在那裡，那張貼圖才有地方去。 */
+function paintOneCanvas(c, force){
   if (activeTab !== 'board') return;
   const el = cardEl(c.id);
   if (!el) return;
-  const n = pickedOf(c).length;
+  const n = force || cellLive(c);
   let f = el.querySelector('.ccanvas');
   if (!n){ if (f) f.remove(); markBadge(c); paintNoteMarks(c); return; }
   const cm = cellCm(c, el);
@@ -10325,7 +10568,7 @@ function paintOneCanvas(c){
     可是那 60 支畫布全部要重新生一遍。照「有沒有重建」判斷的話這一趟不蓋布，
     於是 落版 → 拼板 是整張版當著你的面長出來 —— 而那是最常走的一條路。 */
 function canvasMissing(c){
-  if (!pickedOf(c).length) return false;
+  if (!cellLive(c)) return false;
   const el = cardEl(c.id);
   return !!el && !el.querySelector('.ccanvas');
 }
@@ -10928,7 +11171,7 @@ function exportNeedsShot(plan, block){
   return (sheetOf(block).cells || []).some(c => {
     const rec = store.get(String(c.id));
     if (!rec) return true;
-    if (!pickedOf(c).length) return false;
+    if (!cellLive(c)) return false;
     return !rec.url || snapOutdated(key, c.id, rec);
   });
 }
@@ -11590,7 +11833,7 @@ function pvNode(node, plan){
          以前寫「還沒拍到」—— 那聽起來像一個要自己去處理的狀態，於是人會關掉
          再開一次，而那只是把預熱重排一遍，更慢。
          真的一格都沒挑的那一種照舊：那不是等一下就會好的事。 */
-      const any = (sheetOf(node).cells || []).some(c => pickedOf(c).length);
+      const any = (sheetOf(node).cells || []).some(c => cellLive(c));
       if (any) d.className += ' pv-load';
       d.textContent = (node.name || '版位') + '\n' + (any ? '載入中…' : '還沒挑貨');
       d.style.whiteSpace = 'pre-line';
@@ -11843,7 +12086,7 @@ function farmBuild(block, m, job){
     row.style.height = m.rowH + 'px';
     sh.cells.slice(at, at + count).forEach(c => {
       const el = makeCard(c);
-      if (pickedOf(c).length){
+      if (cellLive(c)){
         const f = document.createElement('iframe');
         f.className = 'ccanvas';
         f.setAttribute('scrolling', 'no');
@@ -11920,7 +12163,7 @@ addEventListener('message', e => {
   if (!c) return;
   try {
     e.source.postMessage({ boardRole: canvasRole(),
-                           catalogue: CATALOGUE || undefined,
+                           catalogue: catalogueOut() || undefined,
                            logos: LOGOS || undefined,
                            paper: bgOf(c) || '#ffffff',
                            gridLines,
@@ -11974,7 +12217,7 @@ addEventListener('message', e => {
     if (f.contentWindow === e.source) return;        // 來源那一格自己已經走過了
     try { f.contentWindow.postMessage({ bulkApply: m }, '*'); } catch (_){}
   });
-  commitAction();                 // 整批算一步，Ctrl+Z 一次退回
+  commitAction(m.act || '');      // 整批算一步：每一格接著報上來的都帶同一個 act，併進這一步
 });
 
 /* 總體 那兩張版是開檔期時建好就留著的，狀態變了要就地更新底色和狀態字。
@@ -12563,9 +12806,20 @@ function stickerPanelOn(){
   return activeTab === 'board' && activeMode === 'design' && !stickerPopShut;
 }
 
+/** 🏷️（和 T）＝那一排貼紙的開關（2026-09-13）。它**不是工具**：貼紙是拖著貼的，
+    拖曳本來就不看手上拿著什麼，所以按它不放下手上的工具、換別的工具也不會把它關掉。
+    以前它是一顆工具 —— 預設開著的那一排，鈕卻不亮；換個工具鈕就滅了，那一排卻還在。 */
+function toggleStickerDock(){
+  stickerPopShut = !stickerPopShut;
+  syncStickerTool();
+}
+
 function syncStickerTool(){
   const btn = document.querySelector('.tool[data-tool="sticker"]');
-  if (btn) btn.style.display = (activeTab === 'board' && activeMode === 'design') ? '' : 'none';
+  if (btn){
+    btn.style.display = (activeTab === 'board' && activeMode === 'design') ? '' : 'none';
+    btn.classList.toggle('active', stickerPanelOn());   // 按下去的樣子＝那一排開著
+  }
   /* 開關那一條不重排版面：它只吃掉底下一截高度，版面照舊從左上角排下來，
      重排反而會讓整張版在拿起筆的那一下跳一次。 */
   document.getElementById('stkDock').classList.toggle('on', stickerPanelOn());
@@ -12600,9 +12854,10 @@ function renderStickerPanel(){
     if (c && cats.indexOf(c) < 0) cats.push(c);
   });
   if (stkCat && cats.indexOf(stkCat) < 0) stkCat = '';
-  document.getElementById('stkCats').innerHTML =
-    [''].concat(cats).map(c =>
+  const catsEl = document.getElementById('stkCats');
+  const catsHtml = [''].concat(cats).map(c =>
       `<button class="stk-cat${stkCat === c ? ' on' : ''}" data-cat="${escapeHtml(c)}">${escapeHtml(c || '全部')}</button>`).join('');
+  if (catsEl._html !== catsHtml){ catsEl.innerHTML = catsHtml; catsEl._html = catsHtml; }
 
   const q = stkQuery.trim().toLowerCase();
   /* 這一檔用過的排前面（貼過幾次，多的先）。以前另外有一排「最近用過」，
@@ -12621,10 +12876,35 @@ function renderStickerPanel(){
   const em = stickerLib.length
     ? (rows.length ? '' : '找不到符合的貼紙')
     : loading ? '載入貼紙中…' : '還沒有貼紙 —— 按「＋ 新貼紙」做幾張';
-  document.getElementById('stkGrid').innerHTML =
-    `<button class="stk-add" data-more title="開貼紙庫（新增／修改）"><span class="p">＋</span><span>新貼紙</span></button>`
-    + rows.map(stkThumb).join('')
-    + (em ? `<span class="stk-empty">${escapeHtml(em)}</span>` : '');
+  /* ⚠️ **沒變就不重畫，要重畫也不換掉還在的縮圖**（2026-09-12）。
+     這一支掛在 syncStickerTool 上，而那一支每換一次工具、每重建一次版面（每一步、每一次
+     Ctrl+Z、每 5 秒合併一次別人的改動）都會叫。以前每叫一次就 innerHTML 整片重寫：
+     每一張 <img> 都是新的節點，縮圖一張一張變白再冒回來，捲到右邊的也跳回最前面 ——
+     看起來就是「那一排自己卸載了，要再等它載一次」。
+     所以先比一份簽名（哪幾張、什麼順序、縮圖網址、那一句空的說明），一樣就不動；
+     不一樣就照 id＋縮圖網址把還在的那幾顆節點原封不動搬過去，只生真的新的。 */
+  const grid = document.getElementById('stkGrid');
+  const sig = JSON.stringify([rows.map(r => [r.id, r.name || '', previewSrc(r)]), em]);
+  if (grid._sig === sig && grid.firstElementChild) return;
+  grid._sig = sig;
+  const keyOf = r => r.id + '\u0000' + (r.name || '') + '\u0000' + previewSrc(r);
+  const old = new Map();
+  grid.querySelectorAll('[data-stk]').forEach(n => { if (n._stkKey) old.set(n._stkKey, n); });
+  const tmp = document.createElement('div');
+  const make = html => { tmp.innerHTML = html; return tmp.firstElementChild; };
+  const nodes = [grid.querySelector('[data-more]') || make(
+    `<button class="stk-add" data-more title="開貼紙庫（新增／修改）"><span class="p">＋</span><span>新貼紙</span></button>`)];
+  rows.forEach(r => {
+    const k = keyOf(r);
+    let n = old.get(k);
+    if (n) old.delete(k);
+    else { n = make(stkThumb(r)); n._stkKey = k; }
+    nodes.push(n);
+  });
+  if (em) nodes.push(make(`<span class="stk-empty">${escapeHtml(em)}</span>`));
+  const sl = grid.scrollLeft, st = grid.scrollTop;
+  grid.replaceChildren(...nodes);
+  grid.scrollLeft = sl; grid.scrollTop = st;
 }
 
 document.getElementById('stkSearch').addEventListener('input', e => {
@@ -12637,6 +12917,42 @@ document.getElementById('stkCats').addEventListener('click', e => {
   stkCat = b.dataset.cat || '';
   renderStickerPanel();
 });
+/* ---- 那一條的高度：拖上緣 ----
+   跟兩邊欄位同一個規矩：拖只改大小、不會收起來（最矮就是一排卡片放得下的高度），
+   收起來是那顆 ✕。高度記在這台電腦上。 */
+const STK_H_KEY = 'pm_stk_h_v1', STK_H_MIN = 150;
+function setStkH(h){
+  const max = Math.max(STK_H_MIN, Math.round(innerHeight * .6));
+  h = Math.max(STK_H_MIN, Math.min(max, Math.round(h)));
+  document.documentElement.style.setProperty('--stkh', h + 'px');
+  document.getElementById('stkDock').classList.toggle('tall', h >= 240);   // 兩排卡片放得下
+  return h;
+}
+try { const h0 = +localStorage.getItem(STK_H_KEY); if (h0) setStkH(h0); } catch (_) {}
+let stkGripDrag = null;
+const stkGrip = document.getElementById('stkGrip');
+stkGrip.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  stkGripDrag = { y: e.clientY, h: document.getElementById('stkDock').getBoundingClientRect().height, now: 0 };
+  stkGrip.classList.add('on');
+  try { stkGrip.setPointerCapture(e.pointerId); } catch (_) {}
+});
+stkGrip.addEventListener('pointermove', e => {
+  if (!stkGripDrag) return;
+  stkGripDrag.now = setStkH(stkGripDrag.h - (e.clientY - stkGripDrag.y));   // 往上拖＝變高
+});
+const endStkGrip = () => {
+  if (!stkGripDrag) return;
+  const d = stkGripDrag; stkGripDrag = null;
+  stkGrip.classList.remove('on');
+  if (!d.now) return;
+  try { localStorage.setItem(STK_H_KEY, String(d.now)); } catch (_) {}
+  afterPaneResize(true);
+};
+stkGrip.addEventListener('pointerup', endStkGrip);
+stkGrip.addEventListener('pointercancel', endStkGrip);
+
 /* 只點一下卡片（沒拖）：講一句怎麼用。什麼都不發生的話，看起來就是壞了。 */
 let stkDragged = false;           // 剛拖完：放手後瀏覽器補的那一發 click 不算「只點一下」
 document.getElementById('stkDock').addEventListener('click', e => {
@@ -12656,6 +12972,9 @@ document.getElementById('stkGrid').addEventListener('wheel', e => {
    手上帶著一張跟著游標走的縮圖（`.stk-ghost`）：拖曳途中看不到自己拿著什麼的話，
    跟畫面當掉分不出來。經過的那一格照便利貼那一套亮起來（同一支 hotCell）。
    拖到一半反悔、放在版外（或放在還沒挑貨的格子上）：什麼都不貼，放手就算了。 */
+/* 為了貼圖現生的那一支畫布還在開機，貼圖先在這裡排隊（cellId → 那一包）。
+   ⚠️ 一格最多一張：開機大約一幀的事，同一格連貼兩張之前它早就報到了。 */
+const stkPending = new Map();
 let stkDrag = null, stkGhostEl = null;
 function stkGhostShow(row){
   stkGhostEl = document.createElement('div');
@@ -12758,7 +13077,7 @@ function openStickerLib(){
 }
 
 document.getElementById('stickerClose').addEventListener('click', () => {
-  stickerPopShut = true;         // 收起來；按 🏷️ 貼圖 再打開（setTool 那邊會把它放回 false）
+  stickerPopShut = true;         // 收起來；🏷️ 跟著滅，再按一下（或 T）打開
   syncStickerTool();
 });
 
@@ -12770,10 +13089,23 @@ function pasteStickerOn(cel, row, at){
   if (!r) return false;
   const cell = cellById(cel.dataset.cellId);
   if (!cell) return false;
-  const f = canvasFrame(cell.id);
-  /* 還沒挑貨的格子沒有畫布（見 paintOneCanvas：有貨才生），貼紙沒有地方站。
-     安靜地什麼都不做的話，看起來就是「貼圖壞了」—— 講一句。 */
-  if (!f || !f.contentWindow){ toast('這一格還沒挑貨，貼紙沒有地方站', 'info', 2200); return false; }
+  /* **還沒挑貨的格子也貼得上**（2026-09-12）。以前這裡擋下來講一句「沒有地方站」——
+     理由是空格子沒有畫布，而那是實作的樣子，不是這件事的道理：貼圖是設計貼在版面上的
+     素材，跟這一格的貨定了沒一點關係（規格章、促銷章常常比貨先決定）。
+     所以沒有畫布就**現生一支**，那張貼圖排隊等它開機報到（見上面 d.ready 那一段）。 */
+  let f = canvasFrame(cell.id);
+  let born = false;
+  if (!f || !f.contentWindow){
+    if (activeTab !== 'board') return false;
+    paintOneCanvas(cell, true);          // force：這一格還沒有東西，照常不會生畫布
+    /* 剛出生的 iframe 沒有尺寸也沒有 transform（那兩樣是 fitCellCanvases 用 inline
+       style 給的，而畫這一格的那一趟渲染跑在它出生之前）。不補這一下，底下量落點
+       就會量到 iframe 天生的 300×150。 */
+    if (lastMetrics) fitCellCanvases(lastMetrics);
+    f = canvasFrame(cell.id);
+    if (!f) return false;
+    born = true;
+  }
   const load = stickerPayload(r);
   /* 放手的那一點就是這張貼圖的中心 —— 照便利貼那條規矩：東西落在
      你放它的地方，不是格子正中間。
@@ -12787,7 +13119,9 @@ function pasteStickerOn(cel, row, at){
     if (cs) load.at = { cx: (at.clientX - fr.left) / cs, cy: (at.clientY - fr.top) / cs };
   }
   try {
-    f.contentWindow.postMessage({ addSticker: load }, '*');
+    // 剛生出來的那一支還在開機：排隊，等它報到（d.ready）再送
+    if (born) stkPending.set(String(cell.id), load);
+    else f.contentWindow.postMessage({ addSticker: load }, '*');
     /* 最近用過數的是「貼了幾次」。存進這一檔，跟色盤的「最常用」同一種東西
        （只會加，所以合併時取兩邊的增量，見 mergePaintInto）。 */
     const use = Object.assign({}, stkUseOf(currentPlan));
@@ -13329,6 +13663,10 @@ function openItemPop(node, el){
     list.appendChild(d);
   }
 
+  // 有沒有刊頭（cells 還沒生的時候讀的是 noMasthead，見 mastheadOn）
+  const mhBox = itemPop.querySelector('#ipMh');
+  if (mhBox) mhBox.checked = mastheadOn(node);
+
   /* 站在那一塊**旁邊**，不要壓在它身上 —— 正在填的是這一塊的內容，看不到它就
      不知道自己在填哪裡。右邊放不下就換左邊，兩邊都放不下才蓋上去。 */
   const r = el.getBoundingClientRect();
@@ -13340,6 +13678,14 @@ function openItemPop(node, el){
   itemPop.style.left = left + 'px';
   itemPop.style.top  = Math.max(8, Math.min(window.innerHeight - h - 8, r.top)) + 'px';
 }
+
+/* 刊頭開關：跟 落版 那顆走同一支（setMastheadOn），所以「關掉要記得住原本那張圖」
+   這件事只寫一次。走 applyItems() ＝記一步、重建版面、浮層再開回來。 */
+itemPop.querySelector('#ipMh').addEventListener('change', e => {
+  if (!itemNode) return;
+  setMastheadOn(itemNode, e.target.checked);
+  applyItems();
+});
 
 /* 加一個品類：名字空著就不算數（空的品類在總體上是一塊寫著「未命名」的地方，
    而那正是切出來還沒填的樣子 —— 不該用「加」再生一個）。 */
@@ -13769,12 +14115,109 @@ let LOGOS = null;
    沒接後端的時候就是 true：沒有共用的那一份可以毀。 */
 let catReady = false;
 
+/* ==========================================================================
+   測試商品（devtool）—— 一批帶規格、顏色、SKU、價格的假商品
+   --------------------------------------------------------------------------
+   為什麼要有：共用目錄裡的真商品多半沒有規格（家電那幾類是型號），而格子裡
+   「規格那一塊怎麼排、同組價格怎麼取最小字級」只有拿到有規格的貨才看得出來。
+   這一批本來就寫在畫布那一支裡（2cell 的 ROWS），但 applyCatalogue 是**整份換掉**，
+   所以一接上正式資料庫就全沒了 —— 現在由這裡在「發出去」的那一份裡補回來。
+
+   ⚠️ **不變式：這一批只存在於發出去的那一份**。
+   ・CATALOGUE（記憶體裡的正本）永遠只有真商品 —— 收 catalogueSave 時先濾掉（stripDemo）。
+   ・pushCatalogue() 發出去的時候才接上去。
+   寫回資料庫的路只讀正本，所以測試商品沒有任何一條路徑進得了 catalogue 那一列
+   （商品目錄存的是**整包**，混進去一次就是全公司的商品多了四十支 iPhone）。
+   ⚠️ 分類寫死 '測試'：挑貨面板上會自己站成一顆藥丸，跟真商品一眼分得開。
+   它不會污染 總體 的品類清單 —— 那一份讀的是 CATALOGUE（正本），不是發出去的那一份。 */
+const DEMO_BRAND = { 'Galaxy A5':'Samsung', 'ANKER 30W 自帶線行動電源':'ANKER' };
+const DEMO_MODEL = { 'ANKER 30W 自帶線行動電源':'A1654H21', 'AirPods Pro 3':'MTJV3' };
+const DEMO_ROWS = [
+  ['iPhone 17 Pro Max','256G','黑','2156742',44900],
+  ['iPhone 17 Pro Max','256G','橘','2156744',44900],
+  ['iPhone 17 Pro Max','512G','黑','2156739',51900],
+  ['iPhone 17 Pro Max','512G','橘','2156740',51900],
+  ['iPhone 17 Pro Max','512G','白','2156745',51900],
+  ['iPhone 17 Pro Max','1TB','','2156738',58900],
+  ['iPhone 17 Pro Max','1TB','','2156741',58900],
+  ['iPhone 17 Pro Max','1TB','','2156724',58900],
+  ['iPhone 17 Pro','256G','','2156751',39900],
+  ['iPhone 17 Pro','256G','','2156748',39900],
+  ['iPhone 17 Pro','512G','','2156749',46900],
+  ['iPhone 17 Pro','512G','','2156746',46900],
+  ['iPhone 17 Pro','1TB','','2156735',53900],
+  ['iPhone 17 Pro','1TB','','2156734',53900],
+  ['Galaxy A5','256G 12GB','','2162613',12900],
+  ['Galaxy A5','512G 12GB','','2162614',14900],
+  ['iPad Air','128G','','2154566',19900],
+  ['iPad Air','128G','','2154569',19900],
+  ['iPad Air','256G','','2154562',23400],
+  ['iPad Air','256G','','2154565',23400],
+  ['iPad A16','128G','','2154573',10900],
+  ['iPad A16','128G','','2154575',10900],
+  ['iPad A16','256G','','2154572',19900],
+  ['iPad A16','256G','','2154570',19900],
+  ['MacBook Pro','512G','','2158956',52900],
+  ['MacBook Pro','512G','','2158957',52900],
+  ['MacBook Pro','512G','','2158954',52900],
+  ['MacBook Pro','512G','','2158955',52900],
+  ['MacBook Neo Air M5','256G','','2162848',22900],
+  ['MacBook Neo Air M5','256G','','2162849',22900],
+  ['MacBook Neo Air M5','256G','','2162850',22900],
+  ['MacBook Neo Air M5','512G','','2162864',35900],
+  ['MacBook Neo Air M5','512G','','2162865',35900],
+  ['MacBook Neo Air M5','1TB','','2162868',42900],
+  ['MacBook Neo Air M5','1TB','','2162869',42900],
+  ['AirPods 4','降噪款','','2150080',5490],
+  ['AirPods 4','一般款','','2150081',4290],
+  ['AirPods Pro 3','標準','','2157982',7490],
+  ['ANKER 30W 自帶線行動電源','','白','2157669',1290],
+  ['ANKER 30W 自帶線行動電源','','黑','2157670',1290]
+].map(r => ({ name:r[0], spec:r[1], color:r[2], sku:r[3], price:r[4], cat:'測試',
+              /* 品牌和型號寫在**列上**，不靠對照表：畫布那邊本來就先問列自己
+                 （見 2cell 的 rowBrand），這樣就不必再合併兩張 map。 */
+              brand: DEMO_BRAND[r[0]] || 'Apple', model: DEMO_MODEL[r[0]] || '' }));
+const DEMO_SKUS = new Set(DEMO_ROWS.map(r => r.sku));
+const DEMO_KEY = 'pm_demo_rows_v1';
+let demoRowsOn = false;
+try {
+  demoRowsOn = new URLSearchParams(location.search).get('demo') === '1'
+            || localStorage.getItem(DEMO_KEY) === '1';
+} catch (_){}
+
+/** 從一份目錄裡把測試商品拿掉。**兩個條件都要對**（分類是測試、而且 SKU 在名單裡）——
+    只比 SKU 的話，哪天真的商品撞上同一個號碼就會被默默刪掉。 */
+function stripDemo(cat){
+  if (!cat || !Array.isArray(cat.rows)) return cat;
+  const rows = cat.rows.filter(r => !(r && (r.cat || '') === '測試' && DEMO_SKUS.has(String(r.sku))));
+  return rows.length === cat.rows.length ? cat : Object.assign({}, cat, { rows });
+}
+
+function setDemoRows(on){
+  demoRowsOn = !!on;
+  try { localStorage.setItem(DEMO_KEY, demoRowsOn ? '1' : '0'); } catch (_){}
+  renderDevBtn();               // 鈕上的琥珀色和分頁上那顆點都讀它
+  pushCatalogue();               // 不必重整：目錄變了本來就是整批發下去
+  toast(demoRowsOn ? '測試商品已加進挑貨清單（分類「測試」）' : '測試商品收起來了',
+        'info', 2400);
+}
+
 /** 發給所有畫布／面板 —— 目錄變了大家要一起變，不然這一格和那一格對不起來。 */
 function pushCatalogue(){
-  if (!CATALOGUE) return;
+  const cat = catalogueOut();
+  if (!cat) return;
   document.querySelectorAll('iframe').forEach(f => {
-    try { f.contentWindow.postMessage({ catalogue: CATALOGUE }, '*'); } catch (_){}
+    try { f.contentWindow.postMessage({ catalogue: cat }, '*'); } catch (_){}
   });
+}
+
+/** 要發出去的那一份 ＝ 正本（＋測試商品，如果開著）。
+    ⚠️ 只有這一支會把測試商品接上去；CATALOGUE 本身永遠不含它們。 */
+function catalogueOut(){
+  if (!demoRowsOn) return CATALOGUE;
+  const base = CATALOGUE || {};
+  const rows = (base.rows || []).concat(DEMO_ROWS);
+  return Object.assign({}, base, { rows });
 }
 
 /** 某一個商品換了圖，只發那一把鑰匙。收到的畫布只換那幾張 `<img>` 的 src，
@@ -14250,7 +14693,7 @@ function appendCardMap(card, plan){
    輪不輪到你）和 ✓ 那顆鈕。版位底色不必動 —— 那講的是挑貨，跟時間無關。 */
 function applyClock(ms){
   setNowOffset(ms);
-  renderClockBtn();
+  renderDevBtn();
   renderPlans();
   if (currentPlan) updateProgress();
   /* 撥時鐘＝換一關，而「審核通過」那顆鈕就是照關給的（見 syncPassTool）——
@@ -14279,19 +14722,54 @@ function fmtShift(){
    ⚠️ **它是唯一的入口**：以前檔期列表最上面那條管理列也撥得動（點一個階段），
    那一條整個拿掉了 —— 同一件事不留兩個入口。
    ⚠️ 撥的是自己的畫面：只寫 localStorage，不進 plan、不上傳。 */
-const clockPop = document.getElementById('clockPop');
-const clockBtn = document.getElementById('clockBtn');
+const devPop = document.getElementById('devPop');
+const devBtn = document.getElementById('devBtn');
 
-/** 鈕上寫什麼。沒撥就只是一個安靜的時鐘；撥開了就把日期寫在上面 ——
-    一個被撥過的時鐘要一直看得見，不然過兩天回來會以為是資料壞了。 */
-function renderClockBtn(){
-  if (!clockBtn) return;
-  const on = clockShifted();
-  clockBtn.classList.toggle('shifted', on);
-  clockBtn.textContent = on ? '🕒 ' + fmtMDWx(now()) : '🕒';
-  clockBtn.title = on
-    ? `這台機器的「現在」被撥到 ${fmtMDWx(now())}（${fmtShift()}）—— 按一下改或復原`
-    : '撥時鐘（測試用）：把這台機器的「現在」撥到別的日子';
+/* 停在哪一頁記在這台電腦：測東西的時候多半連著開同一個工具。 */
+const DEV_TAB_KEY = 'pm_dev_tab_v1';
+let devTab = 'clock';
+try { devTab = localStorage.getItem(DEV_TAB_KEY) === 'demo' ? 'demo' : 'clock'; } catch (_){}
+function setDevTab(name){
+  devTab = name === 'demo' ? 'demo' : 'clock';
+  try { localStorage.setItem(DEV_TAB_KEY, devTab); } catch (_){}
+  paintDevPop();
+}
+
+/** 浮層裡面：哪一頁在前面、哪幾個工具正開著、測試商品那顆開關寫什麼。 */
+function paintDevPop(){
+  if (!devPop) return;
+  devPop.querySelectorAll('.dev-tab').forEach(b => {
+    const live = b.dataset.dev === 'clock' ? clockShifted() : demoRowsOn;
+    b.classList.toggle('on', b.dataset.dev === devTab);
+    b.classList.toggle('live', !!live);
+  });
+  devPop.querySelectorAll('.dev-pane').forEach(x => { x.hidden = x.dataset.pane !== devTab; });
+  const sw = document.getElementById('demoSwitch');
+  if (sw){
+    /* 加進去是「來一個」，收起來是「還原」—— 只有前者是建議，所以只有前者是藍的。 */
+    sw.classList.toggle('cp-now', !demoRowsOn);
+    sw.textContent = demoRowsOn ? '收起來' : '加進挑貨清單';
+  }
+  const st = document.getElementById('demoState');
+  if (st) st.textContent = demoRowsOn
+    ? `開著：${DEMO_ROWS.length} 列，在挑貨面板的「測試」那顆藥丸底下。`
+    : '現在沒有加。';
+}
+
+/** 鈕上寫什麼。沒動過手腳就只是一支安靜的板手；開了哪個工具就寫在上面 ——
+    被撥過的時鐘、混進去的測試商品都要一直看得見，不然過兩天回來會以為資料壞了。 */
+function renderDevBtn(){
+  if (!devBtn) return;
+  const c = clockShifted(), d = demoRowsOn;
+  devBtn.classList.toggle('shifted', c || d);
+  devBtn.textContent = '🛠' + (c ? ' 🕒' + fmtMDWx(now()) : '') + (d ? ' 🧪' : '');
+  devBtn.title = (c || d)
+    ? '測試工具開著：'
+      + [c ? `時鐘撥到 ${fmtMDWx(now())}（${fmtShift()}）` : '',
+         d ? '挑貨清單裡有測試商品' : ''].filter(Boolean).join('、')
+      + ' —— 按一下改或關掉'
+    : '測試工具（devtool）：撥時鐘、在挑貨清單裡加一批有規格的測試商品';
+  paintDevPop();
 }
 
 /* datetime-local 要的是**當地時間**的 YYYY-MM-DDTHH:mm，直接 toISOString() 會差一個時區。 */
@@ -14301,32 +14779,33 @@ function toLocalInput(d){
        + `T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function placeClockPop(){
-  const r = clockBtn.getBoundingClientRect();
-  clockPop.style.top = (r.bottom + 8) + 'px';
+function placeDevPop(){
+  const r = devBtn.getBoundingClientRect();
+  devPop.style.top = (r.bottom + 8) + 'px';
   /* 靠右對齊那顆鈕，再夾在畫面裡：那顆鈕在檔期列表上幾乎貼著右緣，
      照左緣擺的話浮層會有一半在畫面外。 */
-  const w = clockPop.offsetWidth || 250;
-  clockPop.style.left = Math.max(10, Math.min(r.right - w, innerWidth - w - 10)) + 'px';
+  const w = devPop.offsetWidth || 250;
+  devPop.style.left = Math.max(10, Math.min(r.right - w, innerWidth - w - 10)) + 'px';
 }
 
-function openClockPop(on){
-  if (!clockPop) return;
-  clockPop.classList.toggle('on', on);
+function openDevPop(on){
+  if (!devPop) return;
+  devPop.classList.toggle('on', on);
   if (!on) return;
   document.getElementById('clockAt').value = toLocalInput(now());
-  placeClockPop();
+  paintDevPop();
+  placeDevPop();
 }
 
-clockBtn.addEventListener('click', e => {
+devBtn.addEventListener('click', e => {
   e.stopPropagation();
-  openClockPop(!clockPop.classList.contains('on'));
+  openDevPop(!devPop.classList.contains('on'));
 });
 /* 點到外面就收起來 —— 跟這支程式裡其他浮層同一個手感。 */
 document.addEventListener('click', e => {
-  if (!clockPop.classList.contains('on')) return;
-  if (e.target.closest('#clockPop') || e.target.closest('#clockBtn')) return;
-  openClockPop(false);
+  if (!devPop.classList.contains('on')) return;
+  if (e.target.closest('#devPop') || e.target.closest('#devBtn')) return;
+  openDevPop(false);
 });
 /* 打一個日期進去：那是「撥到哪一天」，跟 ±N 天是同一件事的兩種手勢。
    ⚠️ 跟現在一樣就當作什麼都沒說（一分鐘內）：按了 ±N 天之後這個欄位是**程式**
@@ -14338,7 +14817,7 @@ document.getElementById('clockAt').addEventListener('change', e => {
   applyClock(+t - Date.now());
   toast(`現在是 ${fmtMDWx(now())}`, 'ok', 2200);
 });
-clockPop.addEventListener('click', e => {
+devPop.addEventListener('click', e => {
   const b = e.target.closest('button[data-shift]');
   if (!b) return;
   /* 疊加，不是從真實時間算：連按兩下「＋1 天」要往前兩天 —— 那正是「一天一天
@@ -14347,13 +14826,18 @@ clockPop.addEventListener('click', e => {
   document.getElementById('clockAt').value = toLocalInput(now());
   toast(`現在是 ${fmtMDWx(now())}`, 'ok', 1800);
 });
+devPop.addEventListener('click', e => {
+  const t = e.target.closest('.dev-tab');
+  if (t){ setDevTab(t.dataset.dev); return; }
+  if (e.target.closest('#demoSwitch')) setDemoRows(!demoRowsOn);
+});
 document.getElementById('clockReset').addEventListener('click', () => {
   applyClock(0);
   document.getElementById('clockAt').value = toLocalInput(now());
-  openClockPop(false);
+  openDevPop(false);
   toast('回到真正的現在', 'ok', 2000);
 });
-addEventListener('resize', () => { if (clockPop.classList.contains('on')) placeClockPop(); });
+addEventListener('resize', () => { if (devPop.classList.contains('on')) placeDevPop(); });
 
 
 /* ==========================================================================
@@ -16919,7 +17403,7 @@ window.addEventListener('pagehide', () => {
 });
 
 showList();
-renderClockBtn();          // 上一次撥過的時鐘要一開機就寫在鈕上（offset 記在 localStorage）
+renderDevBtn();          // 上一次撥過的時鐘要一開機就寫在鈕上（offset 記在 localStorage）
 /* 最後才問「你是誰」：上面已經把整個畫面建好了，登入只是把蓋著的那一頁收起來。
    反過來先問的話，login() 裡的 applyMode() 會踩到還沒宣告完的東西。 */
 bootLogin();

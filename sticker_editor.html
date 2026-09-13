@@ -11,6 +11,9 @@
   --cons-bg:#12151c;--cons-line:#242a35;--cons-txt:#c9d3e0;
   --ins:#5ed39b;--upd:#ffc861;--del:#ff7b7b;--sel:#7ec9ff;
   --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+  /* 畫板底下那張桌子。跟主程式的 --chrome 同一階（淡灰藍）——
+     它只比紙深一階，看得出「桌面／紙」就夠了。 */
+  --desk:#ccd5e1;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -169,8 +172,20 @@ input[type=color]{width:100%;height:26px;padding:0;border:1px solid var(--line);
 /* ⚠️ 兩軸都要 safe center：置中的排法在溢出時是往**兩邊**溢的，畫板放大到比這裡還大
    的時候，上緣和左緣那一截會捲不到（捲動已經在 0，畫面上卻是從中間開始）。 */
 .artwrap{flex:1;min-width:0;display:flex;flex-direction:column;align-items:safe center;justify-content:safe center;gap:10px;
-  background:repeating-conic-gradient(#eef1f5 0 25%,#fff 0 50%) 0 0/18px 18px;padding:14px;overflow:auto;position:relative}
-#art{position:relative;background:transparent;flex-shrink:0}
+  background:var(--desk);padding:48px;overflow:auto;position:relative}
+/* ⚠️ 桌面是**平的**，格子底只畫在畫板上 —— 兩邊都鋪格子的話畫板的邊界看不見，
+   拖到板外的圖層就像是「被一塊看不到的畫布裁掉了」。
+   ⚠️ 格子底寫在 #art 自己的 background 上，**不可以再退回 ::before + z-index:-1**：
+   負的 z 是畫在「最近的堆疊脈絡祖先的背景後面」，而這一頁的祖先是 .ov（z-index:900）——
+   那層格子底於是被 .dlg／.artwrap 的背景整片蓋掉，從來沒有顯示過。
+   ⚠️ padding 給得大：圖層拖到畫板外面是合法的（存檔時 cropToContent 會照內容重裁），
+   但捲動只長得出右邊和下面 —— 留白不夠的話拖到左上角的圖層會被切掉而且捲不回來。 */
+#art{position:relative;flex-shrink:0;
+  background:repeating-conic-gradient(#e9edf2 0 25%,#fff 0 50%) 0 0/14px 14px;
+  box-shadow:0 0 0 1px #98a4b4,0 6px 18px rgba(18,22,28,.18)}
+/* 畫板現在幾 px。它站在板子底下（不疊在板上）—— 那是一句說明，不是版面的一部分。 */
+.artsize{flex-shrink:0;font:700 10.5px var(--mono);color:#41506a;
+  background:rgba(255,255,255,.72);padding:2px 9px;border-radius:9px}
 .gd{position:absolute;background:#ff2e93;pointer-events:none;z-index:40}
 .gd.v{width:1px;top:-18px;bottom:-18px}
 .gd.h{height:1px;left:-18px;right:-18px}
@@ -180,8 +195,6 @@ input[type=color]{width:100%;height:26px;padding:0;border:1px solid var(--line);
 .gd.h::after{left:-14px;top:1px}
 .rotbadge{position:absolute;left:50%;top:-26px;transform:translateX(-50%);z-index:45;
   background:#ff2e93;color:#fff;font:700 10px var(--mono);padding:2px 7px;border-radius:10px;pointer-events:none}
-#art::before{content:'';position:absolute;inset:0;z-index:-1;
-  background:repeating-conic-gradient(#e9edf2 0 25%,#fff 0 50%) 0 0/14px 14px}
 #art.dragover{outline:3px dashed var(--accent);outline-offset:4px}
 /* 現在放多大。只在不是原尺寸時出現 —— 永遠寫著 100% 的話它只是一塊擋住畫板的字，
    而過一陣子回來發現貼紙「變大了」的時候，第一個念頭會是自己把它拉大了。 */
@@ -327,6 +340,7 @@ if (new URLSearchParams(location.search).get('embed') === '1')
     </div>
     <div class="artwrap">
       <div id="art"></div>
+      <div class="artsize" id="artSize"></div>
       <div class="artzoom" id="artZoom" title="點一下回到原尺寸">100%</div>
     </div>
     <div class="side">
@@ -742,6 +756,7 @@ function artH(){return Math.round(ART_W*E.tpl.ratio);}
 function drawArt(){
   const H=artH();
   art.style.width=ART_W+'px';art.style.height=H+'px';
+  const sz=$('artSize'); if(sz) sz.textContent=ART_W+' × '+H+' px';
   growShapes(E.tpl,ART_W,H);
   art.innerHTML=renderTemplate(E.tpl,ART_W,H,null,false);
   fitTexts(art);
