@@ -79,7 +79,7 @@ const steps = [
   // as=design 是登入的旁路 —— 乾淨的瀏覽器不帶它會停在登入頁
   '--file', 'design_and_PM.html?seed=1&as=design', '--wait', '900',
   '--click', '#stressPlanBtn', '--wait', '2200',
-  '--click-text', '拼板', '--wait', '2000',
+  '--click-text', '商品', '--wait', '2000',
   /* 先挑一塊**有格子**的版位。假檔期照真的那一張排之後，第一塊是刊頭
      （0 格，就是 DM 上那些整塊的圖）—— 停在那裡的話量到 0 格，四條規矩
      全部是綠的，而那只是因為沒有東西可量。挑格數最多的那一塊。 */

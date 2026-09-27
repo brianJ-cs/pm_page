@@ -118,6 +118,15 @@ body.padding .cell.cur .safe{display:block}
    描邊用 currentColor，選取變色時不會露出舊顏色的邊。 */
 .blk.model{font-size:calc(var(--fs-model,13px) * var(--bs,1) * var(--fit,1));font-weight:900;color:#4a4a4a;
   letter-spacing:.3px;-webkit-text-stroke:.028em currentColor}
+/* 字的寬照**字自己**算，不照「離格子右緣還剩多少」算（2026-09-14）。
+   絕對定位、寬是 auto 的東西，瀏覽器給它的寬＝min(字要多寬, 格子寬 − left)。而零件的框比字寬一圈
+   （左右內距＋框線，約 5.5 個單位），字貼到右邊的牆時，右邊那一圈是站在牆外面的 ——
+   邊界比那一圈窄的時候（例如邊界 3），那一圈就頂出格子的右緣，瀏覽器把整塊擠窄，
+   型號、品名當場折成兩行，選取框也跟著變成一個又窄又高的怪框（量到過：邊界 3 拖到右邊，
+   品名 452 → 兩行、型號 313 → 兩行）。
+   max-content 讓寬不再看格子剩多少；品名要在牆以內換行靠的是 blockHTML 寫的 max-width，
+   那一條照舊有效（寬＝min(max-content, max-width)）。有寫死欄寬的（b.w2，行內樣式）不受影響。 */
+.blk.name,.blk.model,.blk.specb{width:max-content}
 /* 品牌：實際 PNG 或長形 placeholder，高度約等同品牌字級 */
 .blk.brand .bimg{height:calc(var(--h-brand,26px) * var(--bs,1) * var(--fit,1));display:block;pointer-events:none}
 /* 去背匯出的圖四周留著一大圈透明，那圈空白會頂著品名 —— 這一層把它切掉，
@@ -417,6 +426,85 @@ td input:focus,.grp input:focus{outline:1px solid var(--accent)}
   font-weight:800;cursor:pointer;z-index:6;box-shadow:0 2px 5px rgba(0,0,0,.2)}
 .delbtn:hover{background:#c0392b;color:#fff;border-color:#c0392b}
 .blk.sticker:hover .delbtn,.blk.sticker.sel .delbtn{display:block}
+
+/* ====== 選起來之後貼在圖底下那一條 ======================================
+   對這塊圖做的事收在同一個地方（裁切／最上面／刪除）。以前它們各站各的：
+   「最上面」浮在圖上、✕ 只有貼圖有、刪掉只在右邊那張圖層清單裡 —— 而它們
+   是同一類東西（對這一塊做的事），手在圖上就該在圖旁邊找得到。
+   ⚠️ **大小照螢幕算**（--sz ＝ 把 --cs、--ss 兩層縮放除回去），跟四個角的把手和
+   貼圖那顆 ✕ 同一條理由：整份畫布被縮進 3.7cm 的格子裡，寫死 px 在版上只剩幾個點。
+   ⚠️ 所以**裁切的時候上層會把畫面拉近到這一格**（stageCropOn）——
+   不拉近的話這一條比整個格子還寬，會被格子的 overflow:hidden 切掉。 */
+.selbar{--sz:calc(1 / (var(--cs,1) * var(--ss,1)));
+  position:absolute;left:50%;top:auto;bottom:100%;transform:translate(-50%, calc(-6px * var(--sz)));
+  display:none;gap:calc(3px * var(--sz));padding:calc(3px * var(--sz));
+  align-items:center;white-space:nowrap;z-index:80;
+  background:rgba(255,255,255,.96);
+  border:max(1px, calc(1px * var(--sz))) solid rgba(0,0,0,.18);
+  border-radius:calc(8px * var(--sz));
+  box-shadow:0 calc(2px * var(--sz)) calc(6px * var(--sz)) rgba(0,0,0,.2)}
+/* **一律站在那一塊的上面**：圖底下就是價格和 SKU（它們靠右下對齊，天天都在那裡），
+   一條按鈕壓在上面既看不到也按不到。貼著格子上緣、翻上去會被切掉的那幾塊才退到下面 ——
+   被格子切掉一半的按鈕比沒有按鈕更難懂。 */
+.selbar.down{top:100%;bottom:auto;transform:translate(-50%, calc(6px * var(--sz)))}
+.selbar button{appearance:none;border:0;background:transparent;color:#1b3a57;font:inherit;
+  font-size:calc(11px * var(--sz));font-weight:800;line-height:1;cursor:pointer;
+  padding:calc(5px * var(--sz)) calc(7px * var(--sz));border-radius:calc(5px * var(--sz))}
+.selbar button:hover{background:#e8f1fb;color:#007acc}
+.selbar button.kill:hover{background:#fdecea;color:#c0392b}
+.selbar button.go{background:#007acc;color:#fff}
+.selbar button.go:hover{background:#0069b0;color:#fff}
+.selbar .sp{width:max(1px,calc(1px * var(--sz)));height:calc(16px * var(--sz));
+  background:rgba(0,0,0,.12);margin:0 calc(2px * var(--sz))}
+.blk.img.sel > .selbar,.blk.img.cropping > .selbar{display:flex}
+/* ⚠️ **選起來的那一塊要整個抬起來。** 選取記號（那一條、藍框、四顆把手）都是 .blk 的
+   小孩，而 .blk.img／.blk.sticker 自己帶著疊放順序的 z-index —— 那就是一個堆疊脈絡，
+   所以記號身上的 z-index 只在**那一塊自己那一層**裡算數。品名、價格那些是 60
+   （.blk:not(.img)），整片畫在圖上面：量到過選起來之後那一條被價格蓋住，看不到，
+   elementsFromPoint 拿到的也是價格，於是也按不到。
+   只有選起來的那一刻抬，放掉就回原本的順序 —— 疊放順序是資料（圖層那一疊），不歸選取管。 */
+.blk.img.sel,.blk.sticker.sel{z-index:90!important}
+
+/* ====== 裁切中 ==========================================================
+   .icrop 是**看得見的那一塊**（墨水框）：裡面那張圖放大之後往左上位移，四周被
+   overflow 切掉 —— 跟品牌圖那一段（.bcrop）同一種擺法，所以選取框、牆、圖片
+   互相排開量到的都是**裁完**的大小（paintedRect 會跟 overflow:hidden 的容器取交集）。 */
+.blk.img .icrop{display:block;position:relative;overflow:hidden;z-index:1;width:100%}
+.blk.img .icrop img{position:absolute;height:auto;max-width:none;display:block}
+/* ====== 裁切中：照 iOS 相簿那一套 ======================================
+   **圖不動**，你拉的是那個框：整張原圖攤在格子裡（裝不下就縮到裝得下），
+   八顆把手改框的大小、框裡面拖就是搬框，框外面壓暗。
+   ⚠️ 這一層是 .cstage 的小孩、蓋住整格：攤開的圖比那一塊零件大得多，
+   掛在零件身上會被它的位置牽著走。 */
+.cropui{position:absolute;left:0;top:0;width:100%;height:100%;z-index:95;
+  --sz:calc(1 / (var(--cs,1) * var(--ss,1)))}
+.cropui .cimg{position:absolute;display:block;-webkit-user-drag:none;user-select:none}
+/* 框外面壓暗：一個大到蓋住整格的 box-shadow，比畫四塊遮罩簡單，而且永遠對得齊。 */
+.cropui .crect{position:absolute;cursor:move;
+  box-shadow:0 0 0 9999px rgba(12,16,24,.55);
+  outline:max(1px, calc(1.5px * var(--sz))) solid #fff}
+/* 八顆把手：四個角 ＋ 四個邊。大小照**螢幕**算（跟選取的把手、那一條同一條理由）。 */
+.cropui .ch{position:absolute;background:#fff;border-radius:calc(1px * var(--sz));
+  box-shadow:0 0 calc(2px * var(--sz)) rgba(0,0,0,.45);
+  --hz:calc(11px * var(--sz));--ht:calc(3px * var(--sz))}
+.cropui .ch-nw,.cropui .ch-ne,.cropui .ch-sw,.cropui .ch-se{
+  width:var(--hz);height:var(--hz)}
+.cropui .ch-n,.cropui .ch-s{left:50%;transform:translateX(-50%);width:var(--hz);height:var(--ht)}
+.cropui .ch-e,.cropui .ch-w{top:50%;transform:translateY(-50%);height:var(--hz);width:var(--ht)}
+.cropui .ch-nw,.cropui .ch-n,.cropui .ch-ne{top:calc(var(--ht) * -.5)}
+.cropui .ch-sw,.cropui .ch-s,.cropui .ch-se{bottom:calc(var(--ht) * -.5)}
+.cropui .ch-nw,.cropui .ch-w,.cropui .ch-sw{left:calc(var(--ht) * -.5)}
+.cropui .ch-ne,.cropui .ch-e,.cropui .ch-se{right:calc(var(--ht) * -.5)}
+.cropui .ch-nw{cursor:nwse-resize}.cropui .ch-se{cursor:nwse-resize}
+.cropui .ch-ne{cursor:nesw-resize}.cropui .ch-sw{cursor:nesw-resize}
+.cropui .ch-n,.cropui .ch-s{cursor:ns-resize}
+.cropui .ch-e,.cropui .ch-w{cursor:ew-resize}
+/* 那一排站在格子下緣正中間（它不跟著框跑 —— 框一直在動，按鈕不該跟著跳）。 */
+.cropui .selbar{display:flex;left:50%;top:auto;bottom:calc(8px * var(--sz));
+  transform:translateX(-50%)}
+/* 裁切中這一格只有這一件事：別的零件壓暗（它們不是現在要看的東西）。 */
+.blk.img.cropping{visibility:hidden}
+.cropping-on .blk:not(.cropping){opacity:.35}
 /* 圖層面板：位於選商品面板正下方，獨立窗口 */
 #lay{display:none;width:400px;flex:1;min-height:150px;background:#fff;
   border:1px solid var(--line);border-radius:14px;flex-direction:column;overflow:hidden;
@@ -817,34 +905,7 @@ function measureLogo(url){
   im.onload = () => {
     const r = im.naturalHeight ? im.naturalWidth / im.naturalHeight : 0;
     let ink = null;
-    try{
-      const S = 256, k = Math.min(1, S / Math.max(im.naturalWidth, im.naturalHeight));
-      const w = Math.max(1, Math.round(im.naturalWidth * k));
-      const h = Math.max(1, Math.round(im.naturalHeight * k));
-      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-      const cx = cv.getContext('2d');
-      cx.drawImage(im, 0, 0, w, h);
-      const d = cx.getImageData(0, 0, w, h).data;
-      /* jpg 沒有透明，那種圖的空白是**白的**。四個角都接近白才把白當背景 ——
-         不然一張真的白底 logo 會被從中間裁開。 */
-      const near = i => d[i]>245 && d[i+1]>245 && d[i+2]>245;
-      const corner = i => d[i+3]<16 || near(i);
-      const bgWhite = corner(0) && corner((w-1)*4) && corner((h-1)*w*4) && corner(((h-1)*w+w-1)*4);
-      let x0=w, y0=h, x1=-1, y1=-1;
-      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-        const i=(y*w+x)*4;
-        if(d[i+3] <= 16) continue;
-        if(bgWhite && near(i)) continue;
-        if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
-      }
-      /* 整張都是空白就當作量不到（裁完什麼都不剩）。剛好填滿畫布的圖照樣記下來 ——
-         那時候墨水框就等於畫布，配大小走的還是同一條路，只是不必真的裁。 */
-      if(x1>=x0 && y1>=y0){
-        const inv = 1 / k;
-        ink = { w: im.naturalWidth, h: im.naturalHeight,
-                ix: x0*inv, iy: y0*inv, iw: (x1-x0+1)*inv, ih: (y1-y0+1)*inv };
-      }
-    }catch(_){ ink = null; }        // 跨來源讀不到像素：照畫布算，不裁
+    try{ ink = scanInk(im, 245); }catch(_){ ink = null; }  // 跨來源讀不到像素：照畫布算，不裁
     LOGO_M.set(url, { r, ink });
     repaintBrand(url);
   };
@@ -860,6 +921,93 @@ function measureLogo(url){
   }, LOGO_WAIT);
   im.src = url;
 }
+
+/* 一張圖「看得見的那一塊」在原圖上的哪裡（原圖像素）：{ w,h, ix,iy,iw,ih }，
+   量不到（整張空白）回 null。跨來源讀不到像素會丟例外，由呼叫的人接。
+   white ＝多白算「白底」：商標是向量轉出來的，245 就夠；商品照是 jpg／webp，
+   白底上有壓縮雜訊，要放寬一點。 */
+function scanInk(im, white){
+  {
+      const S = 256, k = Math.min(1, S / Math.max(im.naturalWidth, im.naturalHeight));
+      const w = Math.max(1, Math.round(im.naturalWidth * k));
+      const h = Math.max(1, Math.round(im.naturalHeight * k));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d');
+      cx.drawImage(im, 0, 0, w, h);
+      const d = cx.getImageData(0, 0, w, h).data;
+      /* jpg 沒有透明，那種圖的空白是**白的**。四個角都接近白才把白當背景 ——
+         不然一張真的白底 logo 會被從中間裁開。 */
+      const near = i => d[i]>white && d[i+1]>white && d[i+2]>white;
+      const corner = i => d[i+3]<16 || near(i);
+      const bgWhite = corner(0) && corner((w-1)*4) && corner((h-1)*w*4) && corner(((h-1)*w+w-1)*4);
+      let x0=w, y0=h, x1=-1, y1=-1;
+      for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+        const i=(y*w+x)*4;
+        if(d[i+3] <= 16) continue;
+        if(bgWhite && near(i)) continue;
+        if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+      }
+      /* 整張都是空白就當作量不到（裁完什麼都不剩）。剛好填滿畫布的圖照樣記下來 ——
+         那時候墨水框就等於畫布，配大小走的還是同一條路，只是不必真的裁。 */
+      if(x1>=x0 && y1>=y0){
+        const inv = 1 / k;
+        return { w: im.naturalWidth, h: im.naturalHeight,
+                 ix: x0*inv, iy: y0*inv, iw: (x1-x0+1)*inv, ih: (y1-y0+1)*inv };
+      }
+      return null;
+  }
+}
+
+/* ====== 商品圖預設就去掉四周的空白（2026-09-27） ==============================
+   目錄裡的商品照多半是一張方的白底圖，東西只佔中間一條（冷氣：上下各一大片白）。
+   不裁的話那一片白也算這塊零件：選取框比看得到的東西大一大圈、圖跟圖之間留著
+   一條白、商品本身被縮得很小 —— 跟 rule.png 上商品塞滿那一格的樣子差最多的就是這個。
+   所以**沒裁過的圖，預設就照量到的墨水框裁**（跟商標那一段同一支 scanInk）。
+   ・它是預設值，不是存下來的東西：cell.crop 裡沒有這一張，就用量到的那一份。
+     人自己裁過（包括按「整張」要回整張圖）就照人的，存進 cell.crop。
+   ・量到之前那一格先藏著（跟商標同一條 waitLogo），不然會先畫一張帶白邊的、再跳一次。
+   ・讀不到像素（跨來源）或幾乎沒有白邊（四邊加起來省不到 3%）就不裁。 */
+const IMG_INK = new Map();          // 網址 → null（量中）| {x,y,w,h,ar} | false（不裁）
+function measureImgInk(url){
+  const im = new Image();
+  im.crossOrigin = 'anonymous';
+  const done = v => {
+    if(IMG_INK.get(url) !== null) return;
+    IMG_INK.set(url, v);
+    /* 用到這張圖的格子重排一次：形狀變了，旁邊的圖要讓開、出界的要收回來。 */
+    CELLS.forEach((c, i) => {
+      const bs = (i === curCell ? BLOCKS : c.blocks) || [];
+      if(bs.some(b => b.kind === 'img')) renderOne(i, i === curCell);
+    });
+    if(typeof placeSelBars === 'function') placeSelBars();
+  };
+  im.onload = () => {
+    let v = false;
+    try{
+      const k = scanInk(im, 236);
+      if(k && k.w > 0 && k.h > 0){
+        const c = { x: k.ix / k.w, y: k.iy / k.h, w: k.iw / k.w, h: k.ih / k.h,
+                    ar: k.w / k.h };
+        if(c.w * c.h < 0.97) v = c;
+      }
+    }catch(_){ v = false; }
+    done(v);
+  };
+  im.onerror = () => done(false);
+  setTimeout(() => done(false), LOGO_WAIT);
+  im.src = url;
+}
+function imgInkPending(url){
+  if(!url || url.startsWith('data:image/svg')) return false;
+  if(!IMG_INK.has(url)){ IMG_INK.set(url, null); measureImgInk(url); return true; }
+  return IMG_INK.get(url) === null;
+}
+/* 這張圖預設裁成哪一塊（沒有就 null）。回一份新的，改它不會改到量到的那一份。 */
+function autoCropOf(url){
+  const v = url && IMG_INK.get(url);
+  return v ? { x: v.x, y: v.y, w: v.w, h: v.h, ar: v.ar } : null;
+}
+const sameCrop = (a, b) => !!a && !!b && ['x','y','w','h'].every(k => Math.abs(a[k] - b[k]) < 1e-4);
 
 /* 商標的大小量出來了（或量不到了），左上那一疊要跟著讓開，不然品名會壓在
    商標身上。正在編的那一格量得到 DOM，交給 force 那一趟的 spreadStack；
@@ -1226,12 +1374,16 @@ function applyType(t){
     const px = Math.max(0, +t.marginPx || 0);
     if(Math.abs(px - MARGIN) > .0005){ setMargin(px); marginHit = hit = true; }
   }
+  const imgMul0 = TYPE_MUL.img;
   if(t.mul){
     for(const k in TYPE_MUL){
       const v = +t.mul[k] || 1;
       if(Math.abs(v - TYPE_MUL[k]) > .0005){ TYPE_MUL[k] = v; hit = true; }
     }
   }
+  /* 字級把商品圖放大／縮小＝下一趟排版要重算排開（見 pushImgs）。記成「欠著」而不是當場推：
+     開機時字級比這一格的內容先到，那時候 BLOCKS 還是空的，要等 restoreBoard 那一趟才推得了。 */
+  if(Math.abs(TYPE_MUL.img - imgMul0) > .0005) TYPE_PUSH_DUE = true;
   if(!hit) return;
   applyMetrics();        // SKU 轉盤的值是原版單位（預設 12），換算在 applyMetrics 裡
   // 邊界往內移了：站在線外的零件先拉回來，再重畫（見 clampToMargin）
@@ -1449,8 +1601,8 @@ function reframeBlocks(arrs, kx, ky){
     arr.forEach(b => {
       b.x = (+b.x || 0) * kx;
       b.y = (+b.y || 0) * ky;
-      if(b.pushX) b.pushX = +(b.pushX * kx).toFixed(1);   // 被推開的那一段也是座標
-      if(b.pushY) b.pushY = +(b.pushY * ky).toFixed(1);
+      if(b.tyPushX) b.tyPushX = +(b.tyPushX * kx).toFixed(1);   // 被推開的那一段也是座標
+      if(b.tyPushY) b.tyPushY = +(b.tyPushY * ky).toFixed(1);
     });
   });
 }
@@ -1616,6 +1768,17 @@ addEventListener('message',e=>{
   /* 上層轉過來的 Delete：焦點停在上層那一頁（例如剛把貼紙拖進來）時，
      這一格收不到鍵盤，上層認得出選取在哪一格，就轉給那一格。 */
   if(d.stageDelete){ userAct(); keyDelete(); }
+  if('snapOn' in d) SNAP_ON = !!d.snapOn;
+  if(d.alignLogo){ alignToLogo(d.alignLogo); reportSelBar(); }
+  /* 上層那一條按下去的那一下（見 reportSelBar）。跟格子裡那一條同一套動作。
+     裁切要鍵盤（Enter／Esc），而剛剛按的是上層的按鈕，所以先把焦點拿回來。 */
+  if(d.selBarAct){
+    const { act, id } = d.selBarAct;
+    if(act === 'crop'){ try{ window.focus(); }catch(_){} enterCrop(id); }
+    else if(act === 'top'){ userAct(); bringTop(id); placeSelBars(); reportBoard(); }
+    else if(act === 'kill'){ userAct(); killLayer(id); }
+    reportSelBar();
+  }
   /* 開關集體移動＝已經選起來的那幾塊要換個顏色（藍↔紅），所以要重畫。
      沒有選取就什麼都不必動。 */
   if(d.bulkMode !== undefined){
@@ -2103,8 +2266,7 @@ function keyLabel(k){
              + (a[3] ? '　' + a[3] : '');
 }
 let BLOCKS = [];
-let PUSH_NOW = false;     // 這一趟重排是不是「改商品圖的大小」（見 pushImgs）
-let PUSH_FAIL = false;    // 上一次推開的時候有沒有讓不開
+let TYPE_PUSH_DUE = false;   // 字級的圖片倍率變過、還沒重算排開（見 pushImgs）
 /* 這一格現在的改動是哪一下手勢造成的（見 userAct）。 */
 let ACT_ID = '', ACT_UNTIL = 0;
 /* picked 與 BLOCKS 是「目前格」的視圖，切格時同步 */
@@ -2333,6 +2495,28 @@ function cellImgs(){
   return c.img;
 }
 
+/* 這一格自己裁過的那一塊：key 是商品（跟 cell.img 同一把鑰匙），值是
+   { x, y, w, h, ar } —— 四個 0～1 的小數（看得到原圖的哪一塊）＋ 原圖的長寬比。
+   **存的是「看得到哪一塊」，不是一張裁好的圖**：共用目錄裡那張原圖一個位元都不動，
+   別的格子、別本 DM 不受影響，隨時改得回來。
+   ⚠️ ar 要一起存：算高度要用它，而畫的時候圖不一定已經載進來（問不到 naturalWidth）。
+   ⚠️ 跟 cell.img 一樣掛在**格子**上不掛在零件上：勾選一變 buildBlocks() 就把零件
+   整批重做，掛在零件上的東西會跟著不見。 */
+function cellCrops(){
+  const c = cell();
+  if(!c) return {};
+  if(!c.crop) c.crop = {};
+  return c.crop;
+}
+/* 這一塊的裁切。新舊兩把鑰匙都找一次 —— 理由跟 imgUrlOf 那一段一模一樣。 */
+function cropOf(b){
+  if(!b || b.kind !== 'img') return null;
+  const m = cellCrops();
+  const c = m[b.key] || m[imgKeyBase(b.key)];
+  if(c && c.w > 0 && c.h > 0 && c.ar > 0) return c;
+  return autoCropOf(imgUrlOf(b.key));      // 沒裁過：預設去掉四周空白
+}
+
 /* 預留圖上寫的那一行字＝**這一張是這一群裡的哪一支**。
    本來只寫規格和顏色，那對手機平板夠用（256G 黑／512G 橘），但公司很多品類
    根本沒有這兩欄 —— 空調就是：同一格三支，三張預留圖上都寫著「—」，
@@ -2356,8 +2540,20 @@ function phTag(k, a, row){
 
 /* 商品圖：這一格換過的優先，其次是圖庫上傳的，都沒有就畫 placeholder
    （內嵌 SVG，斷網也看得到） */
-function imgHTML(k, row){
+/* 裁過的那一塊畫成什麼樣：外面 .icrop 就是看得見的那一塊，裡面那張圖放大之後往左上位移。
+   ⚠️ **一律用百分比、不用 px**：沒裁過的圖是 `width:100%`（＝這一塊的**內容**寬，
+   也就是 b.w 扣掉那一圈內距和框線），照 px 寫的話裁過的那一塊會比沒裁過的寬出那一圈 ——
+   一進裁切、一出來，圖就自己大一圈又小一圈（量到過 138 → 147.5）。
+   高度交給 aspect-ratio：裁出來的形狀就是 (看得到的寬 × 原圖寬) ÷ (看得到的高 × 原圖高)。 */
+function imgHTML(k, row, crop){
   const url = imgUrlOf(k);
+  if(url && crop){
+    const ratio = (crop.w / crop.h) * crop.ar;
+    return `<span class="icrop" style="aspect-ratio:${ratio.toFixed(4)}"`
+      + `><img src="${url}" alt="" draggable="false" decoding="sync" style="width:${
+        (100 / crop.w).toFixed(3)}%;left:${(-100 * crop.x / crop.w).toFixed(3)}%;top:${
+        (-100 * crop.y / crop.h).toFixed(3)}%"></span>`;
+  }
   if(url) return `<img src="${url}" alt="" draggable="false" decoding="sync">`;
   const a=k.split('|'), tag=phTag(k,a,row);
   return `<svg class="ph" viewBox="0 0 100 100">
@@ -2373,6 +2569,10 @@ function imgHTML(k, row){
   </svg>`;
 }
 
+/* 正在裁哪一張（null＝沒有）。⚠️ 宣告要在 blockHTML 前面：頂層的 let 有 TDZ，
+   而那一支畫的時候就要問「這一塊是不是正在裁」。 */
+let CROP = null;             // { id, key, before, w0 }
+let cropDrag = null;         // 拖圖／拖角的途中
 let activeImg=null;          // 滾輪循環中的目前圖層 id
 let stackUnder=[];           // 游標下的圖層(由上到下)
 let cycleIndex=0;
@@ -2425,13 +2625,15 @@ function blockHTML(b,isCur=true){
     /* 高度一律跟著寬度等比例（.ph 的 aspect-ratio／真圖的 height:auto）。
        舊資料可能還留著 b.h（單向拉伸那個功能留下來的），不理它 —— 拉不回來的
        扁圖留在版上，比「不能改長寬比」這條規矩本身更糟。 */
-    /* 被別張圖推開的那一段（b.pushX／b.pushY，見 pushImgs）只加在畫的時候：
-       b.x／b.y 還是它自己的位置，推它的那張縮回去，它才回得去。 */
-    const ix=(+b.x||0)+(+b.pushX||0), iy=(+b.y||0)+(+b.pushY||0);
-    return `<div class="blk img${on}${noimg}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}" data-b="${b.id}"
+    /* 字級放大時被別張圖推開的那一段（b.tyPushX／b.tyPushY，見 pushImgs）只加在畫的時候：
+       b.x／b.y 還是它自己的位置，字級調回來它才回得去。 */
+    const ix=(+b.x||0)+(+b.tyPushX||0), iy=(+b.y||0)+(+b.tyPushY||0);
+    const cropping = isCur && CROP && CROP.id === b.id;
+    return `<div class="blk img${on}${noimg}${pk(b)}${(isCur&&activeImg===b.id)?' actimg':''}${cropping?' cropping':''}" data-b="${b.id}"
       style="left:${ix}px;top:${iy}px;width:${iw}px;${noimg?`--iw:${iw}px;`:''}z-index:${b.z};opacity:${dim}">
-      ${imgHTML(b.key, b.row)}
-      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button></div>`;
+      ${imgHTML(b.key, b.row, cropOf(b))}
+      <button class="tobtn" data-top="${b.id}" title="移到最上層">最上面</button>
+      ${selBarHTML(b, isCur, +iw)}</div>`;
   }
   /* 貼圖：b.tpl 是這張貼紙的模板（貼上去那一刻從貼紙庫抄一份跟著走），
      b.vals 是**這一格自己**改過的那幾個字。所以同一張貼紙貼十格，十格可以寫
@@ -2551,7 +2753,11 @@ function handleSize(el){
    （字框、內容框），選取框量 DOM —— 「拖不到邊界」每一次都是那兩份對不起來。
    ⚠️ 記號本身要跳過（.selbox／.rz／.tobtn／.delbtn）：它們是 UI 不是內容，
    而且 resizeHandles 重量的時候它們就在 DOM 裡，量進去的話那一圈會越長越大。 */
-const SEL_SKIP = 'selbox rz tobtn delbtn'.split(' ');
+/* 量「看得見的那一塊」時要跳過的記號。⚠️ **加一種記號就要加進這一串** ——
+   它們是畫在零件上的 UI，不是印出去的東西，量進去的話那一塊的墨水框會憑空長大：
+   選起來那一條（selbar）約 37 個單位高，牆的測試量到的就是它 —— 拖到底的那一下
+   零件被選起來，那一條長出來，整塊看起來就比牆多出一截（2026-09-22 量到過）。 */
+const SEL_SKIP = 'selbox rz tobtn delbtn selbar cropui'.split(' ');
 /* 圖、svg、canvas 畫的就是它自己那一塊，不往裡面問。 */
 const REPLACED = new Set(['img', 'svg', 'canvas', 'video']);
 let glyphCv = null;
@@ -2735,6 +2941,9 @@ function placeHandles(el, hs, sz, r){
 /* 選取記號：**選起來的每一塊各一個框**，只有「剛好選了一塊」才長把手。
    （名字留著沒改：renderCell、拉完大小那幾條都在叫它。） */
 function paintHandles(){
+  /* 選起來那一條（裁切／最上面／刪除）跟把手同一個時機出現，所以擺位置也在這裡叫。
+     ⚠️ 要在最前面：下面那個 return 擋的是「沒選到東西」，而裁切中那一條照樣要擺。 */
+  setTimeout(placeSelBars, 0);
   if(ROLE==='pm' || !selected.size) return;
   syncHairline();
   const one = selected.size === 1;
@@ -2819,6 +3028,7 @@ function renderOne(i, force){
   const isCur = i===curCell;
   const row1 = i<GC ? ' row1':'';
   const pk = isCur?picked:c.picked;
+  (isCur?BLOCKS:(c.blocks||[])).forEach(bakeOldPush);
   if(!pk.size){
     // 必須清掉 layoutKey，否則之後重選同一組會與舊 key 相同而不重建
     c.layoutKey='';
@@ -2891,7 +3101,8 @@ function renderOne(i, force){
      看起來就是「挑完貨，格子先閃一下預設位置」。圖是網路來的，所以這一跳一定
      隔著一幀，同一趟裡多畫幾次是看不到的（那幾趟在同一個 task 裡，只 paint 一次）。
      藏著等的上限是 LOGO_WAIT，到了就當作量不到 —— 見 measureLogo。 */
-  const waitLogo = blocks.some(b => b.kind==='brand' && logoPending(blockBimg(b)));
+  const waitLogo = blocks.some(b => b.kind==='brand' && logoPending(blockBimg(b)))
+    || blocks.some(b => b.kind==='img' && imgInkPending(imgUrlOf(b.key)));
   /* 位置是 buildBlocks 算好的，不必量 DOM。唯一的例外是下緣那一下 ——
      「價格貼著下邊界」要的是**畫出來**的高度，而字框、padding、border 的實際高度
      只有瀏覽器知道（量到過比估算多 6 個單位，就凸出邊界了）。所以畫一次、
@@ -2904,9 +3115,11 @@ function renderOne(i, force){
        所以先全部放回原本的大小畫一次，底下那幾趟照原本的大小排，最後 keepInside 只准往小縮。 */
     if(blocks.some(b => b.fit)){ blocks.forEach(b => { delete b.fit; }); paint(waitLogo); }
     /* 推開要從每一張圖**自己的位置**重算，所以先全部放回去再排（見 pushImgs）。
-       不是改圖大小的那一趟就留著上一次推開的結果：推開只跟著「改大小」這個動作走。 */
-    if(PUSH_NOW && blocks.some(b => b.pushX || b.pushY)){
-      blocks.forEach(b => { delete b.pushX; delete b.pushY; }); paint(waitLogo);
+       不是字級改了圖片倍率的那一趟就留著上一次推開的結果：推開只跟著字級走。 */
+    const typePush = TYPE_PUSH_DUE && blocks.some(b => b.kind === 'img');
+    if(typePush) TYPE_PUSH_DUE = false;
+    if(typePush && blocks.some(b => b.tyPushX || b.tyPushY)){
+      blocks.forEach(b => { delete b.tyPushX; delete b.tyPushY; }); paint(waitLogo);
     }
     // 先把上面那一疊推開（放大的那塊要先佔到位），再對齊四邊
     try{ if(spreadStack(blocks)) paint(waitLogo); }catch(_){}
@@ -2920,29 +3133,29 @@ function renderOne(i, force){
        早一步算的話量到的是還沒對齊前的位置 —— 那時候價格離右邊界還有一段，
        圖就以為左邊只剩那麼點空間，於是縮得莫名其妙的小（量到過該有 78 卻只給 45）。 */
     try{ if(stickImage(blocks)) paint(waitLogo); }catch(_){}
-    try{ if(PUSH_NOW && pushImgs(blocks)) paint(waitLogo); }catch(_){ PUSH_FAIL = true; }
+    try{ if(typePush && pushImgs(blocks)) paint(waitLogo); }catch(_){}
     /* 最後一道：每一塊都要在格子裡（邊界線以內）。量一次、挪一次、再畫 —— 縮了的那一塊
        要再量一次才知道挪多少；幾塊同時出界時要好幾趟才收斂，上限六趟（沒事的格子一趟就停）。 */
     try{ for(let i = 0; i < 8 && keepInside(blocks); i++) paint(waitLogo); }catch(_){}
   }
 }
 
-/* ====== 圖片互相排開 ========================================================
-   **拉大一張商品圖，被它蓋到的圖往旁邊讓，大小不變**（談定的：排開＝搬，不是縮）。
+/* ====== 圖片互相排開（只跟著字級走） ==========================================
+   **字級把商品圖放大，放大之後疊到的圖往旁邊讓，大小不變**（排開＝搬，不是縮）。
+   2026-09-14 改：以前是「手拉角、工具列 ＋／−」拉大一張在推，而且讓不開就不准拉大 ——
+   想把冷氣那張拉大，結果被擋住、旁邊那張還被推走。手動改大小是人在指定那一張要多大，
+   疊到了就是疊著（跟拖到別張上面一樣）；字級是整個版位一起放大，那才是「圖自己長大撞到」。
    規矩：
-     ・只有「改圖的大小」會推（拉角、工具列 ＋／−、重設大小）。**搬一張圖不推** ——
-       拖到別張上面就是疊著，那是人自己放的。所以這一支只在 PUSH_NOW 的那一趟跑。
-     ・推的是「手動改過大小的圖」（b.w0），最近改的那張最大：兩張都改過又疊到，
-       後改的那張站著、先改的那張讓。沒改過大小的圖只會被推，不會去推別人。
-     ・被推的那張照樣可以再推下一張（連鎖）。
-     ・往**比較短**的那一邊讓：橫的（離推它的那張中心遠的那一側）或往下。不往上 ——
-       上面是品名那一疊。
-     ・讓不開（撞到邊界線、或撞到右下那一組價格）＝這一下拉大不算，停在上一個大小
-       （PUSH_FAIL，拉角那邊照「撞到邊界」同一條還原）。
-     ・被推開的量存在 b.pushX／b.pushY，**不寫進 b.x／b.y**：每一趟都從自己的位置重算，
-       推它的那張縮回去，它就回得去（能回多少回多少）。
-   貼圖不參加：貼圖像印在商品圖上的徽章（能效標章、保固章），疊在圖上是它的本分，
-   照樣在圖層那一疊裡排順序。
+     ・只在字級的圖片倍率變了之後的那一趟排版跑（TYPE_PUSH_DUE，見 applyType）。
+       其他重排留著上一次的結果：搬一張圖、手動改大小都不推。
+     ・左上那張站著、右下那張讓；被推過的那張可以再推下一張（連鎖）。
+     ・原本（字級 1 倍時）就疊著的兩張不管 —— 那是人自己疊的，或手動拉大疊上去的。
+     ・往橫的（離推它的那張中心遠的那一側）或往下讓，挑近的。不往上（上面是品名那一疊）、
+       不壓到右下那一組價格、不出邊界線。
+     ・讓不開就疊著，**不擋字級**：那一顆管整個版位，一格擠不下不該讓別格都放不大。
+     ・推開的量存在 b.tyPushX／b.tyPushY，**不寫進 b.x／b.y**：每一趟從自己的位置重算，
+       字級調回來就回得去（能回多少回多少）。
+   貼圖不參加：貼圖像印在商品圖上的徽章（能效標章、保固章），疊在圖上是它的本分。
    量的是**看得到的那一塊**：還沒有圖的只畫框的 70%（灰圖，見 .blk.img.noimg），
    照框量的話兩張灰圖中間明明空著一截也算撞到。 */
 function imgVisBox(b){
@@ -2951,12 +3164,14 @@ function imgVisBox(b){
   return { x:(+b.x||0) + v.ox, y:(+b.y||0) + v.oy, w:v.w, h:v.h };
 }
 function pushImgs(blocks){
-  PUSH_FAIL = false;
+  const m = TYPE_MUL.img || 1;
   const imgs = (blocks || []).filter(b => b.kind === 'img');
   const items = imgs.map(b => { const v = imgVisBox(b); if(!v) return null;
-    /* 位置先放回「自己的位置」（上面那一行已經把 pushX 清掉、重畫過了）。 */
-    return { b, hx:v.x, hy:v.y, x:v.x, y:v.y, w:v.w, h:v.h,
-             rank: b.w0 ? (+b.rzAt || 1) : 0, moved:false };
+    /* 位置先放回「自己的位置」（renderOne 已經把推開的量清掉、重畫過了）。
+       base＝字級 1 倍時這一塊在哪：看得見的那一塊跟著寬度等比例，除回去就是。 */
+    const x0 = +b.x || 0, y0 = +b.y || 0;
+    return { b, hx:v.x, hy:v.y, x:v.x, y:v.y, w:v.w, h:v.h, moved:false,
+             base:{ x:x0 + (v.x - x0) / m, y:y0 + (v.y - y0) / m, w:v.w / m, h:v.h / m } };
   }).filter(Boolean);
   const walls = [];
   (blocks || []).forEach(b => { if(b.rx == null) return;
@@ -2968,21 +3183,21 @@ function pushImgs(blocks){
   const hit = (a, c) => a.x < c.x + c.w - .5 && c.x < a.x + a.w - .5
                      && a.y < c.y + c.h - .5 && c.y < a.y + a.h - .5;
   const L = MARGIN, T = MARGIN, R = CW - MARGIN, B = CH - MARGIN;
-  /* 強弱：改過大小的（越近改的越強）> 已經被推過的 > 沒動的。
-     同樣強的兩張，自己的位置比較右下的那張讓 —— 一排圖是由左往右推過去的。 */
-  const power = it => it.rank > 0 ? 2 + it.rank : (it.moved ? 1 : 0);
-  let ok = true;
-  for(let guard = 0; ; guard++){
+  /* 強弱：已經被推過的 > 沒動的。同樣強的兩張，自己的位置比較右下的那張讓 ——
+     一排圖是由左往右推過去的。 */
+  const power = it => it.moved ? 1 : 0;
+  const stuck = new Set();       // 讓不開的那幾對：留著疊，不再試
+  for(let guard = 0; guard <= 60; guard++){
     let pair = null;
     for(let i = 0; i < items.length && !pair; i++)
       for(let j = i + 1; j < items.length && !pair; j++){
         const a = items[i], c = items[j];
-        if(!power(a) && !power(c)) continue;          // 兩張都沒被改過大小、也沒被推：人自己疊的，不管
-        if(hit(a, c)) pair = [a, c];
+        if(stuck.has(i + ',' + j)) continue;
+        if(!a.moved && !c.moved && hit(a.base, c.base)) continue;   // 1 倍時就疊著：人自己疊的，不管
+        if(hit(a, c)) pair = [a, c, i + ',' + j];
       }
     if(!pair) break;
-    if(guard > 60){ ok = false; break; }
-    let [a, c] = pair;
+    const [a, c, key] = pair;
     const pa = power(a), pc = power(c);
     const strong = (pa > pc || (pa === pc && a.hx + a.hy <= c.hx + c.hy)) ? a : c;
     const weak = strong === a ? c : a;
@@ -2997,32 +3212,33 @@ function pushImgs(blocks){
                    && !okWalls.some(w => hit({ x:q.x, y:q.y, w:weak.w, h:weak.h }, w));
     const cands = [side, down].filter(fits)
       .sort((u, v) => Math.hypot(u.x - weak.x, u.y - weak.y) - Math.hypot(v.x - weak.x, v.y - weak.y));
-    if(!cands.length){ ok = false; break; }
+    if(!cands.length){ stuck.add(key); continue; }     // 讓不開就疊著，不擋字級
     weak.x = cands[0].x; weak.y = cands[0].y; weak.moved = true;
   }
-  PUSH_FAIL = !ok;
   let changed = false;
   items.forEach(it => {
     const dx = +(it.x - it.hx).toFixed(1), dy = +(it.y - it.hy).toFixed(1);
     const b = it.b;
-    if(Math.abs(dx) > .5){ if(b.pushX !== dx){ b.pushX = dx; changed = true; } }
-    else if(b.pushX != null){ delete b.pushX; changed = true; }
-    if(Math.abs(dy) > .5){ if(b.pushY !== dy){ b.pushY = dy; changed = true; } }
-    else if(b.pushY != null){ delete b.pushY; changed = true; }
+    if(Math.abs(dx) > .5){ if(b.tyPushX !== dx){ b.tyPushX = dx; changed = true; } }
+    else if(b.tyPushX != null){ delete b.tyPushX; changed = true; }
+    if(Math.abs(dy) > .5){ if(b.tyPushY !== dy){ b.tyPushY = dy; changed = true; } }
+    else if(b.tyPushY != null){ delete b.tyPushY; changed = true; }
   });
   return changed;
-}
-/* 改圖的大小＝這一趟要重算推開。包成一支，三條路（拉角、＋／−、重設）都走它。 */
-function renderPushing(){
-  PUSH_NOW = true;
-  try{ renderOne(curCell, true); } finally { PUSH_NOW = false; }
 }
 /* 被推開的圖一被人拿去搬，推開的那一段就變成它自己的位置：
    人是看著它現在在哪裡搬的，搬完不該再跳回一個看不到的「原本的位置」。 */
 function bakePush(b, orig){
-  if(!b || !(b.pushX || b.pushY)) return;
-  if(orig){ orig.x = (+orig.x || 0) + (+b.pushX || 0); orig.y = (+orig.y || 0) + (+b.pushY || 0); }
-  else { b.x = (+b.x || 0) + (+b.pushX || 0); b.y = (+b.y || 0) + (+b.pushY || 0); }
+  if(!b || !(b.tyPushX || b.tyPushY)) return;
+  if(orig){ orig.x = (+orig.x || 0) + (+b.tyPushX || 0); orig.y = (+orig.y || 0) + (+b.tyPushY || 0); }
+  else { b.x = (+b.x || 0) + (+b.tyPushX || 0); b.y = (+b.y || 0) + (+b.tyPushY || 0); }
+  delete b.tyPushX; delete b.tyPushY;
+}
+/* 舊資料的 b.pushX／b.pushY 是 2026-09-14 以前「手動拉大一張圖」推出來的。那條規矩拿掉了，
+   但使用者現在看到的就是推開之後的樣子 —— 收進自己的位置，不要跳回去。 */
+function bakeOldPush(b){
+  if(!b || (b.pushX == null && b.pushY == null)) return;
+  b.x = (+b.x || 0) + (+b.pushX || 0); b.y = (+b.y || 0) + (+b.pushY || 0);
   delete b.pushX; delete b.pushY;
 }
 
@@ -3422,6 +3638,9 @@ let drag=null, marq=null, dragHappened=false;
 let rz=null;                         // 正在拖角落改大小
 let guides=[];                       // 目前要畫的引導線
 const SNAP=6;                        // 弱磁吸半徑(px)，超過就掙脫
+/* 上層那顆「磁吸對齊」（2026-09-27 起 商品 也看得到）。關著＝拖到哪停哪，
+   跟按住 Alt 一樣，只是不必一直按著。 */
+let SNAP_ON=true;
 /* 格子中線的吸力半徑。比 SNAP 大很多，而且贏過其他線 —— 置中是一個「講得出名字」
    的位置，值得被吸過去；貼齊隔壁那塊的邊常常只是碰巧。 */
 const SNAP_STRONG=18;
@@ -3533,7 +3752,7 @@ function snap(movingIds, sizes){
   for(const b of BLOCKS){
     if(movingIds.includes(b.id) || isOff(b)) continue;   // 藏起來的不當對齊線
     const s=sizes[b.id]||{w:0,h:0,ox:0,oy:0};
-    /* 照**畫在哪**算：被推開的圖畫在 b.x＋pushX，visBox 量的是畫出來的那一塊。 */
+    /* 照**畫在哪**算：被推開的圖畫在 b.x＋tyPushX，visBox 量的是畫出來的那一塊。 */
     const bn=bEl(b.id), p=bn ? { x:bn.offsetLeft, y:bn.offsetTop } : blockXY(b); if(!p) continue;
     const x=p.x+(s.ox||0), y=p.y+(s.oy||0);
     tV.push({v:x},{v:x+s.w/2},{v:x+s.w});
@@ -3597,10 +3816,31 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   // 不論是否換格，按到任何格子都必定展開兩個窗口
   openPanels(true); renderLayers();
   if(!picked.size) return;
-  if(e.target.closest('.tobtn,.delbtn')) return;   // 按鈕不觸發拖曳
+  if(e.target.closest('.tobtn,.delbtn,.selbar')) return;   // 按鈕不觸發拖曳
   /* 已經選起來的那張貼圖，按在它的字上＝進去改字。不放行的話這一下會被當成
      「抓著它搬」：整格當場重畫，按住的那個節點被換掉，游標永遠進不到字裡面。 */
   if(e.target.closest('.blk.sticker.sel') && e.target.closest('.ft')) return;
+  /* 裁切中整格只有這一件事：拖圖＝移動、拖四個角＝改框、點別處＝留下。
+     ⚠️ 要擋在下面那幾條（拉大小、搬零件、框選）前面 —— 同樣是按在那一塊上，
+     意思完全不一樣。 */
+  if(CROP){
+    /* 裁切中整格只有這一件事：拉把手＝改框、框裡面拖＝搬框。**圖一步都不動。**
+       點到這一格以外的地方（別格、版面空地）才算「離開，留下」—— 那一下這裡收不到，
+       由上層轉過來的 stageClearSel／點別格處理。 */
+    const ui = e.target.closest('.cropui');
+    const b = cropBlock(), c = b && cropOf(b), v = cropView();
+    if(!ui || !b || !c || !v){ exitCrop(true); e.preventDefault(); return; }
+    if(e.target.closest('.selbar')) return;          // 那一排自己有 click
+    const hd = e.target.closest('.ch');
+    const inRect = !!e.target.closest('.crect');
+    e.preventDefault(); e.stopPropagation();
+    if(!hd && !inRect) return;                       // 框外面：不做事，也別掉到零件上
+    cropDrag = { kind: hd ? 'edge' : 'move', h: hd ? hd.dataset.ch : '',
+                 mx:e.clientX, my:e.clientY, v,
+                 c0:{ x:c.x, y:c.y, w:c.w, h:c.h } };
+    return;
+  }
+
   /* 拖角落＝改大小，不是搬位置。要在找 .blk 之前攔下來，不然它也算按在那一塊上，
      會同時開始搬移，變成一邊拉大一邊亂跑。 */
   const hz=e.target.closest('.rz');
@@ -3612,7 +3852,9 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
       const pe=hz.parentElement, phEl=pe.classList.contains('noimg') && pe.querySelector(':scope > .ph');
       const r=(phEl||pe).getBoundingClientRect(), k=scaleOf();
       const c=hz.dataset.corner;
-      if(b.kind==='img') b.rzAt=Date.now();     // 最近改大小的那張最大（見 pushImgs）
+      /* 右下那一組是用「離右邊界多遠」定位的：要挪位置之前先換算成絕對的 x，
+         不然 keepAnchor 改了 b.x 也沒有人在看（跟搬零件那邊同一條）。 */
+      unpin(b);
       rz={ id:b.id, corner:c, base:scaleBase(b),
            w0:+b.w||r.width/k, h0:r.height/k,
            mx:e.clientX, my:e.clientY,
@@ -3620,6 +3862,8 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
               拉哪一角就從那一角長出去。 */
            ax:(hz.dataset.corner.includes('e')?r.left:r.right),
            ay:(hz.dataset.corner.includes('s')?r.top:r.bottom),
+           // 對角那一點（排版座標）：改完大小要把這一塊挪回去，讓它停在原地
+           hold: anchorPoint(pe, c),
            d0:0 };
       rz.d0=Math.hypot(e.clientX-rz.ax, e.clientY-rz.ay)/k || 1;
     }
@@ -3676,6 +3920,38 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
   e.preventDefault();
 });
 
+/* 裁切的拖曳自己一條路：不跟搬零件、拉大小擠在同一個狀態裡。
+   ⚠️ 動的永遠只有**框**（c.x／c.y／c.w／c.h）—— 圖和版上那一塊在放手之前一個字都不改。 */
+addEventListener('mousemove',e=>{
+  if(!cropDrag || !CROP) return;
+  const b = cropBlock(), c = b && cropOf(b);
+  if(!b || !c) return;
+  actKeep();
+  const k = scaleOf() || 1, v = cropDrag.v, c0 = cropDrag.c0;
+  const dx = (e.clientX - cropDrag.mx) / k / v.w;      // 走了原圖的幾分之幾
+  const dy = (e.clientY - cropDrag.my) / k / v.h;
+  if(cropDrag.kind === 'move'){
+    c.x = Math.max(0, Math.min(1 - c0.w, c0.x + dx));
+    c.y = Math.max(0, Math.min(1 - c0.h, c0.y + dy));
+  } else {
+    const h = cropDrag.h;
+    /* 每一邊各自夾住：拉過頭就停在最小的那一塊（CROP_MIN），
+       而且永遠不出原圖的範圍 —— 框外面沒有像素，留了也是空的。 */
+    if(h.includes('w')){
+      const nx = Math.max(0, Math.min(c0.x + c0.w - CROP_MIN, c0.x + dx));
+      c.w = c0.x + c0.w - nx; c.x = nx;
+    }
+    if(h.includes('e')) c.w = Math.max(CROP_MIN, Math.min(1 - c0.x, c0.w + dx));
+    if(h.includes('n')){
+      const ny = Math.max(0, Math.min(c0.y + c0.h - CROP_MIN, c0.y + dy));
+      c.h = c0.y + c0.h - ny; c.y = ny;
+    }
+    if(h.includes('s')) c.h = Math.max(CROP_MIN, Math.min(1 - c0.y, c0.h + dy));
+  }
+  paintCrop();
+});
+addEventListener('mouseup',()=>{ cropDrag = null; });
+
 addEventListener('mousemove',e=>{
   if(rz||drag) actKeep();           // 拖得再久也還是同一步
   if(rz){
@@ -3687,8 +3963,6 @@ addEventListener('mousemove',e=>{
          為什麼是「改完再檢查」而不是先算出上限：一塊零件畫出來多大要含字框、
          border、padding，那三樣只有瀏覽器算得準（拖曳那邊漏掉它們就是 4 個單位的洞）。 */
       const snap0 = { x:b.x, y:b.y, w:b.w, h:b.h, sc:b.sc, fsFix:b.fsFix, w0:b.w0 };
-      /* 推開寫在別張圖身上，還原的時候那幾張也要回去。 */
-      const push0 = BLOCKS.map(x => [x, x.pushX, x.pushY]);
       /* 四個角，一律等比例：量的是「游標離對角那一點多遠」的變化，
          整塊只有一個倍率，所以長寬比不可能被拉走。 */
       {
@@ -3699,14 +3973,12 @@ addEventListener('mousemove',e=>{
       }
       holdPlace(b);                     // 拉過大小就釘住，別再被自動排版搬走
       dragHappened=true;
-      /* 尺寸變了要重量，不然把手停在舊位置。改的是商品圖＝順便把蓋到的圖推開；
-         貼圖不推（它是疊在圖上的徽章）。 */
-      if(b.kind==='img') renderPushing(); else { PUSH_FAIL=false; renderOne(curCell,true); }
-      if(!withinMargin(b.id) || PUSH_FAIL){   // 撞到邊界、或旁邊的圖讓不開：這一步不算，停在上一個尺寸
-        push0.forEach(([x, px, py]) => {
-          if(px!=null) x.pushX=px; else delete x.pushX;
-          if(py!=null) x.pushY=py; else delete x.pushY;
-        });
+      /* 尺寸變了要重量，不然把手停在舊位置。手動改大小不推別張圖：疊到就是疊著
+         （推開只跟著字級走，見 pushImgs）。 */
+      renderOne(curCell,true);
+      // 抓著的那一角跟著手走＝對角要停在原地（量完才知道差多少，所以挪完再畫一次）
+      if(keepAnchor(b, rz.corner, rz.hold)) renderOne(curCell,true);
+      if(!withinMargin(b.id)){   // 撞到邊界：這一步不算，停在上一個尺寸
         b.x=snap0.x; b.y=snap0.y;
         if(snap0.w!=null) b.w=snap0.w; else delete b.w;
         if(snap0.h!=null) b.h=snap0.h; else delete b.h;
@@ -3737,7 +4009,7 @@ addEventListener('mousemove',e=>{
     /* 對齊線是唯一的吸力了（格線不再吸，見上面）。它吸的是「講得出名字」的位置 ——
        跟隔壁那塊切齊、站在格子中線上；按住 Alt 就一點都不吸，那是微調用的臨時開關。 */
     guides=[];
-    if(drag.sizes && !e.altKey){
+    if(drag.sizes && !e.altKey && SNAP_ON){
       const sn=snap(drag.ids, drag.sizes);
       if (!sn){ guides=[]; }
       else {
@@ -3803,20 +4075,35 @@ if(UI_STAGE) addEventListener('pointerdown',e=>{
    只認「按下去、沒動、放開」：拖零件是在搬它，不是要開面板。
    ⚠️ 按下去那一刻就記：mousedown 會把整格重畫，放開時手底下的節點已經換過了。
    上層照「點這一格」那條路處理（工具、身分、貼紙那幾道檢查都在那裡）。 */
-let openDown = null;
+let openDown = null, openTimer = 0;
+/* 那一下「打開這一格」還沒送出去就收回來（雙擊的第二下到了）。 */
+function cancelOpen(){ if(openTimer){ clearTimeout(openTimer); openTimer = 0; } }
 if(UI_STAGE){
   addEventListener('pointerdown', e => {
     const t = e.target;
     /* 還沒挑貨的格子上可能只有一張貼圖，其他地方是空的 —— 那一片也要點得開，
        不然整格被畫布蓋住之後「點一下選商品」就再也點不到了。 */
     const openable = t.closest && (t.closest('.blk') || !picked.size);
-    openDown = (e.button === 0 && !STAGE_EDIT && openable
-                && !(t.closest && t.closest('.tobtn,.delbtn,.rz'))) ? { x:e.clientX, y:e.clientY } : null;
+    /* ⚠️ 裁切中一下都不開：那時候按下去是在拖圖。
+       ⚠️ 圖底下那一條（.selbar）也要排除 —— 按「裁切」順手把面板叫出來的話，
+       裁切就在面板後面開始了。 */
+    openDown = (e.button === 0 && !STAGE_EDIT && !CROP && openable
+                && !(t.closest && t.closest('.tobtn,.delbtn,.rz,.selbar')))
+      ? { x:e.clientX, y:e.clientY, img: !!(t.closest && t.closest('.blk.img')) } : null;
   }, true);
   addEventListener('pointerup', e => {
     const d = openDown; openDown = null;
     if(!d || STAGE_EDIT || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
-    try{ parent.postMessage({ stageOpen:{ cx:e.clientX, cy:e.clientY } }, '*'); }catch(_){}
+    const cx = e.clientX, cy = e.clientY;
+    const send = () => { openTimer = 0;
+      try{ parent.postMessage({ stageOpen:{ cx, cy } }, '*'); }catch(_){} };
+    /* **按在圖上的那一下慢四分之一秒再送**：它可能是雙擊的第一下，而雙擊＝進裁切。
+       送出去就等於把這一格的面板叫出來 —— 面板一開，裁切就在它後面發生，
+       那正是「裁切壞掉」看起來的樣子。
+       只有圖要等：品名、價格、空白處都不能裁，沒有第二種意思，照舊立刻開。
+       （選取和那一條是立刻出現的，所以等的只是面板，不是「按了沒反應」。） */
+    if(d.img){ cancelOpen(); openTimer = setTimeout(send, 250); }
+    else send();
   }, true);
 }
 
@@ -3849,6 +4136,9 @@ if(UI_STAGE) addEventListener('wheel',e=>{
 },{passive:false});
 
 document.getElementById('grid').addEventListener('wheel',e=>{
+  /* 裁切中滾輪照舊是「把畫面拉近拉遠」（交給上層）—— **圖不動**是這一套的重點，
+     滾輪拿去縮放圖的話，手一碰滾輪整張圖就跑掉了。 */
+  if(CROP){ relayWheel(e); return; }
   const ce=e.target.closest('.cell'); if(!ce){ relayWheel(e); return; }
   const idx=+ce.dataset.cell;
   if(idx!==curCell){ saveCell(); loadCell(idx); CELLS.forEach((c,i)=>renderOne(i)); renderPick(); renderLayers(); }
@@ -3881,6 +4171,38 @@ document.getElementById('grid').addEventListener('click',e=>{
   if(btn){ e.stopPropagation(); bringTop(btn.dataset.top); }
   const del=e.target.closest('[data-del]');
   if(del){ e.stopPropagation(); delSticker(del.dataset.del); }
+  /* 圖底下那一條：選起來的三件事 ＋ 裁切中那一排一鍵 */
+  const go=e.target.closest('[data-cropgo]');
+  if(go){ e.stopPropagation(); enterCrop(go.dataset.cropgo); return; }
+  const up=e.target.closest('[data-top2]');
+  if(up){ e.stopPropagation(); userAct(); bringTop(up.dataset.top2); placeSelBars(); reportBoard(); return; }
+  const kl=e.target.closest('[data-kill2]');
+  if(kl){ e.stopPropagation(); userAct(); killLayer(kl.dataset.kill2); return; }
+  const cr=e.target.closest('[data-crop]');
+  if(cr){
+    e.stopPropagation();
+    const a=cr.dataset.crop;
+    if(a==='done')   return exitCrop(true);
+    if(a==='cancel') return exitCrop(false);
+    const b=cropBlock(), c=b&&cropOf(b);
+    if(!c) return;
+    if(a==='whole'){ c.x=0; c.y=0; c.w=1; c.h=1; return paintCrop(); }
+  }
+});
+
+/* 雙擊一張圖＝進裁切（簡報、Canva、線上那幾套裁切器都是這一下）。
+   那一條上的「裁切」是同一件事的另一個入口 —— 雙擊是給知道的人的捷徑，
+   不能是唯一的路。 */
+document.getElementById('grid').addEventListener('dblclick',e=>{
+  if(ROLE==='pm') return;
+  if(e.target.closest('.selbar,.tobtn,.delbtn')) return;
+  cancelOpen();                       // 這一下是雙擊：那一格的面板不要開了
+  /* 裁切中再雙擊＝**留下**（跟點到別的地方一樣）。以前是「取消」，但裁切那一層
+     蓋住整格，雙擊十次有九次是在框裡面 —— 把人做到一半的框丟掉太兇。 */
+  if(CROP){ e.preventDefault(); e.stopPropagation(); exitCrop(true); return; }
+  const el=e.target.closest('.blk.img'); if(!el) return;
+  e.preventDefault(); e.stopPropagation();
+  enterCrop(el.dataset.b);
 });
 
 /* 點一個空框＝把那個庫開起來：商品圖的空框去商品目錄，品牌的空框去品牌 Logo 庫。
@@ -3894,7 +4216,8 @@ let clickAt=null;
 document.getElementById('grid').addEventListener('mousedown',e=>{
   clickAt=null;
   if(window.parent===window) return;             // 單獨開這一頁：沒有那兩個庫可以開
-  if(e.target.closest('[data-top],[data-del]')) return;
+  if(e.target.closest('[data-top],[data-del],.selbar')) return;
+  if(CROP) return;                               // 裁切中那一下是拖圖，不是問路
   const el=e.target.closest('.blk'); if(!el) return;
   clickAt={x:e.clientX, y:e.clientY, id:el.dataset.b};
 });
@@ -4132,6 +4455,348 @@ function killLayer(id){
   const blk=BLOCKS.find(x=>x.id===id);
   if(blk && blk.kind==='sticker') delSticker(blk.id); else hideBlockId(id);
 }
+
+/* ==========================================================================
+   圖片裁切（2026-09-22 重做：照 iOS 相簿那一套）
+   **圖不動**：整張原圖攤在格子裡（裝不下就縮到裝得下），你拉的是那個**框** ——
+   八顆把手改框的大小、框裡面拖就是搬框，框外面壓暗。
+   以前是「框不動、拖圖」＋「拖四個角改框」兩套混在一起（簡報那一種），
+   使用者的說法是「圖一直在跑」—— 一個手勢只做一件事，而這一套只有一件事：
+   **留下哪一塊**。
+   ⚠️ **留下的那幾個像素在版上一步都不動**：裁完那一塊還在它本來的位置、本來的大小，
+   不見的只有框外面那一圈。所以「裁小」＝這塊零件變小，不是「剩下的被放大」。
+   ⚠️ 裁的是「看得到哪一塊」（cell.crop，四個 0～1 的小數 ＋ 原圖長寬比），
+   **原圖一個位元都不動**。
+   ========================================================================== */
+const CROP_MIN = .05;          // 框最小佔原圖的幾成（再小就抓不到了）
+const CROP_PAD = 14;           // 攤開的那張圖離格子邊留多少（排版單位）
+
+const cropBlock = () => CROP ? BLOCKS.find(b => b.id === CROP.id) : null;
+/* 寫進哪一把鑰匙：本來就有的那一把優先（舊資料可能存在舊鑰匙底下），
+   不然就用這一塊自己的 —— 兩把都存的話下次讀會挑到舊的那一份。 */
+function cropKeyOf(b){
+  const m = cellCrops();
+  if(m[b.key]) return b.key;
+  const base = imgKeyBase(b.key);
+  return m[base] ? base : b.key;
+}
+/* 這一塊現在畫多寬（跟 blockHTML 算的是同一個數字）。 */
+const cropIw = b => (+b.w || 0) * TYPE_MUL.img * fitOf(b);
+
+/* 這一趟編輯把整張原圖攤成多大、擺在格子的哪裡（排版單位）。
+   ⚠️ 攤開的大小跟「版上多大」是兩回事：版上那一塊可能只有 60 單位寬，而整張圖
+   攤開要 400 —— 編輯的時候看得清楚比較重要，**放手之後才換算回版上的大小**。 */
+function cropView(){
+  const nat = CROP && CROP.nat;
+  if(!nat || !(nat.w > 0) || !(nat.h > 0)) return null;
+  const S = Math.min((CW - CROP_PAD * 2) / nat.w, (CH - CROP_PAD * 2) / nat.h);
+  const w = nat.w * S, h = nat.h * S;
+  return { S, w, h, x:(CW - w) / 2, y:(CH - h) / 2 };
+}
+
+/* 貼在圖底下那一條。選起來是「對這塊圖做的三件事」，裁切中換成那一排。
+   ⚠️ 只在**剛好選了一塊**的時候出現：框選一片下來還跳出一條按鈕，那一條講的是
+   「對哪一塊做」，而那時候答案不只一個。 */
+function selBarHTML(b, isCur, iw){
+  if(!isCur || ROLE === 'pm' || b.kind !== 'img') return '';
+  /* 嵌在版上的時候那一條由上層畫（見 reportSelBar）：這裡畫的話永遠被格子
+     的 overflow:hidden 關在格子裡，只能壓在品名、價格上面，貼著格子邊的那一塊
+     更是被擠到蓋住別的東西、或被隔壁那一層蓋住按不到。 */
+  if(UI_STAGE && window.parent !== window) return '';
+  if(CROP && CROP.id === b.id) return '';        // 裁切中那一條在 .cropui 上
+  if(!(selected.has(b.id) && selected.size === 1)) return '';
+  if(!imgUrlOf(b.key)) return '';                // 還沒有圖：沒有東西可以裁
+  return '<div class="selbar">'
+    + `<button data-cropgo="${b.id}" title="雙擊這張圖也可以">裁切</button>`
+    + '<span class="sp"></span>'
+    + `<button data-top2="${b.id}" title="疊到最上面">最上面</button>`
+    + `<button class="kill" data-kill2="${b.id}" title="刪掉（左下角那顆 ＋ 找得回來）">刪除</button>`
+    + '</div>';
+}
+
+/* 那一條站在那一塊的上面；只有**貼著格子上緣**、翻上去會被切掉的才退到下面。
+   左右一樣要收回格子裡 —— 被格子切掉一半的按鈕比沒有按鈕更難懂。
+   量出來再翻（那一條多高要等圖排好才知道）。 */
+/* 選起來的那張圖在這份文件的哪裡 —— 上層照它把那一條（裁切／最上面／刪除）畫在
+   **格子外面**、所有東西上面。沒變就不報（placeSelBars 一次操作會叫好幾次）。
+   條件跟 selBarHTML 同一套：剛好選了一塊、是有圖的商品圖、不是 PM、不在裁切中。 */
+let selBarSent = '';
+function reportSelBar(){
+  if(!UI_STAGE || window.parent === window) return;
+  let m = null;
+  if(ROLE !== 'pm' && !CROP && selected.size === 1){
+    const id = [...selected][0], b = BLOCKS.find(x => x.id === id);
+    const el = b && ((b.kind === 'img' && imgUrlOf(b.key)) || b.kind === 'brand') && bEl(id);
+    const box = el && (el.querySelector(':scope > .selbox') || el);
+    if(box){
+      const r = box.getBoundingClientRect();
+      m = { id, kind: b.kind, x: r.left, y: r.top, w: r.width, h: r.height };
+    }
+  }
+  const sig = JSON.stringify(m && [m.id, m.kind, m.x, m.y, m.w, m.h].map(v => typeof v === 'number' ? Math.round(v * 10) : v));
+  if(sig === selBarSent) return;
+  selBarSent = sig;
+  try{ parent.postMessage({ stageSelBar: m }, '*'); }catch(_){}
+}
+
+/* ====== 一鍵對齊 LOGO（2026-09-27，公司要的） ================================
+   照 rule.png：LOGO 左上，品名、型號、SKU 在它底下、左邊跟它切齊，一塊接一塊往下；
+   市價、促銷價（連同它們那一組規格、SKU）回到右下角。
+   ・右下那一組放回**預設的位置**：照挑的貨重新排一份，拿同一個零件（uid）的位置和
+     「離右邊界多遠」那個釘法，再交給平常那一趟排版去貼底、疊好。
+   ・左邊那一疊跟著 LOGO：LOGO 沒被搬過，就放回預設（平常的排版本來就把它們疊在 LOGO
+     底下）；LOGO 被搬過，就照 LOGO 現在的左緣和下緣量著排，並記成「人放的」，
+     之後的自動排版不會再把它們拉回左上角。
+   ・只動位置，字級、大小、內容都不動。之後每一塊照樣可以自己拖（不鎖）。
+   ・一次 Ctrl+Z 退掉（整件事是同一個 act）。 */
+function alignToLogo(id){
+  if(ROLE === 'pm') return;
+  const br = BLOCKS.find(b => b.id === id && b.kind === 'brand');
+  if(!br) return;
+  userAct('align@' + id);
+  // 預設的排法：重排一份，排完放回原本那一份（只借它的位置）
+  const saved = BLOCKS;
+  let fresh = [];
+  try{ buildBlocks(); fresh = BLOCKS; }finally{ BLOCKS = saved; }
+  const def = new Map(fresh.map(f => [f.uid, f]));
+  const STACK = ['name', 'model', 'sku'];
+  const stack = [];
+  BLOCKS.forEach(b => {
+    const f = def.get(b.uid);
+    if(!f || b.kind === 'img' || b.kind === 'sticker' || b.kind === 'brand') return;
+    if(f.rx != null){                                // 右下那一組
+      b.rx = f.rx; b.y = f.y; b.col = f.col;
+      if(f.x != null) b.x = f.x; else delete b.x;
+      delete b.placed; delete b.tyPushX; delete b.tyPushY;
+    } else if(STACK.includes(b.kind)){
+      stack.push({ b, f });
+      delete b.rx;
+      b.inline = f.inline;
+      if(!br.placed){ b.x = f.x; b.y = f.y; delete b.placed; }
+    }
+  });
+  renderOne(curCell, true);
+  if(br.placed && stack.length){
+    /* LOGO 被搬過：照它量。一塊一塊往下，間距照平常那一疊（STACK_GAP）。
+       併排的 SKU（跟型號同一行）接在型號右邊、下緣切齊。 */
+    const inkAt = b => { const n = bEl(b.id); if(!n) return null;
+      const k = visBox(b.id); return { l: n.offsetLeft + k.ox, t: n.offsetTop + k.oy, ox: k.ox, oy: k.oy, w: k.w, h: k.h }; };
+    const lg = inkAt(br); if(!lg){ reportBoard(); return; }
+    stack.sort((a, c) => (+a.f.y || 0) - (+c.f.y || 0));
+    let y = lg.t + lg.h + ty(STACK_GAP);
+    const model = stack.find(s => s.b.kind === 'model');
+    stack.forEach(({ b }) => {
+      if(b.inline && model) return;
+      const k = inkAt(b); if(!k) return;
+      b.x = lg.l - k.ox; b.y = y - k.oy; holdPlace(b);
+      y += k.h + ty(STACK_GAP);
+    });
+    renderOne(curCell, true);
+    stack.forEach(({ b }) => {
+      if(!(b.inline && model)) return;
+      const m = inkAt(model.b), k = inkAt(b); if(!m || !k) return;
+      b.x = m.l + m.w + ty(8) - k.ox; b.y = m.t + m.h - k.h - k.oy; holdPlace(b);
+    });
+    renderOne(curCell, true);
+  }
+  placeSelBars();
+  reportBoard();
+}
+
+function placeSelBars(){
+  reportSelBar();
+  const c = cellEl(); if(!c) return;
+  const k = scaleOf() || 1;
+  c.querySelectorAll('.selbar').forEach(bar => {
+    if(!bar.parentElement) return;
+    bar.classList.remove('down');
+    bar.style.marginLeft = '0px';
+    const cr = c.getBoundingClientRect();
+    let r = bar.getBoundingClientRect();
+    /* 裁切中那一條釘在格子下緣（見 .cropui .selbar），本來就翻不出去。 */
+    if(!bar.closest('.cropui') && r.top < cr.top + 2) bar.classList.add('down');
+    r = bar.getBoundingClientRect();
+    let dx = 0;
+    if(r.left < cr.left + 2) dx = (cr.left + 2) - r.left;
+    else if(r.right > cr.right - 2) dx = (cr.right - 2) - r.right;
+    if(dx) bar.style.marginLeft = (dx / k).toFixed(1) + 'px';
+  });
+}
+
+/* 裁切那一層：整張圖 ＋ 框 ＋ 八顆把手 ＋ 那一排。
+   ⚠️ 它是 .cstage 的小孩（跟零件同一個座標系），不是貼在那一塊零件身上 ——
+   攤開的圖比那一塊大得多，掛在零件上會被它的位置牽著走。 */
+const CROP_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+function buildCropUI(){
+  const st = cellEl() && cellEl().querySelector('.cstage');
+  if(!st) return null;
+  let ui = st.querySelector(':scope > .cropui');
+  if(ui) return ui;
+  ui = document.createElement('div');
+  ui.className = 'cropui';
+  const img = document.createElement('img');
+  img.className = 'cimg';
+  img.draggable = false;
+  img.src = CROP.url;
+  ui.appendChild(img);
+  const rect = document.createElement('div');
+  rect.className = 'crect';
+  CROP_HANDLES.forEach(h => {
+    const d = document.createElement('i');
+    d.className = 'ch ch-' + h;
+    d.dataset.ch = h;
+    rect.appendChild(d);
+  });
+  ui.appendChild(rect);
+  const bar = document.createElement('div');
+  bar.className = 'selbar';
+  bar.innerHTML = '<button data-crop="whole" title="整張都留著">整張</button>'
+    + '<span class="sp"></span>'
+    + '<button data-crop="cancel" title="回到進來之前（Esc）">取消</button>'
+    + '<button class="go" data-crop="done" title="留下（Enter）">完成</button>';
+  ui.appendChild(bar);
+  st.appendChild(ui);
+  return ui;
+}
+
+/** 把框和圖畫到現在這一份資料上。裁切中**不重畫整格**（那會把這一層整個換掉）。 */
+function paintCrop(){
+  const b = cropBlock(), c = b && cropOf(b), v = cropView();
+  if(!b || !c || !v) return;
+  const ui = buildCropUI();
+  if(!ui) return;
+  const img = ui.querySelector('.cimg'), rect = ui.querySelector('.crect');
+  img.style.left = v.x.toFixed(1) + 'px';
+  img.style.top  = v.y.toFixed(1) + 'px';
+  img.style.width  = v.w.toFixed(1) + 'px';
+  img.style.height = v.h.toFixed(1) + 'px';
+  rect.style.left = (v.x + c.x * v.w).toFixed(1) + 'px';
+  rect.style.top  = (v.y + c.y * v.h).toFixed(1) + 'px';
+  rect.style.width  = (c.w * v.w).toFixed(1) + 'px';
+  rect.style.height = (c.h * v.h).toFixed(1) + 'px';
+  placeSelBars();
+}
+
+/* 進裁切。⚠️ 要先問得到原圖的長寬比（naturalWidth）—— 版上那一塊多大、放手之後
+   換算回去全部靠它，而圖還在路上的時候問到的是 0。 */
+function enterCrop(id){
+  if(ROLE === 'pm') return;
+  const b = BLOCKS.find(x => x.id === id);
+  if(!b || b.kind !== 'img') return;
+  const url = imgUrlOf(b.key);
+  if(!url){ say('這一格還沒有圖'); return; }
+  const el = bEl(id);
+  const im = el && el.querySelector('.icrop img, :scope > img');
+  const nw = im ? im.naturalWidth : 0, nh = im ? im.naturalHeight : 0;
+  if(!(nw > 0 && nh > 0)){ say('圖還在載，等一下再裁'); return; }
+  const key = cropKeyOf(b);
+  const m = cellCrops();
+  if(!m[key] || !(m[key].w > 0)) m[key] = autoCropOf(url) || { x:0, y:0, w:1, h:1, ar: nw / nh };
+  else m[key].ar = nw / nh;                 // 換過圖的話比例要跟著換
+  const c0 = m[key];
+  /* **留下的像素不准動**：記下這一刻「整張圖如果都畫出來，會落在版上哪裡、多大」。
+     放手之後照這一份換算回去，框裡面那一塊就會停在它本來的位置。 */
+  const v = visBox(el);
+  const S0 = v.w / (c0.w * nw);             // 版上一個原圖像素有多長（排版單位）
+  /* ⚠️ b.w 是**框**的寬（border-box），看得見的那一塊比它窄一圈（內距＋框線）。
+     放手之後要從「看得見的那一塊該多寬」換算回 b.w，所以先記下這一圈多寬。
+     那一圈跟 b.w 無關（內距和框線都是固定的單位），量一次就夠。 */
+  CROP = { id, key, url, nat:{ w:nw, h:nh }, chrome: Math.max(0, cropIw(b) - v.w),
+           before: JSON.stringify(c0), w0: +b.w || 0, hadW0: b.w0 != null,
+           page: { S0, ox: el.offsetLeft + v.ox - c0.x * nw * S0,
+                        oy: el.offsetTop  + v.oy - c0.y * nh * S0 } };
+  selected.clear(); selected.add(id);
+  activeImg = id;
+  document.body.classList.add('cropping-on');
+  userAct('crop@' + id);
+  renderCell();
+  paintCrop();
+  tellCrop(true);
+}
+
+function exitCrop(keep){
+  if(!CROP) return;
+  const { id, key, before, w0, hadW0, page, nat, chrome } = CROP;
+  const b = BLOCKS.find(x => x.id === id);
+  const c = cellCrops()[key];
+  if(keep && b && c && page && page.S0 > 0){
+    /* 框裡面那一塊停在它本來的位置：算出它在版上的左上角和寬度，再把這一塊挪過去。
+       ⚠️ 挪位置要**畫完再量**：零件的左上角跟看得見的那一塊差一圈內距和框線
+       （跟 keepAnchor 同一條）。 */
+    const visW = c.w * nat.w * page.S0;
+    const mul = TYPE_MUL.img * fitOf(b);
+    // 看得見的那一塊要多寬 → 框要多寬（補回那一圈內距和框線，見 CROP.chrome）
+    if(mul > 0 && visW > 0) b.w = (visW + (chrome || 0)) / mul;
+    /* 裁過＝這一塊的大小是**人指定的**，自動排版不要再替它算（不標的話，
+       完成之後那一趟強制重排會把寬度打回自動值，圖當場暴衝變大）。 */
+    if(!b.w0) b.w0 = hadW0 ? b.w0 : w0 || b.w;
+    holdPlace(b);
+    unpin(b);
+    CROP.want = { x: page.ox + c.x * nat.w * page.S0,
+                  y: page.oy + c.y * nat.h * page.S0 };
+  } else if(!keep){
+    try{ cellCrops()[key] = JSON.parse(before); }catch(_){}
+    if(b && w0) b.w = w0;
+    if(b && !hadW0) delete b.w0;
+  }
+  const want = CROP.want, bb = b;
+  /* 沒裁＝**沒有這個欄位**（不是存一份「整張」）：跟清除底色同一條 ——
+     等於預設值的欄位留著，合併的時候會為了它報一個假衝突。 */
+  const cc = cellCrops()[key], auto = autoCropOf(CROP.url);
+  const whole = cc && cc.x === 0 && cc.y === 0 && cc.w === 1 && cc.h === 1;
+  if(cc && (auto ? sameCrop(cc, auto) : whole)) delete cellCrops()[key];
+  CROP = null; cropDrag = null;
+  document.body.classList.remove('cropping-on');
+  const ui = cellEl() && cellEl().querySelector('.cropui');
+  if(ui) ui.remove();
+  userAct('crop@' + id);
+  renderOne(curCell, true);         // 形狀變了：旁邊的圖要重新讓開、出界的要收回來
+  if(want && bb){                   // 畫完再對位：看得見的那一塊要停在算好的那一點
+    const el2 = bEl(bb.id);
+    if(el2){
+      const v2 = visBox(el2);
+      const dx = want.x - (el2.offsetLeft + v2.ox), dy = want.y - (el2.offsetTop + v2.oy);
+      if(Math.abs(dx) > .01 || Math.abs(dy) > .01){
+        bb.x = (+bb.x || 0) + dx; bb.y = (+bb.y || 0) + dy;
+        renderOne(curCell, true);
+      }
+    }
+  }
+  placeSelBars();
+  reportBoard();
+  tellCrop(false);
+}
+
+/* 上層把畫面拉近到這一格（3.7cm 的格子裡什麼都抓不到），離開再放回去。 */
+function tellCrop(on){
+  if(!UI_STAGE || window.parent === window) return;
+  try{ parent.postMessage({ boardCell:CELL_ID, stageCrop: !!on }, '*'); }catch(_){}
+}
+
+/* 改大小、改框的時候**釘住對角那一點**：抓左上就往左上長，右下那一角原地不動
+   （市面上每一套都是這樣）。以前只有寬度在變、左上角是釘死的，所以不管抓哪一個角
+   東西一律往右下長 —— 抓著左上角把它拉小，看到的卻是右下角在動。
+   ⚠️ 釘的是**看得見的那一塊**的角（visBox），不是零件外框的角：外框比看得到的東西
+   大一圈（內距、框線、靠右對齊用的欄寬框），照外框釘的話放手會偏一截，
+   而選取框和四顆把手站的又是看得見的那一塊 —— 手感跟眼睛會對不起來。 */
+function anchorPoint(el, corner){
+  if(!el) return null;
+  const v = visBox(el);
+  return { x: el.offsetLeft + v.ox + (corner.includes('w') ? v.w : 0),
+           y: el.offsetTop  + v.oy + (corner.includes('n') ? v.h : 0) };
+}
+/** 改完大小之後把那一塊挪回去，讓對角停在原地。回傳有沒有真的挪。 */
+function keepAnchor(b, corner, hold){
+  if(!b || !hold) return false;
+  const now = anchorPoint(bEl(b.id), corner);
+  if(!now) return false;
+  const dx = hold.x - now.x, dy = hold.y - now.y;
+  if(Math.abs(dx) < .01 && Math.abs(dy) < .01) return false;
+  b.x = (+b.x || 0) + dx;
+  b.y = (+b.y || 0) + dy;
+  return true;
+}
+
 /* 畫布：這一疊變了就報上去。沒變就不報 —— renderLayers／reportBoard 一次操作會叫好幾次。 */
 let lastLayersSent='';
 function reportLayers(){
@@ -4246,7 +4911,7 @@ function scaleBlock(b, mul){
   b.sc = +clampSc((b.sc||1) * mul).toFixed(3);
 }
 function resetBlock(b){
-  if(b.kind==='img'||b.kind==='sticker'){ if(b.w0){ b.w=b.w0; delete b.w0; } delete b.rzAt; return; }
+  if(b.kind==='img'||b.kind==='sticker'){ if(b.w0){ b.w=b.w0; delete b.w0; } return; }
   if(b.kind==='price'){ delete b.fsFix; return; }
   delete b.sc;
 }
@@ -4268,17 +4933,15 @@ function holdPlace(b){ b.placed=true; }
 function scaleSelected(mul){
   const sel=selBlocks(); if(!sel.length) return;
   userAct();
-  const now=Date.now();
-  sel.forEach(b=>{ scaleBlock(b,mul); holdPlace(b); if(b.kind==='img') b.rzAt=now; });
-  if(sel.some(b=>b.kind==='img')) renderPushing(); else renderOne(curCell,true);
+  sel.forEach(b=>{ scaleBlock(b,mul); holdPlace(b); });
+  renderOne(curCell,true);
   reportBoard();
 }
 function resetSelected(){
   const sel=selBlocks(); if(!sel.length) return;
   userAct();
   sel.forEach(resetBlock);
-  /* 重設大小的圖不再推別人（沒有 w0 了）—— 重算一次，被它推開的就回去。 */
-  if(sel.some(b=>b.kind==='img')) renderPushing(); else renderOne(curCell,true);
+  renderOne(curCell,true);
   reportBoard();
 }
 
@@ -4769,6 +5432,7 @@ function boardState(){
      ⚠️ 一定放在最後：上層比對「是不是只差這一筆」是照字串尾巴比的（見 noteBoardChange）。 */
   const st = { v:(COORDS_V4?4:3), picked:[...c.picked], blocks:c.blocks, layoutKey:c.layoutKey,
            img: c.img || {},          // 換過的商品圖：只有網址，不是圖本身
+           crop: c.crop || {},        // 裁過的那幾張：看得到原圖的哪一塊（原圖不動）
            off: c.off || {},          // 刪掉的零件（uid → 名字），左下角那顆 ＋ 列的就是它
            nPrice: priceCount(c.blocks, c.off), wantFs: priceWanted };
   if(CM_W){ st.fw = CW; st.fh = CH; }
@@ -4812,6 +5476,7 @@ function restoreBoard(s){
   BLOCKS = s.blocks||[];
   layoutKey = s.layoutKey||'';
   if(cell()) cell().img = s.img || {};      // 換過的商品圖跟著這一格回來
+  if(cell()) cell().crop = s.crop || {};    // 裁切也是
   if(cell()) cell().off = s.off || {};      // 刪掉的也跟著回來（否則一重開就全部復活）
   ensureUids(BLOCKS);                       // 舊檔沒有 uid，補一次才認得出誰被刪了
   /* 舊檔的座標存的是「每一格都 540 寬」那套；現在每一格照自己的實際尺寸開
@@ -4872,6 +5537,9 @@ function restoreBoard(s){
   if(reframed) reportQuiet = true;
   refreshAll();
   if(reframed && BLOCKS.length){ renderOne(curCell, true); reportBoard(); }
+  /* 字級比這一格的內容先到（開機的時候就是這樣），欠著的排開要在這裡還：
+     refreshAll 不一定是強制的那一趟，等下一次強制重排的話，推開會落在一個不相干的動作上。 */
+  else if(TYPE_PUSH_DUE && BLOCKS.some(b => b.kind === 'img')) renderOne(curCell, true);
 }
 
 /* ====== 鍵盤 ==============================================================
@@ -4883,6 +5551,11 @@ function restoreBoard(s){
 addEventListener('keydown', e=>{
   const t=e.target;
   if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable)) return;
+  /* 裁切中：Enter 留下、Esc 取消。擋在所有快捷鍵前面 —— 那一刻整格只有這一件事。 */
+  if(CROP){
+    if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); exitCrop(false); return; }
+    if(e.key==='Enter'){ e.preventDefault(); e.stopPropagation(); exitCrop(true); return; }
+  }
   const mod=e.ctrlKey||e.metaKey;
   if(mod && (e.key==='z'||e.key==='Z'||e.key==='y'||e.key==='Y')){
     if(window.parent===window) return;            // 單獨開這一頁就沒有上一層可以問
@@ -5292,7 +5965,7 @@ async function snapshotStage(req){
        而那張圖會被當成蓋布和整本預覽貼出去。 */
     clone.querySelectorAll('.cstage.measuring').forEach(el => el.classList.remove('measuring'));
     // 選取記號不是印出去的東西（蓋布和整本預覽貼的就是這張圖）
-    clone.querySelectorAll('.selbox,.rz').forEach(el => el.remove());
+    clone.querySelectorAll('.selbox,.rz,.selbar,.tobtn,.delbtn,.cropui').forEach(el => el.remove());
     await Promise.all([...clone.querySelectorAll('img')].map(async im => {
       const u = im.getAttribute('src') || '';
       if(!u || u.startsWith('data:')) return;

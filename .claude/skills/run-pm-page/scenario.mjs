@@ -89,7 +89,7 @@ const inCanvas = js => `(()=>{
 
 /* ---- 場景 ---------------------------------------------------------------- */
 const OPEN_PLAN = ['--wait','700', '--click','.plan-card .btn.open', '--wait','900'];
-const TO_BOARD  = ['--click-text','拼板', '--wait','1200'];
+const TO_BOARD  = ['--click-text','商品', '--wait','1200'];
 
 /* 這裡故意不按「壓力測試：塞滿假檔期」那顆 devtool（它還在，就在檔期列表上）——
    那顆是「一次生 600 格，看畫得動嗎」用的，而這裡要的是一格真的挑過貨。
@@ -122,7 +122,7 @@ const FILL = [
 
 const SCENES = {
   smoke: [...OPEN_PLAN, '--click-text','落版', '--wait','1000',
-                        '--click-text','拼板', '--wait','1300',
+                        '--click-text','商品', '--wait','1300',
                         '--click-text','總體', '--wait','800'],
   board: [...OPEN_PLAN, ...TO_BOARD, ...FILL],
   cell:  [...OPEN_PLAN, ...TO_BOARD, ...FILL,

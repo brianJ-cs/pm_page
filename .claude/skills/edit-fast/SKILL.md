@@ -81,7 +81,9 @@ node .claude/skills/run-pm-page/scenario.mjs blk --assert "…"    # 真的點�
   ・`"\r\n"` 在雙引號裡會變成**真的** CR → `Invalid regular expression: missing /`
   ・`\\\\u00a0` 收不回來 → 原始碼裡留下一個看不見的 NBSP
   ・`\${...}` 在 heredoc 外會被展開；heredoc 本身也炸過一次 `unexpected EOF`
-- **`python` / `python3` 是 Windows 市集的假殼**：不執行、也不報錯，`&&` 後面照跑。
+- **`python` 可以用了**（2026-09-22 裝了 3.13.15，在 `%LOCALAPPDATA%ProgramsPythonPython313`，
+  PATH 上排在市集佔位符前面）。⚠️ 但**舊的終端機吃不到新 PATH**，那時候 `python` 還是那個
+  0 byte 的假殼：不執行、也不報錯，`&&` 後面照跑。不確定就先 `python --version`。
   當它不存在。
 - **CRLF 和 LF 混著**：`design_and_PM.html`、`build-single.mjs`、`CLAUDE.md` 是 **CRLF**；
   `2cell-product-pick.html`、`sticker_editor.html`、`sticker-render.js` 是 **LF**。
