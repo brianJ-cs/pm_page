@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登入｜DM 行銷開板設計系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800;900&display=swap">
+<style>
+/* 登入頁（第五版，demo）：刻意樸素。
+   這一頁一個人一天只看兩秒，它唯一的工作是讓人登入 —— 所以正中間就是那顆鈕，其他東西退到旁邊。
+   前幾版（對開 DM、打樣紙、檔期時程）都在這一頁放了主角，而主角搶的正是那顆鈕的位置。
+   ⚠️ 登入之前不放檔期資料：還沒登入的人是誰都有可能（網址在外面），檔期名字和時程是
+      公司還沒公開的促銷行事曆。登入之後系統裡本來就看得到。
+   顏色照主程式：灰藍桌面、深字、藍只給要按的那一顆，琥珀＝快發生的事。
+   不做成一張卡片浮在中間：東西直接站在桌面上，框就是整個視窗。 */
+:root{
+  --chrome:#ccd5e1;          /* 桌面（跟主程式同一個） */
+  --chrome-ink:#1d2634;
+  --chrome-muted:#525d6f;
+  --chrome-faint:#6b7687;
+  --chrome-line:#adbaca;
+  --glass:rgba(29,38,52,.08);
+  --glass-edge:rgba(255,255,255,.38);
+  --glass-hi:rgba(255,255,255,.6);
+  --glass-shade:rgba(29,38,52,.10);
+  --paper:#ffffff;
+  --line:#e2e6ee;
+  --line-strong:#c9d6e2;
+  --now:#9a6500;             /* 快發生的公告（主程式的琥珀，壓深一階才站得住在灰藍上） */
+  --accent:#4a6fdc;          /* 藍＝你正在點的東西 */
+  --accent-strong:#3f61c6;
+  --accent-tint:#eef2fc;
+  --danger-ink:#b42318;
+  --danger-tint:#fdeceb;
+  --av-1:#5b7bb4; --av-2:#6f8a52; --av-3:#a0715c; --av-4:#7d6aa6; --av-5:#4f8a8b; --av-6:#9a7b3f;
+  --font-ui:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font-family:var(--font-ui);color:var(--chrome-ink);background:var(--chrome);-webkit-font-smoothing:antialiased;font-size:14px;line-height:1.6}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+[hidden]{display:none!important}
+
+.page{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:48px;padding:0 20px;border-bottom:1px solid var(--chrome-line);font-size:13px;color:var(--chrome-muted)}
+.topbar b{color:var(--chrome-ink);font-variant-numeric:tabular-nums}
+
+/* ---------- 正中間：系統名字＋那顆鈕 ---------- */
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px 32px;text-align:center}
+.mark{width:56px;height:56px;border-radius:12px;background:var(--chrome-ink);color:#fff;display:grid;place-items:center;font-size:20px;font-weight:900;letter-spacing:.02em}
+h1{margin:18px 0 6px;font-size:clamp(24px,3vw,30px);font-weight:900;line-height:1.3}
+.lead{margin:0 0 28px;font-size:15px;color:var(--chrome-muted)}
+.sign{width:min(400px,100%)}
+.g-btn{width:100%;display:flex;align-items:center;gap:14px;min-height:60px;padding:4px 16px 4px 4px;border:0;border-radius:10px;
+  background:var(--accent);color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px -8px rgba(74,111,220,.7)}
+.g-btn:hover{background:var(--accent-strong)}
+.g-btn .g{flex:none;width:52px;height:52px;border-radius:8px;background:#fff;display:grid;place-items:center}
+.g-btn .t{flex:1;text-align:center;padding-right:52px}
+.fine{margin:12px 0 0;font-size:12.5px;color:var(--chrome-faint)}
+.notice{margin:0 0 12px;font-size:13.5px;color:var(--danger-ink);font-weight:700}
+.notice:empty{display:none}
+
+/* 已經登入／被擋下來：同一塊位置換一段話，鈕還是在正中間 */
+.state{padding:18px 20px;border-radius:10px;background:var(--paper);text-align:left;box-shadow:0 1px 2px var(--glass-shade)}
+.state .nm{font-size:18px;font-weight:900}
+.state .meta{font-size:13px;color:var(--chrome-muted)}
+.state h2{margin:0 0 8px;font-size:16px;font-weight:900;color:var(--danger-ink)}
+.state .acct{padding:7px 10px;border-radius:6px;background:var(--danger-tint);font-weight:700;word-break:break-all}
+.state p{margin:10px 0 0;font-size:13px;color:var(--chrome-muted);line-height:1.7}
+.acts{display:flex;gap:8px;margin-top:14px}
+.btn{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line-strong);background:#fff;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:var(--chrome-ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;flex:1}
+.btn.primary:hover{background:var(--accent-strong)}
+.btn:not(.primary):hover{background:var(--accent-tint)}
+
+/* ---------- 公告：鈕底下，小一階 ---------- */
+.news{width:min(400px,100%);margin-top:40px;text-align:left}
+.news h3{margin:0 0 6px;font-size:12.5px;font-weight:800;color:var(--chrome-muted)}
+.news ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--chrome-line)}
+.news li{display:grid;grid-template-columns:6.4em minmax(0,1fr);gap:10px;padding:8px 0;border-bottom:1px solid var(--chrome-line);font-size:13px;line-height:1.6;color:var(--chrome-muted)}
+.news time{font-weight:800;color:var(--chrome-ink);font-variant-numeric:tabular-nums}
+.news .soon time{color:var(--now)}
+
+/* ---------- 最下面：登入有問題找誰 ---------- */
+.foot{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px;padding:14px 20px 18px;font-size:13px;color:var(--chrome-muted);border-top:1px solid var(--chrome-line)}
+.foot b{color:var(--chrome-ink)}
+.foot a{color:var(--accent-strong);font-weight:700}
+
+@media (max-width:560px){
+  .topbar .demo{display:none}
+  .center{justify-content:flex-start;padding-top:40px}
+  .g-btn{font-size:16px}
+}
+
+/* ---------- 模擬的 Google 選帳號窗（跟 demo 同一套） ---------- */
+#picker{padding:0;border:0;width:min(420px,calc(100% - 32px));border-radius:12px;background:#fff;color:var(--chrome-ink);box-shadow:0 24px 60px -20px rgba(29,38,52,.55)}
+#picker::backdrop{background:rgba(29,38,52,.38)}
+.pk-wrap{display:flex;flex-direction:column;max-height:min(640px,calc(100vh - 48px))}
+.pk-head{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--chrome-muted)}
+.pk-sim{margin-left:auto;font-size:12px;border:1px solid var(--line-strong);border-radius:999px;padding:1px 9px}
+.pk-body{padding:22px 22px 8px;overflow:auto}
+.pk-body h2{margin:0;font-size:22px;font-weight:500;text-align:center}
+.pk-sub{margin:4px 0 16px;text-align:center;font-size:14px;color:var(--chrome-muted)}
+.pk-search{width:100%;min-height:40px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px}
+.pk-list{list-style:none;margin:10px -22px 0;padding:0}
+.pk-list li + li{border-top:1px solid var(--line)}
+.pk-acct{width:100%;display:flex;align-items:center;gap:12px;padding:10px 22px;border:0;background:none;text-align:left;cursor:pointer}
+.pk-acct:hover,.pk-acct:focus-visible{background:var(--accent-tint);outline:none}
+.av{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--av,var(--av-1));color:#fff;font-size:14px;font-weight:500}
+.av.plus{background:none;border:1px solid var(--line-strong);color:var(--chrome-muted);font-size:18px}
+.pk-acct .nm{display:block;font-weight:500;line-height:1.35}
+.pk-acct .em{display:block;font-size:13px;color:var(--chrome-muted);line-height:1.35;word-break:break-all}
+.pk-empty{padding:14px 22px;font-size:14px;color:var(--chrome-muted)}
+.pk-other label{display:block;font-size:13px;color:var(--chrome-muted);margin-bottom:4px}
+.pk-other input{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px}
+.pk-err{margin:6px 0 0;min-height:1.5em;font-size:13px;color:var(--danger-ink)}
+.pk-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.pk-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 12px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--chrome-faint)}
+.btn-text{border:0;background:none;padding:6px 8px;border-radius:6px;color:var(--accent);font-weight:700;cursor:pointer}
+.btn-text:hover{background:var(--accent-tint)}
+</style>
+</head>
+<body>
+
+<div class="page">
+  <header class="topbar">
+    <span class="demo">本機示範：資料只存在這台瀏覽器</span>
+    <span id="clock"></span>
+  </header>
+
+  <main class="center">
+    <div class="mark" aria-hidden="true">DM</div>
+    <h1>DM 行銷開板設計系統</h1>
+    <p class="lead" id="lead">用公司發的 Google 帳號登入</p>
+    <div class="sign" id="sign"></div>
+    <section class="news" aria-labelledby="newsH" id="newsSec" hidden>
+      <h3 id="newsH">系統公告</h3>
+      <ul id="news"></ul>
+    </section>
+  </main>
+
+  <footer class="foot" id="foot" hidden></footer>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="gLogo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></symbol>
+</svg>
+
+<!-- 模擬的 Google 選帳號窗：接上 Supabase 之後這一窗不存在，按下去就整頁轉去真的 Google -->
+<dialog id="picker" aria-labelledby="pkTitle">
+  <div class="pk-wrap">
+    <div class="pk-head"><svg width="16" height="16" aria-hidden="true"><use href="#gLogo"/></svg><span>使用 Google 帳戶登入</span><span class="pk-sim" title="本機示範用的模擬視窗，不會連到 Google">模擬</span></div>
+    <div class="pk-body">
+      <h2 id="pkTitle">選擇帳戶</h2>
+      <p class="pk-sub">以繼續使用「DM 行銷開板設計系統」</p>
+      <div id="pkChoose">
+        <input class="pk-search" id="pkSearch" type="search" placeholder="搜尋姓名或 email" aria-label="搜尋帳戶" autocomplete="off">
+        <ul class="pk-list" id="pkList"></ul>
+      </div>
+      <form class="pk-other" id="pkOther" hidden novalidate>
+        <label for="pkEmail">Email</label>
+        <input id="pkEmail" type="email" autocomplete="off" placeholder="name@example.com">
+        <p class="pk-err" id="pkErr" role="alert"></p>
+        <div class="pk-row"><button type="button" class="btn-text" id="pkBack">返回帳戶清單</button><button type="submit" class="btn primary" style="flex:none">繼續</button></div>
+      </form>
+    </div>
+    <div class="pk-foot"><span>關掉這個視窗＝不登入</span><button type="button" class="btn-text" id="pkCancel">取消</button></div>
+  </div>
+</dialog>
+
+<script src="seed.js"></script>
+<script src="rules.js"></script>
+<script src="store.js"></script>
+<script>
+(function () {
+'use strict';
+const S = window.ReviewStore, R = window.ReviewRules;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const WEEK = '日一二三四五六';
+const DAY = 86400000;
+const pad = n => String(n).padStart(2, '0');
+const md = d => `${d.getMonth() + 1}/${pad(d.getDate())}`;
+const APP_URL = 'index.html#/todo';   // 登入了就進 demo 本人（登入狀態是同一份）
+
+/* ---------- 公告、找誰（不用登入就看得到的只有這兩樣） ---------- */
+async function paintPublic() {
+  const pb = await S.api.publicBoard();
+  const nowMs = S.now();
+  const news = pb.announcements.slice().sort((a, b) => b.date.localeCompare(a.date));
+  $('newsSec').hidden = !news.length;
+  $('news').innerHTML = news.map(x => {
+    const d = new Date(x.date + 'T00:00:00');
+    const soon = +d >= nowMs - DAY;   // 還沒發生的（例如維護）用琥珀：那是要提前知道的事
+    return `<li class="${soon ? 'soon' : ''}"><time datetime="${esc(x.date)}">${md(d)}（${WEEK[d.getDay()]}）</time><span>${esc(x.text)}</span></li>`;
+  }).join('');
+  const s = pb.support;
+  $('foot').hidden = !s;
+  if (s) $('foot').innerHTML = `<span><b>登入有問題？</b></span><span>${esc(s.who)}</span><span>${esc(s.ext)}</span><a href="mailto:${esc(s.email)}">${esc(s.email)}</a>`;
+}
+function paintClock() {
+  const t = new Date(S.now());
+  $('clock').innerHTML = `<b>${md(t)}（${WEEK[t.getDay()]}）${pad(t.getHours())}:${pad(t.getMinutes())}</b>`;
+}
+
+/* ---------- 正中間那一塊的三種樣子 ---------- */
+const G_BTN = `<button class="g-btn" id="signInBtn" type="button"><span class="g"><svg width="26" height="26" aria-hidden="true"><use href="#gLogo"/></svg></span><span class="t">用 Google 帳號登入</span></button>`;
+function signIdle(notice) {
+  $('lead').textContent = '用公司發的 Google 帳號登入';
+  $('sign').innerHTML = `<p class="notice" role="status">${esc(notice || '')}</p>${G_BTN}
+    <p class="fine">只有人員名單上、在職的人進得來。</p>`;
+}
+/* 這台瀏覽器已經登入了：寫出是誰，給兩條路 */
+function signDone(id) {
+  const m = id.member;
+  $('lead').textContent = '這台瀏覽器已經登入了';
+  $('sign').innerHTML = `<div class="state"><div class="nm">${esc(m.name)}</div><div class="meta">${esc(m.department)}　${esc(m.title)}</div>
+    <div class="acts"><a class="btn primary" href="${APP_URL}">進入系統</a><button class="btn" type="button" id="switchBtn">換一個帳號</button></div></div>`;
+}
+function signDenied(r) {
+  const m = r.member;
+  let title, body;
+  if (r.code === 'inactive') { title = '這個帳號已停用'; body = '人員資料裡標為離職，所以進不來。已經回到公司的話，請找系統管理者把人員資料改回在職。'; }
+  else if (r.code === 'invalid_email') { title = '這不是一個有效的 email'; body = '換一個帳號，用完整的 email 登入。'; }
+  else { title = '這個帳號不在人員名單裡'; body = '請改用公司發的帳號。如果這就是公司帳號，請找最下面的聯絡窗口把你加進人員資料。'; }
+  $('lead').textContent = '沒有登入成功';
+  $('sign').innerHTML = `<div class="state" role="alert"><h2>${esc(title)}</h2><div class="acct">${esc(m ? m.name + '　' : '')}${esc(r.email || '')}</div><p>${esc(body)}</p>
+    <div class="acts"><button class="btn primary" type="button" id="retryBtn">換一個帳號</button></div></div>`;
+  $('retryBtn').focus();
+}
+
+let busy = false;
+async function signIn() {
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await S.auth.signIn();
+    if (r && r.cancelled) return;
+    const w = await S.api.whoami({ fresh: true });
+    if (w.ok) location.href = APP_URL;       // 登入了就直接進去，不停頓
+    else signDenied(w);
+  } catch (e) {
+    signIdle('登入沒有完成：' + e.message);
+  } finally { busy = false; }
+}
+
+/* ---------- 模擬的選帳號窗（照 demo 那一支） ---------- */
+let pickResolve = null;
+const picker = $('picker');
+function openPicker() {
+  return new Promise(res => { pickResolve = res; $('pkSearch').value = ''; showOther(false); renderAccounts(''); picker.showModal(); $('pkSearch').focus(); });
+}
+function finishPick(email) { const r = pickResolve; pickResolve = null; if (picker.open) picker.close(); if (r) r(email || null); }
+function avColor(s) { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return `var(--av-${h % 6 + 1})`; }
+function renderAccounts(q) {
+  const k = q.trim().toLowerCase();
+  const all = S.dev ? S.dev.accounts() : [];
+  const hit = all.filter(a => !k || a.name.toLowerCase().includes(k) || a.email.toLowerCase().includes(k));
+  const rows = hit.map(a => `<li><button type="button" class="pk-acct" data-email="${esc(a.email)}"><span class="av" style="--av:${avColor(a.email)}">${esc(a.name ? Array.from(a.name)[0] : a.email[0].toUpperCase())}</span><span>${a.name ? `<span class="nm">${esc(a.name)}</span>` : ''}<span class="em">${esc(a.email)}</span></span></button></li>`);
+  if (!hit.length) rows.push(`<li class="pk-empty">找不到「${esc(q)}」。可以改用其他帳戶登入。</li>`);
+  rows.push(`<li><button type="button" class="pk-acct" data-other="1"><span class="av plus" aria-hidden="true">＋</span><span class="nm">使用其他帳戶</span></button></li>`);
+  $('pkList').innerHTML = rows.join('');
+}
+function showOther(on) {
+  $('pkChoose').hidden = on; $('pkOther').hidden = !on; $('pkErr').textContent = '';
+  if (on) { const q = $('pkSearch').value.trim(); $('pkEmail').value = q.includes('@') ? q : ''; $('pkEmail').focus(); }
+}
+
+function wire() {
+  document.addEventListener('click', async e => {
+    if (e.target.closest('#signInBtn') || e.target.closest('#retryBtn')) { signIdle(); signIn(); return; }
+    if (e.target.closest('#switchBtn')) { await S.auth.signOut(); signIdle(); signIn(); }
+  });
+  $('pkSearch').addEventListener('input', e => renderAccounts(e.target.value));
+  $('pkSearch').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); const b = $('pkList').querySelector('.pk-acct'); if (b) b.focus(); }
+    if (e.key === 'Enter') { e.preventDefault(); const b = $('pkList').querySelector('.pk-acct'); if (b) b.click(); }
+  });
+  $('pkList').addEventListener('click', e => { const b = e.target.closest('.pk-acct'); if (!b) return; if (b.dataset.other) showOther(true); else finishPick(b.dataset.email); });
+  $('pkBack').addEventListener('click', () => { showOther(false); $('pkSearch').focus(); });
+  $('pkOther').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('pkEmail').value.trim();
+    if (!R.validEmail(R.normEmail(v))) { $('pkErr').textContent = '請輸入完整的 email，例如 name@example.com。'; $('pkEmail').focus(); return; }
+    finishPick(v);
+  });
+  $('pkCancel').addEventListener('click', () => finishPick(null));
+  picker.addEventListener('close', () => finishPick(null));
+  picker.addEventListener('click', e => { if (e.target === picker) finishPick(null); });
+}
+
+async function boot() {
+  S.auth.usePicker(openPicker);
+  wire();
+  paintClock();
+  paintPublic();
+  setInterval(paintClock, 60000);
+  const s = await S.auth.getSession();
+  if (!s) { signIdle(); $('signInBtn').focus(); return; }
+  const w = await S.api.whoami();
+  if (w.ok) signDone(w.identity);
+  else if (w.code === 'no_session') { signIdle(); $('signInBtn').focus(); }
+  else signDenied(w);
+}
+boot();
+})();
+</script>
+</body>
+</html>

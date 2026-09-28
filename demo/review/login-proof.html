@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登入｜DM 行銷開板設計系統</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800;900&family=Anton&display=swap">
+<style>
+/* 登入頁（第三版，demo）：整個畫面是一張印刷打樣（proof）。
+   這個系統做的事就是把一份 DM 從提明細一路送到出稿，而那一路上每個人都摸過同一種紙：打樣。
+   所以：四個角是裁切線、四邊中間是對位十字、底下一條 CMYK 色條、上下兩條 slug 寫著印件資訊；
+   標題像印在出血裡面的大標；進行中的檔期是「印件」的工單；登入是打樣角落那一格「簽核欄」——
+   簽名那一行就是 Google 登入鈕。
+   大膽只花在一個地方：這張打樣本身（裁切線、色條、簽核欄）。四個印刷色只准出現在色條和記號上，
+   藍照這個專案的規矩只給要按的那一顆。 */
+:root{
+  --stock:#eceff3;          /* 裁切線外面：沒印到的紙 */
+  --live:#ffffff;           /* 裁切線裡面 */
+  --ink:#1d2634;            /* K */
+  --ink-dim:#525d6f;
+  --ink-faint:#7d8798;
+  --rule:#c9d0db;
+  --mark:#1d2634;           /* 裁切線、對位記號 */
+  --proof-c:#00a0e9;        /* 色條上的四個印刷色：只在色條和記號上 */
+  --proof-m:#e4007f;
+  --proof-y:#fff100;
+  --accent:#4a6fdc;         /* 藍＝你正在點的東西 */
+  --accent-strong:#3f61c6;
+  --accent-tint:#eef2fc;
+  --late:#e0182d;           /* 延遲：跟 DM 上的價格同一種紅 */
+  --now:#c07f00;            /* 現在這一關：跟主程式的琥珀同一種 */
+  --danger-ink:#b42318;
+  --danger-tint:#fdeceb;
+  --line:#e2e6ee;
+  --line-strong:#c9d6e2;
+  --av-1:#5b7bb4; --av-2:#6f8a52; --av-3:#a0715c; --av-4:#7d6aa6; --av-5:#4f8a8b; --av-6:#9a7b3f;
+  --font-ui:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --font-num:"Anton","Impact",sans-serif;
+  --gutter:clamp(28px,4.5vw,72px);     /* 裁切線離紙邊多遠（slug 和記號站在這一圈裡） */
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font-family:var(--font-ui);color:var(--ink);background:var(--stock);-webkit-font-smoothing:antialiased;font-size:15px;line-height:1.6}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* ---------- 一張打樣：外面一圈是 slug 和記號，裡面是裁切後的成品 ---------- */
+.proof{min-height:100vh;display:grid;grid-template-rows:var(--gutter) 1fr var(--gutter);grid-template-columns:var(--gutter) 1fr var(--gutter)}
+.slug{grid-column:2;display:flex;align-items:center;gap:clamp(12px,2vw,28px);padding:0 clamp(14px,2vw,24px);font-size:12px;color:var(--ink-dim);white-space:nowrap;overflow:hidden;min-width:0}
+.slug b{color:var(--ink);font-weight:800}
+.slug-top{grid-row:1}
+.slug-bottom{grid-row:3;justify-content:space-between}
+.trim{grid-row:2;grid-column:2;position:relative;background:var(--live);box-shadow:0 1px 0 rgba(29,38,52,.06)}
+
+/* 裁切線：每個角兩條，站在成品外面、離邊留一截空（真的裁切線就是這樣，不碰到成品） */
+.crop{position:absolute;background:var(--mark);pointer-events:none}
+.crop.h{height:1px;width:calc(var(--gutter) * .55)}
+.crop.v{width:1px;height:calc(var(--gutter) * .55)}
+.crop.tl.h{top:0;right:calc(100% + 8px)} .crop.tl.v{left:0;bottom:calc(100% + 8px)}
+.crop.tr.h{top:0;left:calc(100% + 8px)}  .crop.tr.v{right:0;bottom:calc(100% + 8px)}
+.crop.bl.h{bottom:0;right:calc(100% + 8px)} .crop.bl.v{left:0;top:calc(100% + 8px)}
+.crop.br.h{bottom:0;left:calc(100% + 8px)}  .crop.br.v{right:0;top:calc(100% + 8px)}
+/* 對位記號：圈＋十字，四邊正中間 */
+.reg{position:absolute;width:18px;height:18px;color:var(--mark);pointer-events:none}
+.reg.t{left:50%;bottom:calc(100% + 10px);transform:translateX(-50%)}
+.reg.b{left:50%;top:calc(100% + 10px);transform:translateX(-50%)}
+.reg.l{top:50%;right:calc(100% + 10px);transform:translateY(-50%)}
+.reg.r{top:50%;left:calc(100% + 10px);transform:translateY(-50%)}
+
+/* 色條：C M Y K、黑的三階網點、三個灰平衡 */
+.colorbar{display:flex;flex:none;height:14px;border:1px solid var(--mark)}
+.colorbar i{width:14px;height:100%}
+.colorbar i + i{border-left:1px solid rgba(29,38,52,.25)}
+
+/* ---------- 成品裡面 ---------- */
+.live{height:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:clamp(28px,4vw,72px);padding:clamp(28px,5vh,64px) clamp(24px,4vw,64px)}
+.headline{margin:0;font-size:clamp(48px,7.2vw,132px);font-weight:900;line-height:1.02;letter-spacing:-.005em}
+.headline span{display:block}
+.dek{margin:clamp(14px,2vh,22px) 0 0;max-width:34em;font-size:clamp(15px,1.15vw,18px);color:var(--ink-dim)}
+.left{display:flex;flex-direction:column;min-width:0}
+
+/* 工單：一份檔期一張 */
+.jobs{margin-top:auto;padding-top:clamp(28px,5vh,56px)}
+.jobs-h{display:flex;align-items:baseline;gap:12px;margin:0 0 10px;font-size:14px;font-weight:900}
+.jobs-h small{font-size:12px;font-weight:700;color:var(--ink-faint)}
+.job{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;align-items:end;gap:10px clamp(16px,2.4vw,36px);padding:14px 0;border-top:2px solid var(--ink)}
+.job + .job{border-top-width:1px}
+.job-name{font-size:clamp(17px,1.4vw,22px);font-weight:800;line-height:1.3}
+.job-name small{display:block;margin-top:2px;font-size:12px;font-weight:700;color:var(--ink-faint)}
+.job-stage{font-size:12px;font-weight:800;color:var(--ink-dim)}
+.steps{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;margin-bottom:6px}
+.steps i{height:10px;background:var(--line)}
+.steps i.done{background:var(--ink)}
+.steps i.now{background:var(--now)}
+.job-count{text-align:right;line-height:1}
+.job-count .n{font-family:var(--font-num);font-size:clamp(40px,3.6vw,64px);color:var(--ink);letter-spacing:-.01em}
+.job-count .u{font-size:13px;font-weight:900;margin-left:4px}
+.job-count .l{display:block;margin-bottom:4px;font-size:11.5px;font-weight:800;color:var(--ink-faint)}
+.job.late .n,.job.late .u{color:var(--late)}
+.jobs-none{padding:14px 0;border-top:2px solid var(--ink);color:var(--ink-dim);font-weight:700}
+
+/* ---------- 簽核欄：打樣角落那一格，登入就在「簽名」那一行 ---------- */
+.signoff{align-self:center;border:2px solid var(--ink);background:var(--live)}
+.so-head{display:flex;justify-content:space-between;align-items:baseline;padding:8px 14px;background:var(--ink);color:#fff}
+.so-head b{font-size:15px;font-weight:900;letter-spacing:.2em}
+.so-head span{font-size:11.5px;font-weight:700;opacity:.8}
+.so-row{display:grid;grid-template-columns:4.2em minmax(0,1fr);border-top:1px solid var(--ink)}
+.so-row:first-of-type{border-top:0}
+.so-row > dt{padding:12px 0 12px 14px;font-size:13px;font-weight:900;border-right:1px solid var(--ink)}
+.so-row > dd{margin:0;padding:12px 14px;min-width:0}
+.so-sign dd{padding:10px 12px}
+.so-note{font-size:13px;color:var(--ink-dim);line-height:1.65}
+/* Google 登入鈕：藍（這一頁唯一要點的東西），G 在白色方塊裡 */
+.g-btn{width:100%;display:flex;align-items:center;gap:12px;min-height:52px;padding:4px 14px 4px 4px;border:0;border-radius:6px;
+  background:var(--accent);color:#fff;font-weight:800;font-size:16px;cursor:pointer}
+.g-btn:hover{background:var(--accent-strong)}
+.g-btn .g{flex:none;width:44px;height:44px;border-radius:4px;background:#fff;display:grid;place-items:center}
+.g-btn .t{flex:1;text-align:center;padding-right:44px}
+.signed{font-size:15px;font-weight:800}
+.signed small{display:block;font-size:12.5px;font-weight:600;color:var(--ink-dim)}
+.so-acts{display:flex;gap:8px;margin-top:10px}
+.btn{min-height:38px;padding:0 14px;border-radius:6px;border:1px solid var(--line-strong);background:#fff;font-weight:800;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-strong)}
+.btn:not(.primary):hover{background:var(--accent-tint)}
+/* 被擋下來：簽名那一行換成一句話 */
+.denied h2{margin:0 0 6px;font-size:16px;font-weight:900;color:var(--danger-ink)}
+.denied .who{margin:6px 0;padding:6px 10px;background:var(--danger-tint);font-weight:700;word-break:break-all}
+.denied p{margin:0;font-size:13px;color:var(--ink-dim);line-height:1.65}
+.notice{margin:0 0 8px;font-size:13px;color:var(--ink-dim)}
+.notice:empty{display:none}
+
+/* 下面那條 slug：印務備註（公告）、印務聯絡（登入有問題） */
+.notes{display:flex;gap:10px;min-width:0;overflow:hidden}
+.notes b{flex:none}
+.notes span{overflow:hidden;text-overflow:ellipsis}
+.contact{display:flex;gap:10px;align-items:center;flex:none}
+.contact a{color:var(--accent)}
+
+/* ---------- 模擬的 Google 選帳號窗（跟 demo 同一套） ---------- */
+#picker{padding:0;border:0;width:min(420px,calc(100% - 32px));border-radius:12px;background:#fff;color:var(--ink);box-shadow:0 24px 60px -20px rgba(29,38,52,.55)}
+#picker::backdrop{background:rgba(29,38,52,.38)}
+.pk-wrap{display:flex;flex-direction:column;max-height:min(640px,calc(100vh - 48px))}
+.pk-head{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink-dim)}
+.pk-sim{margin-left:auto;font-size:12px;border:1px solid var(--line-strong);border-radius:999px;padding:1px 9px}
+.pk-body{padding:22px 22px 8px;overflow:auto}
+.pk-body h2{margin:0;font-size:22px;font-weight:500;text-align:center}
+.pk-sub{margin:4px 0 16px;text-align:center;font-size:14px;color:var(--ink-dim)}
+.pk-search{width:100%;min-height:40px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px}
+.pk-list{list-style:none;margin:10px -22px 0;padding:0}
+.pk-list li + li{border-top:1px solid var(--line)}
+.pk-acct{width:100%;display:flex;align-items:center;gap:12px;padding:10px 22px;border:0;background:none;text-align:left;cursor:pointer}
+.pk-acct:hover,.pk-acct:focus-visible{background:var(--accent-tint);outline:none}
+.av{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--av,var(--av-1));color:#fff;font-size:14px;font-weight:500}
+.av.plus{background:none;border:1px solid var(--line-strong);color:var(--ink-dim);font-size:18px}
+.pk-acct .nm{display:block;font-weight:500;line-height:1.35}
+.pk-acct .em{display:block;font-size:13px;color:var(--ink-dim);line-height:1.35;word-break:break-all}
+.pk-empty{padding:14px 22px;font-size:14px;color:var(--ink-dim)}
+.pk-other label{display:block;font-size:13px;color:var(--ink-dim);margin-bottom:4px}
+.pk-other input{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px}
+.pk-err{margin:6px 0 0;min-height:1.5em;font-size:13px;color:var(--danger-ink)}
+.pk-row{display:flex;justify-content:space-between;align-items:center;margin-top:12px}
+.pk-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 12px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-faint)}
+.btn-text{border:0;background:none;padding:6px 8px;border-radius:6px;color:var(--accent);font-weight:700;cursor:pointer}
+.btn-text:hover{background:var(--accent-tint)}
+
+@media (max-width:900px){
+  .proof{grid-template-rows:var(--gutter) 1fr auto}
+  .live{grid-template-columns:minmax(0,1fr);height:auto;align-content:start}
+  .left{display:contents}          /* 標題、說明、工單直接當格子的一員，才排得進簽核欄的前後 */
+  .headline{order:0}
+  .dek{order:1}
+  .signoff{align-self:start;order:2}
+  .jobs{order:3;margin-top:0;padding-top:8px}
+  .job{grid-template-columns:minmax(0,1fr) auto}
+  .job .job-bar{grid-column:1 / -1;grid-row:2}
+  .slug-bottom{flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;white-space:normal;padding-top:10px;padding-bottom:10px;min-height:var(--gutter)}
+  .slug-bottom{gap:8px}
+  .notes{flex-direction:column;gap:2px;overflow:visible}
+  .notes span{white-space:normal}
+  .contact{flex-wrap:wrap;gap:0 10px;flex:initial}
+  .contact > *{white-space:nowrap}
+  .slug-top .opt{display:none}
+}
+@media (max-width:560px){
+  :root{--gutter:22px}
+  .so-row{grid-template-columns:3.2em minmax(0,1fr)}
+  .so-row > dt{padding-left:10px}
+  .g-btn .t{padding-right:0}
+  .reg{display:none}
+  .slug{font-size:11px}
+  .colorbar{display:none}
+}
+</style>
+</head>
+<body>
+
+<div class="proof">
+  <header class="slug slug-top">
+    <span><b>印件</b>　DM 行銷開板設計系統・登入</span>
+    <span class="opt"><b>尺寸</b>　成品（裁切線以內）</span>
+    <span class="opt" id="slugTime"></span>
+    <span class="opt">本機示範：資料只存在這台瀏覽器</span>
+  </header>
+
+  <main class="trim" aria-labelledby="hl">
+    <span class="crop tl h"></span><span class="crop tl v"></span>
+    <span class="crop tr h"></span><span class="crop tr v"></span>
+    <span class="crop bl h"></span><span class="crop bl v"></span>
+    <span class="crop br h"></span><span class="crop br v"></span>
+    <svg class="reg t" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor"/><path d="M9 0v18M0 9h18" stroke="currentColor"/></svg>
+    <svg class="reg b" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor"/><path d="M9 0v18M0 9h18" stroke="currentColor"/></svg>
+    <svg class="reg l" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor"/><path d="M9 0v18M0 9h18" stroke="currentColor"/></svg>
+    <svg class="reg r" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor"/><path d="M9 0v18M0 9h18" stroke="currentColor"/></svg>
+
+    <div class="live">
+      <section class="left">
+        <h1 class="headline" id="hl"><span>DM 行銷開板</span><span>設計系統</span></h1>
+        <p class="dek">提明細、製作、一校二校、蓋章、審稿、出稿 —— 一份 DM 從頭到尾在這裡走完。</p>
+        <section class="jobs" aria-labelledby="jobsH">
+          <h2 class="jobs-h" id="jobsH">進行中的印件<small>每一份檔期走到第幾關、這一關還剩多久</small></h2>
+          <div id="jobs"></div>
+        </section>
+      </section>
+
+      <section class="signoff" aria-labelledby="soH">
+        <div class="so-head"><b id="soH">簽核欄</b><span>登入</span></div>
+        <dl style="margin:0">
+          <div class="so-row so-sign"><dt>簽名</dt><dd id="signCell"></dd></div>
+          <div class="so-row"><dt>日期</dt><dd id="dateCell" class="signed"></dd></div>
+          <div class="so-row"><dt>說明</dt><dd class="so-note">用公司發的 Google 帳號簽名（登入）。只有人員名單上、在職的人簽得了。</dd></div>
+        </dl>
+      </section>
+    </div>
+  </main>
+
+  <footer class="slug slug-bottom">
+    <div class="notes" id="notes"></div>
+    <div class="contact" id="contact"></div>
+    <span class="colorbar" aria-hidden="true">
+      <i style="background:var(--proof-c)"></i><i style="background:var(--proof-m)"></i><i style="background:var(--proof-y)"></i><i style="background:var(--ink)"></i>
+      <i style="background:rgba(29,38,52,.75)"></i><i style="background:rgba(29,38,52,.5)"></i><i style="background:rgba(29,38,52,.25)"></i>
+      <i style="background:#8a8f99"></i><i style="background:#b8bcc4"></i><i style="background:#dfe2e7"></i>
+    </span>
+  </footer>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="gLogo" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></symbol>
+</svg>
+
+<!-- 模擬的 Google 選帳號窗：接上 Supabase 之後這一窗不存在，按下去就整頁轉去真的 Google -->
+<dialog id="picker" aria-labelledby="pkTitle">
+  <div class="pk-wrap">
+    <div class="pk-head"><svg width="16" height="16" aria-hidden="true"><use href="#gLogo"/></svg><span>使用 Google 帳戶登入</span><span class="pk-sim" title="本機示範用的模擬視窗，不會連到 Google">模擬</span></div>
+    <div class="pk-body">
+      <h2 id="pkTitle">選擇帳戶</h2>
+      <p class="pk-sub">以繼續使用「DM 行銷開板設計系統」</p>
+      <div id="pkChoose">
+        <input class="pk-search" id="pkSearch" type="search" placeholder="搜尋姓名或 email" aria-label="搜尋帳戶" autocomplete="off">
+        <ul class="pk-list" id="pkList"></ul>
+      </div>
+      <form class="pk-other" id="pkOther" hidden novalidate>
+        <label for="pkEmail">Email</label>
+        <input id="pkEmail" type="email" autocomplete="off" placeholder="name@example.com">
+        <p class="pk-err" id="pkErr" role="alert"></p>
+        <div class="pk-row"><button type="button" class="btn-text" id="pkBack">返回帳戶清單</button><button type="submit" class="btn primary">繼續</button></div>
+      </form>
+    </div>
+    <div class="pk-foot"><span>關掉這個視窗＝不登入</span><button type="button" class="btn-text" id="pkCancel">取消</button></div>
+  </div>
+</dialog>
+
+<script src="seed.js"></script>
+<script src="rules.js"></script>
+<script src="store.js"></script>
+<script>
+(function () {
+'use strict';
+const S = window.ReviewStore, R = window.ReviewRules;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const WEEK = '日一二三四五六';
+const pad = n => String(n).padStart(2, '0');
+const md = d => `${d.getMonth() + 1}/${pad(d.getDate())}`;
+const APP_URL = 'index.html#/todo';   // 簽好了就進 demo 本人（登入狀態是同一份）
+
+/* ---------- 成品裡的字：日期、工單、備註、聯絡 ---------- */
+async function paintPublic() {
+  const t = new Date(S.now());
+  $('slugTime').innerHTML = `<b>打樣時間</b>　${md(t)}（${WEEK[t.getDay()]}）${pad(t.getHours())}:${pad(t.getMinutes())}`;
+  $('dateCell').innerHTML = `${t.getFullYear()} 年 ${t.getMonth() + 1} 月 ${t.getDate()} 日（${WEEK[t.getDay()]}）<small>簽名之後就用這一天的時間記一筆登入紀錄</small>`;
+  const pb = await S.api.publicBoard();
+  $('jobs').innerHTML = pb.plans.length ? pb.plans.map(p => {
+    const ix = p.started ? R.STAGES.indexOf(p.stage) : -1;
+    const steps = R.STAGES.map((s, i) => `<i class="${p.done || (ix >= 0 && i < ix) ? 'done' : i === ix ? 'now' : ''}" title="${esc(s)}"></i>`).join('');
+    let l, n, u, late = false;
+    if (!p.started) { const d = new Date(p.startsAt + 'T00:00:00'); l = '提明細開始'; n = md(d); u = `（${WEEK[d.getDay()]}）`; }
+    else if (p.done) { l = '出稿'; n = '✓'; u = ''; }
+    else {
+      const ms = +new Date(p.due) - S.now();
+      const due = new Date(p.due);
+      l = `${p.stage}截止 ${md(due)} 18:00`;
+      if (ms <= 0) { late = true; n = '延遲'; u = ''; }
+      else if (ms < 48 * 3600000) { n = (ms / 3600000).toFixed(1); u = '小時'; }
+      else { n = String(Math.ceil(ms / 86400000)); u = '天'; }
+    }
+    return `<article class="job${late ? ' late' : ''}">
+      <div class="job-name">${esc(p.name)}<small>${esc(p.type)}</small></div>
+      <div class="job-bar"><div class="steps" aria-hidden="true">${steps}</div>
+        <span class="job-stage">${p.started ? (p.done ? '十關都走完了' : `現在：${esc(p.stage)}　第 ${ix + 1}／10 關`) : '還沒開始'}</span></div>
+      <div class="job-count"><span class="l">${esc(l)}</span><span class="n">${esc(n)}</span><span class="u">${esc(u)}</span></div>
+    </article>`;
+  }).join('') : '<p class="jobs-none">目前沒有進行中的印件。</p>';
+  const news = pb.announcements.slice().sort((a, b) => b.date.localeCompare(a.date));
+  $('notes').innerHTML = `<b>印務備註</b>${news.length ? news.map(x => { const d = new Date(x.date + 'T00:00:00'); const t = `※ ${md(d)}（${WEEK[d.getDay()]}）${x.text}`; return `<span title="${esc(t)}">${esc(t)}</span>`; }).join('') : '<span>目前沒有公告。</span>'}`;
+  const s = pb.support;
+  $('contact').innerHTML = s ? `<b>印務聯絡（登入有問題）</b><span>${esc(s.who)}　${esc(s.ext)}</span><a href="mailto:${esc(s.email)}">${esc(s.email)}</a>` : '';
+}
+
+/* ---------- 簽名那一行 ---------- */
+const G_BTN = `<button class="g-btn" id="signInBtn" type="button"><span class="g"><svg width="22" height="22" aria-hidden="true"><use href="#gLogo"/></svg></span><span class="t">用 Google 帳號登入</span></button>`;
+function signIdle(notice) {
+  $('signCell').innerHTML = `<p class="notice" role="status">${esc(notice || '')}</p>${G_BTN}`;
+}
+/* 已經登入了（這台瀏覽器手上還有權杖）：簽名那一行寫著是誰，給兩條路 */
+function signDone(id) {
+  const m = id.member;
+  $('signCell').innerHTML = `<div class="signed">${esc(m.name)}<small>${esc(m.department)}　${esc(m.title)}　已經登入</small></div>
+    <div class="so-acts"><a class="btn primary" href="${APP_URL}" style="display:inline-flex;align-items:center;text-decoration:none">進入系統</a><button class="btn" type="button" id="switchBtn">換一個帳號</button></div>`;
+}
+function signDenied(r) {
+  const m = r.member;
+  let title, body;
+  if (r.code === 'inactive') { title = '這個帳號已停用'; body = '人員資料裡標為離職，所以簽不了（登入不了）。已經回到公司的話，請找系統管理者把人員資料改回在職。'; }
+  else if (r.code === 'invalid_email') { title = '這不是一個有效的 email'; body = '換一個帳號，用完整的 email 登入。'; }
+  else { title = '這個帳號不在人員名單裡'; body = '請改用公司發的帳號。如果這就是公司帳號，請找系統管理者把你加進人員資料。'; }
+  $('signCell').innerHTML = `<div class="denied" role="alert"><h2>${esc(title)}</h2><div class="who">${esc(m ? m.name + '　' : '')}${esc(r.email || '')}</div><p>${esc(body)}</p>
+    <div class="so-acts"><button class="btn primary" type="button" id="retryBtn">換一個帳號</button></div></div>`;
+  $('retryBtn').focus();
+}
+
+let busy = false;
+async function signIn() {
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await S.auth.signIn();
+    if (r && r.cancelled) return;
+    const w = await S.api.whoami({ fresh: true });
+    if (w.ok) location.href = APP_URL;       // 簽好了，直接進去，不停頓
+    else signDenied(w);
+  } catch (e) {
+    signIdle('登入沒有完成：' + e.message);
+  } finally { busy = false; }
+}
+
+/* ---------- 模擬的選帳號窗（照 demo 那一支） ---------- */
+let pickResolve = null;
+const picker = $('picker');
+function openPicker() {
+  return new Promise(res => { pickResolve = res; $('pkSearch').value = ''; showOther(false); renderAccounts(''); picker.showModal(); $('pkSearch').focus(); });
+}
+function finishPick(email) { const r = pickResolve; pickResolve = null; if (picker.open) picker.close(); if (r) r(email || null); }
+function avColor(s) { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return `var(--av-${h % 6 + 1})`; }
+function renderAccounts(q) {
+  const k = q.trim().toLowerCase();
+  const all = S.dev ? S.dev.accounts() : [];
+  const hit = all.filter(a => !k || a.name.toLowerCase().includes(k) || a.email.toLowerCase().includes(k));
+  const rows = hit.map(a => `<li><button type="button" class="pk-acct" data-email="${esc(a.email)}"><span class="av" style="--av:${avColor(a.email)}">${esc(a.name ? Array.from(a.name)[0] : a.email[0].toUpperCase())}</span><span>${a.name ? `<span class="nm">${esc(a.name)}</span>` : ''}<span class="em">${esc(a.email)}</span></span></button></li>`);
+  if (!hit.length) rows.push(`<li class="pk-empty">找不到「${esc(q)}」。可以改用其他帳戶登入。</li>`);
+  rows.push(`<li><button type="button" class="pk-acct" data-other="1"><span class="av plus" aria-hidden="true">＋</span><span class="nm">使用其他帳戶</span></button></li>`);
+  $('pkList').innerHTML = rows.join('');
+}
+function showOther(on) {
+  $('pkChoose').hidden = on; $('pkOther').hidden = !on; $('pkErr').textContent = '';
+  if (on) { const q = $('pkSearch').value.trim(); $('pkEmail').value = q.includes('@') ? q : ''; $('pkEmail').focus(); }
+}
+
+function wire() {
+  document.addEventListener('click', async e => {
+    if (e.target.closest('#signInBtn') || e.target.closest('#retryBtn')) { signIdle(); signIn(); return; }
+    if (e.target.closest('#switchBtn')) { await S.auth.signOut(); signIdle(); signIn(); }
+  });
+  $('pkSearch').addEventListener('input', e => renderAccounts(e.target.value));
+  $('pkSearch').addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); const b = $('pkList').querySelector('.pk-acct'); if (b) b.focus(); }
+    if (e.key === 'Enter') { e.preventDefault(); const b = $('pkList').querySelector('.pk-acct'); if (b) b.click(); }
+  });
+  $('pkList').addEventListener('click', e => { const b = e.target.closest('.pk-acct'); if (!b) return; if (b.dataset.other) showOther(true); else finishPick(b.dataset.email); });
+  $('pkBack').addEventListener('click', () => { showOther(false); $('pkSearch').focus(); });
+  $('pkOther').addEventListener('submit', e => {
+    e.preventDefault();
+    const v = $('pkEmail').value.trim();
+    if (!R.validEmail(R.normEmail(v))) { $('pkErr').textContent = '請輸入完整的 email，例如 name@example.com。'; $('pkEmail').focus(); return; }
+    finishPick(v);
+  });
+  $('pkCancel').addEventListener('click', () => finishPick(null));
+  picker.addEventListener('close', () => finishPick(null));
+  picker.addEventListener('click', e => { if (e.target === picker) finishPick(null); });
+}
+
+async function boot() {
+  S.auth.usePicker(openPicker);
+  wire();
+  paintPublic();
+  const s = await S.auth.getSession();
+  if (!s) { signIdle(); return; }
+  const w = await S.api.whoami();
+  if (w.ok) signDone(w.identity);
+  else if (w.code === 'no_session') signIdle();
+  else signDenied(w);
+}
+boot();
+})();
+</script>
+</body>
+</html>

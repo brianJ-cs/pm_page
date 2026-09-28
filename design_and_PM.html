@@ -247,51 +247,82 @@
      下拉早就拿掉，最後只剩一顆「← 檔期列表」—— 為了一顆鈕要人把滑鼠推到螢幕
      頂端，而在檔期列表上它整條是空的。那顆鈕搬進左欄的檔期清單裡了。 */
 
-  /* ---- 登入頁 ----------------------------------------------------------
-     沒有密碼，就是一張「你是誰」的名單。它蓋在整支程式上面（fixed），
-     所以底下的畫面照舊建好、登入之後不必重畫任何東西。
-     淺色底，所以每一段字都自己寫 color —— 深色那一段在 stylesheet 最後面，
-     不寫就會繼承它那套淺灰，白底上直接看不見。 */
+  /* ---- 登入頁：刻意樸素（2026-09-28，照 demo/review/login-plain.html）----
+     這一頁一個人一天只看兩秒，它唯一的工作是讓人登入 —— 所以正中間就是那顆鈕，其他東西退到旁邊：
+     公告在鈕底下小一階，登入有問題找誰在最下面一條。
+     之前那一版是一張攤開的對開 DM（左半進行中檔期、倒數寫成紅色的價格），拿掉的理由兩個：
+     ・它搶的正是那顆鈕的位置；
+     ・**登入之前不放檔期資料**：還沒登入的人是誰都有可能（網址在外面），檔期名字和時程是
+       公司還沒公開的促銷行事曆。登入之後系統裡本來就看得到。
+     東西直接站在桌面上（灰藍，跟系統同一張），不做成一張卡片浮在中間；藍只給那顆鈕。
+     它蓋在整支程式上面（fixed），所以底下的畫面照舊建好、登入之後不必重畫任何東西。 */
   #loginGate{
-    position:fixed;inset:0;z-index:900;background:var(--bg);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
+    position:fixed;inset:0;z-index:900;overflow:auto;background:var(--chrome);color:var(--chrome-ink);
+    display:grid;grid-template-rows:auto 1fr auto;
   }
   #loginGate[hidden]{display:none}
-  #loginGate .lg-title{font-size:26px;font-weight:800;color:var(--ink)}
-  #loginGate .lg-title small{
-    display:block;margin-top:6px;font-size:13.5px;font-weight:800;color:var(--muted);
+  #loginGate .lg-top{display:flex;justify-content:flex-end;align-items:center;min-height:48px;padding:0 20px;
+    border-bottom:1px solid var(--chrome-line);font-size:13px;font-weight:800;color:var(--chrome-ink);font-variant-numeric:tabular-nums}
+  #loginGate .lg-center{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px 32px;text-align:center}
+  #loginGate .lg-mark{width:56px;height:56px;border-radius:12px;background:var(--chrome-ink);color:#fff;display:grid;place-items:center;font-size:20px;font-weight:900;letter-spacing:.02em}
+  #loginGate .lg-title{margin:18px 0 6px;font-size:clamp(24px,3vw,30px);font-weight:900;line-height:1.3;color:var(--chrome-ink)}
+  #loginGate .lg-lede{margin:0 0 28px;font-size:15px;color:var(--chrome-muted)}
+  #loginGate .lg-google{width:min(400px,100%);display:flex;align-items:center;gap:14px;min-height:60px;padding:4px 16px 4px 4px;border:0;border-radius:10px;
+    background:var(--accent);color:#fff;font:inherit;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 6px 18px -8px rgba(74,111,220,.7)}
+  #loginGate .lg-google:hover{background:var(--accent-strong)}
+  #loginGate .lg-google:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  #loginGate .lg-google .g{flex:none;width:52px;height:52px;border-radius:8px;background:#fff;display:grid;place-items:center}
+  #loginGate .lg-google .t{flex:1;text-align:center;padding-right:52px}
+  #loginGate .lg-fine{margin:12px 0 0;font-size:12.5px;color:var(--chrome-muted)}
+  #loginGate .lg-news{width:min(400px,100%);margin-top:40px;text-align:left}
+  #loginGate .lg-news[hidden]{display:none}
+  #loginGate .lg-news-h{margin:0 0 6px;font-size:12.5px;font-weight:800;color:var(--chrome-muted)}
+  #loginGate .lg-news ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--chrome-line)}
+  #loginGate .lg-news li{display:grid;grid-template-columns:6.4em minmax(0,1fr);gap:10px;padding:8px 0;border-bottom:1px solid var(--chrome-line);
+    font-size:13px;line-height:1.6;color:var(--chrome-muted)}
+  #loginGate .lg-news time{font-weight:800;color:var(--chrome-ink);font-variant-numeric:tabular-nums}
+  #loginGate .lg-news .soon time{color:var(--amber)}   /* 還沒發生的（例如維護）：那是要提前知道的事 */
+  #loginGate .lg-foot{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 14px;padding:14px 20px 18px;
+    border-top:1px solid var(--chrome-line);font-size:13px;color:var(--chrome-muted)}
+  #loginGate .lg-foot[hidden]{display:none}
+  #loginGate .lg-foot b{color:var(--chrome-ink)}
+  #loginGate .lg-foot a{color:var(--accent-strong);font-weight:700}
+  @media (max-width:560px){
+    #loginGate .lg-center{justify-content:flex-start;padding-top:40px}
+    #loginGate .lg-google{font-size:16px}
   }
-  #loginGate .lg-cols{display:flex;gap:18px;align-items:flex-start}
-  #loginGate .lg-col{
-    background:var(--surface);border:1px solid var(--line);border-radius:12px;
-    padding:16px;min-width:210px;display:flex;flex-direction:column;gap:9px;
-    box-shadow:0 2px 10px rgba(35,42,55,.06);
-  }
-  #loginGate .lg-role{
-    display:flex;align-items:center;gap:7px;
-    font-size:15px;font-weight:800;color:var(--ink);margin-bottom:2px;
-  }
-  /* 那一顆點＝這個身分的顏色：便利貼是它、進去之後整片桌面偏的也是它。
-     三個都有點，因為現在三個身分都有顏色了（行銷那個只在 UI 上用）。 */
-  #loginGate .lg-dot{width:11px;height:11px;border-radius:50%;flex:none}
-  #loginGate .lg-dot.design{background:var(--sticky-design)}
-  #loginGate .lg-dot.pm{background:var(--sticky-pm)}
-  #loginGate .lg-dot.marketing{background:var(--sticky-mkt)}
-  #loginGate .lg-user{
-    font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;text-align:left;
-    border:1.5px solid var(--line-strong);border-radius:9px;
-    padding:9px 13px;background:var(--surface-2);color:var(--ink);
-  }
-  #loginGate .lg-user:hover{background:var(--accent-tint);border-color:var(--accent-line);color:var(--accent-ink-strong)}
-  /* 上次就是這一位：藍框＝「你正在點的東西」那一套的最輕一級，只是指路，
-     不預設你就是他 —— 這一頁問的就是「你是誰」。 */
-  #loginGate .lg-user.last{border-color:var(--accent-line);background:var(--accent-tint)}
-  #loginGate .lg-add{
-    font-family:inherit;font-size:13px;font-weight:800;cursor:pointer;
-    border:1.5px dashed var(--line-strong);border-radius:9px;
-    padding:7px 13px;background:transparent;color:var(--muted);
-  }
-  #loginGate .lg-add:hover{border-color:var(--accent-line);color:var(--accent)}
+  /* 選帳號那一窗：長得像 Google 的，角落寫著「模擬」—— 還沒真的接 Google（見 demo/review/WIRING.md）。
+     名單照舊分三個身分（那一顆點＝那個身分的顏色）、標出上次那位、每個身分都能加人。 */
+  /* margin:auto 要自己寫回來：這支程式最上面那條 reset 把每個元素的 margin 歸零，dialog 就不置中了 */
+  #lgPicker{margin:auto;padding:0;border:0;width:min(420px,calc(100% - 32px));border-radius:12px;background:var(--surface);color:var(--ink);
+    box-shadow:0 24px 60px -20px rgba(29,38,52,.55)}
+  #lgPicker::backdrop{background:rgba(29,38,52,.38)}
+  #lgPicker .lgp-wrap{display:flex;flex-direction:column;max-height:min(640px,calc(100vh - 48px))}
+  #lgPicker .lgp-head{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);font-size:13px;color:var(--ink-dim)}
+  #lgPicker .lgp-sim{margin-left:auto;font-size:12px;border:1px solid var(--line-strong);border-radius:999px;padding:1px 9px}
+  #lgPicker .lgp-body{padding:20px 22px 8px;overflow:auto}
+  #lgPicker h2{margin:0;font-size:22px;font-weight:500;text-align:center}
+  #lgPicker .lgp-sub{margin:4px 0 14px;text-align:center;font-size:14px;color:var(--ink-dim)}
+  #lgPicker .lgp-search{width:100%;min-height:40px;padding:0 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);font:inherit;color:var(--ink)}
+  #lgPicker .lgp-list{list-style:none;margin:8px -22px 0;padding:0}
+  #lgPicker .lgp-role{display:flex;align-items:center;gap:7px;padding:12px 22px 4px;font-size:13px;font-weight:800;color:var(--ink-dim)}
+  #lgPicker .lg-dot{width:11px;height:11px;border-radius:50%;flex:none}
+  #lgPicker .lg-dot.design,#lgPicker .lgp-av.design{background:var(--sticky-design)}
+  #lgPicker .lg-dot.pm,#lgPicker .lgp-av.pm{background:var(--sticky-pm)}
+  #lgPicker .lg-dot.marketing,#lgPicker .lgp-av.marketing{background:var(--sticky-mkt)}
+  #lgPicker .lgp-acct,#lgPicker .lgp-add{width:100%;display:flex;align-items:center;gap:12px;padding:9px 22px;border:0;background:none;
+    text-align:left;cursor:pointer;font:inherit;color:var(--ink)}
+  #lgPicker .lgp-acct:hover,#lgPicker .lgp-acct:focus-visible,#lgPicker .lgp-add:hover{background:var(--accent-tint);outline:none}
+  #lgPicker .lgp-av{flex:none;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:800;color:var(--ink)}
+  #lgPicker .lgp-acct b{display:block;font-weight:700;line-height:1.35}
+  #lgPicker .lgp-acct small{display:block;font-size:12.5px;color:var(--ink-dim);line-height:1.35}
+  /* 上次就是這一位：藍＝「你正在點的東西」那一套的最輕一級，只是指路，不預設你就是他 */
+  #lgPicker .lgp-acct.last small{color:var(--blue);font-weight:800}
+  #lgPicker .lgp-add{font-size:13px;font-weight:800;color:var(--muted);padding-left:66px}
+  #lgPicker .lgp-empty{padding:10px 22px;font-size:13px;color:var(--ink-dim)}
+  #lgPicker .lgp-foot{display:flex;justify-content:space-between;align-items:center;padding:10px 14px 12px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  #lgPicker .lgp-cancel{border:0;background:none;padding:6px 10px;border-radius:6px;color:var(--blue);font:inherit;font-weight:700;cursor:pointer}
+  #lgPicker .lgp-cancel:hover{background:var(--accent-tint)}
   /* ---- 開檔表＋時間軸（從 落版單系統 搬過來）---------------------------
      整片站在深色的操作區上，但它自己是一張白紙 —— 所以**每一段字都自己寫
      color**。不寫就會繼承 stylesheet 最後那段深色底的淺灰，白底上直接看不見。 */
@@ -729,7 +760,7 @@
   /* 浮層掛在 body 上、位置用量的：名牌那顆會被搬到不同的列裡，掛在它底下的話
      總有一條列會把它裁掉（那幾條列都是 overflow 有限的一行）。 */
   #devPop{
-    position:fixed;z-index:720;display:none;width:250px;
+    position:fixed;z-index:720;display:none;width:284px;
     background:var(--surface);border:1px solid var(--line);border-radius:12px;
     padding:11px;box-shadow:0 14px 34px rgba(16,24,40,.24);
     font-size:12.5px;font-weight:700;color:var(--ink);
@@ -762,6 +793,18 @@
   #devPop .dev-tab.live::after{content:'';position:absolute;top:3px;right:4px;
     width:6px;height:6px;border-radius:50%;background:var(--amber)}
   #devPop .dev-warn{color:#8a5a12}
+  /* 快轉：十關排成兩欄，一顆一關，底下寫那一關第一天。
+     現在這一關用琥珀（＝現在），不用藍 —— 藍是「你正在點的東西」，這一顆你還沒點。 */
+  #devPop select{
+    font:inherit;width:100%;padding:5px 7px;margin-bottom:8px;
+    border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);
+  }
+  #devPop .dev-stages{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+  #devPop .dev-stages button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 4px}
+  #devPop .dev-stages button small{font-size:11px;font-weight:700;color:var(--muted)}
+  #devPop .dev-stages button.here{border-color:var(--amber);background:var(--amber-bg);color:#8a5a12}
+  #devPop .dev-stages button.here small{color:#8a5a12}
+  #devPop .dev-stages button:disabled{opacity:.45;cursor:default;border-color:var(--line);color:var(--ink)}
 
   /* 跟編輯器那一條（.bar）同一條規矩：這條列上的東西一律不折行。
      中文沒有空白，flex 擠不下時每一項的最小寬度就是**一個字** —— 標題和每顆鈕
@@ -3929,6 +3972,7 @@
   <div class="dev-tabs">
     <button class="dev-tab" data-dev="clock">🕒 時鐘</button>
     <button class="dev-tab" data-dev="demo">🧪 測試商品</button>
+    <button class="dev-tab" data-dev="stage">⏩ 快轉</button>
   </div>
   <div class="dev-pane" data-pane="clock">
   <h5>撥時鐘（測試用）</h5>
@@ -3957,6 +4001,15 @@
     <div class="cp-sub" id="demoState"></div>
     <div class="cp-sub dev-warn">⚠️ 只在這台瀏覽器，<b>不會寫進共用目錄</b>。
       但拿它挑進去的格子，別人會看到那幾格的商品不見了（他的目錄裡沒有這些 SKU）。</div>
+  </div>
+
+  <div class="dev-pane" data-pane="stage" hidden>
+    <h5>快轉到某一關（測試用）</h5>
+    <div class="cp-sub">照<b>這一檔的時程</b>，把時鐘撥到那一關第一天的 10:00 ——
+      跟撥時鐘是同一件事，只是不必自己去算那一關是哪一天。</div>
+    <div class="cp-sub" id="stagePlanName"></div>
+    <select id="stagePlan" aria-label="哪一檔"></select>
+    <div class="dev-stages" id="stageList"></div>
   </div>
 </div>
 
@@ -4019,9 +4072,32 @@
      它蓋在整支程式上面，所以底下照舊建好，登入之後只是把它收起來。
      一開始 hidden：還沒問過 localStorage 就先閃一下登入頁很難看。 -->
 <div id="loginGate" hidden>
-  <div class="lg-title">你是誰？<small>選一個人開始。之後從右上角「登出」可以換人。</small></div>
-  <div class="lg-cols" id="lgCols"></div>
+  <header class="lg-top"><span id="lgDate"></span></header>
+  <main class="lg-center" aria-labelledby="lgTitle">
+    <div class="lg-mark" aria-hidden="true">DM</div>
+    <h1 class="lg-title" id="lgTitle">DM 行銷開板設計系統</h1>
+    <p class="lg-lede">用公司發的 Google 帳號登入</p>
+    <button class="lg-google" id="lgGoogle" type="button"><span class="g"><svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg></span><span class="t">用 Google 帳號登入</span></button>
+    <p class="lg-fine">只有人員名單上的人進得來；登入之後要換人，右上角「登出」。</p>
+    <section class="lg-news" id="lgNewsSec" aria-labelledby="lgNewsH" hidden>
+      <h2 class="lg-news-h" id="lgNewsH">系統公告</h2>
+      <ul id="lgNews"></ul>
+    </section>
+  </main>
+  <footer class="lg-foot" id="lgHotline" hidden></footer>
 </div>
+<dialog id="lgPicker" aria-labelledby="lgpTitle">
+  <div class="lgp-wrap">
+    <div class="lgp-head"><svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg><span>使用 Google 帳戶登入</span><span class="lgp-sim" title="還沒接上真的 Google：這一窗是人員名單">模擬</span></div>
+    <div class="lgp-body">
+      <h2 id="lgpTitle">選擇帳戶</h2>
+      <p class="lgp-sub">以繼續使用「DM 行銷開板設計系統」</p>
+      <input class="lgp-search" id="lgpSearch" type="search" placeholder="搜尋名字或身分" aria-label="搜尋帳戶" autocomplete="off">
+      <ul class="lgp-list" id="lgpList"></ul>
+    </div>
+    <div class="lgp-foot"><span>關掉這個視窗＝不登入</span><button type="button" class="lgp-cancel" id="lgpCancel">取消</button></div>
+  </div>
+</dialog>
 
 <!-- 共用資料層。這兩支是選配的：檔案不在（或 config.js 還是佔位符）時 PlanSync.ok()
      回 false，整支程式就走原本純 localStorage 的路徑，跟沒接後端一模一樣。 -->
@@ -10842,12 +10918,15 @@ const isMine = n => {
   return n.who === whoAmI();
 };
 /* 便利貼角落那一個字：認得出是誰貼的，又不佔地方。
-   「設計 B」→ B、「PM A」→ A。取最後一個字就對了 —— 名字都是「身分＋字母」，
-   而分得出是誰的正是最後那個字（前面那截靠顏色分）。 */
+   「設計 B」→ B、「PM A」→ A、舊的「設計乙」→ 乙：「身分＋字母」的名字取最後那個字
+   （前面那截靠顏色分）。
+   2026-09-28 名單改成照「在流程裡是誰」取名（冰箱洗衣機PM、家電課長…，見 ROSTER）：
+   那些名字最後一個字全是「M」「長」，分不出人 —— 所以其他名字取**第一個字**（冰、冷、電、家、部…）。 */
 const whoMark = name => {
   const t = String(name || '').trim();
   if (!t) return '?';
-  return t.slice(-1);
+  if (/\s\S$/.test(t) || /[甲乙丙丁戊己庚辛壬癸]$/.test(t)) return t.slice(-1);
+  return Array.from(t)[0];
 };
 const stamp = () => {
   const d = new Date();
@@ -12125,29 +12204,62 @@ function renameSeedUsers(){
 let USERS = readLS(USER_KEY, null);
 if (!Array.isArray(USERS) || !USERS.length) USERS = seedUsers();
 
-/* PM 就是三位：A／B／C。
-   以前 `ensurePmPerCell()` 會照版位數自動補人（PM 丁、戊、己…），登入頁上那一欄
-   會愈來愈長，而那些人從來沒有真的存在過。先確保三位在，再把其他 role 是 pm 的拿掉。
-   **便利貼不受影響**：它記的是貼的當下的 `whoId` 和名字，不是每次去名單裡查 ——
-   所以舊留言照樣顯示「PM 丁」，只是沒有人能再用那個身分登入。
-   設計和行銷不修剪：那兩邊沒有自動長人這回事，加進去的都是有人刻意加的。 */
-function keepThreePms(){
+/* 名單照「在流程裡是誰」取名（2026-09-28，跟 demo/review 那一份一樣）：
+   測的時候一眼看得出輪到誰、誰審過。**身分（role）還是只有設計／PM／行銷三種** ——
+   課長、部長、協理、律師在這支程式裡都是用 PM 或行銷的身分進來，名字只是講他是誰。
+   **舊的九位 id 一個都不動**（便利貼認 id），只把還叫著預設名字的那幾位改名
+   （was：以前的預設名；自己改過名的不碰）；其他是新加的 id，名字不重用任何舊 id。
+   順序就是登入名單上的順序，每個身分第一位也是 ?as= 挑到的那一位。 */
+const ROSTER = [
+  { id:'d1',          role:'design',    name:'設計 A' },
+  { id:'d2',          role:'design',    name:'設計 B' },
+  { id:'d3',          role:'design',    name:'設計 C' },
+  { id:'d-lead',      role:'design',    name:'設計主管' },
+  { id:'pm1',         role:'pm',        name:'冰箱洗衣機PM',   was:'PM A' },
+  { id:'pm2',         role:'pm',        name:'冷氣PM',         was:'PM B' },
+  { id:'pm3',         role:'pm',        name:'電視PM',         was:'PM C' },
+  { id:'pm-phone',    role:'pm',        name:'手機PM' },
+  { id:'pm-3c-mgr',   role:'pm',        name:'3C課長兼筆電PM' },
+  { id:'pm-appl-mgr', role:'pm',        name:'家電課長' },
+  { id:'pm-director', role:'pm',        name:'部長兼機上盒PM' },
+  { id:'pm-exec',     role:'pm',        name:'商品處協理' },
+  { id:'m1',          role:'marketing', name:'行銷 A' },
+  { id:'m2',          role:'marketing', name:'行銷 B' },
+  { id:'m3',          role:'marketing', name:'行銷處協理',     was:'行銷 C' },
+  { id:'m-lawyer',    role:'marketing', name:'律師' },
+];
+function ensureRoster(){
   let changed = false;
-  SEED_LETTERS.forEach((_, i) => {
-    const id = seedId('pm', i);
-    if (!USERS.some(u => u.id === id && u.role === 'pm')){
-      USERS.push({ id, role:'pm', name: seedName('pm', i) });
-      changed = true;
-    }
-  });
-  const keep = new Set(SEED_LETTERS.map((_, i) => seedId('pm', i)));
+  for (const r of ROSTER){
+    const u = USERS.find(x => x.id === r.id);
+    if (!u){ USERS.push({ id:r.id, role:r.role, name:r.name }); changed = true; continue; }
+    if (r.was && u.name === r.was){ u.name = r.name; changed = true; }
+  }
+  // 名單上的人照 ROSTER 的順序排在前面，自己加的人接在後面（各自原本的順序）
+  const at = id => { const i = ROSTER.findIndex(r => r.id === id); return i < 0 ? ROSTER.length : i; };
+  const before = USERS.map(u => u.id).join();
+  USERS = USERS.map((u, i) => ({ u, i })).sort((a, b) => at(a.u.id) - at(b.u.id) || a.i - b.i).map(x => x.u);
+  if (changed || USERS.map(u => u.id).join() !== before) saveUsers();
+}
+
+/* 以前自動長出來的 PM 收掉。
+   以前 `ensurePmPerCell()` 會照版位數自動補人（PM 丁、戊、己…，id 是 pm4、pm5…），
+   登入頁上那一欄會愈來愈長，而那些人從來沒有真的存在過。
+   2026-09-28 以前這裡是「PM 就是 A／B／C 三位、其他 role 是 pm 的全部拿掉」——
+   名單改成 ROSTER 之後 PM 身分的人不只三位（各品類 PM、課長、部長、協理），
+   所以只收那一種自動長出來的 id（pm＋數字、又不在 ROSTER 裡）；「＋ 加人」加進來的 PM 留著。
+   **便利貼不受影響**：它記的是貼的當下的 `whoId` 和名字，不是每次去名單裡查 ——
+   所以舊留言照樣顯示「PM 丁」，只是沒有人能再用那個身分登入。 */
+function dropAutoPms(){
+  const keep = new Set(ROSTER.map(r => r.id));
   const before = USERS.length;
-  USERS = USERS.filter(u => u.role !== 'pm' || keep.has(u.id));
-  if (changed || USERS.length !== before) saveUsers();
+  USERS = USERS.filter(u => u.role !== 'pm' || keep.has(u.id) || !/^pm\d+$/.test(u.id));
+  if (USERS.length !== before) saveUsers();
 }
 const saveUsers = () => { try { localStorage.setItem(USER_KEY, JSON.stringify(USERS)); } catch (e){} };
 renameSeedUsers();                                 // 舊的天干名字換成 A／B／C
-keepThreePms();                                    // PM 就是三位，多出來的收掉
+dropAutoPms();                                     // 以前自動長出來的 PM 丁、戊…收掉
+ensureRoster();                                    // 名單照「在流程裡是誰」取名（見 ROSTER）
 const usersOf = role => USERS.filter(u => u.role === role);
 let currentUser = null;                            // 登入之前是 null
 
@@ -15971,18 +16083,21 @@ function fmtShift(){
    跟著它走就等於三個身分、每一頁（檔期列表／總體／落版／拼板／開檔表）都有。
    ⚠️ **三個身分都給**：每一種人看到的東西都跟時間有關（設計看「輪到你」、
    PM 看倒數、行銷排整條時程），只有一種人測得動的 devtool 等於沒有。
-   ⚠️ **它是唯一的入口**：以前檔期列表最上面那條管理列也撥得動（點一個階段），
-   那一條整個拿掉了 —— 同一件事不留兩個入口。
+   ⚠️ **撥時鐘只有這一顆**：以前檔期列表最上面那條管理列也撥得動（點一個階段），
+   那一條整個拿掉了（佔著列表最上面一整條）。「點一關就撥到那一關」這個手勢
+   2026-09-28 回來了，但收在這顆底下的「⏩ 快轉」那一頁（見 paintStagePane），
+   走的是同一支 applyClock —— 還是一個入口、一份狀態。
    ⚠️ 撥的是自己的畫面：只寫 localStorage，不進 plan、不上傳。 */
 const devPop = document.getElementById('devPop');
 const devBtn = document.getElementById('devBtn');
 
 /* 停在哪一頁記在這台電腦：測東西的時候多半連著開同一個工具。 */
 const DEV_TAB_KEY = 'pm_dev_tab_v1';
+const DEV_TABS = ['clock', 'demo', 'stage'];
 let devTab = 'clock';
-try { devTab = localStorage.getItem(DEV_TAB_KEY) === 'demo' ? 'demo' : 'clock'; } catch (_){}
+try { const t = localStorage.getItem(DEV_TAB_KEY); if (DEV_TABS.includes(t)) devTab = t; } catch (_){}
 function setDevTab(name){
-  devTab = name === 'demo' ? 'demo' : 'clock';
+  devTab = DEV_TABS.includes(name) ? name : 'clock';
   try { localStorage.setItem(DEV_TAB_KEY, devTab); } catch (_){}
   paintDevPop();
 }
@@ -15991,7 +16106,8 @@ function setDevTab(name){
 function paintDevPop(){
   if (!devPop) return;
   devPop.querySelectorAll('.dev-tab').forEach(b => {
-    const live = b.dataset.dev === 'clock' ? clockShifted() : demoRowsOn;
+    /* 快轉沒有自己的狀態（它撥的就是時鐘），所以不亮點 —— 亮的話一件事會亮兩顆。 */
+    const live = b.dataset.dev === 'clock' ? clockShifted() : b.dataset.dev === 'demo' ? demoRowsOn : false;
     b.classList.toggle('on', b.dataset.dev === devTab);
     b.classList.toggle('live', !!live);
   });
@@ -16006,7 +16122,53 @@ function paintDevPop(){
   if (st) st.textContent = demoRowsOn
     ? `開著：${DEMO_ROWS.length} 列，在挑貨面板的「測試」那顆藥丸底下。`
     : '現在沒有加。';
+  /* 只在浮層開著的時候畫：renderDevBtn 在開機很早就會被叫，那時候 currentPlan、plans 那幾個 let
+     還在下面沒宣告到 —— 讀它們就是 ReferenceError，整支程式停在那一行。 */
+  if (devPop.classList.contains('on')) paintStagePane();
 }
+
+/* 快轉（2026-09-28）：照某一檔的時程，一顆一關，按下去就把時鐘撥到那一關第一天的 10:00。
+   撥時鐘本來就做得到，但要先知道「二校是哪一天」—— 那要去翻檔期表，而測的人想的是關，不是日期。
+   ・開著一檔（編輯器裡）就是那一檔；在檔期列表上用下拉挑（預設第一個還沒出稿的）。
+   ・10:00 不是 00:00：那一天前一關的 18:00 截止還沒過的話，0 點撥過去還算在前一關。
+   ・0 天的關（開檔表上天數填 0）沒有自己的一天，撥過去永遠落在前一關 —— 那一顆反灰，不假裝撥得到。
+   ・現在這一關亮琥珀（＝現在），撥完浮層不收，看得到亮的那一顆跟著跳。 */
+var stagePlanId = null;   // var 不是 let：理由同上，怕被更早的呼叫讀到
+function stagePlanOf(){
+  const ps = visiblePlans();
+  if (currentPlan) return currentPlan;
+  if (!ps.some(pl => pl.id === stagePlanId)) stagePlanId = ((ps.find(pl => !isFinished(pl)) || ps[0]) || {}).id || null;
+  return ps.find(pl => pl.id === stagePlanId) || null;
+}
+function stageJumpAt(st){
+  const d = new Date(st.from); d.setHours(10, 0, 0, 0);
+  return d;
+}
+function paintStagePane(){
+  const list = document.getElementById('stageList');
+  if (!list) return;
+  const sel = document.getElementById('stagePlan');
+  const name = document.getElementById('stagePlanName');
+  const plan = stagePlanOf();
+  const ps = visiblePlans();
+  sel.hidden = !!currentPlan || ps.length < 2;
+  if (!sel.hidden) sel.innerHTML = ps.map(pl => `<option value="${escapeHtml(pl.id)}"${plan && pl.id === plan.id ? ' selected' : ''}>${escapeHtml(pl.name)}</option>`).join('');
+  if (!plan){ name.textContent = '還沒有檔期。'; list.innerHTML = ''; return; }
+  name.innerHTML = sel.hidden ? `這一檔：<b>${escapeHtml(plan.name)}</b>` : '哪一檔：';
+  const st = planStages(plan);
+  const ix = autoStageIndex(plan);
+  list.innerHTML = st.map((x, i) => {
+    const at = stageJumpAt(x);
+    const dead = autoStageAt(plan, at) !== i;
+    return `<button type="button" data-stagejump="${i}" class="${i === ix ? 'here' : ''}"${dead ? ' disabled title="這一檔這一關是 0 天，沒有自己的一天"' : ` title="撥到 ${fmtMDWx(at)} 10:00"`}>`
+      + `${escapeHtml(STAGES[i])}<small>${fmtMDWx(x.from)}</small></button>`;
+  }).join('');
+}
+/* 某個時間點落在哪一關（跟 autoStageIndex 同一條規矩，只是不讀 now()） */
+function autoStageAt(plan, t){
+  return planStages(plan).findIndex(st => stageDeadline(st) >= t);
+}
+
 
 /** 鈕上寫什麼。沒動過手腳就只是一支安靜的板手；開了哪個工具就寫在上面 ——
     被撥過的時鐘、混進去的測試商品都要一直看得見，不然過兩天回來會以為資料壞了。 */
@@ -16020,7 +16182,7 @@ function renderDevBtn(){
       + [c ? `時鐘撥到 ${fmtMDWx(now())}（${fmtShift()}）` : '',
          d ? '挑貨清單裡有測試商品' : ''].filter(Boolean).join('、')
       + ' —— 按一下改或關掉'
-    : '測試工具（devtool）：撥時鐘、在挑貨清單裡加一批有規格的測試商品';
+    : '測試工具（devtool）：撥時鐘、快轉到某一關、在挑貨清單裡加一批有規格的測試商品';
   paintDevPop();
 }
 
@@ -16056,6 +16218,9 @@ devBtn.addEventListener('click', e => {
 /* 點到外面就收起來 —— 跟這支程式裡其他浮層同一個手感。 */
 document.addEventListener('click', e => {
   if (!devPop.classList.contains('on')) return;
+  /* 按下去之後那一顆可能已經被重畫掉（快轉那一排每撥一次就重畫），
+     脫離文件的節點 closest 找不到 #devPop，會被當成「點到外面」把浮層收掉。 */
+  if (!e.target.isConnected) return;
   if (e.target.closest('#devPop') || e.target.closest('#devBtn')) return;
   openDevPop(false);
 });
@@ -16082,6 +16247,20 @@ devPop.addEventListener('click', e => {
   const t = e.target.closest('.dev-tab');
   if (t){ setDevTab(t.dataset.dev); return; }
   if (e.target.closest('#demoSwitch')) setDemoRows(!demoRowsOn);
+  const j = e.target.closest('[data-stagejump]');
+  if (j && !j.disabled){
+    const plan = stagePlanOf();
+    if (!plan) return;
+    const i = +j.dataset.stagejump;
+    const at = stageJumpAt(planStages(plan)[i]);
+    applyClock(+at - Date.now());
+    document.getElementById('clockAt').value = toLocalInput(now());
+    toast(`快轉到 ${STAGES[i]}：現在是 ${fmtMDWx(now())} 10:00`, 'ok', 2200);
+  }
+});
+document.getElementById('stagePlan').addEventListener('change', e => {
+  stagePlanId = e.target.value;
+  paintStagePane();
 });
 document.getElementById('clockReset').addEventListener('click', () => {
   applyClock(0);
@@ -17323,43 +17502,71 @@ document.getElementById('newPlanBtn').addEventListener('click', () => PlanForm.o
 const loginGate = document.getElementById('loginGate');
 
 function renderLogin(){
-  const cols = document.getElementById('lgCols');
-  cols.innerHTML = '';
-  ROLE_ORDER.forEach(role => {
-    const col = document.createElement('div');
-    col.className = 'lg-col';
+  renderLoginInfo();
+  renderLoginPicker();
+}
 
-    const head = document.createElement('div');
-    head.className = 'lg-role';
-    /* 那一顆點＝這個身分的顏色。名單這一頁是唯一同時看得到三個顏色的地方，
-       所以「黃色是誰」和「進去之後桌面為什麼偏黃」都在這裡一次教掉。 */
-    const dot = document.createElement('span');
-    dot.className = 'lg-dot ' + role;
-    head.appendChild(dot);
-    head.appendChild(document.createTextNode(ROLE_LABEL[role]));
-    col.appendChild(head);
+/* 登入頁（2026-09-28）：刻意樸素，正中間就是那顆鈕（見 CSS 那一段）。
+   **不列檔期**：還沒登入的人看得到的只有日期、公告、登入有問題找誰。
+   公告和服務專線寫在 config.js 的 PORTAL（沒填就不出現 —— 假的分機號碼比沒有更糟）。
+   登入還是「選一個人」：還沒接 Google，按鈕打開的是一個長得像 Google 選帳號、角落寫著「模擬」的名單。
+   名單照舊：分三個身分（那一顆點＝那個身分的顏色）、上次那位標出來但不自動登入、每個身分都能加人。 */
+function renderLoginInfo(){
+  const t = now();
+  document.getElementById('lgDate').textContent = `${t.getMonth() + 1}/${t.getDate()}（${WD[t.getDay()]}）`;
+  const P = window.PORTAL || {};
+  const news = (P.announcements || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const today = new Date(t); today.setHours(0, 0, 0, 0);
+  document.getElementById('lgNewsSec').hidden = !news.length;
+  document.getElementById('lgNews').innerHTML = news.map(x => {
+    const d = parseYMD(x.date);
+    return `<li class="${d >= today ? 'soon' : ''}"><time>${fmtMD(d)}（${WD[d.getDay()]}）</time><span>${escapeHtml(x.text)}</span></li>`;
+  }).join('');
+  const hot = document.getElementById('lgHotline');
+  const s = P.support;
+  hot.hidden = !s;
+  if (s) hot.innerHTML = '<b>登入有問題？</b>'
+    + [s.who, s.ext].filter(Boolean).map(x => `<span>${escapeHtml(x)}</span>`).join('')
+    + (s.email ? `<a href="mailto:${escapeHtml(s.email)}">${escapeHtml(s.email)}</a>` : '');
+}
 
-    /* 上次是誰還記著，但只拿來把那一顆標起來 —— 少找一下，而按下去的還是你。
-       自動登進去的那一版拿掉了，理由見 bootLogin。 */
-    let last = '';
-    try { last = localStorage.getItem(USER_AT_KEY) || ''; } catch (e){}
+function renderLoginPicker(){
+  const q = (document.getElementById('lgpSearch').value || '').trim().toLowerCase();
+  /* 上次是誰還記著，但只拿來把那一顆標起來 —— 少找一下，而按下去的還是你（理由見 bootLogin）。 */
+  let last = '';
+  try { last = localStorage.getItem(USER_AT_KEY) || ''; } catch (e){}
+  document.getElementById('lgpList').innerHTML = ROLE_ORDER.map(role => {
+    const all = usersOf(role);
+    const us = all.filter(u => !q || u.name.toLowerCase().includes(q) || ROLE_LABEL[role].toLowerCase().includes(q));
+    if (q && !us.length) return '';
+    return `<li class="lgp-role"><span class="lg-dot ${role}"></span>${ROLE_LABEL[role]}</li>`
+      + us.map(u => `<li><button type="button" class="lgp-acct${u.id === last ? ' last' : ''}" data-uid="${escapeHtml(u.id)}">`
+        + `<span class="lgp-av ${role}">${escapeHtml(Array.from(u.name)[0] || '?')}</span>`
+        + `<span><b>${escapeHtml(u.name)}</b><small>${u.id === last ? '上次就是你' : ROLE_LABEL[role]}</small></span></button></li>`).join('')
+      + `<li><button type="button" class="lgp-add" data-addrole="${role}">＋ 加人（${ROLE_LABEL[role]}）</button></li>`;
+  }).join('') || '<li class="lgp-empty">找不到這個人。清掉搜尋，或在要加的身分底下按「＋ 加人」。</li>';
+}
 
-    usersOf(role).forEach(u => {
-      const b = document.createElement('button');
-      b.className = 'lg-user' + (u.id === last ? ' last' : '');
-      b.textContent = u.name;
-      if (u.id === last) b.title = '上次就是你';
-      b.addEventListener('click', () => login(u));
-      col.appendChild(b);
-    });
-
-    const add = document.createElement('button');
-    add.className = 'lg-add';
-    add.textContent = '＋ 加人';
-    add.addEventListener('click', () => addUser(role));
-    col.appendChild(add);
-
-    cols.appendChild(col);
+function wireLoginGate(){
+  const pk = document.getElementById('lgPicker');
+  document.getElementById('lgGoogle').addEventListener('click', () => {
+    document.getElementById('lgpSearch').value = '';
+    renderLoginPicker();
+    pk.showModal();
+    document.getElementById('lgpSearch').focus();
+  });
+  document.getElementById('lgpSearch').addEventListener('input', renderLoginPicker);
+  document.getElementById('lgpCancel').addEventListener('click', () => pk.close());
+  pk.addEventListener('click', e => { if (e.target === pk) pk.close(); });   // 點到窗外＝不登入
+  document.getElementById('lgpList').addEventListener('click', e => {
+    const a = e.target.closest('[data-uid]');
+    if (a){
+      const u = USERS.find(x => x.id === a.dataset.uid);
+      if (u){ pk.close(); login(u); }
+      return;
+    }
+    const add = e.target.closest('[data-addrole]');
+    if (add) addUser(add.dataset.addrole);
   });
 }
 
@@ -17403,6 +17610,7 @@ document.getElementById('logoutBtn').addEventListener('click', logout);
    蓋了章、貼了便利貼。上次那位還是記著，只是拿來把登入頁上那一顆**標起來**
    （見 renderLogin），少按幾下，但那一下還是你按的。 */
 function bootLogin(){
+  wireLoginGate();
   renderLogin();
   const q = new URLSearchParams(location.search);
   const asked = q.get('user');
@@ -17411,7 +17619,7 @@ function bootLogin(){
   const u = (asked && USERS.find(x => x.id === asked))
          || (role && usersOf(role)[0]);
   if (u) login(u);
-  else loginGate.hidden = false;
+  else { loginGate.hidden = false; document.getElementById('lgGoogle').focus(); }
 }
 
 function showList(){

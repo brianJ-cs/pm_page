@@ -25,6 +25,18 @@ window.SUPABASE = {
  * 清空這兩個值＝品牌圖回到「只有手動上傳的那幾張」，其他都畫預設的框，
  * 主程式其他功能一個都不受影響。
  */
+/* 登入頁上的公告和「登入有問題找誰」。
+ * 公告：date 是 YYYY-MM-DD，新的排前面。沒有就留空陣列 —— 登入頁寫「目前沒有公告」。
+ * support：填了才出現在登入頁最底下那一條；沒填就整條不出現（假的分機號碼比沒有更糟）。
+ *   例：{ who: '資訊部 系統組', ext: '分機 0000', email: 'it@公司網域' }
+ */
+window.PORTAL = {
+  announcements: [
+    { date: '2026-09-28', text: '登入頁換新了：按「用 Google 帳號登入」之後，在名單上選自己（還沒真的接上 Google）。' },
+  ],
+  support: null,
+};
+
 window.LOGO_SUPABASE = {
   url:     'https://fbtvbdixarkfarwoivef.supabase.co',
   anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZidHZiZGl4YXJrZmFyd29pdmVmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQyNjQ1MDgsImV4cCI6MjA5OTg0MDUwOH0.VjTDvszOYZUW4qWRJK1UfQH0SMwnHHs49In2oT8YbhA',
