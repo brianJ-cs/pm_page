@@ -1769,7 +1769,8 @@ addEventListener('message',e=>{
      這一格收不到鍵盤，上層認得出選取在哪一格，就轉給那一格。 */
   if(d.stageDelete){ userAct(); keyDelete(); }
   if('snapOn' in d) SNAP_ON = !!d.snapOn;
-  if(d.alignLogo){ alignToLogo(d.alignLogo); reportSelBar(); }
+  if(d.alignLogo){ alignToLogo(d.alignLogo, null, !!d.spread); reportSelBar(); }
+  if(d.alignAt) applyAlignAt(d.alignAt);
   /* 上層那一條按下去的那一下（見 reportSelBar）。跟格子裡那一條同一套動作。
      裁切要鍵盤（Enter／Esc），而剛剛按的是上層的按鈕，所以先把焦點拿回來。 */
   if(d.selBarAct){
@@ -3864,7 +3865,8 @@ document.getElementById('grid').addEventListener('mousedown',e=>{
            ax:(hz.dataset.corner.includes('e')?r.left:r.right),
            ay:(hz.dataset.corner.includes('s')?r.top:r.bottom),
            // 對角那一點（排版座標）：改完大小要把這一塊挪回去，讓它停在原地
-           hold: anchorPoint(pe, c),
+           anchor: wallAnchor(pe, c),
+           hold: anchorPoint(pe, wallAnchor(pe, c)),
            d0:0 };
       rz.d0=Math.hypot(e.clientX-rz.ax, e.clientY-rz.ay)/k || 1;
     }
@@ -3978,7 +3980,7 @@ addEventListener('mousemove',e=>{
          （推開只跟著字級走，見 pushImgs）。 */
       renderOne(curCell,true);
       // 抓著的那一角跟著手走＝對角要停在原地（量完才知道差多少，所以挪完再畫一次）
-      if(keepAnchor(b, rz.corner, rz.hold)) renderOne(curCell,true);
+      if(keepAnchor(b, rz.anchor || rz.corner, rz.hold)) renderOne(curCell,true);
       if(!withinMargin(b.id)){   // 撞到邊界：這一步不算，停在上一個尺寸
         b.x=snap0.x; b.y=snap0.y;
         if(snap0.w!=null) b.w=snap0.w; else delete b.w;
@@ -4550,11 +4552,52 @@ function reportSelBar(){
      之後的自動排版不會再把它們拉回左上角。
    ・只動位置，字級、大小、內容都不動。之後每一塊照樣可以自己拖（不鎖）。
    ・一次 Ctrl+Z 退掉（整件事是同一個 act）。 */
-function alignToLogo(id){
+/* spread＝「整塊統一」：這一格照樣對齊，做完把 LOGO 看得見的左上角（mm，從格子左上量）報上去，
+   上層轉給同一個版位的其他格（applyAlignAt）。act 一起帶過去，整批算同一步。 */
+function alignToLogo(id, act, spread){
   if(ROLE === 'pm') return;
   const br = BLOCKS.find(b => b.id === id && b.kind === 'brand');
   if(!br) return;
-  userAct('align@' + id);
+  const a = act || (spread ? userAct() : 'align@' + id);
+  alignLogoOnce(br, a);
+  if(!spread || window.parent === window) return;
+  const n = bEl(br.id), per = unitsPerCm();
+  if(!n || !(per > 0)) return;
+  const k = visBox(br.id);
+  try{ parent.postMessage({ alignSpread: { act: a, placed: !!br.placed,
+    xMm: +((n.offsetLeft + k.ox) / per * 10).toFixed(3), yMm: +((n.offsetTop + k.oy) / per * 10).toFixed(3) } }, '*'); }catch(_){}
+}
+/* 別格按了「整塊統一」：LOGO 被搬過就放到同一個 mm 點（超出邊界 keepInside 會收回來），
+   沒被搬過就放回預設，然後照這一格自己的貨對齊。沒有 LOGO 的格子不動。 */
+function applyAlignAt(m){
+  if(ROLE === 'pm' || !m) return;
+  const br = BLOCKS.find(b => b.kind === 'brand');
+  if(!br) return;
+  userAct(m.act);
+  if(m.placed){
+    const n = bEl(br.id), per = unitsPerCm();
+    if(!n || !(per > 0)) return;
+    const k = visBox(br.id);
+    unpin(br);
+    br.x = (+m.xMm || 0) / 10 * per - k.ox;
+    br.y = (+m.yMm || 0) / 10 * per - k.oy;
+    holdPlace(br);
+  } else {
+    const saved = BLOCKS;
+    let fresh = [];
+    try{ buildBlocks(); fresh = BLOCKS; }finally{ BLOCKS = saved; }
+    const f = fresh.find(x => x.uid === br.uid);
+    if(f){
+      if(f.rx != null) br.rx = f.rx; else delete br.rx;
+      if(f.x != null) br.x = f.x;
+      br.y = f.y; delete br.placed;
+    }
+  }
+  renderOne(curCell, true);
+  alignLogoOnce(br, m.act);
+}
+function alignLogoOnce(br, act){
+  userAct(act);
   // 預設的排法：重排一份，排完放回原本那一份（只借它的位置）
   const saved = BLOCKS;
   let fresh = [];
@@ -4785,6 +4828,20 @@ function anchorPoint(el, corner){
   const v = visBox(el);
   return { x: el.offsetLeft + v.ox + (corner.includes('w') ? v.w : 0),
            y: el.offsetTop  + v.oy + (corner.includes('n') ? v.h : 0) };
+}
+/* 貼著牆的那一邊釘在牆上（2026-09-29，公司回報「SKU 調整大小時，按縮小會跑位」）。
+   SKU、價格本來就貼著右邊界：抓右下角放大，右邊沒有地方長，keepInside 把它推回牆內 ——
+   等於右緣釘住、往左長。放手之後再抓一次縮小，照「對角」釘的是左上，右緣就離開了牆：
+   一放一縮，整塊往左跑一截（量過 24 個單位，SKU 從此跟價格錯開）。
+   所以按下去那一刻**哪一邊貼著牆，那一邊就是釘住的那一邊**（放大、縮小都一樣），
+   沒貼牆的那一軸才照「抓哪一角、對角不動」。 */
+function wallAnchor(el, corner){
+  if(!el) return corner;
+  const v = visBox(el), L = el.offsetLeft + v.ox, T = el.offsetTop + v.oy;
+  const near = (a, b) => Math.abs(a - b) <= 1.5;
+  const x = near(L + v.w, CW - MARGIN) ? 'w' : near(L, MARGIN) ? 'e' : (corner.includes('w') ? 'w' : 'e');
+  const y = near(T + v.h, CH - MARGIN) ? 'n' : near(T, MARGIN) ? 's' : (corner.includes('n') ? 'n' : 's');
+  return y + x;
 }
 /** 改完大小之後把那一塊挪回去，讓對角停在原地。回傳有沒有真的挪。 */
 function keepAnchor(b, corner, hold){

@@ -12215,10 +12215,16 @@ function priceGroupFs(sh){
    CW=540 那次修掉的 bug。所以比例照原版，但基準是整個版位的參考格。
    取**最矮**的那一格：字級照它算，別的格子只會更空，不會裝不下。
    絕大多數版位每一格一樣大 → 參考格就是自己 → 跟原版一模一樣。 */
-function sheetRefCmH(block){
+/* root：暗房那一份版面（見 farmBlock）。以前一律問版上的卡片 —— 別的版位在版上沒有卡片，
+   量出 0，暗房裡每一格改照自己多大定字級，格子大小不一的版位在整本預覽上字就不一樣大（公司回報）。 */
+function refCellCm(block, root){
+  const m = root ? sheetMetrics(block) : null;
+  return (sheetOf(block).cells || []).map(c =>
+    cellCm(c, root ? root.querySelector('.cell[data-cell-id="' + CSS.escape(String(c.id)) + '"]') : cardEl(c.id), m));
+}
+function sheetRefCmH(block, root){
   let min = 0;
-  (sheetOf(block).cells || []).forEach(c => {
-    const cm = cellCm(c, cardEl(c.id));
+  refCellCm(block, root).forEach(cm => {
     if (cm && cm.h > 0) min = min ? Math.min(min, cm.h) : cm.h;
   });
   return min;
@@ -12226,10 +12232,9 @@ function sheetRefCmH(block){
 /* 參考格的**面積**（cm²）。畫布的座標框照面積開之後（見 2cell 的 areaFrame），字多大跟
    √面積 成正比 —— 同一個版位要字一樣大，就要照面積打折，照高度打折不再對。
    一樣取最小的那一格：別的格子只會更空。refCmh 照送，給還沒換新的畫布用。 */
-function sheetRefCmArea(block){
+function sheetRefCmArea(block, root){
   let min = 0;
-  (sheetOf(block).cells || []).forEach(c => {
-    const cm = cellCm(c, cardEl(c.id));
+  refCellCm(block, root).forEach(cm => {
     if (cm && cm.w > 0 && cm.h > 0) min = min ? Math.min(min, cm.w * cm.h) : cm.w * cm.h;
   });
   return min;
@@ -12240,9 +12245,9 @@ const typeSent = new Map();
 /** 把這個版位的字級設定送給它底下每一塊畫布。 */
 /* find：這一格的畫布在哪。預設是版上那一份；預熱時傳的是暗房裡那一批
    （見 farmBlock）—— 字級是排版的一部分，不送的話拍到的那張跟版上長得不一樣。 */
-function pushType(block, find){
+function pushType(block, find, root){
   if (!block) return;
-  const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh), refH = sheetRefCmH(block), refA = sheetRefCmArea(block);
+  const sh = sheetOf(block), t = typeOf(sh), g = priceGroupFs(sh), refH = sheetRefCmH(block, root), refA = sheetRefCmArea(block, root);
   /* 字級一改，這一塊**每一格**畫出來都不一樣了 → 整塊的點陣圖過期。
      ⚠️ **只有真的改了才算**。這一支每次重掛畫布、每一格回報都會叫（為了把設定送給新的
      畫布），以前不管有沒有變都把整塊標成過期 —— 當時的代價只是多拍幾次，但現在蓋布會問
@@ -12280,7 +12285,7 @@ function pushType(block, find){
    字級跟著失真。cm 是實際尺寸，跟縮放無關：r.width 和 pxPerCm 都含了
    sheetZoom，除完就約掉了。 */
 function cellCm(c, el, metrics){
-  if (!activeBlock || !el) return null;
+  if ((!activeBlock && !metrics) || !el) return null;     // 帶了 metrics（暗房）就不必是開著的那一塊
   // 整張版一起送的時候，版面的數字算一次就夠（60 格各算一次是純浪費）
   const m = metrics || sheetMetrics(activeBlock);
   const k = m.pxPerCm;
@@ -12600,6 +12605,7 @@ const SELBAR_HTML = {
     + '<button data-act="top" title="疊到最上面">最上面</button>'
     + '<button class="kill" data-act="kill" title="刪掉（左下角那顆 ＋ 找得回來）">刪除</button>',
   brand: '<button data-act="align" title="品名、型號、SKU 對齊 LOGO 的左邊、依序排在它底下；市價、促銷價回到右下角">對齊 LOGO</button>'
+       + '<button data-act="alignAll" title="這個版位的每一格：LOGO 放到跟這一格一樣的位置，再各自對齊（一次 Ctrl+Z 整塊退回）">整塊統一</button>'
 };
 document.body.appendChild(selBarEl);
 let selBarOf = null, selBarRaf = 0;
@@ -12649,6 +12655,7 @@ selBarEl.addEventListener('click', e => {
   const b = e.target.closest('button[data-act]');
   if (!b || !selBarOf) return;
   const msg = b.dataset.act === 'align' ? { alignLogo: selBarOf.id }
+            : b.dataset.act === 'alignAll' ? { alignLogo: selBarOf.id, spread: true }
             : { selBarAct: { act: b.dataset.act, id: selBarOf.id } };
   try { selBarOf.win.postMessage(msg, '*'); } catch (_){}
 });
@@ -13299,7 +13306,16 @@ progBtn.addEventListener('click', openProgress);
 const SNAPS = new Map();        // `${planId}|${blockId}` → Map(cellId → {url,x,y,w,h})
 const snapPend = new Map();     // cellId → 幾何＋收進哪一份（回覆才知道要貼哪裡）
 const snapKey = (pid, bid) => pid + '|' + bid;
-const blockSnap = (pid, bid) => SNAPS.get(snapKey(pid, bid));
+const snapSigAt = new Map();    // 每一份照片是照哪一種版面拍的（snapSig）
+/** 拿這一塊的照片。版面在拍完之後改過的話那一份整個丟掉（預覽畫「載入中」、暗房補拍）——
+    貼一張照舊版面拍的照片，比沒有照片更糟。 */
+const blockSnap = (pid, bid) => {
+  const k = snapKey(pid, bid), store = SNAPS.get(k);
+  if (!store || !currentPlan || currentPlan.id !== pid || !snapSigAt.has(k)) return store;
+  const blk = allBlocks().find(b => b.id === bid);
+  if (blk && snapSigAt.get(k) !== snapSig(blk)){ SNAPS.delete(k); snapSigAt.delete(k); return undefined; }
+  return store;
+};
 /** 這一塊**真的有圖**沒有 —— 不是「有沒有資料」。沒挑貨的格子也會記一筆（只有
     框和底色，見 captureInto），所以 `.size` 現在回答不了這個問題了。 */
 function snapHasArt(store){
@@ -13390,6 +13406,11 @@ function captureBlockSnap(){
 function captureInto(root, key, skip){
   const br = boardInkRect(root);
   if (!br || !br.width || !br.height) return false;
+  /* 版面跟上一份照片拍的時候不一樣了：舊的那幾格不能混在新的裡面 */
+  const blk = allBlocks().find(b => snapKey(currentPlan && currentPlan.id, b.id) === key);
+  const sig = blk ? snapSig(blk) : '';
+  if (SNAPS.has(key) && sig && snapSigAt.has(key) && snapSigAt.get(key) !== sig) SNAPS.delete(key);
+  if (sig) snapSigAt.set(key, sig);
   if (!SNAPS.has(key)) SNAPS.set(key, new Map());
   const store0 = SNAPS.get(key);
   root.querySelectorAll('.cell').forEach(el => {
@@ -13506,9 +13527,17 @@ function snapDb(){
 
 /** 這一塊版位「長什麼樣」的指紋。格子換了（加減格、改品類、換刊頭圖）就對不上，
     那張舊圖就不能拿來蓋。只認結構，不認內容 —— 內容變了那張圖只是舊，不是錯。 */
+/* 2026-09-29（公司回報「整本預覽都跑掉了」）：以前只記格子 id 和換刊頭圖，改列數、合併、拉版位寬高、
+   改刊頭高度／位置／裁切之後照片照用、照舊的百分比貼 → 錯位。現在這些都算進來；
+   而且**記憶體裡那一份也比**（snapSigAt／blockSnap），不是只有開檔期時從 IndexedDB 撈回來那一次。
+   ⚠️ 格式一換，IndexedDB 裡的舊照片第一次開會全部對不上、各丟一次，暗房會自己補拍。 */
 function snapSig(block){
   const sh = sheetOf(block);
-  return (sh.cells || []).map(c => c.id).join(',') + '|' + (sh.mhRev || 0);
+  const r2 = v => +(+v || 0).toFixed(2);
+  return (sh.cells || []).map(c => c.id + (c.mw > 1 ? 'w' + c.mw : '') + (c.mh > 1 ? 'h' + c.mh : '')
+      + (c.under != null ? 'u' + c.under : '')).join(',') + '|' + (sh.mhRev || 0) + '|'
+    + j([sh.rows || null, r2(sh.mastheadW), r2(blockAspect(block)), !!mhOnlyBlock(block),
+         sh.masthead ? [r2(sh.mastheadH), sh.mastheadRow || 0, sh.mhSide || null, mhCropOf(sh)] : 0]);
 }
 
 /** 開檔期時把這一檔存過的點陣圖撈回記憶體。撈不到就算了（安靜地退回沒有圖）。 */
@@ -13531,7 +13560,7 @@ async function loadSnaps(plan){
       const blk = blocks.get(bid);
       // 版位不在了、或格子換過了 → 這一份沒有用，順手清掉
       if (!blk || !rec || rec.sig !== snapSig(blk)){ try { cur.delete(); } catch (_){} }
-      else if (!SNAPS.has(cur.key)) SNAPS.set(cur.key, new Map(rec.cells));
+      else if (!SNAPS.has(cur.key)){ SNAPS.set(cur.key, new Map(rec.cells)); snapSigAt.set(cur.key, rec.sig); }
       cur.continue();
     };
     rq.onerror = () => res();
@@ -13578,7 +13607,7 @@ async function flushSnaps(){
       const bid = key.slice(key.indexOf('|') + 1);
       const blk = blocks.get(bid);
       if (!store || !store.size || !blk) return;
-      st.put({ at: Date.now(), sig: snapSig(blk), cells: [...store] }, key);
+      st.put({ at: Date.now(), sig: snapSigAt.get(key) || snapSig(blk), cells: [...store] }, key);
     });
   } catch (_){}
 }
@@ -13845,12 +13874,42 @@ function liftBoardCover(){
 /* ---- 整本預覽 ------------------------------------------------------------
    骨架照 progNode 那一套（同一棵樹、同一組百分比），葉子改成貼那一塊拍到的圖。
    它是一張報表，不是操作介面：點不動、也不會跳到那一塊去。 */
+/** 預覽上的一張刊頭（沒有照片時用）：裁過照裁的畫，沒裁過整張塞進去，還沒放圖畫虛線框 */
+function pvMast(sh, y, h){
+  const pos = `position:absolute;left:0;top:${y * 100}%;width:100%;height:${h * 100}%`;
+  const url = sh.masthead && sh.masthead.image;
+  if (!url){
+    const d = document.createElement('div');
+    d.className = 'pv-empty mast';
+    d.style.cssText = pos;
+    return d;
+  }
+  const box = document.createElement('div');
+  box.style.cssText = pos + ';overflow:hidden';
+  const im = document.createElement('img');
+  im.src = url;
+  const cr = mhCropOf(sh);
+  im.style.cssText = cr
+    ? `position:absolute;object-fit:cover;width:${100 / cr.w}%;height:${100 / cr.h}%;left:${-100 * cr.x / cr.w}%;top:${-100 * cr.y / cr.h}%`
+    : 'position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain';
+  box.appendChild(im);
+  return box;
+}
 function pvNode(node, plan){
   if (isLeaf(node)){
     const el = document.createElement('div');
     el.className = 'pv-blk';
     el.title = node.name || '版位';
     const store = blockSnap(plan.id, node.id);
+    /* 只有刊頭的版位暗房拍不到（沒有卡片列，farmBlock 直接回來），以前畫成「還沒挑貨」——
+       壓力測試那一本十幾塊都是這樣，整本看起來一半沒做（公司回報）。刊頭上層手上就有，直接畫。 */
+    const nsh = sheetOf(node);
+    if ((!store || !store.size) && nsh.masthead && !liveCells(nsh).length){
+      const fr = mhOnlyBlock(node) ? 1
+        : Math.min(CONFIG.mastheadMaxFrac, (+nsh.mastheadH || 0) / ((+nsh.mastheadW || 1) / (blockAspect(node) || 1)));
+      el.appendChild(pvMast(nsh, nsh.mastheadRow ? 1 - fr : 0, fr));
+      return el;
+    }
     if (!store || !store.size){
       const d = document.createElement('div');
       d.className = 'pv-none';
@@ -14090,7 +14149,7 @@ async function farmBlock(block){
        總比整塊空著好。 */
     await farmUntil(job, () => job.painted.size >= job.frames.size, 14000);
     if (farmJob !== job) return;
-    pushType(block, id => job.frames.get(String(id)) || null);
+    pushType(block, id => job.frames.get(String(id)) || null, board);
     await farmSleep(340);             // 字級送下去，畫布要再排一次
   }
   if (farmJob !== job) return;
@@ -14185,7 +14244,19 @@ function farmMast(sh){
     mh.classList.add('hasimg');
     const im = document.createElement('img');
     im.src = url;
-    mh.appendChild(im);
+    /* 裁過的刊頭要照版上那樣包一層 .mh-crop（buildMasthead 同一套百分比）——
+       以前只放一張圖，captureInto 找不到那個框就記成沒裁的整張，整本預覽上那一塊跑掉（公司回報） */
+    const cr = mhCropOf(sh);
+    if (cr){
+      const box = document.createElement('span');
+      box.className = 'mh-crop';
+      im.style.width  = (100 / cr.w).toFixed(3) + '%';
+      im.style.height = (100 / cr.h).toFixed(3) + '%';
+      im.style.left   = (-100 * cr.x / cr.w).toFixed(3) + '%';
+      im.style.top    = (-100 * cr.y / cr.h).toFixed(3) + '%';
+      box.appendChild(im);
+      mh.appendChild(box);
+    } else mh.appendChild(im);
   }
   return mh;
 }
@@ -14252,6 +14323,17 @@ addEventListener('message', e => {
   });
 });
 
+/* 整塊統一（公司回報：一鍵拉到統一位置）：來源那一格對齊完，把 LOGO 在哪（mm）報上來，
+   這裡轉給同一個版位的其他格，各自把 LOGO 放到同一點再對齊。跟集體移動同一招，整批算一步。 */
+addEventListener('message', e => {
+  const m = e.data && e.data.alignSpread;
+  if (!m || activeTab !== 'board' || !activeBlock) return;
+  boardEl.querySelectorAll('.ccanvas').forEach(f => {
+    if (f.contentWindow === e.source) return;
+    try { f.contentWindow.postMessage({ alignAt: m }, '*'); } catch (_){}
+  });
+  commitAction(m.act || '');
+});
 addEventListener('message', e => {
   const m = e.data && e.data.bulkMove;
   if (!m || activeTab !== 'board' || !activeBlock) return;
