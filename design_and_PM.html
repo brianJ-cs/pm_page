@@ -1686,6 +1686,9 @@
   #cutPreview.h .lbl{top:3px;left:0}
   /* 這個數字超出那一塊：線貼在邊上、整條淡掉 —— 看得出「這一刀不成立」 */
   #cutPreview.over{opacity:.45}
+  /* 吸到了：讀數多一圈白框、後面寫吸到什麼（中線／對齊）。對齊到別的版位或參考線時，
+     那一整條紫色對齊線也會亮（跟拖切割線同一條，showAlignGuide） */
+  #cutPreview.snap .lbl{box-shadow:0 0 0 2px var(--surface),0 0 0 3px var(--danger)}
   /* 指著的那一塊：紅框。手移到「切下去」那顆鈕之後，靠它才知道切的是誰 */
   .window-node.cut-aim{outline:2px solid var(--danger);outline-offset:-2px}
 
@@ -10064,7 +10067,7 @@ function reviewSyncSoon(plan){
   clearTimeout(rvTimer);
   rvTimer = setTimeout(reviewSyncNow, 500);
 }
-async function reviewSyncNow(){
+async function reviewSyncNow(quiet){
   clearTimeout(rvTimer);
   const rs = reviewStore();
   if (!rs) return;
@@ -10084,7 +10087,7 @@ async function reviewSyncNow(){
      但畫面還是要重畫：挑貨不在骨架裡（送不出東西），而格子上的「挑好了」和
      「提明細完成：挑好的 N 格」是這一頁自己數的 —— 不重畫的話挑完要等 30 秒輪詢才變，
      PM 會以為沒挑到（2026-09-28 量到過）。 */
-  if (sent) refreshReview();
+  if (sent){ if (!quiet) refreshReview(); }
   else if (currentPlan && list.includes(currentPlan)){ paintCellRv(); syncPassTool(); }
 }
 /** 審核那一邊的時鐘對齊這一頁（🛠 → 時鐘撥過的話，延遲要照撥過的時間算） */
@@ -10093,15 +10096,33 @@ function reviewClockSync(){
   if (rs && rs.dev) rs.dev.setClockOffset(nowMs() - Date.now());
 }
 
-let rvBusy = false, rvAgain = false;
 var rvR2Managers = false;          // 設定表的「二校主管審核」（全系統一個，預設關）—— 快轉那一站看它
-async function refreshReview(){
+/* 讀回來（2026-09-29 改，公司回報「印章按下去好久才變綠」）：
+   ・六樣**一起問**。以前分三趟（檔期＋待辦＋通知 → 進度＋這一檔 → 設定），每一趟都是一次來回。
+   ・撞在一起（上一趟還在路上）的時候，回傳的是**下一趟**讀完的那個 promise。以前是直接 return ——
+     await 它的人（rvRun）拿到的是還沒讀的舊資料，綠框要等再一整輪才出現。
+   ・還在路上的印章（rvPending）疊回讀到的那一份上：送出去之前讀回來的那一份還沒有它，
+     照單全收的話剛變綠的格子會閃回白、再變綠。 */
+let rvRefreshing = null, rvRefreshNext = null;
+/* 印章還在路上的那幾筆（見 rvBrushCells 上面那一段）。⚠️ 宣告在這裡、不在印章那一段：
+   pullReview 開機就可能被叫到，而那一段在整支程式很後面 —— 讀到還沒宣告的 const 整頁就停了 */
+const rvPending = new Map();       // 「格子|動作」→ { key, id, action, phase, want }
+let rvChain = Promise.resolve();   // 一下一下照順序送：同一格點兩下，後送的那一下要真的後到
+function refreshReview(){
+  if (rvRefreshing){
+    if (!rvRefreshNext) rvRefreshNext = rvRefreshing.then(() => { rvRefreshNext = null; return refreshReview(); });
+    return rvRefreshNext;
+  }
+  rvRefreshing = pullReview().finally(() => { rvRefreshing = null; });
+  return rvRefreshing;
+}
+async function pullReview(){
   const rs = reviewStore();
   if (!rs || !currentUser) return;
-  if (rvBusy){ rvAgain = true; return; }
-  rvBusy = true;
   try {
-    const [pl, td, nt] = await Promise.all([rs.api.plans(), rs.api.todo(), rs.api.notifications()]);
+    const cur = currentPlan;
+    const [pl, td, nt, r, pv, st] = await Promise.all([rs.api.plans(), rs.api.todo(), rs.api.notifications(),
+      cur ? rs.api.progress(cur.id) : null, cur ? rs.api.plan(cur.id) : null, rs.api.settings()]);
     if (td && td.ok) RV_TODO = td.items;
     if (nt && nt.ok) RV_NOTES = nt;
     const mine = new Map();
@@ -10111,17 +10132,14 @@ async function refreshReview(){
       v.progress = x; v.mine = mine.get(x.id) || 0;
       RV.set(x.id, v);
     });
-    if (currentPlan && RV.has(currentPlan.id)){
-      const [r, pv] = await Promise.all([rs.api.progress(currentPlan.id), rs.api.plan(currentPlan.id)]);
-      if (r && r.ok) RV.get(currentPlan.id).rows = r.rows;
-      if (pv && pv.ok) RV.get(currentPlan.id).view = pv;      // 格子、版位、便利貼：完成按鈕和格子上那一枚讀它
+    /* 審核那一邊還不認得這一檔（草稿、還沒同步過）就不收：跟以前「RV 裡有才問」同一條 */
+    if (cur && RV.has(cur.id)){
+      if (r && r.ok) RV.get(cur.id).rows = r.rows;
+      if (pv && pv.ok){ rvOverlayPending(pv); RV.get(cur.id).view = pv; }   // 格子、版位、便利貼：完成按鈕和格子上那一枚讀它
     }
-    const st = await rs.api.settings();
     if (st && st.ok) rvR2Managers = !!st.settings.r2_managers;
   } catch (e){}
-  rvBusy = false;
   paintReview();
-  if (rvAgain){ rvAgain = false; refreshReview(); }
 }
 /** 讀回來之後每一處重畫一次：橫幅、檔期列表（開著才畫）、進度面板（開著才畫）、🛠 快轉 */
 function paintReview(){
@@ -15304,16 +15322,20 @@ function rvDetailOf(cell){
 }
 
 /** 按下去：先把版面和便利貼對齊（規則要數的便利貼在影本裡），一次送過去，讀回來重畫。 */
-async function rvRun(items, label){
+async function rvRun(items, label, marks){
   const rs = reviewStore();
   if (!rs || !items.length) return;
-  if (currentPlan){ rvQueue.add(currentPlan); await reviewSyncNow(); }   // 檔期列表上（職代、設定表）沒有要對的版面
+  /* 印章先在畫面上變了（rvBrushCells），這裡送完就不再替它撐著：讀回來的是真的那一份。
+     只拿掉自己那一筆 —— 同一格後來又點了一下的話，那一筆是新的，要留給它自己那一趟。 */
+  const settle = () => (marks || []).forEach(m => { if (rvPending.get(m.key) === m) rvPending.delete(m.key); });
+  if (currentPlan){ rvQueue.add(currentPlan); await reviewSyncNow(true); }   // 檔期列表上（職代、設定表）沒有要對的版面
   let res;
   try {
     res = items.length === 1 ? { ok: true, results: [await rs.api.act(items[0][0], items[0][1])] }
                              : await rs.api.actMany(items);
-  } catch (e){ toast('送不出去：' + e.message, 'warn', 2800); return; }
-  if (!res || !res.ok){ toast('審核那一邊不認得你（登出再登入試試）', 'warn', 2800); return; }
+  } catch (e){ settle(); await refreshReview(); toast('送不出去：' + e.message, 'warn', 2800); return; }
+  settle();
+  if (!res || !res.ok){ await refreshReview(); toast('審核那一邊不認得你（登出再登入試試）', 'warn', 2800); return; }
   /* detail.set 那一種不算一件事（它是提明細完成的前一步） */
   const counted = res.results.filter((r, i) => items[i][0] !== 'detail.set');
   const good = counted.filter(r => r && r.ok).length;
@@ -15323,6 +15345,27 @@ async function rvRun(items, label){
     const why = [...new Set(bad.map(r => r && (r.reason + (r.missing ? '（' + r.missing.slice(0, 3).join('、') + '）' : ''))).filter(Boolean))];
     toast(`${label}：${good ? `${good} 個好了、` : ''}${bad.length} 個沒過 —— ${why.slice(0, 2).join('；')}`, good ? 'info' : 'warn', 3600);
   } else toast(`✓ ${label}${good > 1 ? `（${good} 格）` : ''}`, 'ok', 1700);
+}
+
+/* 印章按下去當場就變（2026-09-29，公司回報「按下去好久才變綠，取消也是」）。
+   以前要等 同步版面 → 送出 → 六樣讀回來 三趟跑完才重畫，每一趟都是一次來回，加起來常常一兩秒。
+   現在先照規則會寫的那個值改在手上那一份（標記全是 true／false，跟 review-rules 的 *.mark 一模一樣），
+   背後再送；送失敗讀回來就是真的樣子，toast 講為什麼。
+   還在路上的記在 rvPending：這段時間讀回來的那一份還沒有它，要疊回去（pullReview）。 */
+function rvApplyMark(rc, m){
+  if (!rc) return;
+  switch (m.action){
+    case 'detail.mark': rc.detailMark = m.want; break;
+    case 'stamp.mark':  if (rc.r3) rc.r3.mark = m.want; break;
+    case 'make.mark':   rc.madeMark = m.want; break;
+    case 'fix.mark':    rc.fixMark = Object.assign({}, rc.fixMark, { [m.phase]: m.want }); break;
+    case 'review.mark': rc.reviewed = m.want; break;
+    case 'r2.mark':     if (rc.r2) rc.r2.reviewed = m.want; break;
+  }
+}
+function rvOverlayPending(view){
+  if (!view || !view.cells) return;
+  rvPending.forEach(m => rvApplyMark(view.cells.find(x => x.id === m.id), m));
 }
 
 /** 刷子現在刷什麼（沒有就是 null）：這一塊在一校／二校、有我要審的格子 → 審核完成；
@@ -15420,7 +15463,16 @@ function rvBrushCells(cells, mode){
       : mode === 'off' ? '沒有可以撤的格子' : br.design ? '這裡沒有可以標的格子' : br.toggle ? '這裡沒有你要審的格子' : '這裡沒有你還沒蓋的格子（蓋了就撤不掉）', 'info', 2000);
     return;
   }
-  rvRun(items, br.label);
+  const marks = [];
+  if (br.toggle) items.forEach(([action, pl]) => {
+    if (action !== br.action) return;                 // detail.set 是送出前的那一步，不是標記
+    const m = { key: pl.cell_id + '|' + action, id: pl.cell_id, action, phase: br.phase, want: !!pl.done };
+    rvPending.set(m.key, m);
+    rvApplyMark(ctx.v.cells.find(x => x.id === pl.cell_id), m);
+    marks.push(m);
+  });
+  if (marks.length){ paintCellRv(); syncPassTool(); }
+  rvChain = rvChain.then(() => rvRun(items, br.label, marks)).catch(() => {});
 }
 
 /** 一顆按鈕：按不下去的時候底下寫為什麼、還差什麼（R.can 的 reason／missing） */
@@ -16828,7 +16880,46 @@ function applyCutCoords(){
   syncCutGo();
 }
 
-/** 這一刀落在那一塊的第幾個 px（從左緣／上緣量起），以及那一塊有多長。 */
+/* 切分的磁吸（2026-09-29，公司回報「開檔切版的時候磁吸沒有用」）。
+   以前只有拖切割線、拉參考線會吸，切分的紅線完全跟著滑鼠走 —— 工具列上那顆磁鐵開著，
+   卻管不到最常用的那一個動作。現在照這個順序吸（前面的贏，同一種取最近的）：
+   ・同一張版上**別的版位的邊**、**參考線**：切出來跟旁邊那一塊對齊，是切版最常要的事；
+   ・這一塊的**正中間**；
+   ・**整公分**：從這一塊自己的邊量起（使用者定的）—— 跟紅線上的讀數、X／Y 欄位是同一把尺，
+     吸完讀數就是整數。尺規（整張版）是另一把，版位不從整公分開始的話兩把不一樣。
+   磁鐵關著、按住 Alt、或填了 X／Y（照數字切）都不吸。距離照螢幕 px（CONFIG.snapPx），
+   跟拖切割線一樣。 */
+function cutSnap(raw, r, vertical, span, k){
+  if (!CONFIG.snapOn || snapOverridden || (cutHoverXY && cutHoverXY.alt)) return null;
+  const tol = CONFIG.snapPx;
+  const lo = vertical ? r.left : r.top;
+  let best = null;
+  const near = (at, kind) => {
+    const d = Math.abs(at - raw);
+    /* 貼著這一塊自己的邊不算（那一刀切出一條 0 寬的版位） */
+    if (at > 0.5 && at < span - 0.5 && d <= tol && (!best || d < best.d)) best = { at, d, kind };
+  };
+  const ws = cutAim.closest('.board-ws');
+  if (ws){
+    ws.querySelectorAll('.window-node').forEach(n => {
+      if (n === cutAim || n.contains(cutAim) || cutAim.contains(n)) return;
+      const q = n.getBoundingClientRect();
+      (vertical ? [q.left, q.right] : [q.top, q.bottom]).forEach(v => near(v - lo, 'edge'));
+    });
+    ws.querySelectorAll('.rguide.' + (vertical ? 'v' : 'h')).forEach(g => {
+      const q = g.getBoundingClientRect();
+      near((vertical ? q.left + q.width / 2 : q.top + q.height / 2) - lo, 'guide');
+    });
+  }
+  if (best) return best;
+  near(span / 2, 'mid');
+  if (best) return best;
+  near(Math.round(raw / k) * k, 'cm');
+  return best;
+}
+
+/** 這一刀落在那一塊的第幾個 px（從左緣／上緣量起），以及那一塊有多長。
+    跟著游標的時候先過磁吸（cutSnap）—— 紅線、讀數、點下去那一刀都讀這一支，所以三者永遠一樣。 */
 function cutOffset(){
   const r = cutAim.getBoundingClientRect();
   const vertical = cutDir === 'v';
@@ -16837,19 +16928,36 @@ function cutOffset(){
   const p = cutCoordPoint();
   const at = p ? (vertical ? p.x : p.y)
             : (cutHoverXY ? (vertical ? cutHoverXY.x : cutHoverXY.y) : null);
-  const raw = at == null ? span / 2 : at - (vertical ? r.left : r.top);
-  return { r, vertical, span, k, raw, off: Math.max(0, Math.min(span, raw)),
+  const raw0 = at == null ? span / 2 : at - (vertical ? r.left : r.top);
+  const snap = !p && at != null ? cutSnap(raw0, r, vertical, span, k) : null;
+  const raw = snap ? snap.at : raw0;
+  return { r, vertical, span, k, raw, snap, off: Math.max(0, Math.min(span, raw)),
            over: raw >= span || raw < 0 };
+}
+/* 對齊到別的版位／參考線的時候，那一條紫線整張版亮起來（拖切割線用的同一條）。
+   只收自己亮的那一條：拖切割線的時候也在用它，別人的不能順手清掉。 */
+let cutSnapLit = false;
+function paintCutSnap(snap, vertical, r, off){
+  const ws = cutAim && cutAim.closest('.board-ws');
+  if (snap && ws && (snap.kind === 'edge' || snap.kind === 'guide')){
+    const w = ws.getBoundingClientRect();
+    const pct = vertical ? (r.left + off - w.left) / w.width * 100 : (r.top + off - w.top) / w.height * 100;
+    showAlignGuide(boards[sideKeyOf(ws)], vertical, pct);
+    cutSnapLit = true;
+  } else if (cutSnapLit){ clearSnapFeedback(null); cutSnapLit = false; }
 }
 
 function paintCutPreview(){
   if (totalTool !== 'cut' || !totalShowing() || !cutAim || !cutAim.isConnected){
     cutPreview.style.display = 'none';
+    if (cutSnapLit){ clearSnapFeedback(null); cutSnapLit = false; }
     return;
   }
-  const { r, vertical, k, off, over } = cutOffset();
+  const { r, vertical, k, off, over, snap } = cutOffset();
   cutPreview.className = vertical ? 'v' : 'h';
   cutPreview.classList.toggle('over', over);
+  cutPreview.classList.toggle('snap', !!snap);
+  paintCutSnap(snap, vertical, r, off);
   if (vertical){
     cutPreview.style.left = (r.left + off - 1) + 'px';
     cutPreview.style.top = r.top + 'px';
@@ -16865,7 +16973,8 @@ function paintCutPreview(){
      線和欄位講的必須是同一件事，不然填 6 卻看到 40，沒有人知道該信哪一個 ——
      所以這個讀數跟著 cutCoordPoint 的量法走（現在是那一塊的邊，不是尺規）。 */
   cutPreview.querySelector('.lbl').textContent =
-    (off / k).toFixed(1) + 'cm' + (over ? '（切不下去）' : '');
+    (off / k).toFixed(1) + 'cm' + (over ? '（切不下去）' : '')
+    + (snap ? (snap.kind === 'mid' ? '・中線' : snap.kind === 'cm' ? '' : '・對齊') : '');
   cutPreview.style.display = 'block';
 }
 
@@ -16906,7 +17015,7 @@ function endSwapDrag(){
 
 totalHost.addEventListener('mousemove', e => {
   if (totalTool !== 'cut') return;
-  cutHoverXY = { x: e.clientX, y: e.clientY };
+  cutHoverXY = { x: e.clientX, y: e.clientY, alt: e.altKey };
   /* 手指到哪一塊就切哪一塊，填了座標也一樣（見 aimTarget）——
      移到版位外面時紅框留著，手正要去按那顆鈕。 */
   cutHoverEl = (e.target.closest && e.target.closest('.window-node')) || null;
@@ -16944,7 +17053,7 @@ totalHost.addEventListener('click', e => {
   }
   if (totalTool === 'del'){ askDeleteBlock(node); return; }
   if (totalTool === 'cut'){
-    cutHoverXY = { x: e.clientX, y: e.clientY };
+    cutHoverXY = { x: e.clientX, y: e.clientY, alt: e.altKey };
     cutHoverEl = el;                 // 點下去的那一塊就是要切的那一塊
     aimAt(el);
     doCut();
