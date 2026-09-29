@@ -16,7 +16,7 @@ node .claude/skills/stress-board/stress.mjs --shot out/s.png   # 順手截圖
 node .claude/skills/stress-board/stress.mjs --json > out/stress.json   # 存基準給 diff
 ```
 
-它自己會做完前置：生假檔期（`#stressPlanBtn`）→ 開到拼板 → **挑一塊有格子的版位**
+它自己會做完前置：生假檔期（🛠 `#devBtn` →「📄 測試 DM」→ `#stressPlanBtn`）→ 開到拼板 → **挑一塊有格子的版位**
 → 等畫布掛好 → 量每一格的畫布 iframe。走的是 `run-pm-page/driver.mjs`，
 所以**不會碰到正式 Supabase**。
 

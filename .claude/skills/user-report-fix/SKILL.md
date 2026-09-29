@@ -27,8 +27,8 @@ description: 公司／使用者回報一串問題（「整本預覽跑掉了」�
 3. **講不清楚的那一條不要去猜著重現**：寫進計畫裡「需要一張截圖／哪一格」，其他條照做。
    使用者也不知道的話（轉述的回報），就先做清楚的那幾條。
 4. **真的要看畫面，一趟就夠**，而且用對資料：
-   ・要有貨的檔期用 **壓力測試**（`#stressPlanBtn`，照真的 DM 排、176 格有貨），不要用 `?seed=1`。
-   ・整本預覽：`#stressPlanBtn` → `[data-tab=total]` → `#dmPrevBtn` → `--wait 50000`（暗房一塊一塊拍）
+   ・要有貨的檔期：🛠 `#devBtn` →「📄 測試 DM」（`.dev-tab[data-dev=dm]`）→ **產生完整 DM**（`#fullDmBtn`，每一格都有貨、審核走得動）或 **做到一半的**（`#stressPlanBtn`，176 格有貨），不要用 `?seed=1`。
+   ・整本預覽：（同上，先開 🛠 那一頁）`#stressPlanBtn` → `[data-tab=total]` → `#dmPrevBtn` → `--wait 50000`（暗房一塊一塊拍）
      → 在 `#totalScroll` 上派 8～12 發 `WheelEvent(deltaY:-120)` 放大 → 截圖。
      **再按一次 `#dmPrevBtn` 關掉**，底下就是 總體 的格線，兩張疊著比最快。
    ・要進某一塊的 商品：**點小地圖**（`#boardSide` 那張），不要點 總體 的版位。

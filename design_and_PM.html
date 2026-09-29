@@ -3681,12 +3681,8 @@
          同一件事寫兩個地方，遲早有一個會忘記跟著改。 -->
     <h1 id="listTitle">進行中檔期</h1>
     <!-- 測試用：把這台瀏覽器上的東西全部清掉，回到什麼都沒有的狀態 -->
-    <!-- devtool：一鍵生一個「做到一半」的假檔期。虛線邊、灰字，看得出來它不是
-         正常流程裡的按鈕。放在檔期列表而不是拼板裡 —— 它做的事是「多一筆檔期」。 -->
-    <button id="stressPlanBtn" title="另生一個「壓力測試」假檔期並開起來，真實檔期不動"
-            style="padding:5px 11px;font:inherit;font-size:12px;font-weight:800;
-                   border:1.5px dashed var(--muted);border-radius:8px;background:transparent;
-                   color:var(--muted);cursor:pointer">壓力測試：塞滿假檔期</button>
+    <!-- 「壓力測試：塞滿假檔期」2026-09-29 搬進 🛠 的「測試 DM」那一頁（使用者要的）：
+         測試用的東西都收在那一顆底下，檔期列表只放正常流程的按鈕。 -->
     <!-- 商品目錄：**三個身分都看得到**（談定的）。它講的是「公司賣什麼」，
          跟「這本 DM 存不存在、什麼時候做」是兩件事，所以刻意不在下面那一排
          行銷專屬的按鈕裡（syncListButtons 不碰它）。 -->
@@ -4212,6 +4208,7 @@
   <div class="dev-tabs">
     <button class="dev-tab" data-dev="clock">🕒 時鐘</button>
     <button class="dev-tab" data-dev="demo">🧪 測試商品</button>
+    <button class="dev-tab" data-dev="dm">📄 測試 DM</button>
     <button class="dev-tab" data-dev="stage">⏩ 快轉</button>
     <button class="dev-tab" data-dev="who">👤 換人</button>
     <button class="dev-tab" data-dev="log">📜 紀錄</button>
@@ -4232,6 +4229,16 @@
     <button data-shift="0.125">＋3 時</button>
     <button class="cp-now" id="clockReset">回到現在</button>
   </div>
+  </div>
+
+  <div class="dev-pane" data-pane="dm" hidden>
+    <h5>測試 DM（測試用）</h5>
+    <div class="cp-sub">一鍵生一本<b>每一格都挑好貨</b>的 DM：照真的 DM 排版（刊頭帶＋商品帶，正反兩面），
+      品類都在分類表上（手機、平板、筆電），審核走得動。會順手打開測試商品（有規格、有價格）。
+      上一本測試 DM 會被換掉，真的檔期不動。</div>
+    <div class="cp-row"><button class="cp-now" id="fullDmBtn">產生完整 DM</button></div>
+    <div class="cp-sub" style="margin-top:10px">要看「做到一半」的樣子（版位挑到不同程度、貼滿便利貼）用這一顆：</div>
+    <div class="cp-row"><button id="stressPlanBtn">做到一半的（壓力測試）</button></div>
   </div>
 
   <div class="dev-pane" data-pane="demo" hidden>
@@ -17932,7 +17939,7 @@ const devBtn = document.getElementById('devBtn');
 
 /* 停在哪一頁記在這台電腦：測東西的時候多半連著開同一個工具。 */
 const DEV_TAB_KEY = 'pm_dev_tab_v1';
-const DEV_TABS = ['clock', 'demo', 'stage', 'who', 'log'];
+const DEV_TABS = ['clock', 'demo', 'dm', 'stage', 'who', 'log'];
 let devTab = 'clock';
 try { const t = localStorage.getItem(DEV_TAB_KEY); if (DEV_TABS.includes(t)) devTab = t; } catch (_){}
 function setDevTab(name){
@@ -18114,6 +18121,8 @@ devPop.addEventListener('click', e => {
   const t = e.target.closest('.dev-tab');
   if (t){ setDevTab(t.dataset.dev); return; }
   if (e.target.closest('#demoSwitch')) setDemoRows(!demoRowsOn);
+  if (e.target.closest('#fullDmBtn')){ openDevPop(false); makeFullPlan(); return; }
+  if (e.target.closest('#stressPlanBtn')){ openDevPop(false); makeStressPlan(); return; }
   const j = e.target.closest('[data-ffstop]');
   if (j && !j.disabled){
     const plan = stagePlanOf();
@@ -19883,8 +19892,85 @@ function makeStressPlan(){
      意見欄就停在還沒有貼紙的那一刻（PM 按這顆會看到一片「還沒有人標東西」）。 */
   setTab('board');
 }
-const stressBtn = document.getElementById('stressPlanBtn');
-if (stressBtn) stressBtn.onclick = makeStressPlan;
+/* 兩顆都在 🛠 的「測試 DM」那一頁，點擊由 devPop 那一條委派處理（見 setDevTab 底下）。 */
+
+/* ==========================================================================
+   測試 DM：一鍵生一本「完整」的 DM（2026-09-29，使用者要的）
+   ==========================================================================
+   壓力測試那一本是「做到一半」（參差、貼滿便利貼）；這一本是**做完了**的樣子：
+   ・版照壓力測試那一套排（照 DM.jpg：刊頭帶＋商品帶，一面兩頁，正反兩面）；
+     刊頭帶是真的「只有刊頭」的版位（mhOnly），不是 0 格的商品版位。
+   ・**每一格都挑好貨**，一格 1～3 個 SKU（同一個商品不同規格／價格，畫布會排成 1～3 欄價格）。
+   ・品類只用分類表上有的（手機、平板、筆電）：不在表上的品類「沒有負責人」會把整本卡在提明細，
+     那樣的測試 DM 走不了審核。
+   ・貨用測試商品（DEMO_ROWS）：有規格、有顏色、有價格，而且不管接不接共用目錄都查得到 ——
+     所以順手把測試商品打開（它本來就是 devtool）。
+   ・沒有便利貼（便利貼會變成一校意見／退件，完整的那一本不該一開始就有）。
+   ・已提交（不是草稿），同一時間只留一本（舊的連遠端一起清掉，跟壓力測試同一招）。 */
+const isFullPlan = p => !!p && String(p.id || '').startsWith('fulldm-');
+const FULL_POOLS = {
+  '手機': ['iPhone 17 Pro Max', 'iPhone 17 Pro', 'Galaxy A5', 'AirPods 4', 'AirPods Pro 3', 'ANKER 30W 自帶線行動電源'],
+  '平板': ['iPad Air', 'iPad A16'],
+  '筆電': ['MacBook Neo Air M5', 'MacBook Pro']
+};
+function makeFullPlan(){
+  if (!demoRowsOn) setDemoRows(true);
+  const skusOf = name => DEMO_ROWS.filter(r => r.name === name).map(r => String(r.sku));
+  let n = 0;
+  const b = (size, groups, mhH) => {
+    const node = blk('測試' + String(++n).padStart(2, '0'), groups, size);
+    if (mhH != null) node.sheet.mastheadH = mhH;
+    return node;
+  };
+  const head = size => blk('刊頭' + String(++n).padStart(2, '0'), [], size, { mhOnly: true });
+  const TITLE = 1.2;
+  const G = (...a) => a.map(([name, count]) => ({ name, count }));
+  const page = () => ({ dir:'col', size:50, children:[
+    { dir:'row', size:22, children:[ head(50), b(null, G(['手機', 6]), TITLE) ] },
+    { dir:'row', size:18, children:[ head(48), b(null, G(['手機', 6], ['平板', 6]), TITLE) ] },
+    head(12),
+    head(8),
+    { dir:'row', size:13, children:[ b(42, G(['筆電', 8]), TITLE), b(25, G(['手機', 6]), TITLE), b(null, G(['筆電', 8]), TITLE) ] },
+    { dir:'row', size:13, children:[ b(42, G(['筆電', 8]), TITLE), b(25, G(['平板', 6]), TITLE), b(null, G(['平板', 8], ['手機', 6]), TITLE) ] },
+    b(null, G(['手機', 8], ['平板', 6], ['筆電', 6]), TITLE)
+  ]});
+  const side = () => ({ dir:'row', fold:true, size:null, children:[ page(), page() ] });
+  const plan = {
+    id: 'fulldm-' + Date.now(),
+    name: '測試 DM（完整）',
+    type: '全省對開大DM',
+    tags: ['測試'],
+    /* 從今天開始排：照範例檔期的日期的話一開就「延遲」，而剛生出來的這一本什麼都還沒按 */
+    start: toYMD(atMid(now())),
+    durs: SEED_PLANS[0].durs.slice(),
+    layout: { front: side(), back: side() }
+  };
+  /* 品類記上代碼（跟 ✏ 挑的時候一樣），審核那一邊照代碼找負責人 */
+  const blocks = collectBlocks(plan.layout.front, []).concat(collectBlocks(plan.layout.back, []));
+  let k = 0;
+  blocks.forEach(node => {
+    (node.groups || []).forEach(g => { const id = catIdForName(g.name); if (id) g.catId = id; });
+    (sheetOf(node).cells || []).forEach(c => {
+      const pool = FULL_POOLS[(node.groups[c.gi] || {}).name] || FULL_POOLS['手機'];
+      const skus = skusOf(pool[k % pool.length]);
+      c.board = { state: { picked: skus.slice(0, 1 + (k % 3)) } };
+      k++;
+    });
+  });
+  const sy = sync();
+  for (let i = plans.length - 1; i >= 0; i--) if (isFullPlan(plans[i])){
+    if (sy) sy.queueRemove(plans[i].id);
+    plans.splice(i, 1);
+  }
+  plans.unshift(plan);
+  savePlans();
+  openPlan(plan);
+  setTab('board');
+  /* 第一塊是刊頭帶（只有刊頭）：停在那裡只看得到一張空的刊頭，換到第一塊有貨的 */
+  const first = blocks.find(x => !x.mhOnly);
+  if (first) switchBlock(first);
+  toast(`測試 DM 好了：${k} 格都挑好貨`, 'ok', 2600);
+}
 
 /* Always ask before leaving, and say plainly whether the work is safe — the
    answer is different depending on whether a write is still queued. */

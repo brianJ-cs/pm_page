@@ -78,6 +78,8 @@ const MEASURE = `(()=>{
 const steps = [
   // as=design 是登入的旁路 —— 乾淨的瀏覽器不帶它會停在登入頁
   '--file', 'design_and_PM.html?seed=1&as=design', '--wait', '900',
+  // 2026-09-29 起那一顆在 🛠 →「📄 測試 DM」那一頁（檔期列表上的拿掉了）
+  '--click', '#devBtn', '--wait', '300', '--click', '.dev-tab[data-dev=dm]', '--wait', '200',
   '--click', '#stressPlanBtn', '--wait', '2200',
   '--click-text', '商品', '--wait', '2000',
   /* 先挑一塊**有格子**的版位。假檔期照真的那一張排之後，第一塊是刊頭
