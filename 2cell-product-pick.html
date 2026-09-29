@@ -1106,7 +1106,7 @@ function brandHTML(b, img){
    HITACHI 的牌子，而且畫面上完全看不出哪裡不對。
    品牌照 normBrand 比（大小寫、空白、`.` `-` `_` 都不算差別），
    跟貼 logo 那條用同一把尺 —— 兩邊各一套的話會有「圖貼得上、卻不准放在一起」。 */
-function pickKey(r){ return (r ? r.name : '') + '|' + normBrand(rowBrand(r)); }
+function pickKey(r){ return (r ? (r.name || '#' + r.sku) : '') + '|' + normBrand(rowBrand(r)); }
 
 /* 就地成群：連續且**同商品同品牌**的列 → 一群。斷開的規矩就是 pickKey，
    所以清單上看到的一段就是可以一起勾進同一格的那一段。 */
@@ -2109,7 +2109,8 @@ function applyCatalogue(cat){
   /* cat／brand／model 一定要帶著走。少抄一個欄位，這一頁就會把商品目錄那一頁
      存好的類別和品牌整批洗掉 —— 因為 catalogueNow() 是照 ROWS 重新序列化的，
      讀進來時掉的欄位，寫回去就真的不見了（而那是全公司共用的一列）。 */
-  ROWS  = cat.rows.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:String(r.sku),
+  /* 認不得的欄位（促銷價、預估銷量、限量…，2026-09-29 公司的商品清單帶進來的）也要帶著走，理由同上 */
+  ROWS  = cat.rows.map(r=>({...r, name:r.name,spec:r.spec,color:r.color,sku:String(r.sku),
                             price:+r.price||0, cat:r.cat||'', brand:r.brand||'', model:r.model||''}));
   if(cat.model) MODEL = cat.model;
   if(cat.brand) BRAND = cat.brand;
@@ -2128,7 +2129,7 @@ function applyCatalogue(cat){
     不屬於任何一格。以前漏掉它，於是後台上傳完看得到、重整就沒了。
     存的都是 Storage 網址，不是圖本身。 */
 function catalogueNow(){
-  return { rows: ROWS.map(r=>({name:r.name,spec:r.spec,color:r.color,sku:r.sku,price:r.price,
+  return { rows: ROWS.map(r=>({...r, _i:undefined, name:r.name,spec:r.spec,color:r.color,sku:r.sku,price:r.price,
                               cat:r.cat||'', brand:r.brand||'', model:r.model||''})),
            model: MODEL, brand: BRAND, bimg: BIMG, img: IMG };
 }

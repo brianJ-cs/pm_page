@@ -295,8 +295,12 @@ const normBrand = v => String(v == null ? '' : v)
    標準的一種災難：開啟商品目錄 → 這一頁比資料先到 → 隨手改一個字 → 全公司的目錄沒了。 */
 let answered = false;
 
+/* ⚠️ 列上**不認得的欄位照樣留著**（2026-09-29）：公司的商品清單帶著預估銷量、限量、出清、廠商、
+   哪一波（est／limit／clearance／vendor／dmCode／wave），這一頁不顯示也不能丟 ——
+   以前這裡只回傳下面那八欄，打開這一頁存一次就把整份目錄的那幾欄洗掉。 */
 function normRow(r){
   return {
+    ...r,
     cat:   String(r.cat   || '').trim(),
     brand: String(r.brand || '').trim(),
     name:  String(r.name  || '').trim(),
@@ -304,7 +308,9 @@ function normRow(r){
     spec:  String(r.spec  || '').trim(),
     color: String(r.color || '').trim(),
     sku:   String(r.sku   == null ? '' : r.sku).trim(),
-    price: +r.price || 0
+    price: +r.price || 0,
+    /* 促銷價（DM 上的廣告價）：沒有就是空的，不是 0 —— 0 元促銷跟「還沒給促銷價」是兩件事 */
+    promo: r.promo === '' || r.promo == null ? '' : (+r.promo || 0)
   };
 }
 /* 讀的時候：列上有就用列上的，沒有才回頭問那兩張舊對照表。
@@ -425,12 +431,13 @@ function say(msg){
 const COLS = [
   ['cat',   '類別',   '10%'],
   ['brand', '品牌',   '10%'],
-  ['name',  '商品名字','20%'],
-  ['model', '型號',   '18%'],
+  ['name',  '商品名字','16%'],
+  ['model', '型號',   '13%'],
   ['spec',  '規格',   '10%'],
   ['color', '顏色',   '7%'],
   ['sku',   'SKU',    '11%'],
-  ['price', '市價',   '9%']
+  ['price', '市價',   '9%'],
+  ['promo', '促銷價', '9%']
 ];
 
 const UNCAT = '未分類';
@@ -683,8 +690,8 @@ function rowHTML(r, i){
         u ? `<button class="imgx" data-imgdel="${i}" title="拿掉這張圖">✕</button>` : ''}</td>`
     + COLS.map(c => {
     const f = c[0];
-    const cls = f === 'sku' ? ' sku' : f === 'price' ? ' price' : '';
-    const v = f === 'price' ? (r.price || '') : r[f];
+    const cls = f === 'sku' ? ' sku' : (f === 'price' || f === 'promo') ? ' price' : '';
+    const v = f === 'price' ? (r.price || '') : f === 'promo' ? (r.promo === '' || r.promo == null ? '' : r.promo) : r[f];
     return `<td><input class="${cls.trim()}" data-f="${f}" value="${esc(v)}"`
          + (f === 'sku' ? ' title="SKU 是這個商品的身分，缺了就存不進共用目錄"' : '')
          + '></td>';
@@ -699,7 +706,8 @@ $('#tbody').addEventListener('input', e => {
   const tr = inp.closest('tr'), i = +tr.dataset.i, r = CAT.rows[i];
   if (!r) return;
   const f = inp.dataset.f;
-  r[f] = f === 'price' ? (+String(inp.value).replace(/[^\d.-]/g, '') || 0) : inp.value.trim();
+  const num = () => +String(inp.value).replace(/[^\d.-]/g, '') || 0;
+  r[f] = f === 'price' ? num() : f === 'promo' ? (inp.value.trim() === '' ? '' : num()) : inp.value.trim();
   if (f === 'sku') tr.classList.toggle('bad', !r.sku);
   markDirty();
 });
