@@ -15321,6 +15321,78 @@ function rvDetailOf(cell){
            spec: [r.spec, r.color].filter(Boolean).join(' '), price: r.price === '' || r.price == null ? '' : +r.price, info: '' };
 }
 
+/* ==========================================================================
+   出稿的 SKU 明細（公司需求 26，2026-09-29）
+   照公司給的範本（「8月6波.csv」）排：兩列表頭，之後**一格一列** ——
+   1 ｜空｜SKU｜預估銷量｜原售價（市價）｜廣告價（促銷價）｜廠商｜空｜限量｜DM｜活動代碼｜出清
+   ・同一格挑了好幾個 SKU：**往右排**，每一個 SKU 一組同樣的十欄（使用者定的），第一組跟範本完全對齊。
+   ・第一欄一律 1（範本上就是；使用者：「just store 1」）。
+   ・系統裡沒有的欄位空著（預估銷量、廠商、限量、代碼、出清）—— 商品目錄那一列剛好有就帶上。
+   ・存成 **Big5**，跟範本一樣：公司那邊的 Excel／系統讀的是它。瀏覽器只會寫 UTF-8，
+     所以反查表是用 TextDecoder('big5') 自己建的（零相依，第一次匯出時建一次）。
+   ========================================================================== */
+const SKU_CSV_HEAD = [['SKU', '預估', '原售價', '廣告價', '廠商', '', '限量', '', '', '出清'],
+                      ['', '銷量', '', '', '', '', '', '', '', '']];
+function skuCsvText(plan){
+  const cat = catalogueOut() || {};
+  /* 共用目錄沒讀到的時候畫布挑的是寫死那一份（跟 rvDetailOf 同一條） */
+  const rows = (cat.rows || []).concat(CATALOGUE ? [] : DEMO_ROWS);
+  const bySku = new Map(rows.map(r => [String(r.sku), r]));
+  const v = x => x == null ? '' : String(x);
+  const group = sku => {
+    const r = bySku.get(String(sku)) || {};
+    return [v(sku), v(r.est), v(r.price === 0 ? '' : r.price), v(r.promo), v(r.vendor), '',
+            v(r.limit), 'DM', v(r.dmCode), r.clearance ? 'Y' : ''];
+  };
+  const lines = [];
+  let most = 1, skus = 0;
+  ['front', 'back'].forEach(side => collectBlocks(plan.layout[side], []).forEach(b => {
+    if (mhOnlyBlock(b)) return;
+    liveCells(b.sheet).forEach(c => {
+      const pk = pickedOf(c).map(String);
+      if (!pk.length) return;
+      most = Math.max(most, pk.length); skus += pk.length;
+      lines.push(['1', ''].concat(...pk.map(group)));
+    });
+  }));
+  const rep = h => ['', ''].concat(...Array.from({ length: most }, () => h));
+  const cell = x => /[",\r\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x;
+  const text = [rep(SKU_CSV_HEAD[0]), rep(SKU_CSV_HEAD[1])].concat(lines)
+    .map(r => r.map(cell).join(',')).join('\r\n') + '\r\n';
+  return { text, cells: lines.length, skus };
+}
+let big5Map = null;
+function big5Bytes(str){
+  if (!big5Map){
+    big5Map = new Map();
+    const dec = new TextDecoder('big5');
+    for (let a = 0x81; a <= 0xFE; a++) for (let b = 0x40; b <= 0xFE; b++){
+      if (b > 0x7E && b < 0xA1) continue;
+      const ch = dec.decode(new Uint8Array([a, b]));
+      if (ch.length === 1 && ch !== '\uFFFD' && !big5Map.has(ch)) big5Map.set(ch, [a, b]);
+    }
+  }
+  const out = [];
+  for (const ch of str){
+    const c = ch.codePointAt(0);
+    if (c < 0x80){ out.push(c); continue; }
+    const m = big5Map.get(ch);
+    if (m) out.push(m[0], m[1]); else out.push(0x3F);      // Big5 裡沒有的字（很少見）寫成 ?
+  }
+  return new Uint8Array(out);
+}
+function exportSkuCsv(plan){
+  if (!plan || !plan.layout) return;
+  const { text, cells, skus } = skuCsvText(plan);
+  if (!cells){ toast('還沒有挑好貨的格子，沒有東西可以匯出', 'info', 2400); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([big5Bytes(text)], { type: 'text/csv' }));
+  a.download = `${plan.name || '檔期'}_SKU明細.csv`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  toast(`已匯出 ${cells} 格、${skus} 個 SKU`, 'ok', 2400);
+}
+
 /** 按下去：先把版面和便利貼對齊（規則要數的便利貼在影本裡），一次送過去，讀回來重畫。 */
 async function rvRun(items, label, marks){
   const rs = reviewStore();
@@ -15696,6 +15768,16 @@ function paintRvPanel(){
   }
   if (f && f.finalDone && !f.published && isDesign)
     psec.appendChild(rvBtn('出稿完成', [['publish', { plan_id: pid }]], can('publish', { plan_id: pid }), true));
+  /* 出稿：SKU 明細（公司需求 26）。最終審核過了就誰都按得到，出稿完成之後也還在 */
+  if (f && f.finalDone){
+    const eb = document.createElement('button');
+    eb.type = 'button'; eb.className = 'rv-act';
+    eb.textContent = '匯出 SKU 明細（CSV）';
+    eb.title = '每一格一列：SKU、市價、促銷價；同一格好幾個 SKU 往右排。格式照公司給的範本（8月6波.csv）';
+    eb.addEventListener('click', () => exportSkuCsv(ctx.plan));
+    const w = document.createElement('div'); w.appendChild(eb);
+    psec.appendChild(w);
+  }
   if (psec.childNodes.length) psec.insertBefore(rvLine('整份 DM', '貼了便利貼的格子＝退件，其他＝通過'), psec.firstChild);
 
   if (!sec.childNodes.length && !psec.childNodes.length){
