@@ -519,6 +519,8 @@ body:not([data-view="boot"]) .boot-note{display:none}
 .deleg-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 16px;align-items:end;margin-top:12px}
 .deleg-form .actwrap{margin-bottom:10px}
 .settings-form .field > span small{display:block;color:var(--ink-faint);font-size:12px}
+.settings-form .check-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink)}
+.settings-form .check-row input{width:18px;min-height:0;height:18px;margin:0}
 .bell-wrap{position:relative;margin-left:auto}
 .bell{position:relative;display:grid;place-items:center;width:34px;height:32px;border-radius:var(--r-ctl);border:1px solid var(--glass-edge);background:var(--glass);cursor:pointer;color:var(--desk-ink)}
 .bell:hover,.bell[aria-expanded="true"]{background:var(--glass-hover)}
@@ -1113,7 +1115,7 @@ body{background:color-mix(in srgb,var(--role) 7%,var(--chrome))}
       <button type="button" class="btn btn-quiet" data-ff="一校">到一校</button>
       <button type="button" class="btn btn-quiet" data-ff="一改">到一改</button>
       <button type="button" class="btn btn-quiet" data-ff="二校">到二校（PM）</button>
-      <button type="button" class="btn btn-quiet" data-ff="二校主管">到二校主管審核</button>
+      <button type="button" class="btn btn-quiet" data-ff="二校主管" title="設定表開了「二校主管審核」才有這一站；關著的時候跟「到二改」一樣">到二校主管審核（開關開著時）</button>
       <button type="button" class="btn btn-quiet" data-ff="二改">到二改</button>
       <button type="button" class="btn btn-quiet" data-ff="蓋章確認">到蓋章確認（PM 蓋章）</button>
       <button type="button" class="btn btn-quiet" data-ff="蓋章輪主管">到蓋章輪主管審核</button>
@@ -1136,8 +1138,8 @@ body{background:color-mix(in srgb,var(--role) 7%,var(--chrome))}
 <div class="toast" id="toast" role="status" hidden></div>
 
 <script src="seed.js"></script>
-<script src="rules.js"></script>
-<script src="store.js"></script>
+<script src="../../review-rules.js"></script>
+<script src="../../review-store.js"></script>
 <script>
 (function () {
 'use strict';
@@ -1453,7 +1455,7 @@ function dutyRows(id) {
   const rows = [...groups.values()].sort((a, b) => a.top - b.top).map(g => {
     let note = '';
     if (g.levels.length > 1) note = `在這些分類身兼多層，動作一律算${R.LEVEL_NAME[g.top]}。`;
-    else if (g.top === 1) note = '最高主管不參加蓋章後的主管審核。';
+    else if (g.top === 1) note = '處長只在蓋章之後的主管審核出現（課長 → 部長 → 處長的最後一層），不參加二校。';
     return `<tr><th>${esc(levelLabel(g.levels))}</th><td>${esc(g.cats.join('、'))}${note ? `<span class="note">${esc(note)}</span>` : ''}</td></tr>`;
   });
   for (const f of id.finalSeats) rows.push(`<tr><th>最終審核</th><td>第 ${f.order} 關：${esc(f.label)}<span class="note">整份 DM 送最終審核時輪到你。</span></td></tr>`);
@@ -1590,6 +1592,7 @@ function myTurnIn(v, A) {
   if (f && f.current && f.seats[f.current - 1].id === A.id && f.seats[f.current - 1].state === 'todo') return true;
   return v.cells.some(c => R.mgrOf(v, c, 3) === A.id && R.mgrPendingLevel(v, c) === 3) || v.cells.some(c => R.mgrOf(v, c, 2) === A.id && (R.mgrPendingLevel(v, c) === 2 || R.mgr3PendingLevel(v, c) === 2))
     || v.cells.some(c => R.mgrOf(v, c, 3) === A.id && R.mgr3PendingLevel(v, c) === 3)
+    || v.cells.some(c => R.mgrOf(v, c, 1) === A.id && R.mgr3PendingLevel(v, c) === 1)
     || (A.role === 'design' && v.cells.some(c => { const cy = R.cycleOf(v, c); return cy && (cy.state === 'judge' || cy.state === 'fix'); }));
 }
 function paintEdBar(v, A) {
@@ -1891,7 +1894,7 @@ function blockActions(v, A, b) {
   return `<div class="pm-chips" aria-label="這個版位每位 PM 的一校">${chips}</div>${btns}`;
 }
 
-/* 二校那一條審核鏈：PM → 課長 → 部長，每一段是誰、做到哪。
+/* 二校那一條審核鏈：PM → 課長 → 部長（設定表開了「二校主管審核」才有後面兩段），每一段是誰、做到哪。
    順序是真的順序（前一關完成才輪到下一關），所以用一排往右走的格子畫。 */
 const CHAIN_TEXT = {
   done: () => '已完成', skip: () => '自動略過', todo: x => `待審 ${x.pending} 格`,
@@ -1906,6 +1909,10 @@ function chainHTML(v, b) {
     const allDone = people.every(p => p.state === 'done' || p.state === 'skip');
     return `<li class="cstep${cur ? ' cur' : ''}${allDone ? ' fin' : ''}"><b>${esc(label)}</b>${people.map(p => `<span class="cp ${p.state}">${esc(p.name)}<i>${esc(p.text)}</i></span>`).join('')}</li>`;
   };
+  /* 開關關著（預設）：二校只有 PM，部長只看進度 —— 那兩段畫成一格「主管不審」，
+     不是整個拿掉：看的人要知道這是設定，不是漏了 */
+  if (!R.r2Managers(v)) return `<ol class="chain" aria-label="二校審核鏈">${step('PM', pms, !ch.pmDone)}`
+    + `<li class="cstep fin"><b>主管</b><span class="cp skip">不審<i>設定表：二校主管審核關著，部長只看進度</i></span></li></ol>`;
   return `<ol class="chain" aria-label="二校審核鏈">${step('PM', pms, !ch.pmDone)}${step('課長', mg(ch.mgr3), ch.pmDone && !ch.gate2)}${step('部長', mg(ch.gate2 ? ch.mgr2 : ch.mgr2.map(x => Object.assign(x, { state: x.state === 'skip' ? 'skip' : 'wait' }))), ch.gate2)}</ol>`;
 }
 
@@ -1917,7 +1924,7 @@ function flowHTML(v, A, part) {
   const pid = v.plan.id;
   const people = (xs, L) => xs.map(x => {
     let text = CHAIN_TEXT[x.state](x);
-    if (x.state === 'wait') text = x.gate ? '等前一關' : (L === 3 ? '等他管的格子蓋齊' : '等課長那一關');
+    if (x.state === 'wait') text = x.gate ? '等前一關' : (L === 3 ? '等他管的格子蓋齊' : L === 2 ? '等課長那一關' : '等部長那一關');
     return { name: x.name, state: x.state, text };
   });
   const step = (label, ppl, cur) => {
@@ -1925,13 +1932,14 @@ function flowHTML(v, A, part) {
     return `<li class="cstep${cur ? ' cur' : ''}${allDone ? ' fin' : ''}"><b>${esc(label)}</b>${ppl.map(p => `<span class="cp ${p.state}">${esc(p.name)}<i>${esc(p.text)}</i></span>`).join('')}</li>`;
   };
   const stampDone = f.inR3 === f.total && f.stamped === f.total;
-  const m3 = people(f.mgr3, 3), m2 = people(f.mgr2, 2);
+  const m3 = people(f.mgr3, 3), m2 = people(f.mgr2, 2), m1 = people(f.mgr1 || [], 1);
   const cur3 = !f.confirmed;
   const row1 = `<ol class="chain" aria-label="蓋章輪">
     ${step('PM 蓋章', [{ name: `${f.stamped}/${f.total} 格`, state: stampDone ? 'done' : 'todo', text: f.inR3 < f.total ? `還有 ${f.total - f.inR3} 格在前面的關` : (stampDone ? '都蓋了' : '蓋章中') }], cur3 && !stampDone)}
     ${step('課長', m3, cur3 && m3.some(p => p.state === 'todo' || p.state === 'back'))}
     ${step('部長', m2, cur3 && m2.some(p => p.state === 'todo' || p.state === 'back'))}
-    ${step('商品部確認', [{ name: f.confirmed ? '完成' : '還沒', state: f.confirmed ? 'done' : 'wait', text: f.confirmed ? (f.sent ? '已送審稿' : `等${f.creator.name}送審稿`) : '全部過部長才算' }], f.confirmed && !f.sent)}
+    ${step('處長', m1, cur3 && m1.some(p => p.state === 'todo' || p.state === 'back'))}
+    ${step('商品部確認', [{ name: f.confirmed ? '完成' : '還沒', state: f.confirmed ? 'done' : 'wait', text: f.confirmed ? (f.sent ? '已送審稿' : `等${f.creator.name}送審稿`) : '全部過處長才算' }], f.confirmed && !f.sent)}
   </ol>`;
   const row2 = `<ol class="chain" aria-label="審稿與出稿">
     ${f.seats.map(s => step(s.label, [{ name: s.name, state: s.state, text: s.state === 'done' ? '通過' : s.state === 'back' ? '退件修改中' : s.state === 'todo' ? '審稿中' : '等前一關' }], f.current === s.k)).join('')}
@@ -1940,7 +1948,7 @@ function flowHTML(v, A, part) {
 
   // 我在這一條上能按的
   const btns = [];
-  for (const L of [3, 2]) {
+  for (const L of [3, 2, 1]) {
     const pend = v.cells.filter(c => R.mgrOf(v, c, L) === A.id && R.mgr3PendingLevel(v, c) === L);
     if (!pend.length) continue;
     const rej = pend.filter(c => R.openOn(v, c, ['reject'], A.id).length).length;
@@ -2003,7 +2011,7 @@ async function showDelegates() {
 
 /* ---------------- 最終審核者設定表（2.3） ---------------- */
 const SETTING_FIELDS = [
-  ['exec_id', '商品處協理', '最終審核第 1 關。預設帶分類表裡的最高主管；不只一位時一定要選。'],
+  ['exec_id', '商品處協理', '最終審核第 1 關。一定要指定：分類表第四欄（處主管）是處長，不是協理。'],
   ['mkt_exec_id', '行銷處協理', '最終審核第 2 關。'],
   ['lawyer_id', '律師', '最終審核第 3 關。'],
   ['design_lead_id', '設計主管', '設計相關的延遲通知會副本給他。'],
@@ -2016,7 +2024,7 @@ async function showSettings() {
   if (seq !== loadSeq) return;
   if (isKick(d)) return kicked(d);
   const canEdit = me.member.role === 'mkt';
-  const val = k => (k === 'exec_id' ? (d.settings.exec_id || d.effectiveExec || '') : (d.settings[k] || ''));
+  const val = k => d.settings[k] || '';
   $('main').innerHTML = `<div class="page"><article class="paper">
     <h1>最終審核者設定表</h1>
     <p class="sub">${canEdit ? '由行銷維護。沒填完之前，最終審核送不出去。' : '由行銷維護，你只能看。'}</p>
@@ -2025,6 +2033,8 @@ async function showSettings() {
       ${SETTING_FIELDS.map(([k, label, note]) => `<label class="field"><span>${esc(label)}<small>${esc(note)}</small></span>
         <select name="${esc(k)}" ${canEdit ? '' : 'disabled'}><option value="">（還沒指定）</option>
         ${d.members.map(m => `<option value="${esc(m.employee_id)}" ${val(k) === m.employee_id ? 'selected' : ''}>${esc(m.name)}　${esc(m.title)}　${esc(m.department)}</option>`).join('')}</select></label>`).join('')}
+      <label class="field check"><span>二校主管審核<small>開＝PM 審完之後還要課長 → 部長審，可以退件。關（預設）＝每位 PM 按了二校完成就進二改，部長只看進度。全系統一個設定。</small></span>
+        <span class="check-row"><input type="checkbox" name="r2_managers" ${d.settings.r2_managers ? 'checked' : ''} ${canEdit ? '' : 'disabled'}> 二校要主管審核</span></label>
       ${canEdit ? '<div class="actwrap"><button type="submit" class="btn btn-primary">儲存</button></div>' : ''}
     </form>
   </article></div>`;
@@ -2104,10 +2114,19 @@ function cellPanel(v, A, c) {
         <dt>商標</dt><dd>${esc(c.detail.brand)} 的商標，已帶入</dd></dl>
         <h3 style="margin-top:10px">商品圖</h3><ul class="imgs">${imgs.length ? imgs.map(f => `<li class="num">${esc(f)}</li>`).join('') : `<li class="missing">雲端上找不到 ${esc(c.detail.sku)} 的圖，要自己補</li>`}
         ${giftImgs.map(x => x.f.length ? `<li class="num">贈品：${esc(x.f.join('、'))}</li>` : `<li class="missing">贈品 ${esc(x.g.sku)} 缺圖</li>`).join('')}</ul>`;
-      if (c.stage === '製作') makeSec += actBtn('製作完成', 'make.submit', { cell_id: c.id }, R.can(v, A, 'make.submit', { cell_id: c.id }));
+      if (c.stage === '製作') {
+        // 先標好了（標了還能取消），或直接送出這一格（2026-09-28：跟 PM 的一校同一種做法）
+        makeSec += actBtn(c.madeMark ? '取消「標好了」' : '標好了（先不送）', 'make.mark', { cell_id: c.id, done: !c.madeMark }, R.can(v, A, 'make.mark', { cell_id: c.id, done: !c.madeMark }), { quiet: !!c.madeMark });
+        makeSec += actBtn('製作完成（送出這一格）', 'make.submit', { cell_id: c.id }, R.can(v, A, 'make.submit', { cell_id: c.id }));
+      }
     }
     if (c.made) makeSec += `<p class="hint" style="margin-top:8px">${esc(memberName(c.made.by))} ${esc(fmtWhen(c.made.at))} 製作完成</p>`;
     out.push(makeSec + `</div>`);
+  }
+  // 一改／二改：設計一格一格標「改好了」，標了還能取消；每一格都標了才送得出去
+  if (A.role === 'design' && (b.phase === '一改' || b.phase === '二改')) {
+    const on = !!(c.fixMark && c.fixMark[b.phase]);
+    out.push(`<div class="sec"><h3>${b.phase}</h3>${actBtn(on ? '取消「改好了」' : '改好了', 'fix.mark', { cell_id: c.id, done: !on }, R.can(v, A, 'fix.mark', { cell_id: c.id, done: !on }), { quiet: on })}</div>`);
   }
 
   // 一校：這一格的 PM 審完按「審核完成」
@@ -2250,6 +2269,8 @@ function scrollToSel() {
 const OK_MSG = {
   'detail.submit': () => '提明細已送出，交給設計',
   'make.submit': () => '製作完成，已送到 PM 的一校',
+  'make.mark': () => '好了',
+  'fix.mark': () => '好了',
   'review.mark': p => p.done ? '已標成審核完成' : '已取消審核完成',
   'block.review1': () => '一校完成已送出',
   'block.fix1': () => '一改完成，版位進入二校',
@@ -2536,6 +2557,7 @@ function wire() {
     } else if (f.dataset.form === 'settings') {
       const patch = {};
       for (const el of f.querySelectorAll('select')) patch[el.name] = el.value;
+      patch.r2_managers = !!f.elements.r2_managers.checked;
       await doAct('settings.save', { patch }, btn);
     } else if (f.dataset.form === 'reply') {
       const text = f.elements.text.value;

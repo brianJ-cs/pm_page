@@ -49,13 +49,17 @@ create table if not exists products (
 -- ---------- 系統自己的設定 ----------
 create table if not exists reviewer_settings (          -- 最終審核者設定表（2.3），只有一列
   id             int primary key default 1 check (id = 1),
-  exec_id        text references members(employee_id),  -- 空＝用分類表的 executive_id（只有一位時）
+  r2_managers    boolean not null default false,         -- 二校要不要主管審（全系統一個開關，預設關）
+  exec_id        text references members(employee_id),  -- 商品處協理（一律指定；分類表的 executive_id 是處長）
   mkt_exec_id    text references members(employee_id),
   lawyer_id      text references members(employee_id),
   design_lead_id text references members(employee_id),
   updated_by     text,
   updated_at     timestamptz default now()
 );
+
+-- 表已經建過的專案補欄位（create table if not exists 不會加新欄位）
+alter table reviewer_settings add column if not exists r2_managers boolean not null default false;
 
 create table if not exists delegations (                -- 職代（8.2）
   id            text primary key,

@@ -12,6 +12,8 @@
  *   ・部長兼機上盒PM：機上盒的 PM、課長、部長都是她（兩層都略過）
  *   ・版位二有四位 PM、兩位課長（3C課長兼筆電PM、部長兼機上盒PM）
  *   ・冷氣PM請假中，由她的課長家電課長代理（他代蓋的章仍算 PM 那一層）
+ *   ・商品處處長：分類表第四欄（處主管，L1），蓋章之後課長 → 部長 → 處長的最後一層
+ *   ・商品處協理：**不是**那四層裡的一層，只在最終審核第一關出現（設定表指定）
  *   ・行銷處協理、律師：資料需求書的 role 只准 design／pm／mkt，先填 mkt，部門寫清楚
  *   ・離職PM：已離職（is_active=false），登得進 Google 但進不了系統
  *
@@ -26,6 +28,7 @@
   const members = [
     // 商品端（role＝pm；層級不在這裡，在分類對照表裡）
     { employee_id: 'E10001', name: '商品處協理', email: 'exec@example.com', role: 'pm',     department: '商品處',       title: '商品處協理', is_active: true },
+    { employee_id: 'E10002', name: '商品處處長', email: 'division.head@example.com', role: 'pm', department: '商品處',   title: '商品處主管', is_active: true },
     { employee_id: 'E10056', name: '部長兼機上盒PM', email: 'director@example.com',  role: 'pm',     department: '商品部',       title: '商品部主管', is_active: true },
     { employee_id: 'E10118', name: '家電課長', email: 'appliance.manager@example.com',      role: 'pm',     department: '商品部 家電課', title: '商品課長',   is_active: true },
     { employee_id: 'E10131', name: '3C課長兼筆電PM', email: '3c.manager@example.com',   role: 'pm',     department: '商品部 3C課',  title: '商品課長',   is_active: true },
@@ -59,14 +62,15 @@
     executive_id, executive_name: nameOf(executive_id),
   });
 
+  /* 第四欄（executive_id）＝處長。公司那一頁上整個大電只有一位處主管 */
   const assignments = [
-    cat('101', '冰箱',   'E10234', 'E10118', 'E10056', 'E10001'),
-    cat('102', '洗衣機', 'E10234', 'E10118', 'E10056', 'E10001'),
-    cat('103', '冷氣',   'E10245', 'E10118', 'E10056', 'E10001'),
-    cat('201', '電視',   'E10252', 'E10131', 'E10056', 'E10001'),
-    cat('202', '筆電',   'E10131', 'E10131', 'E10056', 'E10001'),
-    cat('203', '手機',   'E10260', 'E10131', 'E10056', 'E10001'),
-    cat('111', '機上盒', 'E10056', 'E10056', 'E10056', 'E10001'),
+    cat('101', '冰箱',   'E10234', 'E10118', 'E10056', 'E10002'),
+    cat('102', '洗衣機', 'E10234', 'E10118', 'E10056', 'E10002'),
+    cat('103', '冷氣',   'E10245', 'E10118', 'E10056', 'E10002'),
+    cat('201', '電視',   'E10252', 'E10131', 'E10056', 'E10002'),
+    cat('202', '筆電',   'E10131', 'E10131', 'E10056', 'E10002'),
+    cat('203', '手機',   'E10260', 'E10131', 'E10056', 'E10002'),
+    cat('111', '機上盒', 'E10056', 'E10056', 'E10056', 'E10002'),
   ];
 
   /* 商品（需求書 3.4 的一小部分欄位）。sku **不得含空格**（實作指南 2.4）：
@@ -115,7 +119,8 @@
 
   /* 最終審核者設定表（實作指南 2.3），行銷維護。 */
   const reviewerSettings = {
-    exec_id:        'E10001',   // 商品處協理（預設帶分類表的 executive_id）
+    r2_managers:    false,      // 二校要不要主管審（全系統一個開關，預設關：PM 審完就進二改）
+    exec_id:        'E10001',   // 商品處協理（一律指定；分類表的 executive_id 是處長，不是他）
     mkt_exec_id:    'E30001',   // 行銷處協理
     lawyer_id:      'E40003',   // 律師
     design_lead_id: 'E20002',   // 設計主管：設計相關延遲通知的 CC 對象

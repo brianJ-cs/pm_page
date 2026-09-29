@@ -1,4 +1,8 @@
-/* 審核系統雛形的資料層。
+/* 審核系統的資料層（主程式 design_and_PM.html 和雛形 demo/review 共用這一支）。
+ *
+ * 兩邊各用各的一份本機資料庫（REVIEW_BACKEND.dbKey）：雛形是它自己的假檔期，
+ * 主程式的檔期、版位、格子是主程式自己長出來的 —— 混在同一份裡，雛形「重設」一按，
+ * 主程式的審核紀錄就一起沒了。
  *
  * 畫面**只**透過 window.ReviewStore 做事，而且每一支都是非同步的 ——
  * 本機模式也一樣，所以接上 Supabase 的時候畫面一行都不用改。
@@ -30,14 +34,25 @@
 
   const R = window.ReviewRules, Seed = window.ReviewSeed;
   const cfg = window.REVIEW_BACKEND || { mode: 'local' };
+  /* 沒有假資料（主程式不載 seed.js）就從一份空的開始：人員、分類表由主程式
+     用 dev.pushReference() 送進來（扮演全國電子推過來的那一份），
+     檔期、版位、格子由主程式照自己的版面生。 */
+  const emptyDb = () => ({
+    members: [], assignments: [], products: [], imageFiles: [], reviewerSettings: {}, delegations: [],
+    plans: [], blocks: [], cells: [], notes: [], traces: {}, notifications: [], announcements: [], support: {},
+  });
+  const seedDb = t => (Seed ? Seed.build(t) : emptyDb());
 
   /* ======================================================================
      本機模式：資料存在這台瀏覽器，伺服器端那一半由這裡扮演
      ====================================================================== */
-  const DB_KEY = 'review_demo_db_v5';
-  const SESSION_KEY = 'review_demo_session_v1';
-  const OTHER_KEY = 'review_demo_accounts_v1';   // 自己打過的 email，選帳號時像 Google 一樣記著
-  const CLOCK_KEY = 'review_demo_clock_v1';      // 撥時鐘：跟真的時間差幾毫秒
+  /* 用自己的資料庫就連登入和時鐘一起分開：雛形和主程式在同一台電腦上（直接開檔案的話
+     還是同一個來源），共用一個登入的話，在雛形換個人，主程式那邊的「我」就跟著變了。 */
+  const DB_KEY = cfg.dbKey || 'review_demo_db_v5';
+  const K = name => (cfg.dbKey ? cfg.dbKey + ':' : 'review_demo_') + name;
+  const SESSION_KEY = K('session_v1');
+  const OTHER_KEY = K('accounts_v1');   // 自己打過的 email，選帳號時像 Google 一樣記著
+  const CLOCK_KEY = K('clock_v1');      // 撥時鐘：跟真的時間差幾毫秒
   const DB_V = 5;
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -56,7 +71,7 @@
     const d = readJSON(DB_KEY);
     if (d && d.v === DB_V) return d;
     try { localStorage.removeItem('review_demo_db_v1'); localStorage.removeItem('review_demo_db_v2'); localStorage.removeItem('review_demo_db_v3'); localStorage.removeItem('review_demo_db_v4'); } catch { }   // 舊版的形狀，丟掉
-    const fresh = Object.assign({ v: DB_V, audit: [] }, Seed.build(now()));
+    const fresh = Object.assign({ v: DB_V, audit: [] }, seedDb(now()));
     writeJSON(DB_KEY, fresh);
     return fresh;
   }
@@ -239,6 +254,20 @@
         return { ok: true };
       },
 
+      /* 一次做好幾個動作（整塊版位按「提明細完成」「製作完成」「蓋章」）。
+         一次來回、一個一個照規則判斷，結果照順序回傳 —— 被擋下來的那幾個講得出為什麼。
+         接上之後是 Edge Function 的 { op:'actMany', items }，同一個交易裡跑完。 */
+      async actMany(items) {
+        await latency(180, 380);
+        const d = loadDb();
+        const r = requireMember(d);
+        if (!r.ok) return r;
+        const t = now();
+        const results = (items || []).map(([action, payload]) => R.act(d, r.member.employee_id, action, payload || {}, t));
+        saveDb(d);
+        return { ok: true, results };
+      },
+
       /* 最終審核者設定表（2.3）：誰都看得到，行銷才改得動（改走 act('settings.save')） */
       async settings() {
         await latency(80, 160);
@@ -334,37 +363,57 @@
 
       clockOffset,
       shiftClock(ms) { writeJSON(CLOCK_KEY, ms ? clockOffset() + ms : 0); },
+      /* 主程式有自己撥得動的時鐘（🛠 → 時鐘），延遲要照它算：撥一次就把這邊對齊成同一個差 */
+      setClockOffset(ms) { writeJSON(CLOCK_KEY, +ms || 0); },
 
       /* 快轉：把整份檔期推到某一關，不必每次從頭點。照「每個人都按了」的樣子補資料，
          所以快轉之後的畫面跟真的一路按過來的一樣（便利貼、草稿版、誰按的都有）。 */
-      fastForward(planId, target) {
+      /* opts（主程式用）：designer＝用哪一位設計按製作完成；detailFor(cell)＝這一格填什麼商品資料
+         （主程式照它自己挑好的貨給）。雛形不帶 opts，照它的假資料走。
+         品類不在分類表上（沒有負責人）的格子不動 —— 它們本來就送不進審核。 */
+      fastForward(planId, target, opts) {
+        opts = opts || {};
         const d = loadDb();
         // 快轉的站：前四站直接補資料；二校之後改用**真的動作**（R.act）照每個人按的樣子走，
         // 所以略過、退件、紀錄都跟一路點過來的一模一樣。
+        // 「二校主管」那一站只有設定表開了「二校主管審核」才有意義；關著的時候 PM 按完二校就進二改。
         const ORDER = ['提明細', '製作', '一校', '一改', '二校', '二校主管', '二改', '蓋章確認', '蓋章輪主管', '商品部確認完成', '審稿', '出稿'];
         const T = ORDER.indexOf(target);
         const t = now();
         const iso = new Date(t).toISOString();
-        if (target === '提明細') {
-          const fresh = Seed.build(t);
+        if (target === '提明細' && Seed) {
+          const fresh = seedDb(t);
           d.blocks = d.blocks.filter(b => b.plan_id !== planId).concat(fresh.blocks.filter(b => b.plan_id === planId));
           d.cells = d.cells.filter(c => c.plan_id !== planId).concat(fresh.cells.filter(c => c.plan_id === planId));
           d.notes = d.notes.filter(n => n.plan_id !== planId);
           d.traces = {};
+        } else if (target === '提明細') {
+          // 沒有假資料可以重生：同一批格子原地放回剛開始的樣子（id 不換，主程式那邊的格子對得上）
+          for (const b of d.blocks) if (b.plan_id === planId) { b.phase = null; b.pm_done = {}; b.masthead_ok = false; b.mh2_ok = false; delete b.r2; }
+          for (const c of d.cells) if (c.plan_id === planId) {
+            for (const k of ['r2', 'r3', 'fin', 'fix2', 'version', 'hist']) delete c[k];
+            Object.assign(c, { stage: '提明細', detail: null, note_text: '', gifts: [], reviewed: false, fix: false, submitted: null, made: null });
+          }
+          d.notes = d.notes.filter(n => n.plan_id !== planId);
         }
         const cells = d.cells.filter(c => c.plan_id === planId);
         const blocks = d.blocks.filter(x => x.plan_id === planId);
         if (target === '提明細') { const pl = d.plans.find(p => p.id === planId); delete pl.final; delete pl.published; delete pl.flags; d.notifications = []; d.sent = {}; d.lateNow = {}; }
         const owner = c => R.ownerOf(d, c);
-        const designer = 'E20011';
+        const designer = opts.designer || (Seed ? 'E20011'
+          : ((d.members.find(m => m.role === 'design' && m.is_active !== false) || {}).employee_id));
         const hist = (c, who, what) => (c.hist = c.hist || []).push({ at: iso, who, name: (d.members.find(m => m.employee_id === who) || {}).name || '系統', what, detail: '快轉' });
         for (const c of cells) {
+          if (!owner(c)) continue;
           if (T >= 1 && c.stage === '提明細') {
-            const prods = d.products.filter(x => x.category_id === c.category_id);
-            const pr = prods[(c.idx - 1) % prods.length];
-            c.detail = { sku: pr.sku, brand: pr.brand, name: pr.name, spec: pr.spec, price: pr.price, info: pr.info };
-            if (c.idx === 1 && c.category_id === '103') c.gifts = [{ sku: 'GF-FAN-12', name: '聲寶 12 吋桌扇' }];
-            if (c.idx === 1 && c.category_id === '203') c.gifts = [{ sku: 'GF-BUDS', name: 'Galaxy Buds FE' }];
+            if (opts.detailFor) c.detail = opts.detailFor(c);
+            else {
+              const prods = d.products.filter(x => x.category_id === c.category_id);
+              const pr = prods[(c.idx - 1) % prods.length];
+              c.detail = { sku: pr.sku, brand: pr.brand, name: pr.name, spec: pr.spec, price: pr.price, info: pr.info };
+            }
+            if (Seed && c.idx === 1 && c.category_id === '103') c.gifts = [{ sku: 'GF-FAN-12', name: '聲寶 12 吋桌扇' }];
+            if (Seed && c.idx === 1 && c.category_id === '203') c.gifts = [{ sku: 'GF-BUDS', name: 'Galaxy Buds FE' }];
             c.stage = '製作';
             c.submitted = { by: owner(c), as: owner(c), acting: false, at: iso };
             hist(c, owner(c), '提明細完成');
@@ -376,6 +425,9 @@
             d.traces[c.detail.sku] = { official: old ? old.official : null, draft: { v: (old && old.draft ? old.draft.v : 0) + 1, at: iso, plan_id: planId, cell_id: c.id, detail: Object.assign({}, c.detail), gifts: c.gifts.slice(), images: R.matchImages(c.detail.sku, d.imageFiles) } };
             hist(c, designer, '製作完成');
           }
+          /* 審核開始後才加的格子（版位已經過了一校）：快轉要替 PM 按「補完一校」，
+             不然版位永遠等它，快轉推不過去（規則的 R.behind） */
+          if (T >= 3 && R.behind(d, c) && c.stage === '一校') R.act(d, owner(c), 'review.late', { cell_id: c.id }, t);
         }
         const SAMPLE = [
           ['修改', c => `價格改成活動價 ${Math.max(0, (+c.detail.price || 0) - 1000).toLocaleString()}`],
@@ -387,7 +439,8 @@
           if (T >= 3 && !b.phase) {
             bc.forEach((c, i) => {
               c.reviewed = true;
-              if (i % 3 === 1 && !d.notes.some(n => n.cell_id === c.id)) {
+              // 假的一校意見只給雛形：主程式的便利貼正本在它自己那邊，這裡生的它打不了勾（一改就永遠送不出去）
+              if (Seed && i % 3 === 1 && owner(c) && !d.notes.some(n => n.cell_id === c.id)) {
                 const [kind, text] = SAMPLE[i % SAMPLE.length];
                 const m = d.members.find(x => x.employee_id === owner(c));
                 d.notes.push({ id: 'n' + t.toString(36) + i + b.id, plan_id: planId, block_id: b.id, cell_id: c.id, author: m.employee_id, author_name: m.name, author_role: 'pm', kind, text: text(c), stage: '一校', purpose: '一校', level: null, ctx: '', status: 'open', created_at: iso, replies: [], resolved_by: null, resolved_at: null });
@@ -414,7 +467,7 @@
           }
           if (T >= 6 && b.phase === '二校') {
             for (const L of [3, 2]) {
-              for (const mid of new Set(bc.map(c => R.mgrOf(d, c, L)))) R.act(d, mid, 'mgr.submit', { block_id: b.id, level: L }, t);
+              for (const mid of new Set(bc.map(c => R.mgrOf(d, c, L)).filter(Boolean))) R.act(d, mid, 'mgr.submit', { block_id: b.id, level: L }, t);
             }
           }
         }
@@ -423,10 +476,11 @@
           if (b.phase !== '二改') continue;
           for (const n of d.notes) if (n.block_id === b.id && n.status === 'open') { n.status = 'resolved'; n.resolved_by = designer; n.resolved_at = iso; }
           R.act(d, designer, 'block.mh2', { block_id: b.id, ok: true }, t);
+          for (const c of cells.filter(x => x.block_id === b.id)) R.act(d, designer, 'fix.mark', { cell_id: c.id, done: true }, t);
           R.act(d, designer, 'block.fix2', { block_id: b.id }, t);
         }
-        if (T >= 8) for (const c of cells) if (c.r3 && !c.r3.stamp && !c.r3.cycle) R.act(d, owner(c), 'stamp', { cell_id: c.id }, t);
-        if (T >= 9) for (const L of [3, 2]) for (const mid of new Set(cells.map(c => R.mgrOf(d, c, L)))) R.act(d, mid, 'mgr3.submit', { plan_id: planId, level: L }, t);
+        if (T >= 8) for (const c of cells) if (owner(c) && c.r3 && !c.r3.stamp && !c.r3.cycle) R.act(d, owner(c), 'stamp', { cell_id: c.id }, t);
+        if (T >= 9) for (const L of [3, 2, 1]) for (const mid of new Set(cells.map(c => R.mgrOf(d, c, L)).filter(Boolean))) R.act(d, mid, 'mgr3.submit', { plan_id: planId, level: L }, t);
         if (T >= 10 && plan.final && !plan.final.sent) R.act(d, plan.created_by, 'final.send', { plan_id: planId }, t);
         if (T >= 11) for (let k = 0; k < 3; k++) { const st = R.currentSeat(plan); if (st) R.act(d, R.seatReviewer(d, st), 'final.submit', { plan_id: planId }, t); }
         R.pushAudit(d, { what: '快轉（測試）', target: `檔期 ${planId}`, result: '成功', detail: `到${target}` }, t);
@@ -446,6 +500,20 @@
         return bosses.length;
       },
       allAudit() { return loadDb().audit.slice().reverse(); },
+
+      /* 扮演「全國電子推過來」：人員和分類對照表整份換掉（需求書 3.2、3.3 本來就是整份推）。
+         最終審核者設定表只在還是空的時候填 —— 那一張是行銷在系統裡維護的，
+         推一次就蓋掉他改過的話，他會以為自己沒存到。
+         接上 Supabase 之後這一支不存在（dev 整段是 null），資料由後端的介接寫進去。 */
+      pushReference(ref) {
+        const d = loadDb();
+        if (ref.members) d.members = ref.members.map(m => Object.assign({}, m));
+        if (ref.assignments) d.assignments = ref.assignments.map(a => Object.assign({}, a));
+        if (ref.reviewerSettings && !Object.keys(d.reviewerSettings || {}).length) d.reviewerSettings = Object.assign({}, ref.reviewerSettings);
+        saveDb(d);
+      },
+      /* 這台瀏覽器現在是以誰的身分登入（主程式開機時比對：同一個人就不再記一筆登入） */
+      sessionEmail() { const s = session(); return s ? s.email : null; },
       reset() { drop(DB_KEY); drop(OTHER_KEY); drop(SESSION_KEY); drop(CLOCK_KEY); },
     },
   };
@@ -470,6 +538,7 @@
      api.plans()         同上（{ op:'plans' }）
      api.plan(id)        同上（{ op:'plan', id }）→ rules.planView
      api.act(a, p)       同上（{ op:'act', action:a, payload:p }）→ rules.act
+     api.actMany(items)  同上（{ op:'actMany', items }）→ 一個交易裡照順序跑 rules.act
                          Edge Function 用 JWT 認人，讀資料、跑 rules.js、寫回去，
                          整段包在一個交易裡（兩個人同時按同一個版位的一校完成，只能有一個人讓它換關）
      api.progress(id)    同上（{ op:'progress', id }）→ rules.categoryProgress
@@ -493,7 +562,7 @@
     },
     api: {
       publicBoard: notWired('api.publicBoard'), whoami: notWired('api.whoami'), myLogins: notWired('api.myLogins'),
-      todo: notWired('api.todo'), plans: notWired('api.plans'), plan: notWired('api.plan'), act: notWired('api.act'),
+      todo: notWired('api.todo'), plans: notWired('api.plans'), plan: notWired('api.plan'), act: notWired('api.act'), actMany: notWired('api.actMany'),
       progress: notWired('api.progress'), notifications: notWired('api.notifications'), markRead: notWired('api.markRead'),
       settings: notWired('api.settings'), delegations: notWired('api.delegations'),
     },

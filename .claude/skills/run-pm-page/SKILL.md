@@ -30,6 +30,7 @@ description: 跑起來看 —— 用 headless Chrome 開 pm_page 那幾支單檔
 | **2** | 會被點到、會被讀到的東西（多數改動都在這一級） | 下面那條「開檔期 → 拼板」再加一個 `--eval` 斷言 | **5.6 秒** | 同上，**外加真的點一下那件事**，而且斷言拿到預期的值 |
 | **2＋** | 動到格子裡的零件（選取、拖曳、刪除） | `scenario.mjs blk --assert "…"` | **17 秒** | 同上，斷言在畫布裡跑得過 |
 | **3** | 排版算法、座標、資料的形狀 | 第 2 級 ＋ `2cell-parity/parity.mjs` ＋ `stress-board/stress.mjs` | 分鐘級（開兩次瀏覽器／60 個 iframe） | 兩把尺沒有變紅 |
+| **審核** | 審核系統（`review-rules.js`、`review-store.js`、主程式裡 `rv*` 那幾段、完成按鈕、刷子、上鎖） | `node demo/review/rules.test.mjs`（規則，1 秒）＋ `node .claude/skills/run-pm-page/review-flow.mjs`（主程式從頭走到出稿） | 規則 1 秒；走一趟 **6～10 分鐘** | 規則全過；走一趟 47 項全 ✓、沒有 `STEP FAILED`、沒有 page problems |
 
 （上面那三個秒數是 2026-09-08 在這台機器上量的，不是估的。真正貴的是 60 個 iframe
 那一套和自己加的長 `--wait` —— 那一輪跑了十幾趟，多數其實第 2 級就夠。）
@@ -40,6 +41,24 @@ description: 跑起來看 —— 用 headless Chrome 開 pm_page 那幾支單檔
 - 第 3 級只在**動到排版算法之後**跑一次，不是每次。
 - 一批改完再驗，不要每改一行驗一次（節奏那一份 `edit-fast` 第 1 節）。
 - 改顏色、改版面用 `--eval` 量 computed style，比用眼睛猜可靠。
+
+## 審核流程從頭走到尾：`review-flow.mjs`
+
+```bash
+node demo/review/rules.test.mjs                       # 規則（純 node，1 秒）：先跑這個
+node .claude/skills/run-pm-page/review-flow.mjs       # 主程式：一個 DM 從快轉到製作一路走到出稿
+```
+
+一個 Chrome、一路換人（`--file design_and_PM.html?user=…`，同一個 profile，localStorage 留著），
+每一步後面接一個在頁面裡量 DOM 的檢查，**跑完一條印一條**（`[12/47] ✓ …`），最後一張總表，有錯 exit 1。
+流程：範例檔期把沒有負責人的品類換掉 → 設計刷「標好了」、取消、送出 → 別的 PM 動不了 → 一校 → 一改（便利貼、每格改好了）
+→ 二校 → 二改 → PM 自己退一格 → 設計修改 → 蓋章 N → 三位課長 → 部長退件＋重審 → 處長 → 送最終審核 → 協理 → 行銷處協理退件＋重審 → 律師 → 出稿。
+
+- **很久**：每按一下要等審核那一邊的假延遲、同步、讀回來（`text()` 等 2.6 秒）。**一定用背景跑**（工具的前景上限 2 分鐘）。
+- **看它有沒有在動**：輸出檔裡的 `[n/47]` 在長就是在跑。**超過十分鐘沒有新的一行＝卡住了**，去看最後一條、殺掉
+  （`Get-CimInstance Win32_Process | ? { $_.CommandLine -like '*driver.mjs*' } | % { Stop-Process -Id $_.ProcessId -Force }`）。
+- 加一個檢查：`check('一句話講它在驗什麼', 取值的 JS, '用 g 判斷的 JS')`。取值走 DOM（`Q.acts` 意見欄的按鈕、`Q.tags` 格子上那一枚、
+  `Q.stage`、`Q.todo`、`Q.toast`…），**不要讀程式的變數**（見下面「--eval 看不到」）。
 
 ## 先看這個：`scenario.mjs`
 
@@ -123,10 +142,32 @@ node .claude/skills/run-pm-page/driver.mjs --file "design_and_PM.html?seed=1&as=
 - **點格子常常點到別的東西**：便利貼的標記就坐在格子中央，點下去開的是留言卡。
   先 `--click-text "顯示便利貼"` 把標記收掉，或挑一格乾淨的：
   `.cell.filled:not(:has(.cmk)):not(:has(.cnb))`。
-- **`--eval` 看不到那支程式的頂層 `let`／`function`**（`activeTab`、`readStickerLib`
-  都會是 undefined，見上面 `--assert` 那一段的原因）。**斷言一律走 DOM**，
+- **`--eval` 看不到那支程式的頂層 `let`／`function`，連 `var` 也看不到**（`activeTab`、`readStickerLib`、`RV`
+  都是 ReferenceError，見上面 `--assert` 那一段的原因）。**斷言一律走 DOM**，
   格子裡的畫布用 `document.querySelector('.ccanvas').contentDocument`
   （driver 帶了 `--allow-file-access-from-files`，所以進得去）。
+
+### 會把整支測試卡住的（2026-09-28 那一輪卡了半小時）
+
+- **換頁（`--file`，換人）之前要等存檔。** 存檔有 300ms 的延遲（`SAVE_DEBOUNCE`），這段時間裡換頁會觸發
+  `beforeunload` →「離開這個頁面？」原生對話框 → headless 沒有人按 → **driver 永遠等不到 `Page.navigate` 回來**，
+  而且不報錯、不結束。之前的測試是時間剛好錯開才沒遇到。現在：
+  ・driver 看到原生對話框會**自動按確定並印一行 `dialog …`**（看到這一行＝換頁的時候還有東西沒存完，那一筆就沒存到）；
+  ・每一個 CDP 呼叫最多等 **60 秒**，超過就這一步失敗、講出是哪個方法（`CDP 等了 60 秒沒回應：…`）；
+  ・換人之前自己先 `--wait 900`（`review-flow.mjs` 的 `as()` 已經這樣做）。
+- **長的測試一定要一邊跑一邊印。** 第一版 `review-flow.mjs` 是整支跑完才解析輸出 —— driver 卡住的時候輸出檔一片空白，
+  看起來跟「還在跑」一模一樣，於是等了半小時。**跟使用者講「要跑 N 分鐘」之前，先確定卡住的時候看得出來卡住了**，
+  而且過了 N 分鐘自己去看，不要等人來問。
+- **超過 2 分鐘的一串一開始就用背景跑**（`run_in_background`）。前景跑到一半被移去背景的那一串，輸出接在 `| grep` 後面，
+  卡住的時候什麼都看不到。
+
+### 點得到但點錯東西的
+
+- **`--click-text` 找的是「textContent 包含這段字」的第一個元素**，不是按鈕。「蓋章」「商品」這種短字會先撞到
+  別的東西（分頁、標題、另一顆鈕）。**用那顆鈕上完整、獨一無二的字**（「送回退件的人」「送出這一格（製作完成）」）。
+- **便利貼記號就坐在格子中央**（上面那一條），而測試最常做的就是「在第一格貼一則 → 再點第一格」——
+  第二下點到的是記號。主程式現在把「點記號」也當成選了那一格（`selectNote` 設 `rvSel`），刷子也在捕獲階段接，
+  但**測別的工具時照樣要想到它**：拖曳從記號上起手，工具有沒有在捕獲階段接，決定了這一下算誰的。
 
 ### 其他
 

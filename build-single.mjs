@@ -44,7 +44,7 @@ await copyFile(PICK, join(PUB, '2cell-product-pick.html'));
    就是一頁 404 —— 而本機直接開檔案完全看不出來（檔案就在旁邊）。
    貼紙庫就是這樣漏過一次。 */
 for (const f of ['product.html', 'sticker_editor.html', 'sticker-render.js', 'config.js',
-                 'supabase-sync.js', '_redirects'])
+                 'supabase-sync.js', 'review-rules.js', 'review-store.js', '_redirects'])
   await copyFile(join(here, f), join(PUB, f));
 
 /* 品牌 Logo 庫：只搬跑得起來的那兩支。
@@ -77,7 +77,15 @@ const [main0, pick0, srender] = await Promise.all([
 const RENDER_TAG = '<script src="sticker-render.js"></script>';
 const RENDER_INLINE = '<script>/* sticker-render.js（單檔版內嵌一份） */\n'
   + srender.replace(/<\/script/gi, '<\\/script') + '\n</script>';
-const main = main0.split(RENDER_TAG).join(RENDER_INLINE);
+/* 審核系統那兩支也是主程式用 <script src> 載的，單檔版一樣要內嵌（理由同上）。 */
+const inlineJs = async f => '<script>/* ' + f + '（單檔版內嵌一份） */\n'
+  + (await readFile(join(here, f), 'utf8')).replace(/<\/script/gi, '<\\/script') + '\n</script>';
+let main = main0.split(RENDER_TAG).join(RENDER_INLINE);
+for (const f of ['review-rules.js', 'review-store.js']) {
+  const tag = '<script src="' + f + '"></script>';
+  if (!main.includes(tag)) { console.error('design_and_PM.html 裡找不到 ' + tag); process.exit(1); }
+  main = main.split(tag).join(await inlineJs(f));
+}
 const pick = pick0.split(RENDER_TAG).join(RENDER_INLINE);
 
 if (!main.includes('window.__PICK_HTML')) {

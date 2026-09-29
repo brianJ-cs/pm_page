@@ -56,10 +56,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let ws, nextId = 1, pending = new Map();
 const problems = [];
 
+/* 每一個 CDP 呼叫最多等 60 秒：頁面卡住（例如跳出一個原生對話框）的時候，
+   寧可這一步失敗、講出是哪一步，也不要整支測試無聲無息地掛半小時。 */
+const CDP_TIMEOUT = 60000;
 function send(method, params = {}){
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
-  return new Promise((ok, no) => pending.set(id, { ok, no }));
+  return new Promise((ok, no) => {
+    const t = setTimeout(() => { pending.delete(id); no(new Error(`CDP 等了 ${CDP_TIMEOUT / 1000} 秒沒回應：${method}`)); }, CDP_TIMEOUT);
+    pending.set(id, { ok: v => { clearTimeout(t); ok(v); }, no: e => { clearTimeout(t); no(e); } });
+  });
 }
 
 async function connect(){
@@ -78,6 +84,13 @@ async function connect(){
             const { ok, no } = pending.get(m.id);
             pending.delete(m.id);
             m.error ? no(new Error(m.error.message)) : ok(m.result);
+            return;
+          }
+          /* 原生對話框（離開頁面前的「還沒存檔」、alert、confirm）會卡住整個頁面，
+             headless 沒有人去按 —— 自動按確定，並講一聲（那通常表示換頁的時候還有東西沒存完）。 */
+          if (m.method === 'Page.javascriptDialogOpening'){
+            console.log(`dialog ${m.params.type}：自動按確定${m.params.message ? '（' + m.params.message + '）' : ''}`);
+            send('Page.handleJavaScriptDialog', { accept: true }).catch(() => {});
             return;
           }
           if (m.method === 'Runtime.exceptionThrown'){
@@ -331,8 +344,11 @@ await send('Emulation.setDeviceMetricsOverride',
    8×8 的測試圖了。 */
 if (!argv.includes('--live')) {
   await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+    /* 同一個 window 可能跑兩次（iframe 從 about:blank 換到同源的頁面時 window 沿用，
+       商品目錄那張浮層就是）：已經釘過（鎖住的）就不再釘，不然 defineProperty 丟例外、被算成頁面錯誤。
+       不是鎖住的（真的 config 先跑了）照樣蓋掉 —— 寧可多蓋，不可以漏接到正式資料庫 */
     for (const k of ['SUPABASE', 'LOGO_SUPABASE'])
-      Object.defineProperty(window, k, {
+      if ((Object.getOwnPropertyDescriptor(window, k) || { configurable: true }).configurable) Object.defineProperty(window, k, {
         value: { url:'', anonKey:'', bucket:'' },
         writable: false, configurable: false,
       });

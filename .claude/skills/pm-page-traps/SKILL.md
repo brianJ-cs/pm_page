@@ -1,6 +1,6 @@
 ---
 name: pm-page-traps
-description: pm_page 這個專案踩過的坑，改東西之前先看。包含合成單檔的 $ 陷阱、config.js 連著正式 Supabase（測試會寫到公司資料）、畫布 iframe 裡的變數讀不到、driver 參數的引號地雷，以及該問而沒問的時候會發生什麼。Use when editing design_and_PM.html, 2cell-product-pick.html, build-single.mjs or dev.mjs, when running browser tests against this project, or before saying a change works.
+description: pm_page 這個專案踩過的坑，改東西之前先看。包含合成單檔的 $ 陷阱、config.js 連著正式 Supabase（測試會寫到公司資料）、畫布 iframe 裡的變數讀不到、driver 參數的引號地雷、工具手勢被格子上的便利貼記號搶走、總體 改完小地圖不重畫、審核那一邊（review-*.js）的同步和「沒有負責人」，以及該問而沒問的時候會發生什麼。Use when editing design_and_PM.html, 2cell-product-pick.html, build-single.mjs or dev.mjs, when running browser tests against this project, or before saying a change works.
 ---
 
 # pm_page 踩過的坑
@@ -122,7 +122,51 @@ node .claude/skills/run-pm-page/scenario.mjs blk --file "http://localhost:8081/e
 
 ---
 
-## 十、兩句話對不起來的時候，要問
+## 十、工具的手勢在格子上：要在捕獲階段接
+
+格子上坐著別人的東西：便利貼記號（`.cmk`，pointerdown 就開始拖便利貼）、數字泡泡、畫布。
+拿著一個工具（刷子、上色、搬移）在格子上按下去，**冒泡階段的 listener 常常根本收不到** —— 記號自己先接走了。
+2026-09-28：PM 剛在第一格貼完一則修改，從那一格拉框刷「審核完成」，**一格都沒刷到**，也沒有任何錯誤。
+工具的 pointerdown 掛 `boardEl.addEventListener('pointerdown', …, true)`（捕獲），在開頭判斷「我這個工具有沒有拿著」，
+沒拿著就 return、拿著就 `stopPropagation`。
+
+**反過來也一樣**：記號自己的 pointerdown 要讓路。手上拿著一張貼紙（`armedKind`）按在舊的記號上，
+意思是「再貼一張」，不是「拖那一張舊的」—— 以前記號先接走，新的那一張貼不上去，畫面上沒有任何反應。
+加一種會「按在格子上」的模式，就要想一次：記號、數字泡泡、畫布，誰該讓誰。
+
+---
+
+## 十一、點「格子裡的某個東西」也要算點了那一格
+
+「選起來的是哪一格」不只從點格子本身來：點便利貼記號、貼完一則便利貼、從「輪到你」跳過來，都是在講某一格。
+意見欄最上面那一塊（審核）讀的是 `rvSel` —— 以前只有點格子本身會設它，於是貼完一則、再點那一格（點到的是記號），
+那一塊還講著上一格，「送出調整」那顆鈕找不到。**加一個「講某一格」的入口，就要一起設 `rvSel`**（見 `selectNote`、`dropNote`、`rvGo`）。
+
+---
+
+## 十二、在 總體 改了東西，小地圖要自己重畫
+
+`rebuildAll()` 只在 落版／拼板 重畫右邊那張小地圖。在 總體 改品類（✏）、改「這一塊放什麼」之後不自己叫
+`renderMinimap()`，小地圖還寫著舊的名字 —— 連「沒有負責人」的琥珀虛線都留著，看起來像沒改到。
+`applyBlockKind`、`applyItems` 都補了；**再加一個 總體 上的編輯，也要補**。
+
+---
+
+## 十三、審核那一邊（review-*.js）的幾個坑
+
+- **擋按鈕的東西要早一點送過去。** 完成按鈕數的是審核那一邊的影本（格子、便利貼），影本是同步過去的。
+  只在存檔之後同步的話，剛貼的便利貼要慢一拍才算數 —— 那一拍裡按「蓋章：還沒蓋的 N 格」會把剛標要調整的那一格也蓋掉。
+  所以 `markDirty()` 就排一次同步（`reviewSyncSoon`，有 debounce、骨架沒變不送）。
+- **規則裡查分類的地方都要容忍「沒有負責人」的格子**（品類不在分類表上，`category_id` 是 null）：
+  `catById(...).manager_id` 這種寫法一碰到就炸，而且是整支待辦、延遲通知一起炸（量到過）。一律 `(catById(...) || {})`。
+- **快轉補的資料要是主程式改得動的。** 快轉在審核那一邊生了幾則假的一校意見 —— 主程式的便利貼正本在它自己那邊，
+  那幾則它打不了勾，一改就永遠送不出去。雛形才生（`Seed &&`）。
+- **`var` 也救不了 TDZ 以外的事**：開機很早就會被叫的函式（`setTool` → `syncPassTool` → `paintRvPanel`）碰到的東西，
+  寫成 `function` 或 `var`，而且進去先檢查「有沒有資料」再做事。
+
+---
+
+## 十四、兩句話對不起來的時候，要問
 
 需求前後矛盾時自己挑一個「比較合理」的去做，做完才發現挑錯 —— 那比問一句貴得多。
 這個專案已經為了「週末怎麼算」來回改了三輪：先照 A 做、被否定、改成 B、又被否定，

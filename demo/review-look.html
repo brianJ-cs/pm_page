@@ -1,0 +1,1530 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>審核模式示範</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<!--
+  審核「看起來是什麼樣子」的示範（2026-09-28）。
+  外框照主程式（design_and_PM.html）的 商品 那一頁抄：身分色的上緣列、玻璃分頁、紙卡上緣那一條、
+  右邊一欄 版位／意見／審核、貼紙那一疊、#rvPanel。版面照 rule.png 排滿一塊冷氣版位。
+  **真的會動的只有審核**：左邊那一條的印章（A）、一校／二校完成、便利貼、蓋章、課長審核通過。
+  其他（總體、落版、進度、復原、匯出、字級…）只是長得像，按下去講一句。
+  印章在左邊（它改的是「點格子會發生什麼」＝工具），進度和完成按鈕在「審核」分頁（拿來看的）。
+  審過的格子預設蓋一顆印章；勾、綠框留在 🛠 → 外觀 對照用。
+  不接任何資料、不寫 localStorage 以外的東西（只記外觀和身分）。
+-->
+<style>
+:root{
+  /* 照主程式那一套名字（:root 和「操作區＝一張淡的灰藍桌面」那一段） */
+  --blue:#4a6fdc; --accent-strong:#3f61c6; --accent-tint:#eef2fc; --accent-line:#ccd8f5; --accent-ink-strong:#2b3a5c;
+  --ink:#333a45; --ink-strong:#101828; --ink-dim:#4b5566; --muted:#7a8494;
+  --bg:#f2f4f8; --surface:#ffffff; --surface-2:#fafbfd; --line:#e2e6ee; --line-strong:#c9d6e2;
+  --chrome:#ccd5e1; --chrome-2:#e7ecf4; --chrome-ink:#1d2634; --chrome-muted:#525d6f; --chrome-line:#adbaca;
+  --chrome-fill:rgba(29,38,52,.07); --chrome-fill-2:rgba(29,38,52,.13);
+  --ok-ink:#17663a; --ok-tint:#e6f6ea; --green-rule:#5aa678; --green-ink:#2e7d52;
+  --amber:#c07f00; --amber-bg:#fff4d6; --warn-line:#f0dcae; --warn-tint:#fff3e0;
+  --danger:#d92d20; --danger-ink:#b42318; --danger-tint:#fdeceb;
+  --sticky-design:#87CEEB; --sticky-pm:#ffd447; --sticky-mkt:#8fd6b4;
+  --glass:rgba(29,38,52,.08); --glass-hover:rgba(29,38,52,.15); --glass-edge:rgba(255,255,255,.38);
+  --glass-hi:rgba(255,255,255,.6); --glass-shade:rgba(29,38,52,.12); --glass-blue-shade:rgba(74,111,220,.35);
+  --role:var(--sticky-pm);
+
+  /* 版面（印出去的那一份）：照 rule.png */
+  --price-red:#e0151b;
+  --dm-navy:#0d2a6b;
+  --dm-sky:#1c7fd6;
+
+  /* 審核模式：綠＝這一步好了（跟格子那一枚標籤、#passBtn.on 同一個綠），紅印泥＝商品部蓋章 */
+  --rv-ink:#1a7f47;
+  --rv-wash:color-mix(in srgb,var(--rv-ink) 10%,transparent);
+  --hanko:#d0312d;
+  /* 印泥的顏色＝哪一種確認（不用藍：藍是「你正在點的東西」）。
+     PM 的已審／明細＝綠、設計的標好了／改好了＝深青（從設計那張天藍便利貼來）、商品部蓋章和主管的小章＝紅 */
+  --ink-pm:#1a7f47;
+  --ink-design:#0e6e8c;
+  --ink-red:#d0312d;
+  --brush-ink:var(--ink-pm);
+
+  --z:1;
+}
+body[data-role="design"]{--role:var(--sticky-design)}
+body[data-role="mkt"]{--role:var(--sticky-mkt)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  background:color-mix(in srgb,var(--chrome) 93%,var(--role));color:var(--chrome-ink);
+  font-size:14px;-webkit-font-smoothing:antialiased;overflow:hidden;
+}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+[hidden]{display:none!important}
+
+/* ================= 最上面那一條（身分色、玻璃） ================= */
+#app{display:flex;flex-direction:column;height:100vh}
+.bar{
+  flex:none;display:flex;align-items:center;gap:20px;min-height:48px;padding:7px 16px;
+  background:var(--role);white-space:nowrap;
+}
+.banner{display:flex;align-items:baseline;gap:10px;min-width:0}
+.banner .nm{font-size:15px;font-weight:900;color:var(--chrome-ink)}
+.banner .rg{font-size:12px;color:#8a5a12;font-weight:600}
+.glass{
+  background:var(--glass);border:0;border-radius:8px;
+  box-shadow:inset 0 1px 0 var(--glass-hi), inset 0 0 0 1px var(--glass-edge), 0 1px 2px var(--glass-shade);
+  -webkit-backdrop-filter:blur(12px) saturate(1.5);backdrop-filter:blur(12px) saturate(1.5);
+}
+#tabRow{display:flex;align-items:center;height:34px;padding:2px;gap:2px;border-radius:10px}
+.tab{height:30px;padding:0 14px;border:0;border-radius:8px;background:transparent;cursor:pointer;
+  font-size:14px;font-weight:800;color:var(--accent-ink-strong)}
+.tab:hover{background:var(--glass-hover)}
+.tab.active{background:var(--blue);color:#fff;box-shadow:inset 0 1px 0 var(--glass-edge), 0 1px 3px var(--glass-blue-shade)}
+.hist{display:flex;gap:6px}
+.ibtn{width:30px;height:30px;display:grid;place-items:center;cursor:pointer;color:var(--accent-ink-strong)}
+.ibtn:disabled{opacity:.45;cursor:default}
+.ibtn svg{width:16px;height:16px}
+.spacer{flex:1}
+#bannerProg{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--chrome-ink);min-width:0;overflow:hidden}
+#bannerProg .sp-name{font-size:14px;font-weight:700}
+.sp-steps{display:flex;gap:2px}
+.sp-steps i{display:block;width:7px;height:12px;border-radius:2px;background:var(--chrome-fill-2)}
+.sp-steps i.done{background:var(--chrome-muted)}
+.sp-steps i.now{background:var(--amber)}
+.sp-turn{font-weight:700;color:var(--amber)}
+.sp-turn.idle{color:var(--chrome-muted);font-weight:600}
+.sp-prog{font-variant-numeric:tabular-nums;color:var(--chrome-muted)}
+.tbtn{height:30px;padding:0 12px;cursor:pointer;font-size:13px;font-weight:800;color:var(--chrome-ink)}
+.tbtn:hover{background:var(--glass-hover)}
+#saveState{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--green-ink)}
+#saveState::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+#whoBadge{display:flex;align-items:center;gap:6px;padding-left:16px;box-shadow:inset 1px 0 0 var(--chrome-line)}
+#whoBadge b{font-size:13px;font-weight:700;margin-right:4px}
+#bell{position:relative}
+#bell i{position:absolute;right:-4px;top:-4px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;
+  background:var(--danger);color:#fff;font-style:normal;font-size:10px;font-weight:800;line-height:16px}
+#devBtn.on{background:var(--warn-tint);box-shadow:inset 0 0 0 1px var(--amber)}
+
+/* ================= 中間那張紙 ================= */
+#work{flex:1;min-height:0;display:flex}
+#sheetPane{flex:1;min-width:0;display:flex;flex-direction:column;margin:10px 0 0 10px;
+  background:var(--bg);border-radius:12px 12px 0 0;color:var(--ink);overflow:hidden}
+#paperBar{flex:none;display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 14px;
+  border-bottom:1px solid var(--line);white-space:nowrap;background:var(--bg);position:relative;z-index:3}
+#pbCrumb{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+#pbBlock{display:flex;align-items:baseline;gap:3px;border:0;border-radius:5px;background:transparent;cursor:pointer;
+  padding:3px 6px;font-size:16px;font-weight:900;color:var(--ink-strong)}
+#pbBlock:hover{background:var(--accent-tint)}
+#pbBlock small{color:var(--danger);font-weight:900;font-size:13px;margin-right:6px}
+#pbMeta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pb-gap{flex:1}
+.toggle{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:800;color:var(--ink);cursor:pointer;user-select:none}
+.toggle .track{width:34px;height:20px;border-radius:10px;background:#9aa7ba;position:relative;transition:background .12s}
+.toggle .track::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .12s}
+.toggle.on .track{background:var(--blue)}
+.toggle.on .track::after{left:16px}
+#pbZoom{display:flex;align-items:center;gap:2px;font-size:12px;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+#pbZoom button{height:26px;min-width:26px;padding:0 5px;border:0;border-radius:5px;background:transparent;cursor:pointer;font-weight:700}
+#pbZoom button:hover{background:var(--accent-tint);color:var(--blue)}
+
+/* ---------- 左邊那一條工具（照主程式 #toolRail：站在桌面上，只有手上拿著的那一顆是實心藍） ----------
+   印章是一個工具不是一顆按鈕：拿起來之後「點格子」的意思就變了（從選一格變成蓋一格），
+   而「點下去會發生什麼」這件事在主程式裡一律住在左邊這一條。
+   進度、完成按鈕、還在等誰是拿來看的，住在右邊那一欄的「審核」分頁。 */
+#toolRail{flex:none;width:56px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0;
+  border-right:1px solid var(--chrome-line);user-select:none}
+.tool{position:relative;width:40px;height:40px;border:0;border-radius:8px;background:transparent;color:var(--chrome-ink);
+  cursor:pointer;display:grid;place-items:center}
+.tool svg{width:22px;height:22px}
+.tool:hover:not(.dim){background:var(--chrome-fill)}
+.tool.active{background:var(--blue);color:#fff}
+.tool[data-key]::after{content:attr(data-key);position:absolute;right:3px;bottom:2px;font-size:9px;font-weight:800;line-height:1;color:var(--chrome-muted)}
+.tool.active[data-key]::after{color:rgba(255,255,255,.8)}
+/* 拿不起來（這一關沒有你要蓋的）：淡掉但照樣點得到 —— 點下去講為什麼 */
+.tool.dim{opacity:.38;cursor:help}
+.tool-sep{width:28px;height:1px;background:var(--chrome-line);margin:4px 0}
+/* 印章那一顆底下掛一個小數字：你還有幾格沒蓋。工具列上唯一會變的字，只在有事要做的時候出現 */
+.tool .left{position:absolute;right:-5px;top:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+  background:var(--amber);color:#fff;font-size:10px;font-weight:900;line-height:17px;text-align:center}
+
+/* 審核模式開著時，紙上緣底下多一條：在審哪一關、怎麼按、審到第幾格 */
+#rvHint{
+  flex:none;display:grid;grid-template-rows:0fr;transition:grid-template-rows .16s ease;
+  background:var(--rv-ink);color:#fff;
+}
+#rvHint > div{overflow:hidden}
+body.rv-mode #rvHint{grid-template-rows:1fr}
+.rh-in{display:flex;align-items:center;gap:16px;padding:7px 14px;white-space:nowrap;min-width:0}
+.rh-in b{font-size:13.5px;font-weight:900}
+.rh-how{font-size:12.5px;font-weight:600;opacity:.9;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.rh-how kbd{font:inherit;font-weight:800;padding:0 5px;border-radius:4px;background:rgba(255,255,255,.18)}
+.rh-meter{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+.rh-pips{display:flex;gap:2px}
+.rh-pips i{width:6px;height:12px;border-radius:2px;background:rgba(255,255,255,.28)}
+.rh-pips i.on{background:#fff}
+.rh-n{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+.rh-go{height:26px;padding:0 12px;border:0;border-radius:6px;background:#fff;color:var(--rv-ink);font-weight:900;font-size:12.5px;cursor:pointer}
+.rh-exit{height:26px;padding:0 9px;border:1px solid rgba(255,255,255,.4);border-radius:6px;background:transparent;color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+.rh-exit:hover{background:rgba(255,255,255,.12)}
+
+#scroll{flex:1;min-height:0;overflow:auto;position:relative}
+#boardWrap{position:relative;margin:24px auto}
+#board{position:absolute;left:0;top:0;width:1680px;transform-origin:0 0;transform:scale(var(--z));
+  background:#fff;box-shadow:0 0 0 1px var(--line-strong)}
+
+/* ---------- 刊頭（照 rule.png 上面那一條：左邊清洗、右邊滿萬送千點） ---------- */
+.mast{display:grid;grid-template-columns:1.05fr 1fr .42fr;height:420px;border-bottom:3px solid #fff;overflow:hidden}
+.m-a{position:relative;background:linear-gradient(115deg,#f4f8fc 0%,#e3eef8 55%,#cfe2f3 100%);padding:34px 40px}
+.m-a .tag{display:inline-block;background:#1f2937;color:#fff;font-weight:900;font-size:22px;letter-spacing:.3em;padding:6px 26px;border-radius:4px}
+.m-a h2{margin:18px 0 0;font-size:112px;line-height:1;font-weight:900;font-style:italic;color:var(--dm-navy);letter-spacing:.02em}
+.m-a .four{position:absolute;right:48px;top:118px;background:var(--price-red);color:#fff;font-weight:900;font-size:40px;
+  padding:6px 18px;border-radius:10px;transform:rotate(-4deg);box-shadow:4px 4px 0 #8f0c10}
+.m-a ul{list-style:none;margin:26px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:10px 18px;max-width:560px}
+.m-a li{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;color:#1f2937}
+.m-a li b{background:var(--dm-sky);color:#fff;padding:2px 10px;border-radius:4px;font-size:18px}
+.m-a .deal{position:absolute;left:40px;bottom:26px;display:flex;align-items:baseline;gap:14px;font-weight:900;font-size:28px;color:#1f2937}
+.m-a .deal em{font-style:normal;font-family:Anton,sans-serif;font-size:72px;color:var(--price-red);line-height:1}
+.m-b{background:linear-gradient(160deg,#1673d4 0%,#0b4fb0 60%,#093f93 100%);color:#fff;padding:30px 36px;position:relative}
+.m-b .kick{display:inline-block;background:#fff;color:var(--dm-navy);font-weight:900;font-size:26px;padding:4px 16px;border-radius:6px}
+.m-b h2{margin:10px 0 0;font-size:108px;line-height:1.02;font-weight:900;letter-spacing:.02em;text-shadow:0 5px 0 #06306f}
+.m-b h2 span{color:#ffd83a}
+.m-b .sub{font-size:17px;opacity:.9;margin-top:6px}
+.m-b .gold{margin-top:22px;display:inline-block;background:linear-gradient(180deg,#fff3c4,#e2b64b);color:#3b2a05;font-weight:900;font-size:44px;
+  padding:8px 26px;border-radius:8px}
+.m-b .seal{position:absolute;right:34px;bottom:40px;width:138px;height:138px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff7d6,#e6b84a 60%,#a97a17);display:grid;place-items:center;
+  color:#3b2a05;font-weight:900;font-size:30px;box-shadow:0 0 0 6px rgba(255,255,255,.25)}
+.m-c{background:#eaf3fb;padding:22px 20px;display:flex;flex-direction:column;gap:16px;border-left:3px solid #fff}
+.m-c .box{background:#fff;border-radius:10px;padding:12px 14px;text-align:center}
+.m-c .box .h{font-weight:900;font-size:22px;color:var(--dm-navy)}
+.m-c .box .big{font-weight:900;font-size:32px;color:var(--dm-navy)}
+.m-c .box .big em{font-style:normal;font-family:Anton,sans-serif;font-size:64px;color:var(--price-red);line-height:1}
+
+/* ---------- 格子（照 rule.png 一格：左上 logo、品名、型號、圖、坪數藥丸、市價、紅色價格） ---------- */
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0}
+.cell{position:relative;height:196px;border-right:1.5px solid #cfd8e3;border-bottom:1.5px solid #cfd8e3;background:#fff;
+  padding:10px 12px 8px;overflow:hidden;cursor:pointer;isolation:isolate}
+.cell:nth-child(7n){border-right:0}
+.cell.fr{background:#f6f9fd}
+.c-top{display:flex;align-items:flex-start;gap:6px;height:30px}
+.logo{font-weight:900;font-size:22px;line-height:1;letter-spacing:-.01em;white-space:nowrap}
+.logo.box{background:currentColor;padding:3px 6px;border-radius:2px}
+.logo.box span{color:#fff}
+.logo .dia{font-size:15px;margin-right:2px;letter-spacing:-.2em}
+.badges{margin-left:auto;display:flex;gap:3px;padding-right:2px}
+.badges i{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:900;color:#fff;line-height:1.05;text-align:center}
+.badges i.c{background:#2b8ad9}
+.badges i.h{background:#ef5a25}
+.c-name{margin-top:6px;font-size:19px;font-weight:900;color:#111;line-height:1.2}
+.c-name span{color:var(--dm-sky)}
+.c-sku{font-size:10.5px;color:#556;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-img{position:relative;height:56px;margin-top:4px;display:flex;align-items:center;gap:6px}
+.c-img svg.unit{height:44px;width:auto}
+.c-img svg.fridge{height:62px;width:auto;margin-top:-8px}
+.elabel{width:26px;height:34px;border-radius:3px;background:linear-gradient(180deg,#27a345 0 55%,#fff 55%);border:1.5px solid #27a345;
+  display:grid;place-items:start center;font-size:10px;font-weight:900;color:#fff;padding-top:2px}
+.warr{width:32px;height:32px;border-radius:50%;background:#fff;border:2.5px solid #e2b64b;display:grid;place-items:center;font-size:9px;font-weight:900;color:#8a6410;line-height:1;text-align:center}
+.c-bot{position:absolute;left:12px;right:12px;bottom:8px;display:flex;align-items:flex-end;gap:6px}
+.pills{display:flex;flex-direction:column;gap:3px}
+.ping{display:inline-flex;align-items:center;gap:4px;background:#1c5fb8;color:#fff;font-weight:900;font-size:15px;padding:1px 8px;border-radius:4px}
+.kw{font-size:12px;font-weight:800;color:#1c5fb8}
+.pr{margin-left:auto;text-align:right;line-height:1}
+.pr .list{font-size:10.5px;color:#556}
+.pr .list s{color:#556}
+.pr .num{font-family:Anton,sans-serif;font-size:46px;color:var(--price-red);letter-spacing:-.01em}
+.pr .inst{font-size:9.5px;color:#556;margin-top:1px}
+.pr.crossed .num{font-size:40px}
+
+/* 格子的狀態那一枚（主程式 #boardOverview .cell[data-rv]::after 那一條）：
+   標記不是印出去的東西，所以固定螢幕大小（除掉 --z）。 */
+.cell[data-rv]::after{
+  content:attr(data-rv);position:absolute;right:calc(3px / var(--z));top:calc(3px / var(--z));z-index:6;pointer-events:none;
+  font-size:calc(10px / var(--z));font-weight:800;line-height:1;white-space:nowrap;max-width:calc(100% - 6px);overflow:hidden;text-overflow:ellipsis;
+  padding:calc(2px / var(--z)) calc(5px / var(--z));border-radius:999px;
+  background:var(--surface);color:var(--ink-dim);border:calc(1px / var(--z)) solid var(--line);
+}
+.cell[data-tone="done"]::after{background:var(--ok-tint);color:var(--ok-ink);border-color:var(--green-rule)}
+.cell[data-tone="back"]::after{background:var(--amber-bg);color:var(--amber);border-color:var(--warn-line)}
+.cell[data-tone="late"]::after{background:var(--danger-tint);color:var(--danger-ink);border-color:var(--danger)}
+.cell:hover{outline:calc(2px / var(--z)) solid var(--blue);outline-offset:calc(-2px / var(--z))}
+.cell.sel{outline:calc(2px / var(--z)) solid var(--blue);outline-offset:calc(-2px / var(--z))}
+/* PM：別人品類的格子淡一點（實作指南 4.5），標籤照舊看得到 */
+.cell.notmine > :not(.mk):not(.cnb){opacity:.42}
+
+/* ================= 審過了長什麼樣（三種外觀，🛠 → 外觀） ================= */
+.mk{position:absolute;z-index:5;pointer-events:none;display:none}
+/* 勾：圖旁邊一顆綠色的圓，裡面一個勾 —— 印章太搶戲、框太淡的話就是這一種 */
+body.look-check .cell.marked .mk{display:grid}
+body.look-check .mk{left:118px;top:78px;width:48px;height:48px;border-radius:50%;place-items:center;
+  background:var(--rv-ink);color:#fff;box-shadow:0 0 0 4px #fff, 0 2px 8px rgba(0,0,0,.2)}
+body.look-check .mk::before{content:"✓";font-size:30px;font-weight:900;line-height:1}
+body.look-check .mk > *{display:none}
+/* 綠框：整格一圈綠、底淡一點點綠 —— 一眼掃過去哪一片審完了（勾不另外畫：角落那一格就是 logo） */
+body.look-frame .cell.marked::before{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;
+  box-shadow:inset 0 0 0 5px var(--rv-ink);background:color-mix(in srgb,var(--rv-ink) 10%,transparent)}
+body.look-frame .mk{display:none!important}
+/* 印章：一顆圓的膠印，歪一點、壓在圖上。寫著哪一關、誰、哪一天 —— 紙本校稿就是這樣蓋的 */
+body.look-stamp .cell.marked .mk,
+.cell.stamped .mk{display:flex}
+body.look-stamp .mk,.cell.stamped .mk{
+  left:50%;top:52%;width:108px;height:108px;margin:-54px 0 0 -54px;border-radius:50%;
+  flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  color:var(--rv-ink);border:4px solid currentColor;box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px currentColor;
+  transform:rotate(-14deg);mix-blend-mode:multiply;opacity:.88;background:rgba(255,255,255,.35);
+}
+.mk b{font-size:17px;font-weight:900;letter-spacing:.2em;padding-left:.2em;line-height:1.1}
+.mk span{font-size:30px;font-weight:900;line-height:1}
+.mk small{font-size:11px;font-weight:800;line-height:1.1;white-space:nowrap}
+/* 蓋章確認那一關不管外觀選哪一種，一律是紅印泥：那是「商品部蓋章」本人。
+   ⚠️ 前面帶 body：body.look-check .mk 那幾條的權重比 .cell.stamped .mk 高，不帶的話印子被畫成一顆勾 */
+body .cell.stamped .mk{display:flex!important;left:50%;top:52%;width:108px;height:108px;margin:-54px 0 0 -54px;border-radius:50%;
+  flex-direction:column;align-items:center;justify-content:center;gap:1px;background:rgba(255,255,255,.35);
+  color:var(--hanko);border:4px solid currentColor;box-shadow:inset 0 0 0 2px #fff, inset 0 0 0 4px currentColor;
+  transform:rotate(-9deg);mix-blend-mode:multiply;opacity:.88}
+body .cell.stamped .mk::before{content:none}
+body .cell.stamped .mk > *{display:block;visibility:visible}
+body .cell.stamped .mk span{font-size:24px}
+
+/* 剛按下去那一下：印子從大一點落下來。只有這一下會動 —— 回答「我剛剛按到了」 */
+.cell.pop .mk{animation:pop .22s cubic-bezier(.2,1.4,.5,1)}
+@keyframes pop{from{scale:1.35;opacity:0}}
+@media (prefers-reduced-motion:reduce){.cell.pop .mk{animation:none}#rvHint{transition:none}}
+
+/* 審核模式：自己的格子游標是一個綠勾，別人的更淡、按不動；還沒審的留一個虛線的位子 */
+/* 游標是一顆印章，熱點在印面正中間（蓋下去的那一點）；顏色照手上那顆的印泥，JS 算好放進 --cur */
+body.rv-mode .cell{cursor:var(--cur,pointer)}
+body.rv-mode.alt .cell{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='11' fill='%23b42318' stroke='white' stroke-width='2.5'/%3E%3Cpath d='M9 14h10' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E") 14 14, pointer}
+body.rv-mode .cell.notmine{cursor:not-allowed}
+body.rv-mode .cell.notmine > :not(.mk):not(.cnb){opacity:.3}
+body.rv-mode .cell:hover{outline-color:var(--rv-ink);outline-style:dashed}
+body.rv-mode .cell.notmine:hover{outline:none}
+body.rv-mode .cell.todo .mk{display:flex}
+body.rv-mode .cell.todo .mk > *{visibility:hidden}
+body.rv-mode.look-check .cell.todo .mk{display:grid;background:rgba(255,255,255,.7);box-shadow:none;border:3px dashed color-mix(in srgb,var(--rv-ink) 45%,transparent)}
+body.rv-mode.look-check .cell.todo .mk::before{visibility:hidden}
+body.rv-mode.look-stamp .cell.todo .mk,
+body.rv-mode.stage-stamp .cell.todo .mk{border-style:dashed;border-width:3px;box-shadow:none;background:transparent;opacity:.28}
+body.rv-mode.look-frame .cell.todo .mk{display:none}
+/* 游標底下那一格：預告按下去會變成什麼樣（淡的那一份） */
+body.rv-mode .cell.todo:hover .mk{opacity:.45;border-style:solid;visibility:visible}
+body.rv-mode .cell.todo:hover .mk > *,
+body.rv-mode.look-check .cell.todo:hover .mk::before{visibility:visible}
+body.rv-mode.look-check .cell.todo:hover .mk{background:var(--rv-ink);border:0;box-shadow:0 0 0 4px #fff}
+body.rv-mode.look-frame .cell.todo:hover::before{content:"";position:absolute;inset:0;z-index:4;pointer-events:none;box-shadow:inset 0 0 0 5px color-mix(in srgb,var(--rv-ink) 40%,transparent)}
+/* 拉框經過的那幾格 */
+.cell.aim{outline:calc(3px / var(--z)) solid var(--rv-ink)!important;outline-offset:calc(-3px / var(--z))}
+.cell.aim.off{outline-color:var(--danger)!important}
+#selBox{position:fixed;z-index:50;pointer-events:none;border:1.5px solid var(--rv-ink);background:color-mix(in srgb,var(--rv-ink) 12%,transparent);border-radius:2px}
+#selBox.off{border-color:var(--danger);background:rgba(217,45,32,.1)}
+
+.note.m{background:#e3f6ed;border-left-color:var(--sticky-mkt)}
+.cnb i.m{background:var(--sticky-mkt)}
+/* 便利貼記號（格子上那一張小的）：顏色＝誰貼的、圖示＝哪一種、角落的字＝哪一位 */
+.cnb{position:absolute;z-index:7;left:38%;top:34%;display:flex;gap:4px;pointer-events:auto;cursor:pointer}
+.cnb i{position:relative;width:calc(26px / var(--z));height:calc(26px / var(--z));display:grid;place-items:center;font-style:normal;
+  font-size:calc(14px / var(--z));background:var(--sticky-pm);color:#3b2a05;border-radius:2px;transform:rotate(-4deg);
+  box-shadow:0 calc(2px / var(--z)) calc(4px / var(--z)) rgba(0,0,0,.25)}
+.cnb i.d{background:var(--sticky-design)}
+.cnb i sub{position:absolute;right:calc(-4px / var(--z));bottom:calc(-4px / var(--z));font-size:calc(9px / var(--z));font-weight:900;
+  background:#fff;border-radius:calc(4px / var(--z));padding:0 calc(2px / var(--z));line-height:1.3;color:#333}
+body.no-notes .cnb{display:none}
+
+/* ================= 右邊那一欄 ================= */
+#sideCol{flex:none;width:340px;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--chrome-line);position:relative}
+#sideTabs{display:flex;gap:2px;padding:10px 10px 0;flex:none}
+.sc-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:8px 8px 0 0;padding:8px 0;
+  background:transparent;cursor:pointer;font-size:14px;font-weight:800;color:var(--chrome-muted)}
+.sc-tab:hover{background:var(--chrome-fill)}
+.sc-tab.on{background:var(--surface);color:var(--blue)}
+.sc-n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:11px;line-height:18px;background:var(--chrome-fill-2);color:var(--chrome-ink)}
+.sc-tab.on .sc-n{background:var(--accent-tint);color:var(--blue)}
+.sc-n.hot,.sc-tab.on .sc-n.hot{background:var(--danger);color:#fff}
+#sidePanes{flex:1;min-height:0;margin:0 10px 10px;display:flex;flex-direction:column;background:var(--surface);border-radius:0 0 10px 10px;color:var(--ink)}
+.sc-pane{flex:1;min-height:0;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+
+#railTitle{font-size:15px;font-weight:900;color:var(--ink-strong)}
+#railSub{font-size:12px;color:var(--chrome-muted);font-weight:700;margin-top:-6px}
+#railLegend{display:flex;gap:4px;flex-wrap:wrap}
+.lg{height:26px;padding:0 9px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);font-size:12px;font-weight:700;color:var(--muted);cursor:default}
+.lg.on{color:var(--ink-strong);border-color:var(--line-strong)}
+#stickTray{border:1px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--chrome-fill)}
+#stickTray .hint{font-size:11.5px;font-weight:700;color:var(--chrome-muted);margin-bottom:5px}
+#stickRow{display:flex;gap:6px;flex-wrap:wrap}
+.stick{width:49px;height:48px;border:0;border-radius:2px;cursor:pointer;background:var(--sticky-pm);color:#3b2a05;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:12px;font-weight:800;
+  box-shadow:0 2px 4px rgba(0,0,0,.18);transition:transform .1s}
+.stick:nth-child(odd){transform:rotate(-2deg)}
+.stick:nth-child(even){transform:rotate(1.5deg)}
+.stick:hover{transform:rotate(0) translateY(-2px)}
+.stick.armed{outline:2px solid var(--blue);outline-offset:2px;transform:none}
+.stick .ico{font-size:16px;line-height:1}
+#armHint{display:none;font-size:13px;font-weight:800;color:#8a4b00;background:var(--warn-tint);border:2px solid var(--warn-line);border-radius:10px;padding:7px 9px}
+#armHint.on{display:block}
+
+#rvPanel{display:flex;flex-direction:column;gap:6px;border-radius:12px;padding:8px 10px;background:var(--chrome-fill)}
+.rv-head{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--chrome-muted);min-width:0}
+.rv-head b{font-size:13px;color:var(--chrome-ink)}
+.rv-stage{margin-left:auto;font-weight:800;color:var(--chrome-ink)}
+.rv-sec{display:flex;flex-direction:column;gap:5px;padding-top:6px;border-top:1px dashed var(--chrome-line)}
+.rv-line{font-size:12px;font-weight:700;color:var(--chrome-ink);line-height:1.45}
+.rv-line small{display:block;font-weight:600;color:var(--chrome-muted)}
+.rv-bar{height:6px;border-radius:3px;background:var(--chrome-fill-2);overflow:hidden}
+.rv-bar i{display:block;height:100%;background:var(--rv-ink);transition:width .2s}
+.rv-who{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--chrome-ink)}
+.rv-who span{color:var(--chrome-muted);font-weight:600}
+.rv-who.done span{color:var(--ok-ink);font-weight:800}
+.rv-act{width:100%;font-size:13px;font-weight:800;cursor:pointer;text-align:left;border:1px solid var(--line-strong);border-radius:8px;padding:7px 9px;background:var(--surface);color:var(--ink)}
+.rv-act:hover:not(:disabled){border-color:var(--blue)}
+.rv-act.main{background:var(--blue);border-color:var(--blue);color:#fff}
+/* 格子都蓋完了、只剩「送出」那一下：那一顆一直發光到按下去為止。
+   蓋完了卻忘了按是這一套最容易發生的事 —— 格子上看起來全都好了，而其實什麼都還沒送出去 */
+.rv-act.nag{animation:nag 1.3s ease-in-out infinite;position:relative}
+.rv-act.nag::after{content:"還沒送出";position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  font-size:11px;font-weight:900;padding:1px 7px;border-radius:9px;background:var(--amber);color:#fff}
+.rv-act.nag:not(.main){border-color:var(--blue);color:var(--blue)}
+@keyframes nag{
+  0%,100%{box-shadow:0 0 0 0 rgba(74,111,220,.55)}
+  50%{box-shadow:0 0 0 7px rgba(74,111,220,0), 0 0 18px 2px rgba(74,111,220,.45)}
+}
+/* 人切到別的分頁去了：審核那一顆分頁跟著閃，告訴他東西還在那裡等 */
+.sc-tab.nag:not(.on){animation:tabnag 1.3s ease-in-out infinite;color:var(--blue)}
+@keyframes tabnag{50%{background:var(--accent-tint)}}
+.rh-go.nag{animation:nag 1.3s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .rv-act.nag,.rh-go.nag{animation:none;box-shadow:0 0 0 3px rgba(74,111,220,.45)}
+  .sc-tab.nag:not(.on){animation:none;background:var(--accent-tint)}
+}
+.rv-act:disabled{opacity:.5;cursor:default}
+.rv-why{font-size:11px;font-weight:600;color:var(--chrome-muted);margin-top:3px;line-height:1.4}
+.rv-none{font-size:12px;color:var(--chrome-muted);line-height:1.45}
+
+/* 審核分頁最上面：告訴人印章在哪裡（左邊那一條），拿著的時候改講「拿著了」 */
+#rvTip{display:flex;align-items:center;gap:9px;border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:700;
+  background:var(--surface-2);border:1px dashed var(--line-strong);color:var(--ink-dim);line-height:1.45}
+#rvTip svg{width:26px;height:26px;flex:none;color:var(--rv-ink)}
+#rvTip b{color:var(--ink-strong)}
+#rvTip.on{background:var(--ok-tint);border:1.5px solid var(--green-rule);color:var(--ok-ink)}
+#rvTip.on b{color:var(--ok-ink)}
+#rvPanel{background:var(--surface-2);border:1px solid var(--line)}
+
+#railList{display:flex;flex-direction:column;gap:10px;padding-top:4px}
+#railEmpty{text-align:center;color:var(--chrome-muted);font-size:15px;font-weight:800;line-height:1.6;padding:24px 0}
+.note{position:relative;background:#fff6c8;border-left:6px solid var(--sticky-pm);border-radius:4px;padding:8px 10px 8px;box-shadow:0 1px 3px rgba(0,0,0,.12);cursor:pointer}
+.note.d{background:#e6f5fb;border-left-color:var(--sticky-design)}
+.note.sel{box-shadow:0 0 0 2px var(--blue)}
+.note .nh{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;color:#3b2a05}
+.note .nh .k{font-size:14px}
+.note .nh .at{margin-left:auto;font-weight:600;color:#8a7a45}
+.note .where{font-size:11.5px;color:#6b5f35;font-weight:600;margin:2px 0 5px}
+.note textarea{width:100%;min-height:44px;resize:vertical;border:1px solid rgba(0,0,0,.12);border-radius:4px;background:rgba(255,255,255,.7);padding:5px 7px;font:inherit;font-size:13px;color:#222}
+.note .x{border:0;padding:0 2px;background:none;font-size:11px;font-weight:700;color:#8a7a45;cursor:pointer}
+.note .x:hover{color:var(--danger-ink)}
+
+/* 版位那一頁：只是長得像（小地圖） */
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:3px;aspect-ratio:1.44;border:1.5px solid var(--ink);padding:3px;background:#fff}
+.mini div{border:1px solid var(--line-strong);background:var(--surface-2);font-size:10px;font-weight:700;color:var(--muted);display:grid;place-items:center;text-align:center;line-height:1.3}
+.mini div.on{background:var(--accent-tint);border:2px solid var(--blue);color:var(--blue)}
+.mini-note{font-size:12px;color:var(--muted)}
+
+/* ================= 🛠 ================= */
+#devPop{position:fixed;z-index:80;width:330px;background:var(--surface);color:var(--ink);border-radius:12px;
+  box-shadow:0 18px 50px -12px rgba(29,38,52,.45), 0 0 0 1px var(--line);padding:10px}
+.dv-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:-2px -2px 10px;padding-bottom:6px}
+.dv-tabs button{flex:1;border:0;background:none;padding:6px 0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:800;color:var(--muted)}
+.dv-tabs button.on{background:var(--accent-tint);color:var(--blue)}
+.dv-h{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 6px}
+.looks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.look{border:1.5px solid var(--line);border-radius:10px;background:var(--surface-2);padding:8px 6px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12.5px;font-weight:800}
+.look:hover{border-color:var(--line-strong)}
+.look.on{border-color:var(--blue);background:var(--accent-tint);color:var(--blue)}
+.look svg{width:64px;height:48px}
+.dv-list{display:flex;flex-direction:column;gap:5px}
+.dv-row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:var(--surface);cursor:pointer;font-size:13px;font-weight:700;text-align:left}
+.dv-row:hover{border-color:var(--blue)}
+.dv-row.on{border-color:var(--amber);background:var(--amber-bg)}
+.dv-row small{margin-left:auto;font-weight:600;color:var(--muted)}
+.dv-turn{font-size:11px;font-weight:900;color:#fff;background:var(--amber);border-radius:9px;padding:0 7px;line-height:18px}
+.dv-foot{margin-top:10px;font-size:11.5px;color:var(--muted);line-height:1.5}
+
+#toast{position:fixed;left:50%;bottom:26px;z-index:90;transform:translateX(-50%);background:#243044;color:#fff;
+  padding:9px 16px;border-radius:10px;font-size:13.5px;font-weight:700;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);
+  opacity:0;pointer-events:none;transition:opacity .15s;max-width:min(640px,calc(100vw - 32px))}
+#toast.on{opacity:1}
+#toast.ok{background:var(--rv-ink)}
+
+@media (max-width:900px){
+  #sideCol{width:280px}
+  .sp-steps,.rh-how{display:none}
+}
+</style>
+</head>
+<body class="look-frame stage-review">
+<div id="app">
+  <header class="bar">
+    <div class="banner"><span class="nm">10月家電・全省對開大DM</span><span class="rg">9/28(一)–10/18(日)</span></div>
+    <div id="tabRow" class="glass">
+      <button class="tab fake" data-what="總體">總體</button>
+      <button class="tab fake" data-what="落版">落版</button>
+      <button class="tab active">商品</button>
+      <button class="tab fake" data-what="進度">進度</button>
+    </div>
+    <div class="hist">
+      <button class="ibtn glass fake" data-what="復原" title="復原 Ctrl+Z"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3L2 6l3 3"/><path d="M2 6h7a4 4 0 010 8H7"/></svg></button>
+      <button class="ibtn glass" disabled title="重做 Ctrl+Y"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M11 3l3 3-3 3"/><path d="M14 6H7a4 4 0 000 8h2"/></svg></button>
+    </div>
+    <div class="spacer"></div>
+    <div id="bannerProg"></div>
+    <button class="tbtn glass fake" data-what="匯出">匯出</button>
+    <span id="saveState">已儲存</span>
+    <div id="whoBadge">
+      <b id="whoName">冷氣PM</b>
+      <button id="bell" class="ibtn glass fake" data-what="通知" title="通知">🔔<i>2</i></button>
+      <button id="devBtn" class="tbtn glass" title="測試工具">🛠</button>
+      <button class="tbtn glass fake" data-what="登出">登出</button>
+    </div>
+  </header>
+
+  <div id="work">
+    <nav id="toolRail" aria-label="工具">
+      <button class="tool active" id="toolSel" data-key="V" title="選取 (V)：點一格＝選起來"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 8-6.2 1.6L16 20l-2.6 1.2-3.2-7.4L5 18z"/></svg></button>
+      <button class="tool" id="toolStamp" data-key="A" title="印章 (A)"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5.5" r="3.6"/><rect x="10" y="8.5" width="4" height="5"/><rect x="4" y="13" width="16" height="5.5" rx="1.6"/><rect x="5" y="20" width="14" height="2" rx="1" opacity=".55"/></svg></button>
+      <span class="tool-sep"></span>
+      <button class="tool fake" data-what="格線" title="格線"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg></button>
+    </nav>
+    <section id="sheetPane">
+      <div id="paperBar">
+        <div id="pbCrumb">正面 ›
+          <button id="pbBlock" class="fake" data-what="換版位">空調<small>(21)</small>冰箱<small>(7)</small></button>
+        </div>
+        <span id="pbMeta">版位 39.2 × 29.9 cm　刊頭 39.2 × 9.8 cm　挑好 28 / 28</span>
+        <span class="pb-gap"></span>
+        <label class="toggle on" id="noteTg"><span class="track"></span>顯示便利貼</label>
+        <div id="pbZoom"><button id="zOut" title="縮小">−</button><button id="zVal" title="符合視窗">83%</button><button id="zIn" title="放大">＋</button></div>
+      </div>
+      <div id="rvHint"><div><div class="rh-in">
+        <b id="rhTitle">審核模式・一校</b>
+        <span class="rh-how" id="rhHow"></span>
+        <span class="rh-meter"><span class="rh-pips" id="rhPips"></span><span class="rh-n" id="rhN"></span>
+          <button class="rh-go" id="rhGo" hidden></button>
+          <button class="rh-exit" id="rhExit">離開 Esc</button></span>
+      </div></div></div>
+      <div id="scroll"><div id="boardWrap"><div id="board">
+        <div class="mast">
+          <div class="m-a">
+            <span class="tag">空調專業清洗服務</span>
+            <h2>清潔保養</h2>
+            <span class="four">4大保障</span>
+            <ul>
+              <li><b>保固</b>售後服務 保固30天</li>
+              <li><b>專業</b>全面洗淨髒汙</li>
+              <li><b>品質</b>技師認證 良民證把關</li>
+              <li><b>安心</b>SOP 清洗流程</li>
+            </ul>
+            <div class="deal">・室內機清洗 <em>1899</em>/台</div>
+          </div>
+          <div class="m-b">
+            <span class="kick">指定空調</span>
+            <h2>滿<span>萬</span>送<span>千</span>點</h2>
+            <div class="sub">全國電子會員點數（1點＝1元）</div>
+            <div class="gold">空調總統級安裝</div>
+            <div class="seal">總統級</div>
+          </div>
+          <div class="m-c">
+            <div class="box"><div class="h">國泰世華卡友</div><div class="big">12期0利率</div></div>
+            <div class="box"><div class="h">節能補助</div><div class="big">最高<em>5000</em>元</div></div>
+          </div>
+        </div>
+        <div class="grid" id="grid"></div>
+      </div></div></div>
+    </section>
+
+    <aside id="sideCol">
+      <div id="sideTabs">
+        <button class="sc-tab" data-tab="map">版位</button>
+        <button class="sc-tab on" data-tab="notes">意見 <span class="sc-n" id="noteN">0</span></button>
+        <button class="sc-tab" data-tab="review">審核 <span class="sc-n" id="rvN" hidden></span></button>
+      </div>
+      <div id="sidePanes">
+        <div class="sc-pane" data-pane="map" hidden>
+          <div class="rv-line">正面（這一檔 6 塊）</div>
+          <div class="mini">
+            <div class="fake" data-what="換版位">電視(12)</div><div class="on">空調(21)<br>冰箱(7)</div>
+            <div class="fake" data-what="換版位">洗衣機(14)</div><div class="fake" data-what="換版位">手機(18)</div>
+          </div>
+          <div class="mini-note">這個示範只有「空調・冰箱」這一塊。</div>
+        </div>
+        <div class="sc-pane" data-pane="notes">
+          <div id="railTitle">全部問題</div>
+          <div id="railSub"></div>
+          <div id="railLegend"></div>
+          <div id="stickTray">
+            <div class="hint" id="trayHint">冷氣PM的貼紙 — 點貼紙，再點格子</div>
+            <div id="stickRow"></div>
+          </div>
+          <div id="armHint"></div>
+          <div id="railList"></div>
+        </div>
+        <div class="sc-pane" data-pane="review" hidden>
+          <div id="rvTip"></div>
+          <div id="rvPanel"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div id="devPop" hidden>
+  <div class="dv-tabs">
+    <button data-dv="look" class="on">外觀</button>
+    <button data-dv="who">換人</button>
+    <button data-dv="ff">⏩ 快轉</button>
+  </div>
+  <div data-dvp="look">
+    <p class="dv-h">審核完成的格子長什麼樣</p>
+    <div class="looks" id="looks"></div>
+    <p class="dv-foot">蓋章確認那一關不管選哪一種，一律是紅色的「商品部」印章。</p>
+  </div>
+  <div data-dvp="who" hidden>
+    <p class="dv-h">用誰的身分看</p>
+    <div class="dv-list" id="whoList"></div>
+  </div>
+  <div data-dvp="ff" hidden>
+    <p class="dv-h">把這一塊推到某一關（審核資料從那一關的起點開始）</p>
+    <div class="dv-list" id="ffList"></div>
+    <p class="dv-foot">一改、二改是設計的事，這裡直接跳過。</p>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- 人（照主程式的 ROSTER／REVIEW_CATS） ---------- */
+const PEOPLE = {
+  d1:{ name:'設計 A', short:'設計A', mark:'A', kind:'design', role:'design', sub:'製作、一改、二改、蓋章修改、出稿' },
+  pm2:{ name:'冷氣PM', short:'冷氣', mark:'冷', kind:'pm', role:'pm', sub:'空調 21 格' },
+  pm1:{ name:'冰箱洗衣機PM', short:'冰洗', mark:'冰', kind:'pm', role:'pm', sub:'冰箱 7 格' },
+  'pm-appl-mgr':{ name:'家電課長', short:'課長', mark:'課', kind:'mgr', level:'課', role:'pm', sub:'蓋章後第一層' },
+  'pm-director':{ name:'部長兼機上盒PM', short:'部長', mark:'部', kind:'mgr', level:'部', role:'pm', sub:'蓋章後第二層' },
+  'pm-div-head':{ name:'商品處處長', short:'處長', mark:'處', kind:'mgr', level:'處', role:'pm', sub:'蓋章後第三層' },
+  'pm-exec':{ name:'商品處協理', short:'協理', mark:'協', kind:'final', fin:'exec', role:'pm', sub:'審稿第一關' },
+  m3:{ name:'行銷處協理', short:'行協', mark:'行', kind:'final', fin:'mkt', role:'mkt', sub:'審稿第二關' },
+  'm-lawyer':{ name:'律師', short:'律師', mark:'律', kind:'final', fin:'law', role:'mkt', sub:'審稿第三關' },
+};
+const DESIGNER = 'd1';
+const LEVELS = [['課', 'pm-appl-mgr'], ['部', 'pm-director'], ['處', 'pm-div-head']];
+const FINALS = [['exec', 'pm-exec', '協'], ['mkt', 'm3', '行'], ['law', 'm-lawyer', '律']];
+const CATS = { 空調:{ owner:'pm2' }, 冰箱:{ owner:'pm1' } };
+const STAGES = ['提明細','製作','一校','一改','二校','二改','蓋章確認','蓋章修改','審稿','出稿'];
+/* 這一塊實際走的順序：蓋章修改是蓋章確認裡面一格一格的退件循環，不是整塊的一關；最後多一個「已出稿」 */
+const FLOW = ['提明細','製作','一校','一改','二校','二改','蓋章確認','審稿','出稿','完成'];
+const KINDS = [
+  { k:'修改', ico:'✎' }, { k:'補貼紙', ico:'★' }, { k:'換品', ico:'⇄' }, { k:'補贈品', ico:'⊕' }, { k:'留言', ico:'💬' },
+];
+/* 誰有哪幾張便利貼（主程式：PM 五種、設計只有留言、最終審核的行銷只有修改／換品／留言） */
+const KINDS_OF = { pm:KINDS.map(k => k.k), mgr:KINDS.map(k => k.k), final:['修改','換品','留言'], design:['留言'] };
+const kindIco = k => (KINDS.find(x => x.k === k) || KINDS[0]).ico;
+/* 每一關、每一種人都是同一個綠（使用者要的：跟大家一樣）。分 pm／design／red 三個名字留著，
+   哪天要分開上色只改這一行 */
+const INK = { pm:'#1a7f47', design:'#1a7f47', red:'#1a7f47' };
+
+/* ---------- 版面上的貨（照 rule.png 那一張） ---------- */
+const BRANDS = {
+  LG:{ html:'<span style="color:#a50034">Ⓛ LG</span>' },
+  Panasonic:{ html:'<span style="color:#0041c0">Panasonic</span>' },
+  HITACHI:{ html:'<span style="color:#111;letter-spacing:.04em">HITACHI</span>' },
+  SHARP:{ html:'<span style="color:#e60012;letter-spacing:.06em">SHARP</span>' },
+  TECO:{ html:'<span style="color:#003f98;font-style:italic">TECO</span>' },
+  SAMPO:{ html:'<span style="color:#e5001c">SAMPO</span>' },
+  CHIMEI:{ html:'<span style="color:#004ea2">CHIMEI</span>' },
+  HERAN:{ html:'<span class="logo box" style="color:#d4121a;font-size:17px"><span>HERAN</span></span>' },
+  GREE:{ html:'<span style="color:#0068b7;font-style:italic">GREE</span>' },
+  三菱電機:{ html:'<span style="color:#111;font-size:18px"><span class="dia" style="color:#e60012">◆◆</span>三菱電機</span>' },
+  三菱重工:{ html:'<span style="color:#111;font-size:18px"><span class="dia" style="color:#e60012">◆◆</span>三菱重工</span>' },
+  SANLUX:{ html:'<span style="color:#008c45">SANLUX</span>' },
+  冰點:{ html:'<span style="color:#1a8fd6">❄冰點</span>' },
+};
+const AC = [
+  ['LG','LSU22DHP/LSN22DHP','2160413','3-4','2.2',28952],
+  ['三菱電機','MUZ-HA22NF','2150654','3-4','2.2',26880],
+  ['Panasonic','CU-LJ22BHA2','2153555','3-4','2.2',26820],
+  ['HERAN','HI-GA28H/HO-GA28H','2161056','3-4','2.8',29550],
+  ['HITACHI','RAC-28NP/RAS-28NTB','2152014','4-5','2.8',38990],
+  ['三菱重工','DXC25ZRT-W','2150381','4-5','2.5',30990],
+  ['GREE','GSE-28HO/GSE-28HI','2162170','4-5','2.8',26910],
+  ['Panasonic','CU-LJ28BHA2','2153556','4-5','2.8',27450],
+  ['CHIMEI','RC-S28WH5','2137092','4-5','2.8',26880],
+  ['SHARP','AE-28BSHA','2140781','4-5','2.8',26440],
+  ['冰點','FU-28CS2','2161795','4-5','2.8',24120],
+  ['TECO','MA28IH-GA/MS28IH-GA','2153421','4-5','2.8',23480],
+  ['HERAN','HI-HR28B/HO-HR28B','2161063','4-5','2.8',23460],
+  ['SAMPO','AU-MF28DC/AM-MF28DC','2150452','4-5','2.8',21990],
+  ['SANLUX','SAE-V28HF/SAC-V28HF','2156735','4-5','2.8',20300],
+  ['HITACHI','RAC-36NP/RAS-36NTB','2152016','5-6','3.6',44760],
+  ['三菱重工','DXC35ZRT-W','2150383','5-6','3.6',43080],
+  ['Panasonic','CU-LJ36BHA2','2153557','5-6','3.6',42750],
+  ['TECO','MA36IH-GA/MS36IH-GA','2153422','5-6','3.6',37800],
+  ['LG','LSU36DHP/LSN36DHP','2160415','5-6','3.6',35992],
+  ['SAMPO','AU-MF36DC/AM-MF36DC','2150454','5-6','3.6',31590],
+];
+const FR = [
+  ['Panasonic','NR-C489HV','2170311','485L',36900],
+  ['HITACHI','RHSW62NJ','2171002','614L',52900],
+  ['LG','GR-DBF61MS','2172210','610L',46990],
+  ['SAMPO','SR-C48D','2173104','480L',21990],
+  ['SHARP','SJ-GX55ET','2174400','551L',38900],
+  ['TECO','R6181XHK','2175118','610L',29990],
+  ['三菱電機','MR-CGX46EP','2176045','455L',49900],
+];
+
+function unitSVG(){
+  return `<svg class="unit" viewBox="0 0 120 40"><defs><linearGradient id="ug" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#dde3ea"/></linearGradient></defs>
+  <rect x="1" y="2" width="118" height="30" rx="8" fill="url(#ug)" stroke="#b9c2cd"/><path d="M8 26h104" stroke="#9aa5b1" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M10 31c20 5 80 5 100 0" stroke="#c9d1da" stroke-width="2" fill="none"/><circle cx="104" cy="12" r="2" fill="#4cc3ff"/></svg>`;
+}
+function fridgeSVG(){
+  return `<svg class="fridge" viewBox="0 0 44 70"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e9edf2"/><stop offset=".5" stop-color="#fff"/><stop offset="1" stop-color="#d3dae3"/></linearGradient></defs>
+  <rect x="2" y="1" width="40" height="67" rx="4" fill="url(#fg)" stroke="#aab4bf"/><path d="M2 28h40M22 1v27M2 50h40" stroke="#aab4bf"/>
+  <path d="M19 10v10M25 10v10M8 34v8" stroke="#8d98a5" stroke-width="2" stroke-linecap="round"/></svg>`;
+}
+const listOf = p => Math.round(p * 1.17 / 100) * 100;
+
+const cells = [];
+AC.forEach(([brand, model, sku, ping, kw, price], i) => cells.push({ id:'c' + (i + 1), cat:'空調', brand, model, sku, ping, kw, price, n:i + 1 }));
+FR.forEach(([brand, model, sku, cap, price], i) => cells.push({ id:'c' + (22 + i), cat:'冰箱', brand, model, sku, cap, price, n:i + 1 }));
+
+const MARKS_HTML = '<i class="mk"><b></b><span></span><small></small></i>';
+function cellHTML(c){
+  const logo = BRANDS[c.brand].html.startsWith('<span class="logo') ? BRANDS[c.brand].html : `<span class="logo">${BRANDS[c.brand].html}</span>`;
+  if (c.cat === '冰箱') return `
+    <div class="c-top">${logo}<div class="badges"><i class="c">變頻</i></div></div>
+    <div class="c-name">變頻<span>三門</span>冰箱 ${esc(c.cap)}</div>
+    <div class="c-sku">型號 ${esc(c.model)}　SKU ${esc(c.sku)}</div>
+    <div class="c-img">${fridgeSVG()}<span class="elabel">1級</span></div>
+    <div class="c-bot"><div class="pills"><span class="ping">${esc(c.cap)}</span></div>
+      <div class="pr"><div class="list">市價 <s>${listOf(c.price).toLocaleString()}</s>元</div><div class="num">${c.price}</div></div></div>
+    ${MARKS_HTML}`;
+  return `
+    <div class="c-top">${logo}<div class="badges"><i class="c">冷暖</i><i class="h">變頻</i></div></div>
+    <div class="c-name">變頻<span>冷暖</span>空調</div>
+    <div class="c-sku">型號 ${esc(c.model)}　SKU ${esc(c.sku)}</div>
+    <div class="c-img">${unitSVG()}<span class="elabel">1級</span>${c.n % 3 === 1 ? '<span class="warr">7年<br>保固</span>' : ''}</div>
+    <div class="c-bot"><div class="pills"><span class="ping">${esc(c.ping)}坪</span><span class="kw">${esc(c.kw)}kW</span></div>
+      <div class="pr"><div class="list">市價 <s>${listOf(c.price).toLocaleString()}</s>元</div><div class="num">${c.price}</div><div class="inst">（含標準安裝）</div></div></div>
+    ${MARKS_HTML}`;
+}
+
+/* ---------- 審核的狀態（這一塊） ---------- */
+const TODAY = '9/28';
+let S;               // 見 resetTo()
+let ME = 'pm2';
+/* 預設是綠框（2026-09-28 使用者看過三種之後選的）；勾、印章留在 🛠 → 外觀 對照用。
+   鑰匙換成 v3：之前打開過的人存的是 stamp／check，不換的話他們看不到新的預設 */
+let LOOK = 'frame';
+try { LOOK = localStorage.getItem('rvlook_v3') || 'frame'; ME = localStorage.getItem('rvme_v1') || 'pm2'; } catch (e) {}
+if (!PEOPLE[ME]) ME = 'pm2';
+if (!['check', 'frame', 'stamp'].includes(LOOK)) LOOK = 'frame';
+let mode = false;    // 印章拿在手上
+let armed = null;    // 拿著哪一種便利貼
+let sel = null;      // 選起來那一格
+
+const ownerOf = c => CATS[c.cat].owner;
+const P = () => PEOPLE[ME];
+const nowAt = () => TODAY + ' ' + new Date().toTimeString().slice(0, 5);
+const openNotes = (id, by) => S.notes.filter(n => n.cell === id && !n.done && n.kind !== '留言' && (!by || n.by === by));
+const nextLevel = () => LEVELS[S.chain.length];
+const nextFinal = () => FINALS.find(f => !S.finals[f[0]]);
+/** 整塊都蓋了、沒有格子在退件循環裡 ＝ 輪到下一位主管 */
+const readyForMgr = () => S.stage === '蓋章確認' && cells.every(c => S.stamps[c.id] && !S.cyc[c.id]);
+const pname = id => PEOPLE[id] ? PEOPLE[id].name : id;
+
+/** 快轉到某一關：那一關之前的都當作一路按過來了 */
+function resetTo(stage){
+  S = { stage, marks:{}, sent:{}, detail:{}, madeSent:{}, flags:{}, stamps:{}, cyc:{}, chain:[], finals:{}, notes:[] };
+  const k = FLOW.indexOf(stage);
+  if (k > 0) cells.forEach(c => { S.detail[c.id] = { at:'9/23', by:ownerOf(c) }; });
+  if (k > 1) cells.forEach(c => { S.madeSent[c.id] = { at:'9/25', by:DESIGNER }; });
+  if (k > 6){ cells.forEach(c => { S.stamps[c.id] = { at:'10/02', by:ownerOf(c) }; }); S.chain = LEVELS.map(l => l[0]); }
+  if (k > 7) FINALS.forEach(f => { S.finals[f[0]] = '10/07'; });
+  if (stage === '一校') S.notes.push({ id:'n0', cell:'c24', kind:'留言', by:DESIGNER, text:'這支圖是官網的去背圖，型號標籤看得清楚嗎？', at:'9/27 17:40' });
+  if (stage === '一改' || stage === '二改'){
+    S.notes.push({ id:'n1', cell:'c5', kind:'修改', by:'pm2', text:'價格改成 38990（原本多打一個 0）', at:'9/28 10:12' });
+    S.notes.push({ id:'n2', cell:'c23', kind:'換品', by:'pm1', text:'換成 RHSW62NJ 新款（型號一樣、顏色換琉璃白）', at:'9/28 11:03' });
+    cells.forEach(c => { S.flags[c.id] = openNotes(c.id).length ? 'fix' : 'ok'; });
+  }
+}
+resetTo('一校');
+
+/* ---------- 印章：這個人這一關拿在手上的是哪一顆 ----------
+   每一關、每一種人都是同一個形狀：
+     scope   這一顆蓋得到的格子（也是進度的分母）
+     isOn    這一格蓋了沒
+     set     蓋下去（toggle 的還能拿掉）
+     toggle  蓋得掉：再點一下取消，按「完成」才算送出／蓋了撤不掉：蓋下去就是送出
+   拿不起來的時候回 { no: 為什麼 }。 */
+function brush(){
+  const p = P(), st = S.stage;
+  const none = why => ({ no:why });
+  if (p.kind === 'pm'){
+    const mc = cells.filter(c => ownerOf(c) === ME);
+    if (st === '提明細'){
+      if (mc.every(c => S.detail[c.id])) return none('你的格子明細都送出了，等別的 PM');
+      return { action:'detail', toggle:false, ink:'pm', label:'提明細', stampB:'提明細', stampT:'送出', scope:mc,
+        isOn:c => !!S.detail[c.id], set:c => { S.detail[c.id] = { at:nowAt(), by:ME }; } };
+    }
+    if (st === '一校' || st === '二校'){
+      if (S.sent[ME]) return none(`你已經按了${st}完成，要改只能等退回來`);
+      return { action:'mark', toggle:true, ink:'pm', label:`${st}：已審`, stampB:st, stampT:'已審', scope:mc,
+        isOn:c => !!S.marks[c.id], set:(c, on) => { if (on) S.marks[c.id] = { at:nowAt(), by:ME }; else delete S.marks[c.id]; },
+        finish:finishReview, finishLabel:`${st}完成`, needAll:true };
+    }
+    if (st === '蓋章確認'){
+      const can = c => !S.stamps[c.id] && S.cyc[c.id] !== 'design';
+      if (!mc.some(can)) return none(mc.some(c => S.cyc[c.id] === 'design') ? '退回去的格子還在設計手上，改好了才輪到你再蓋' : readyForMgr() ? `整塊蓋好了，現在在${pname(nextLevel()[1])}那裡` : '你的格子都蓋好了，等別的 PM');
+      return { action:'stamp', toggle:false, ink:'red', label:'商品部蓋章', stampB:'商品部', stampT:'確認', scope:mc, can,
+        isOn:c => !!S.stamps[c.id], set:c => { S.stamps[c.id] = { at:nowAt(), by:ME }; delete S.cyc[c.id]; },
+        blocked:c => !S.cyc[c.id] && openNotes(c.id, ME).length > 0 };
+    }
+    return none(st === '完成' ? '這一檔已經出稿了' : `現在是${st}，這一關沒有要你蓋的格子`);
+  }
+  if (p.kind === 'design'){
+    if (st === '製作'){
+      return { action:'make', toggle:true, ink:'design', label:'製作：標好了', stampB:'製作', stampT:'標好', scope:cells.filter(c => !S.madeSent[c.id]),
+        isOn:c => !!S.marks[c.id], set:(c, on) => { if (on) S.marks[c.id] = { at:nowAt(), by:ME }; else delete S.marks[c.id]; },
+        finish:finishMake, finishLabel:'製作完成' };
+    }
+    if (st === '一改' || st === '二改'){
+      return { action:'fix', toggle:true, ink:'design', label:`${st}：改好了`, stampB:st, stampT:'改好', scope:cells,
+        isOn:c => !!S.marks[c.id], set:(c, on) => { if (on) S.marks[c.id] = { at:nowAt(), by:ME }; else delete S.marks[c.id]; },
+        finish:finishFix, finishLabel:`${st}完成`, needAll:true };
+    }
+    if (st === '蓋章確認' && cells.some(c => S.cyc[c.id] === 'design')){
+      return { action:'cycfix', toggle:false, ink:'design', label:'蓋章修改：修改完成', stampB:'修改', stampT:'完成', scope:cells.filter(c => S.cyc[c.id]),
+        can:c => S.cyc[c.id] === 'design', isOn:c => S.cyc[c.id] === 'pm',
+        set:c => { S.cyc[c.id] = 'pm'; S.notes.forEach(n => { if (n.cell === c.id && !n.done && n.kind !== '留言') n.done = true; }); } };
+    }
+    return none(st === '出稿' ? '出稿是整份 DM 的事：在審核分頁按「出稿完成」' : `現在是${st === '完成' ? '已出稿' : st}，沒有要你蓋的格子`);
+  }
+  if (p.kind === 'mgr') return none(`${p.name}審的是整個管理範圍，不一格一格蓋 —— 在審核分頁按「審核通過」或「退件」`);
+  return none(`${p.name}審的是整份 DM，不一格一格蓋 —— 在審核分頁按`);
+}
+const canAct = (b, c) => b.scope.includes(c) && (!b.can || b.can(c)) && (b.toggle || !b.isOn(c));
+const leftToStamp = b => (!b || b.no) ? 0 : b.scope.filter(c => (!b.can || b.can(c)) && !b.isOn(c)).length;
+
+/** 格子上現在看得到哪一顆章（每一關只留那一關的章：進下一關就收掉，只剩角落那一枚狀態） */
+function markOf(c){
+  const st = S.stage;
+  if (st === '提明細' && S.detail[c.id]) return { ink:'pm', b:'提明細', t:'送出', m:S.detail[c.id] };
+  if (st === '製作'){
+    if (S.madeSent[c.id]) return { ink:'design', b:'製作', t:'送出', m:S.madeSent[c.id] };
+    if (S.marks[c.id]) return { ink:'design', b:'製作', t:'標好', m:S.marks[c.id] };
+  }
+  if ((st === '一校' || st === '二校') && (S.marks[c.id] || S.sent[ownerOf(c)])) return { ink:'pm', b:st, t:'已審', m:S.marks[c.id] || { at:TODAY, by:ownerOf(c) } };
+  if ((st === '一改' || st === '二改') && S.marks[c.id]) return { ink:'design', b:st, t:'改好', m:S.marks[c.id] };
+  if (st === '蓋章確認'){
+    if (S.cyc[c.id] === 'pm') return { ink:'design', b:'修改', t:'完成', m:{ at:TODAY, by:DESIGNER } };
+    if (S.stamps[c.id] && !S.cyc[c.id]) return { ink:'red', b:'商品部', t:'確認', m:S.stamps[c.id] };
+  }
+  return null;
+}
+
+/** 這一格那一枚寫什麼（照主程式 setCellRvEl 的口氣：關名・等誰） */
+function tagOf(c){
+  const own = pname(ownerOf(c)), st = S.stage;
+  if (st === '提明細') return S.detail[c.id] ? ['製作・待設計', 'done'] : [`提明細・待${own}`, ''];
+  if (st === '製作') return S.madeSent[c.id] ? ['一校・待送齊', 'done'] : S.marks[c.id] ? ['製作・標好了', 'done'] : ['製作・待設計', ''];
+  if (st === '一校' || st === '二校'){
+    if (S.sent[ownerOf(c)]) return [`${st}・已送出`, 'done'];
+    if (S.marks[c.id]) return [`${st}・已審`, 'done'];
+    return [`${st}・待${own}`, ''];
+  }
+  if (st === '一改' || st === '二改'){
+    if (S.marks[c.id]) return [`${st}・改好了`, 'done'];
+    return S.flags[c.id] === 'fix' ? [`${st}・待設計`, 'back'] : [`${st === '一改' ? '一校' : '二校'} OK・待設計看過`, ''];
+  }
+  if (st === '蓋章確認'){
+    if (S.cyc[c.id] === 'design') return ['蓋章修改・待設計', 'back'];
+    if (S.cyc[c.id] === 'pm') return [`蓋章修改・待${own}再蓋`, 'back'];
+    if (!S.stamps[c.id]) return [`蓋章確認・待${own}`, ''];
+    if (!readyForMgr()) return ['蓋章確認・已蓋章', 'done'];
+    return [`蓋章確認・待${pname(nextLevel()[1])}`, 'done'];
+  }
+  if (st === '審稿'){ const f = nextFinal(); return [`審稿・待${pname(f[1])}`, 'done']; }
+  if (st === '出稿') return ['出稿・待設計', 'done'];
+  return ['已出稿', 'done'];
+}
+
+/** 這一步還在等誰（橫幅、換人那一頁的「輪到」都讀它） */
+function whoNext(){
+  const st = S.stage;
+  const owners = pred => [...new Set(cells.filter(pred).map(ownerOf))];
+  if (st === '提明細') return owners(c => !S.detail[c.id]);
+  if (['製作', '一改', '二改', '出稿'].includes(st)) return [DESIGNER];
+  if (st === '一校' || st === '二校') return Object.values(CATS).map(k => k.owner).filter(o => !S.sent[o]);
+  if (st === '蓋章確認'){
+    const r = [];
+    if (cells.some(c => S.cyc[c.id] === 'design')) r.push(DESIGNER);
+    owners(c => !S.stamps[c.id] && S.cyc[c.id] !== 'design').forEach(o => r.push(o));
+    if (!r.length && nextLevel()) r.push(nextLevel()[1]);
+    return r;
+  }
+  if (st === '審稿'){ const f = nextFinal(); return f ? [f[1]] : []; }
+  return [];
+}
+
+/* ---------- 畫格子 ---------- */
+const grid = $('grid');
+cells.forEach(c => {
+  const el = document.createElement('div');
+  el.className = 'cell' + (c.cat === '冰箱' ? ' fr' : '');
+  el.dataset.id = c.id;
+  el.innerHTML = cellHTML(c);
+  grid.appendChild(el);
+});
+const cellEl = id => grid.querySelector(`.cell[data-id="${id}"]`);
+const cellById = id => cells.find(c => c.id === id);
+
+function paintCells(popId){
+  const b = brush();
+  const isPm = P().kind === 'pm';
+  const past = FLOW.indexOf(S.stage) > FLOW.indexOf('蓋章確認');
+  cells.forEach(c => {
+    const el = cellEl(c.id);
+    const [txt, tone] = tagOf(c);
+    el.dataset.rv = txt; el.dataset.tone = tone;
+    el.classList.toggle('notmine', isPm && ownerOf(c) !== ME);
+    el.classList.toggle('sel', sel === c.id);
+    const mk = markOf(c);
+    const todo = !b.no && canAct(b, c) && !b.isOn(c);
+    el.classList.toggle('marked', !!mk);
+    el.classList.toggle('todo', todo);
+    // 印泥：蓋了的照那一顆的顏色；還沒蓋的虛線位子照手上那一顆的顏色
+    el.style.setProperty('--rv-ink', INK[mk ? mk.ink : (!b.no ? b.ink : 'pm')]);
+    const box = el.querySelector('.mk');
+    const show = mk || (!b.no ? { b:b.stampB, t:b.stampT, m:{ at:TODAY, by:ME } } : null);
+    if (show){
+      box.querySelector('b').textContent = show.b;
+      box.querySelector('span').textContent = show.t;
+      box.querySelector('small').textContent = `${show.m.at} ${PEOPLE[show.m.by] ? PEOPLE[show.m.by].short : ''}`;
+    }
+    // 便利貼記號：顏色＝誰貼的
+    let nb = el.querySelector('.cnb');
+    const ns = S.notes.filter(n => n.cell === c.id && !n.done);
+    if (!ns.length){ nb && nb.remove(); }
+    else {
+      if (!nb){ nb = document.createElement('div'); nb.className = 'cnb'; el.appendChild(nb); }
+      nb.innerHTML = ns.map(n => `<i class="${noteTone(n)}" title="${esc(n.kind)}：${esc(n.text || '')}">${kindIco(n.kind)}<sub>${esc(PEOPLE[n.by].mark)}</sub></i>`).join('');
+    }
+  });
+  if (popId){
+    const el = cellEl(popId);
+    if (el){ el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); setTimeout(() => el.classList.remove('pop'), 260); }
+  }
+}
+const noteTone = n => PEOPLE[n.by].role === 'design' ? 'd' : PEOPLE[n.by].role === 'mkt' ? 'm' : '';
+
+/* ---------- 拿起／放下印章 ---------- */
+function setMode(on){
+  const b = brush();
+  if (on && b.no){ toast(b.no); on = false; }
+  mode = !!on;
+  if (mode) disarm();
+  document.body.classList.toggle('rv-mode', mode);
+  paintAll();
+}
+/** 蓋下去。how：toggle（點一格）／on（拉框）／off（Alt 拉框） */
+function brushCells(list, how){
+  const b = brush();
+  if (b.no) return;
+  let changed = 0, blocked = 0, already = 0, last = null;
+  list.forEach(c => {
+    if (!b.scope.includes(c) || (b.can && !b.can(c) && !b.isOn(c))) return;
+    const cur = b.isOn(c);
+    if (b.toggle){
+      const want = how === 'off' ? false : how === 'on' ? true : !cur;
+      if (want === cur) return;
+      b.set(c, want); changed++; if (want) last = c.id;
+    } else {
+      if (how === 'off') return;
+      if (cur){ already++; return; }
+      if (b.blocked && b.blocked(c)){ blocked++; return; }
+      b.set(c, true); changed++; last = c.id;
+    }
+  });
+  if (!changed){
+    if (blocked) toast('這一格有你貼的調整便利貼，不蓋 —— 到審核分頁按「送出調整」');
+    else if (already && how === 'toggle') toast('蓋了就撤不掉');
+    else toast(how === 'off' ? '沒有可以取消的格子' : '這裡沒有要你蓋的格子');
+    return;
+  }
+  const msg = afterIrreversible(b);
+  if (msg) toast(msg, 'ok');
+  else if (list.length > 1) toast(`${how === 'off' ? '取消' : b.label} ${changed} 格${blocked ? `（${blocked} 格有調整便利貼，沒蓋）` : ''}`);
+  paintAll(list.length === 1 ? last : null);
+}
+/** 蓋了撤不掉的那幾種：蓋齊了自己往下走（不必再按一顆完成） */
+function afterIrreversible(b){
+  if (b.action === 'detail' && cells.every(c => S.detail[c.id])){
+    S.stage = '製作'; S.marks = {};
+    if (mode) exitMode();
+    return '明細都送出了：整塊進製作（待設計）';
+  }
+  if (b.action === 'stamp' && readyForMgr()){
+    if (mode) exitMode();
+    return `整塊都蓋好了，送${pname(nextLevel()[1])}`;
+  }
+  if (b.action === 'cycfix' && !cells.some(c => S.cyc[c.id] === 'design')){
+    if (mode) exitMode();
+    return '改好了：回到 PM 那裡再蓋一次紅章';
+  }
+  return '';
+}
+function exitMode(){ mode = false; document.body.classList.remove('rv-mode'); }
+
+/* ---------- 完成按鈕（蓋得掉的那幾種，蓋完了要按這一顆才算送出） ---------- */
+function finishReview(){
+  const mc = cells.filter(c => ownerOf(c) === ME);
+  if (mc.some(c => !S.marks[c.id])) return;
+  S.sent[ME] = true;
+  const fix = mc.filter(c => openNotes(c.id).length);
+  if (mode) exitMode();
+  if (Object.values(CATS).every(k => S.sent[k.owner])){
+    cells.forEach(c => { S.flags[c.id] = openNotes(c.id).length ? 'fix' : 'ok'; });
+    const was = S.stage;
+    S.stage = was === '一校' ? '一改' : '二改'; S.marks = {};
+    toast(`${was}完成：整塊送出，${cells.filter(c => S.flags[c.id] === 'fix').length} 格有便利貼，進${S.stage}（待設計）`, 'ok');
+  } else {
+    const wait = Object.values(CATS).filter(k => !S.sent[k.owner]).map(k => pname(k.owner)).join('、');
+    toast(`${S.stage}完成（${mc[0].cat} ${mc.length} 格，${fix.length} 格有便利貼）。這一塊還在等${wait}`, 'ok');
+  }
+  paintAll();
+}
+function finishMake(){
+  const go = cells.filter(c => S.marks[c.id] && !S.madeSent[c.id]);
+  if (!go.length) return;
+  go.forEach(c => { S.madeSent[c.id] = S.marks[c.id]; delete S.marks[c.id]; });
+  if (mode) exitMode();
+  if (cells.every(c => S.madeSent[c.id])){
+    S.stage = '一校'; S.marks = {}; S.sent = {};
+    toast('製作完成：整塊送齊了，進一校（待 PM）', 'ok');
+  } else toast(`製作完成：送出 ${go.length} 格，還有 ${cells.filter(c => !S.madeSent[c.id]).length} 格在做`, 'ok');
+  paintAll();
+}
+function finishFix(){
+  if (cells.some(c => !S.marks[c.id])) return;
+  const was = S.stage;
+  S.notes.forEach(n => { if (!n.done && n.kind !== '留言') n.done = true; });
+  S.stage = was === '一改' ? '二校' : '蓋章確認';
+  S.marks = {}; S.sent = {}; S.flags = {};
+  if (mode) exitMode();
+  toast(`${was}完成：進${S.stage}（待 PM）`, 'ok');
+  paintAll();
+}
+function sendAdjust(){
+  const list = cells.filter(c => ownerOf(c) === ME && !S.stamps[c.id] && !S.cyc[c.id] && openNotes(c.id, ME).length);
+  list.forEach(c => { S.cyc[c.id] = 'design'; });
+  toast(`送出調整：${list.length} 格進蓋章修改（設計改好了回來再蓋）`, 'ok');
+  paintAll();
+}
+function mgrPass(){
+  const lv = nextLevel();
+  S.chain.push(lv[0]);
+  if (S.chain.length === LEVELS.length){
+    S.stage = '審稿';
+    toast(`${P().name}審核通過：商品部確認完成，整份 DM 進審稿`, 'ok');
+  } else toast(`${P().name}審核通過，送${pname(nextLevel()[1])}`, 'ok');
+  paintAll();
+}
+function mgrReject(){
+  const list = cells.filter(c => openNotes(c.id, ME).length);
+  if (!list.length){ toast('先在要退的格子貼一張修改（或換品）便利貼，再按退件'); return; }
+  list.forEach(c => { S.cyc[c.id] = 'design'; delete S.stamps[c.id]; });
+  toast(`退件：${list.length} 格回設計改，改好了 PM 再蓋，直接送回${P().name}（前面過了的不用再看）`, 'ok');
+  paintAll();
+}
+function finalPass(){
+  S.finals[P().fin] = TODAY;
+  const f = nextFinal();
+  if (!f){ S.stage = '出稿'; toast('審稿三關都過了：整份 DM 進出稿（待設計）', 'ok'); }
+  else toast(`${P().name}審核通過，送${pname(f[1])}`, 'ok');
+  paintAll();
+}
+function outDone(){
+  S.stage = '完成';
+  toast('出稿完成：這一檔結束了', 'ok');
+  paintAll();
+}
+
+/* ---------- 審核分頁（#rvPanel） ---------- */
+function paintPanel(){
+  const p = $('rvPanel'), me = P(), b = brush(), st = S.stage;
+  const stName = st === '完成' ? '已出稿' : st;
+  const head = `<div class="rv-head"><b>審核</b><span class="nm">空調、冰箱</span><span class="rv-stage">${esc(stName)}</span></div>`;
+  const sec = [];
+  const bar = (n, t) => `<div class="rv-bar"><i style="width:${t ? n / t * 100 : 0}%"></i></div>`;
+  const nag = pendingSubmit();
+  const btn = (id, label, on, main) => `<button class="rv-act${main ? ' main' : ''}${nag && nag.id === id ? ' nag' : ''}" id="${id}"${on ? '' : ' disabled'}>${esc(label)}</button>`;
+  const why = t => `<div class="rv-why">${esc(t)}</div>`;
+
+  /* ---- 你要做的 ---- */
+  if (!b.no){
+    const n = b.scope.filter(b.isOn).length, t = b.scope.length, left = leftToStamp(b);
+    const intro = {
+      detail:`提明細（一格一格送）<small>送出 ${n}/${t}・蓋下去那一格就送出了</small>`,
+      mark:`你負責的 ${t} 格（${esc(b.scope[0].cat)}）<small>已審 ${n}/${t}・其中 ${b.scope.filter(c => openNotes(c.id).length).length} 格有便利貼</small>`,
+      make:`製作：標好了就蓋<small>標好 ${n}・還沒送出的 ${t} 格</small>`,
+      fix:`${st}：每一格都要蓋「改好了」<small>改好 ${n}/${t}・有便利貼的 ${cells.filter(c => S.flags[c.id] === 'fix').length} 格要真的改，其他看過就蓋</small>`,
+      stamp:`商品部蓋章（一格一格蓋）<small>蓋了 ${n}/${t}・蓋了撤不掉，整塊蓋齊了自動送課長</small>`,
+      cycfix:`蓋章修改：${t} 格被退回來<small>修改完成 ${n}/${t}・改好就蓋，回到 PM 再蓋紅章</small>`,
+    }[b.action];
+    let s = `<div class="rv-line">${intro}</div>${bar(n, t)}`;
+    if (b.finish){
+      const ready = b.needAll ? left === 0 : n > 0;
+      const label = b.action === 'make' ? `製作完成（送出標好的 ${n} 格）` : b.finishLabel;
+      s += `<div>${btn('actFinish', label, ready, true)}${ready
+        ? why(b.action === 'mark' ? `有便利貼的格子進${st === '一校' ? '一改' : '二改'}，其他算${st} OK` : b.action === 'fix' ? `送出之後進${st === '一改' ? '二校' : '蓋章確認'}` : '送出之後那幾格進一校')
+        : why(b.needAll ? `還有 ${left} 格沒蓋` : '先蓋「標好了」')}</div>`;
+    }
+    if (b.action === 'stamp'){
+      const adj = cells.filter(c => ownerOf(c) === ME && !S.stamps[c.id] && !S.cyc[c.id] && openNotes(c.id, ME).length);
+      if (adj.length) s += `<div>${btn('actAdjust', `送出調整（${adj.length} 格）`, true)}${why('有你貼的調整便利貼的格子不蓋，送回設計改')}</div>`;
+    }
+    sec.push(s);
+  } else if (me.kind === 'mgr' && st === '蓋章確認' && readyForMgr() && nextLevel()[1] === ME){
+    const mineNotes = cells.filter(c => openNotes(c.id, ME).length).length;
+    sec.push(`<div class="rv-line">蓋章之後的主管審核（${esc(me.level)}）<small>你管的：空調、冰箱 28 格</small></div>
+      <div>${btn('actPass', '審核通過', !mineNotes, true)}${mineNotes ? why(`你在 ${mineNotes} 格貼了便利貼：要退就按退件`) : ''}</div>
+      <div>${btn('actBack', mineNotes ? `退件（${mineNotes} 格有你的便利貼）` : '退件（先在要改的格子貼便利貼）', true)}</div>`);
+  } else if (me.kind === 'final' && st === '審稿' && nextFinal() && nextFinal()[1] === ME){
+    sec.push(`<div class="rv-line">最終審核（整份 DM）<small>審的是整份，不一格一格蓋</small></div>
+      <div>${btn('actFinal', '審核通過', true, true)}</div><div>${btn('actFinalBack', '退件（先貼便利貼）', true)}</div>`);
+  } else if (me.kind === 'design' && st === '出稿'){
+    sec.push(`<div class="rv-line">出稿<small>審稿三關都過了，輸出正式版</small></div><div>${btn('actOut', '出稿完成', true, true)}</div>`);
+  } else {
+    const w = whoNext();
+    sec.push(`<div class="rv-none">${esc(b.no)}${w.length ? `<br>現在在等：${esc(w.map(pname).join('、'))}` : ''}</div>`);
+  }
+
+  /* ---- 大家到哪了 ---- */
+  let prog = '';
+  const line = (label, right, done) => `<div class="rv-who${done ? ' done' : ''}">${esc(label)}<span>${esc(right)}</span></div>`;
+  const byOwner = f => Object.values(CATS).map(k => {
+    const cs = cells.filter(c => ownerOf(c) === k.owner);
+    return f(k.owner, cs, cs[0].cat);
+  }).join('');
+  if (st === '提明細') prog = byOwner((o, cs, cat) => { const n = cs.filter(c => S.detail[c.id]).length; return line(`${cat}・${pname(o)}`, `送出 ${n}/${cs.length}`, n === cs.length); });
+  else if (st === '製作'){ const n = cells.filter(c => S.madeSent[c.id]).length; prog = line('設計 A', `送出 ${n}/28・標好 ${cells.filter(c => S.marks[c.id]).length}`, n === 28); }
+  else if (st === '一校' || st === '二校') prog = byOwner((o, cs, cat) => line(`${cat}・${pname(o)}`, S.sent[o] ? `${st}完成` : `已審 ${cs.filter(c => S.marks[c.id]).length}/${cs.length}`, S.sent[o]));
+  else if (st === '一改' || st === '二改'){ const n = cells.filter(c => S.marks[c.id]).length; prog = line('設計 A', `改好 ${n}/28`, n === 28); }
+  else if (st === '蓋章確認'){
+    prog = byOwner((o, cs, cat) => { const n = cs.filter(c => S.stamps[c.id] && !S.cyc[c.id]).length; return line(`${cat}・${pname(o)}`, `蓋章 ${n}/${cs.length}`, n === cs.length); });
+    const cy = cells.filter(c => S.cyc[c.id]).length;
+    if (cy) prog += line('蓋章修改', `${cy} 格在退件循環`, false);
+    prog += LEVELS.map(([l, id], k) => line(`${l}・${pname(id)}`, k < S.chain.length ? '審核通過' : k === S.chain.length && readyForMgr() ? '輪到' : '等蓋齊', k < S.chain.length)).join('');
+  } else if (st === '審稿' || st === '出稿' || st === '完成'){
+    prog = FINALS.map(([k, id]) => line(pname(id), S.finals[k] ? '審核通過' : nextFinal() && nextFinal()[0] === k ? '輪到' : '等前一關', !!S.finals[k])).join('');
+    if (st !== '審稿') prog += line('設計 A・出稿', st === '完成' ? '出稿完成' : '輪到', st === '完成');
+  }
+  sec.push(prog);
+  p.innerHTML = head + sec.map(s => `<div class="rv-sec">${s}</div>`).join('');
+  const on = (id, fn) => { const e = $(id); e && e.addEventListener('click', fn); };
+  on('actFinish', () => { const bb = brush(); bb.finish && bb.finish(); });
+  on('actAdjust', sendAdjust);
+  on('actPass', mgrPass);
+  on('actBack', mgrReject);
+  on('actFinal', finalPass);
+  on('actFinalBack', () => toast('審稿退件在主程式裡（這個示範只做到審核通過）'));
+  on('actOut', outDone);
+}
+
+/* ---------- 左邊的印章工具、紙上緣那一條、審核分頁最上面那一句 ---------- */
+const STAMP_ICO = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5.5" r="3.6"/><rect x="10" y="8.5" width="4" height="5"/><rect x="4" y="13" width="16" height="5.5" rx="1.6"/><rect x="5" y="20" width="14" height="2" rx="1" opacity=".55"/></svg>';
+/** 游標是一顆印章，照手上那一顆的印泥畫；熱點在印面正中間（蓋下去的那一點） */
+function cursorFor(hex){
+  const c = encodeURIComponent(hex);
+  return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cg stroke='white' stroke-width='2' stroke-linejoin='round'%3E%3Ccircle cx='15' cy='7' r='5' fill='${c}'/%3E%3Crect x='12' y='11' width='6' height='6' fill='${c}'/%3E%3Crect x='5' y='16' width='20' height='7' rx='2' fill='${c}'/%3E%3C/g%3E%3Crect x='6' y='25' width='18' height='3' rx='1' fill='${c}'/%3E%3C/svg%3E") 15 26, pointer`;
+}
+function paintModeBits(){
+  const b = brush();
+  if (b.no && mode) exitMode();
+  const left = leftToStamp(b);
+  const tool = $('toolStamp');
+  tool.classList.toggle('active', mode);
+  tool.classList.toggle('dim', !!b.no);
+  $('toolSel').classList.toggle('active', !mode);
+  tool.title = b.no ? `印章 (A)：${b.no}`
+    : `${b.label} (A)：點一格＝${b.toggle ? '蓋這一格，再點一下取消' : '蓋這一格（蓋了撤不掉）'}；拉一個框＝整片${b.toggle ? '；Alt＋拉框＝整片取消' : ''}`;
+  let badge = tool.querySelector('.left');
+  if (left && !mode){ if (!badge){ badge = document.createElement('span'); badge.className = 'left'; tool.appendChild(badge); } badge.textContent = left; }
+  else if (badge) badge.remove();
+  const rn = $('rvN');
+  const turn = whoNext().includes(ME);
+  rn.hidden = !(left || turn); rn.textContent = left || '!'; rn.classList.toggle('hot', !!(left || turn));
+  const ink = INK[b.no ? 'pm' : b.ink];
+  document.body.style.setProperty('--rv-ink', ink);
+  document.body.style.setProperty('--cur', cursorFor(ink));
+  const tip = $('rvTip');
+  tip.classList.toggle('on', mode);
+  tip.innerHTML = STAMP_ICO + (b.no ? `<span>${esc(b.no)}</span>`
+    : mode ? `<span><b>印章拿在手上了</b>（${esc(b.label)}）。點格子蓋，Esc 或再按一次 A 放下。</span>`
+    : `<span>拿起左邊那一條的<b>印章</b>（A）：${esc(b.label)}，一格一格蓋${b.toggle ? '，蓋錯再點一下取消' : '（蓋了撤不掉）'}。</span>`);
+  if (!b.no){
+    $('rhTitle').textContent = `印章・${b.label}`;
+    $('rhHow').innerHTML = b.toggle
+      ? '點一格＝蓋，再點一下取消・拉一個框＝整片・<kbd>Alt</kbd>＋拉框＝整片取消'
+      : `點一格＝蓋（蓋了撤不掉）・拉一個框＝整片蓋${b.action === 'stamp' ? '・有調整便利貼的格子不蓋' : ''}`;
+    const n = b.scope.filter(b.isOn).length;
+    $('rhPips').innerHTML = b.scope.map((_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('');
+    $('rhN').textContent = `${n} / ${b.scope.length}`;
+    const go = $('rhGo');
+    go.hidden = !(b.finish && b.scope.length && n === b.scope.length);
+    go.textContent = `全部蓋完了・${b.finishLabel || ''}`;
+  }
+}
+
+/* ---------- 最上面那一條的進度 ---------- */
+function paintBanner(){
+  const i = S.stage === '完成' ? STAGES.length : STAGES.indexOf(S.stage);
+  const steps = STAGES.map((s, k) => `<i class="${k < i ? 'done' : k === i ? 'now' : ''}" title="${s}"></i>`).join('');
+  const b = brush(), w = whoNext();
+  let turn, prog = '';
+  if (w.includes(ME)){
+    turn = `<span class="sp-turn">輪到你・倒數 20.4 小時</span>`;
+    if (!b.no) prog = `${b.label} ${b.scope.filter(b.isOn).length}/${b.scope.length}`;
+  } else turn = `<span class="sp-turn idle">${w.length ? '待' + w.map(pname).join('、') : S.stage === '完成' ? '已出稿' : ''}</span>`;
+  $('bannerProg').innerHTML = `<span class="sp-name">${esc(S.stage === '完成' ? '已出稿' : S.stage)}</span><span class="sp-steps">${steps}</span>${turn}<span class="sp-prog">${esc(prog)}</span>`;
+}
+
+/* ---------- 意見欄：貼紙那一疊、便利貼清單 ---------- */
+function paintTray(){
+  const ks = KINDS_OF[P().kind];
+  const html = KINDS.filter(k => ks.includes(k.k)).map(k => `<button class="stick" data-kind="${k.k}"><span class="ico">${k.ico}</span>${k.k}</button>`).join('');
+  if ($('stickRow').dataset.sig !== P().kind){ $('stickRow').innerHTML = html; $('stickRow').dataset.sig = P().kind; }
+  $('trayHint').textContent = `${P().name}的貼紙 — 點貼紙，再點格子`;
+}
+$('stickRow').addEventListener('click', e => {
+  const b = e.target.closest('.stick'); if (!b) return;
+  armed = armed === b.dataset.kind ? null : b.dataset.kind;
+  if (armed && mode) setMode(false);
+  paintArm();
+});
+function disarm(){ armed = null; paintArm(); }
+function paintArm(){
+  document.querySelectorAll('.stick').forEach(s => s.classList.toggle('armed', s.dataset.kind === armed));
+  const h = $('armHint');
+  h.classList.toggle('on', !!armed);
+  h.textContent = armed ? `點一格貼上「${armed}」（Esc 放下）` : '';
+}
+function placeNote(c){
+  const n = { id:'n' + Date.now(), cell:c.id, kind:armed, by:ME, text:'', at:nowAt() };
+  S.notes.unshift(n);
+  disarm();
+  sel = c.id;
+  showTab('notes');
+  paintAll();
+  setTimeout(() => { const ta = document.querySelector(`.note[data-id="${n.id}"] textarea`); ta && ta.focus(); });
+}
+function paintNotes(){
+  paintTray();
+  const open = S.notes.filter(n => !n.done);
+  $('noteN').textContent = open.length;
+  $('noteN').classList.toggle('hot', open.length > 0);
+  $('railSub').textContent = `${S.notes.length} 則・${open.length} 則還沒處理`;
+  $('railLegend').innerHTML = KINDS.map(k => {
+    const n = open.filter(x => x.kind === k.k).length;
+    return `<span class="lg${n ? ' on' : ''}">${k.ico} ${k.k} ${n}</span>`;
+  }).join('');
+  const list = $('railList');
+  if (!S.notes.length){
+    list.innerHTML = `<div id="railEmpty">還沒有人標東西<br>把上面的貼紙貼到格子上</div>`;
+    return;
+  }
+  // 打字中不重畫那一張（游標會不見）
+  const focused = document.activeElement && document.activeElement.closest && document.activeElement.closest('.note');
+  if (focused && list.contains(focused)) return;
+  list.innerHTML = S.notes.map(n => {
+    const c = cellById(n.cell);
+    const mineOpen = n.by === ME && !n.done;
+    return `<div class="note ${noteTone(n)}${sel === n.cell ? ' sel' : ''}" data-id="${n.id}" data-cell="${n.cell}"${n.done ? ' style="opacity:.55"' : ''}>
+      <div class="nh"><span class="k">${kindIco(n.kind)}</span>${esc(n.kind)}・${esc(pname(n.by))}<span class="at">${esc(n.at)}</span>${mineOpen ? '<button class="x">撕掉</button>' : ''}</div>
+      <div class="where">${esc(c.cat)} 第 ${c.n} 格・${esc(c.brand)} ${esc(c.model)}${n.done ? '・已處理' : ''}</div>
+      ${mineOpen ? `<textarea placeholder="要改什麼？">${esc(n.text)}</textarea>` : `<div style="font-size:13px;color:#222">${esc(n.text)}</div>`}
+    </div>`;
+  }).join('');
+}
+$('railList').addEventListener('input', e => {
+  const card = e.target.closest('.note'); if (!card) return;
+  const n = S.notes.find(x => x.id === card.dataset.id); if (n) n.text = e.target.value;
+});
+$('railList').addEventListener('click', e => {
+  const card = e.target.closest('.note'); if (!card) return;
+  if (e.target.closest('.x')){
+    S.notes = S.notes.filter(x => x.id !== card.dataset.id);
+    paintAll(); return;
+  }
+  if (e.target.tagName === 'TEXTAREA') return;
+  sel = card.dataset.cell;
+  paintAll();
+  cellEl(sel).scrollIntoView({ block:'center', inline:'center', behavior:'smooth' });
+});
+
+/* ---------- 格子上的手勢：點一格／拉一個框 ---------- */
+let drag = null;
+const boardEl = $('board');
+boardEl.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const cel = e.target.closest('.cell');
+  /* 擋掉預設動作：不擋的話 mousedown 會把焦點拉回 body，剛貼上那張的輸入框打不了字 */
+  if (armed){ e.preventDefault(); if (cel) placeNote(cellById(cel.dataset.id)); return; }
+  if (!mode){
+    if (e.target.closest('.cnb') && cel){ sel = cel.dataset.id; showTab('notes'); paintAll(); return; }
+    sel = cel ? cel.dataset.id : null;
+    paintAll();
+    return;
+  }
+  e.preventDefault();
+  drag = { x:e.clientX, y:e.clientY, cell:cel && cel.dataset.id, off:e.altKey, moved:false, box:null };
+  boardEl.setPointerCapture(e.pointerId);
+});
+boardEl.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+  if (!drag.moved){
+    drag.moved = true;
+    drag.box = document.createElement('div'); drag.box.id = 'selBox';
+    document.body.appendChild(drag.box);
+  }
+  drag.off = e.altKey;
+  const l = Math.min(drag.x, e.clientX), t = Math.min(drag.y, e.clientY), r = Math.max(drag.x, e.clientX), b = Math.max(drag.y, e.clientY);
+  Object.assign(drag.box.style, { left:l + 'px', top:t + 'px', width:(r - l) + 'px', height:(b - t) + 'px' });
+  drag.box.classList.toggle('off', drag.off);
+  drag.hit = cellsIn(l, t, r, b);
+  const br = brush();
+  grid.querySelectorAll('.cell').forEach(el => {
+    const on = !br.no && drag.hit.includes(el.dataset.id) && br.scope.includes(cellById(el.dataset.id));
+    el.classList.toggle('aim', on);
+    el.classList.toggle('off', on && drag.off);
+  });
+});
+function cellsIn(l, t, r, b){
+  return [...grid.querySelectorAll('.cell')].filter(el => {
+    const q = el.getBoundingClientRect();
+    return q.right > l && q.left < r && q.bottom > t && q.top < b;
+  }).map(el => el.dataset.id);
+}
+function endDrag(cancel){
+  if (!drag) return;
+  const d = drag; drag = null;
+  d.box && d.box.remove();
+  grid.querySelectorAll('.aim').forEach(el => el.classList.remove('aim', 'off'));
+  if (cancel) return;
+  if (!d.moved){
+    if (!d.cell) return;
+    const c = cellById(d.cell), b = brush();
+    sel = d.cell;
+    if (P().kind === 'pm' && ownerOf(c) !== ME){ toast(`這一格是${pname(ownerOf(c))}負責的（只能看）`); paintAll(); return; }
+    if (!b.no && !b.scope.includes(c)){ toast(`這一格現在不用你蓋（${tagOf(c)[0]}）`); paintAll(); return; }
+    brushCells([c], d.off ? 'off' : 'toggle');
+    return;
+  }
+  brushCells((d.hit || []).map(cellById), d.off ? 'off' : 'on');
+}
+boardEl.addEventListener('pointerup', () => endDrag(false));
+boardEl.addEventListener('pointercancel', () => endDrag(true));
+
+/* ---------- 鍵盤 ---------- */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Alt') document.body.classList.add('alt');
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  if (e.key === 'Escape'){
+    if (drag) endDrag(true);
+    else if (armed) disarm();
+    else if (mode) setMode(false);
+    else if (!$('devPop').hidden) $('devPop').hidden = true;
+  }
+  if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey) setMode(!mode);
+  if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey) setMode(false);
+});
+document.addEventListener('keyup', e => { if (e.key === 'Alt') document.body.classList.remove('alt'); });
+window.addEventListener('blur', () => document.body.classList.remove('alt'));
+
+$('toolStamp').addEventListener('click', () => setMode(!mode));
+$('toolSel').addEventListener('click', () => setMode(false));
+$('rhExit').addEventListener('click', () => setMode(false));
+$('rhGo').addEventListener('click', () => { const b = brush(); b.finish && b.finish(); });
+$('noteTg').addEventListener('click', () => {
+  $('noteTg').classList.toggle('on');
+  document.body.classList.toggle('no-notes', !$('noteTg').classList.contains('on'));
+});
+
+/* ---------- 右邊那一欄的分頁 ---------- */
+function showTab(t){
+  document.querySelectorAll('.sc-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('.sc-pane').forEach(p => p.hidden = p.dataset.pane !== t);
+}
+document.querySelectorAll('.sc-tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+/* ---------- 縮放（符合視窗、＋／−） ---------- */
+let Z = 1, fitZ = 1;
+function boardH(){ return boardEl.offsetHeight; }
+function applyZ(){
+  document.documentElement.style.setProperty('--z', Z);
+  const w = $('boardWrap');
+  w.style.width = 1680 * Z + 'px';
+  w.style.height = boardH() * Z + 'px';
+  $('zVal').textContent = Math.round(Z * 100) + '%';
+}
+function fit(){
+  const sc = $('scroll');
+  fitZ = Math.min((sc.clientWidth - 48) / 1680, (sc.clientHeight - 48) / boardH());
+  Z = Math.max(.2, fitZ); applyZ();
+}
+$('zVal').addEventListener('click', fit);
+$('zIn').addEventListener('click', () => { Z = Math.min(2, Z * 1.15); applyZ(); });
+$('zOut').addEventListener('click', () => { Z = Math.max(.2, Z / 1.15); applyZ(); });
+$('scroll').addEventListener('wheel', e => {
+  e.preventDefault();
+  Z = Math.min(2, Math.max(.2, Z * (e.deltaY < 0 ? 1.08 : 1 / 1.08))); applyZ();
+}, { passive:false });
+window.addEventListener('resize', fit);
+
+/* ---------- 🛠：外觀、換人、快轉 ---------- */
+const LOOKS = [
+  { k:'check', name:'勾', svg:'<rect x="2" y="2" width="60" height="44" rx="3" fill="#fff" stroke="#c9d6e2"/><rect x="8" y="22" width="30" height="8" rx="2" fill="#dde3ea"/><circle cx="48" cy="26" r="9" fill="#1a7f47" stroke="#fff" stroke-width="2"/><path d="M44 26l3 3 5-6" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round"/>' },
+  { k:'frame', name:'綠框', svg:'<rect x="2" y="2" width="60" height="44" rx="3" fill="#e8f3ec" stroke="#1a7f47" stroke-width="4"/><rect x="8" y="22" width="30" height="8" rx="2" fill="#dde3ea"/>' },
+  { k:'stamp', name:'印章', svg:'<rect x="2" y="2" width="60" height="44" rx="3" fill="#fff" stroke="#c9d6e2"/><rect x="8" y="22" width="30" height="8" rx="2" fill="#dde3ea"/><g transform="rotate(-14 34 25)"><circle cx="34" cy="25" r="15" fill="none" stroke="#1a7f47" stroke-width="2.4"/><circle cx="34" cy="25" r="12" fill="none" stroke="#1a7f47" stroke-width="1"/><text x="34" y="29" font-size="10" font-weight="900" text-anchor="middle" fill="#1a7f47">已審</text></g>' },
+];
+function paintDev(){
+  $('looks').innerHTML = LOOKS.map(l => `<button class="look${LOOK === l.k ? ' on' : ''}" data-look="${l.k}"><svg viewBox="0 0 64 48">${l.svg}</svg>${l.name}</button>`).join('');
+  const w = whoNext();
+  $('whoList').innerHTML = Object.entries(PEOPLE).map(([id, p]) =>
+    `<button class="dv-row${id === ME ? ' on' : ''}" data-who="${id}">${esc(p.name)}${w.includes(id) ? '<b class="dv-turn">輪到</b>' : ''}<small>${esc(p.sub)}</small></button>`).join('');
+  $('ffList').innerHTML = FLOW.filter(s => s !== '完成').map(s =>
+    `<button class="dv-row${S.stage === s ? ' on' : ''}" data-ff="${s}">${s}<small>${FF_NOTE[s]}</small></button>`).join('')
+    + `<button class="dv-row" data-ff="reset">重來（回到一校、清掉全部）</button>`;
+  $('devBtn').classList.toggle('on', S.stage !== '一校' || ME !== 'pm2');
+  $('devBtn').textContent = '🛠' + (S.stage !== '一校' ? ' ⏩' + (S.stage === '完成' ? '已出稿' : S.stage) : '');
+}
+const FF_NOTE = {
+  提明細:'PM 一格一格蓋「送出」', 製作:'設計蓋「標好了」→ 製作完成', 一校:'PM 蓋「已審」→ 一校完成', 一改:'設計每一格蓋「改好了」',
+  二校:'同一校', 二改:'同一改', 蓋章確認:'PM 紅章 → 課長 → 部長 → 處長', 審稿:'協理 → 行銷處協理 → 律師', 出稿:'設計按出稿完成',
+};
+function setLook(k){
+  LOOK = k;
+  document.body.classList.remove('look-check', 'look-frame', 'look-stamp');
+  document.body.classList.add('look-' + k);
+  try { localStorage.setItem('rvlook_v3', k); } catch (e) {}
+  paintDev();
+}
+function setMe(id){
+  ME = id;
+  try { localStorage.setItem('rvme_v1', ME); } catch (e) {}
+  exitMode(); disarm(); sel = null;
+  $('whoName').textContent = P().name;
+  document.body.dataset.role = P().role;
+}
+$('devPop').addEventListener('click', e => {
+  const t = e.target.closest('[data-dv]');
+  if (t){
+    document.querySelectorAll('.dv-tabs button').forEach(b => b.classList.toggle('on', b === t));
+    document.querySelectorAll('[data-dvp]').forEach(p => p.hidden = p.dataset.dvp !== t.dataset.dv);
+    return;
+  }
+  const lk = e.target.closest('[data-look]');
+  if (lk){ setLook(lk.dataset.look); return; }
+  const w = e.target.closest('[data-who]');
+  if (w){ setMe(w.dataset.who); toast(`換成 ${P().name}`); paintAll(); return; }
+  const f = e.target.closest('[data-ff]');
+  if (f){
+    resetTo(f.dataset.ff === 'reset' ? '一校' : f.dataset.ff);
+    exitMode(); disarm(); sel = null;
+    const w2 = whoNext();
+    toast(f.dataset.ff === 'reset' ? '重來：一校' : `快轉到${f.dataset.ff}・輪到${w2.map(pname).join('、')}（🛠 → 換人）`);
+    paintAll();
+  }
+});
+$('devBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const p = $('devPop');
+  p.hidden = !p.hidden;
+  if (!p.hidden){
+    const r = $('devBtn').getBoundingClientRect();
+    p.style.top = r.bottom + 8 + 'px';
+    p.style.left = Math.max(8, Math.min(innerWidth - 338, r.right - 330)) + 'px';
+  }
+});
+document.addEventListener('pointerdown', e => {
+  const p = $('devPop');
+  if (!p.hidden && e.target.isConnected && !p.contains(e.target) && !$('devBtn').contains(e.target)) p.hidden = true;
+});
+
+/* ---------- 只是長得像的那幾顆 ---------- */
+document.addEventListener('click', e => {
+  const f = e.target.closest('.fake');
+  if (f) toast(`「${f.dataset.what}」在主程式裡 —— 這個示範只做審核`);
+});
+
+let toastT;
+function toast(msg, kind){
+  const t = $('toast');
+  t.textContent = msg; t.className = 'on' + (kind === 'ok' ? ' ok' : '');
+  clearTimeout(toastT); toastT = setTimeout(() => t.className = '', 3200);
+}
+
+/** 格子都蓋完了、只剩「送出」那一下沒按：回那一顆（沒有就 null）。
+    製作要全部標好才算（標了幾格就送幾格是合法的，但那不是「忘了」）；
+    蓋章那一關，能蓋的都蓋了、剩下的全是貼了調整便利貼的 ＝ 在等「送出調整」。 */
+function pendingSubmit(){
+  const b = brush();
+  if (b.no) return null;
+  const n = b.scope.filter(b.isOn).length;
+  if (b.finish && b.scope.length && n === b.scope.length) return { id:'actFinish', label:b.action === 'make' ? '製作完成' : b.finishLabel };
+  if (b.action === 'stamp'){
+    const stampable = b.scope.filter(c => b.can(c) && !b.isOn(c) && !b.blocked(c)).length;
+    const adj = b.scope.filter(c => b.can(c) && b.blocked(c)).length;
+    if (!stampable && adj) return { id:'actAdjust', label:'送出調整' };
+  }
+  return null;
+}
+/* 剛變成「只剩送出」的那一刻：右邊那一欄翻到審核、那一顆捲進畫面、講一句。
+   只在那一刻做一次（nagKey 記著）—— 每重畫一次就把人拉回審核分頁的話，他想去意見欄補一句都去不了；
+   之後靠那一顆發光、分頁閃來提醒。 */
+let nagKey = null;
+function nagSubmit(){
+  const p = pendingSubmit();
+  const key = p ? `${S.stage}|${ME}|${p.id}` : null;
+  document.querySelector('.sc-tab[data-tab="review"]').classList.toggle('nag', !!p);
+  $('rhGo').classList.toggle('nag', !!p);
+  if (key && key !== nagKey){
+    showTab('review');
+    const el = $(p.id);
+    el && el.scrollIntoView({ block:'nearest', behavior:'smooth' });
+    toast(`全部蓋完了 —— 記得按「${p.label}」送出`);
+  }
+  nagKey = key;
+}
+
+function paintAll(popId){
+  paintModeBits();
+  paintCells(popId);
+  paintPanel();
+  paintNotes();
+  paintBanner();
+  paintDev();
+  nagSubmit();
+}
+
+setMe(ME);
+setLook(LOOK);
+paintAll();
+fit();
+document.fonts && document.fonts.ready.then(fit);
+
+</script>
+</body>
+</html>

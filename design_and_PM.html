@@ -9,6 +9,8 @@
     --blue:#4a6fdc;
     --ink:#333a45;
     --muted:#7a8494;
+    --note-fix:#ffb9a8;        /* 便利貼「修改」那一種（小地圖上那一枚） */
+    --note-swap:#d9c8ff;       /* 便利貼「換品」那一種 */
     --bg:#f2f4f8;
     --card:#ffffff;
     --line:#e2e6ee;
@@ -870,6 +872,8 @@
   }
   .pill.tag{color:var(--blue);border-color:var(--accent-line);background:var(--accent-tint)}
   .pill.count{color:var(--amber);border-color:var(--warn-line);background:var(--amber-bg)}
+  .pill.count.late{color:var(--danger-ink);border-color:var(--danger);background:var(--danger-tint)}
+  .pill.mine{color:var(--ink);border-color:var(--line-strong);background:var(--surface)}   /* 不用藍：藍＝你正在點的東西 */
   /* 草稿：虛線邊，看得出它跟旁邊那幾張「已經在跑」的卡不是同一件事 */
   .pill.draft{
     color:var(--muted);border-style:dashed;border-color:var(--line-strong);
@@ -888,6 +892,8 @@
   .stage-chip.done .n,.stage-chip.done .d{color:#2e8b57}
   .stage-chip.now{background:var(--amber-bg);border-color:var(--warn-line);position:relative}
   .stage-chip.now .n,.stage-chip.now .d{color:var(--amber)}
+  .stage-chip.now.late{background:var(--danger-tint);border-color:var(--danger)}
+  .stage-chip.now.late .n,.stage-chip.now.late .d{color:var(--danger-ink)}
   .stage-chip.now::after{
     content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;
     border-radius:50%;background:var(--warn);
@@ -986,20 +992,29 @@
      旁邊面板勾了什麼，這裡當場就長出來。
      isolate 讓卡片自己開一層，畫布 z-index:-1 壓在卡片底色之上、文字之下。 */
   #boardOverview .cell{position:relative;isolation:isolate}
-  /* ---- 審核通過那一枚小標籤 -----------------------------------------------
-     一格一枚，寫的是**這一格走到哪一關**（一次只有一枚，見 setCellPassEl）。
+  /* ---- 這一格走到哪那一枚小標籤（審核，2026-09-28） ---------------------------
+     一格一枚：在哪一關・等誰（見 setCellRvEl）。取代以前的「審核通過」那一枚。
      ⚠️ 它是**標記**，不是印出去的東西：所以固定大小（不乘 --z，見「大小」那一段），
      而且列印時整個洗掉 —— `#board .cell::after` 那一條已經無條件把它關掉了。
-     綠＝這件事過了（跟版位「挑齊了」同一族的綠），不用藍：藍是「你正在點的東西」。
-     只在 拼板：那一頁的格子裡才有真正的貨可以審，而 .cell 也只有在這裡
-     position:relative（落版 那邊沒有，絕對定位會跑到別的祖先上）。 */
-  #boardOverview .cell[data-pass]::after{
-    content:attr(data-pass);
+     顏色講的是這一格的狀況：綠＝這一步好了、琥珀＝退件中或沒有負責人、紅＝延遲，
+     其他（等人處理）是白的。不用藍：藍是「你正在點的東西」（選起來那一格的框才是藍的）。
+     只在 拼板：.cell 也只有在這裡 position:relative（落版 那邊沒有，絕對定位會跑到別的祖先上）。 */
+  #boardOverview .cell[data-rv]::after{
+    content:attr(data-rv);
     position:absolute;right:2px;top:2px;z-index:6;pointer-events:none;
     font-size:10px;font-weight:800;line-height:1;white-space:nowrap;
+    max-width:calc(100% - 4px);overflow:hidden;text-overflow:ellipsis;
     padding:2px 5px;border-radius:999px;
-    background:var(--ok-tint);color:var(--ok-ink);border:1px solid var(--green-rule);
+    background:var(--surface);color:var(--ink-dim);border:1px solid var(--line);
   }
+  #boardOverview .cell[data-rv-tone="done"]::after{background:var(--ok-tint);color:var(--ok-ink);border-color:var(--green-rule)}
+  #boardOverview .cell[data-rv-tone="back"]::after,
+  #boardOverview .cell[data-rv-tone="none"]::after{background:var(--amber-bg);color:var(--amber);border-color:var(--warn-line)}
+  #boardOverview .cell[data-rv-tone="late"]::after{background:var(--danger-tint);color:var(--danger-ink);border-color:var(--danger)}
+  /* PM：不是自己品類的格子淡一點（實作指南 4.5：看得到全部，只能審自己的）。淡的是格子裡的東西，
+     那一枚標籤和底色照舊 —— 別人那幾格走到哪，他還是要看得到。 */
+  #boardOverview .cell.rv-notmine .ccanvas{opacity:.42}
+  #boardOverview .cell.rv-sel{outline:2px solid var(--blue);outline-offset:-2px}
   /* ⚠️ 畫布**不跟著縮放改尺寸**，改的是 transform（大小、位置都由 fitCellCanvases
      用 inline style 給）。以前是 inset:0 貼滿格子，於是每滾一格 60 支 iframe 就各自
      被改一次寬高 → 每一支裡面的文件重排一次。量到的是一步縮放 184ms（把 iframe 的
@@ -1122,7 +1137,7 @@
   #stickTray{flex:none;overflow:visible;
              border:2px dashed var(--line);border-radius:12px;padding:6px}
   #stickTray .hint{font-size:11.5px;font-weight:800;color:var(--muted);margin-bottom:5px}
-  #stickRow{display:flex;gap:6px;flex-wrap:nowrap}
+  #stickRow{display:flex;gap:6px;flex-wrap:wrap}   /* 五種：PM 那一疊一排放不下 */
   /* 貼紙欄裡的也是便利貼：方的一疊，拿起來就往版面上貼 */
   .stick{
     /* max-width 是為了「只剩一種」：flex:1 會讓單獨一張撐滿整條意見欄，變成一塊
@@ -1150,20 +1165,185 @@
      大一顆是因為校對那幾關這就是那個人整頁要做的事 —— 收進工具列等於要人先去找它。
      ⚠️ 開著的時候整顆反白：它是一個**模式**（現在點格子的意思跟平常不一樣），
      那件事要一直看得見，不是按一下就結束的動作。 */
-  #passBtn{
-    display:flex;align-items:center;gap:9px;width:100%;flex:none;margin-top:2px;
-    font:inherit;text-align:left;cursor:pointer;
-    border:2px solid var(--green-rule);border-radius:10px;padding:9px 10px;
-    background:var(--ok-tint);color:var(--ok-ink);
+  /* ---- 審核（第四步）：輪到你、🔔、職代、設定表、🛠 換人／紀錄 ---------------------
+     站在檔期列表最上面那一張「輪到你」是這個人今天要做的事，所以它在卡片前面、跟卡片同一種紙。
+     延遲的紅字、退件中的琥珀，跟格子上那一枚同一套顏色。 */
+  #todoList{margin:0 0 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  #todoList[hidden]{display:none}
+  #todoList .td-head{font-size:14px;font-weight:800;color:var(--ink);margin-bottom:6px}
+  #todoList .td-row{display:grid;grid-template-columns:auto minmax(0,1.2fr) minmax(0,1fr) auto;gap:10px;align-items:baseline;
+    width:100%;text-align:left;font:inherit;cursor:pointer;border:0;border-top:1px dashed var(--line);
+    background:transparent;padding:7px 4px;color:var(--ink)}
+  #todoList .td-row:hover{background:var(--surface-2)}
+  #todoList .td-row .st{font-size:12px;font-weight:800;padding:2px 7px;border-radius:999px;background:var(--surface-2);color:var(--ink-dim)}
+  #todoList .td-row .tt{font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #todoList .td-row .dt{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #todoList .td-row .du{font-size:12px;font-weight:800;color:var(--amber)}
+  #todoList .td-row.late .du{color:var(--danger-ink)}
+  #todoList .td-row.back .st{background:var(--amber-bg);color:var(--amber)}
+  #todoList .td-more{font-size:12px;color:var(--muted);padding-top:6px}
+  @media (max-width:680px){ #todoList .td-row{grid-template-columns:auto minmax(0,1fr) auto} #todoList .td-row .dt{display:none} }
+
+  #rvBell{position:relative;font:inherit;font-size:14px;cursor:pointer;border:1px solid var(--chrome-line);border-radius:999px;
+    padding:2px 8px;background:transparent;color:var(--chrome-ink);line-height:1.2}
+  #rvBell[hidden]{display:none}
+  #rvBell:hover{border-color:var(--blue)}
+  #rvBell i{font-style:normal;font-size:10.5px;font-weight:800;margin-left:3px;padding:0 5px;border-radius:999px;
+    background:var(--danger);color:var(--surface)}
+  #rvBellPop{position:fixed;z-index:720;display:none;width:min(360px,92vw);max-height:70vh;overflow:auto;
+    background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(16,24,40,.28)}
+  #rvBellPop.on{display:block}
+  #rvBellPop .bp-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-weight:800;font-size:13.5px}
+  #rvBellPop .bp-head button{margin-left:auto;font:inherit;font-size:12px;font-weight:700;cursor:pointer;border:0;background:transparent;color:var(--muted)}
+  #rvBellPop .bp-head button:hover{color:var(--blue)}
+  #rvBellPop .bp-row{display:block;width:100%;text-align:left;font:inherit;cursor:pointer;border:0;border-bottom:1px solid var(--line);
+    background:transparent;padding:8px 12px;color:var(--ink-dim)}
+  #rvBellPop .bp-row:hover{background:var(--surface-2)}
+  #rvBellPop .bp-row.unread{color:var(--ink);font-weight:800}
+  #rvBellPop .bp-row .tx{display:block;font-size:13px;line-height:1.45}
+  #rvBellPop .bp-row .at{display:block;font-size:11px;color:var(--muted);font-weight:600;margin-top:2px}
+  #rvBellPop .bp-empty{padding:14px 12px;color:var(--muted);font-size:13px}
+
+  #whoName[data-acting]::after{content:'・代理 ' attr(data-acting);font-weight:700;color:var(--amber);margin-left:2px}
+
+  #rvMask{position:fixed;inset:0;z-index:700;display:none;background:rgba(12,17,24,.55);align-items:center;justify-content:center}
+  #rvMask.on{display:flex}
+  #rvBox{background:var(--surface);color:var(--ink);border-radius:14px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.4);
+    width:min(620px,94vw);max-height:88vh;display:flex;flex-direction:column}
+  #rvBox .rd-top{display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--surface-2);border-bottom:1px solid var(--line)}
+  #rvBox .rd-title{font-size:15px;font-weight:800}
+  #rvBox .rd-close{margin-left:auto;font:inherit;font-size:14px;font-weight:800;cursor:pointer;border:1px solid var(--line);
+    border-radius:8px;padding:3px 11px;background:var(--surface);color:var(--ink-dim)}
+  #rvBox .rd-close:hover{border-color:var(--blue)}
+  #rvBox .rd-body{padding:14px 18px 18px;overflow:auto}
+  #rvBox .rd-sub{font-size:12.5px;color:var(--muted);line-height:1.55;margin:0 0 10px}
+  #rvBox .rd-warn{font-size:12.5px;font-weight:700;color:var(--amber);background:var(--amber-bg);border:1px solid var(--warn-line);
+    border-radius:8px;padding:7px 10px;margin-bottom:10px}
+  #rvBox .rd-form{display:flex;flex-direction:column;gap:10px}
+  #rvBox .rd-inline{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  #rvBox .rd-field{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:800;color:var(--ink);min-width:0}
+  #rvBox .rd-field small{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-top:1px}
+  #rvBox .rd-field select,#rvBox .rd-field input{width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;font-weight:700;min-height:34px;padding:5px 8px;
+    border:1px solid var(--line-strong);border-radius:7px;background:var(--surface);color:var(--ink)}
+  #rvBox .rd-checkrow{display:flex;align-items:center;gap:8px;font-weight:700}
+  #rvBox .rd-checkrow input{width:18px;height:18px;min-height:0}
+  #rvBox .rd-ok{font:inherit;font-size:13.5px;font-weight:800;cursor:pointer;border:1px solid var(--blue);border-radius:8px;
+    padding:8px 12px;background:var(--blue);color:var(--surface);align-self:start}
+  #rvBox .rd-err{grid-column:1 / -1;font-size:12px;color:var(--danger-ink)}
+  #rvBox .rd-h{font-size:13.5px;font-weight:800;margin:16px 0 8px}
+  #rvBox .rd-list{display:flex;flex-direction:column}
+  #rvBox .rd-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13px}
+  #rvBox .rd-row b{font-weight:800}
+  #rvBox .rd-row .rd-tag{font-size:11.5px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--surface-2);color:var(--ink-dim)}
+  #rvBox .rd-row.on .rd-tag{background:var(--ok-tint);color:var(--ok-ink)}
+  #rvBox .rd-dim{color:var(--muted);font-size:12px}
+  #rvBox .rd-mini{margin-left:auto;font:inherit;font-size:12px;font-weight:800;cursor:pointer;border:1px solid var(--line);
+    border-radius:7px;padding:2px 9px;background:var(--surface);color:var(--ink-dim)}
+  #rvBox .rd-mini:hover{border-color:var(--danger);color:var(--danger-ink)}
+  #rvBox .rd-empty{color:var(--muted);font-size:13px;padding:6px 0}
+
+  #devPop .dw-group{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px}
+  #devPop .dw-group b{width:100%;font-size:12px;color:var(--muted)}
+  #devPop .dw-user{font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;border:1px solid var(--line);border-radius:999px;
+    padding:3px 9px;background:var(--surface);color:var(--ink)}
+  #devPop .dw-user:hover{border-color:var(--blue)}
+  #devPop .dw-user.me{border-color:var(--amber);background:var(--amber-bg);color:#8a5a12}
+  #devPop #devLogList{max-height:300px;overflow:auto;margin-top:6px}
+  #devPop .dl-row{display:grid;grid-template-columns:auto auto 1fr;gap:6px;align-items:baseline;font-size:12px;
+    padding:4px 0;border-bottom:1px dashed var(--line)}
+  #devPop .dl-row .at{color:var(--muted);font-variant-numeric:tabular-nums}
+  #devPop .dl-row.fail b{color:var(--danger-ink)}
+  /* 意見欄最上面那一塊：審核。站在桌面上（跟貼紙那一疊同一種底），不是一張便利貼 */
+  #rvPanel{flex:none;display:flex;flex-direction:column;gap:6px;border-radius:12px;padding:8px 10px;
+    background:var(--chrome-fill)}
+  #rvPanel[hidden]{display:none}
+  #rvPanel .rv-head{display:flex;align-items:baseline;gap:6px;font-size:12px;color:var(--chrome-muted);min-width:0}
+  #rvPanel .rv-head b{font-size:13px;color:var(--chrome-ink);flex:none}
+  #rvPanel .rv-head .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  #rvPanel .rv-stage{margin-left:auto;font-weight:800;color:var(--chrome-ink);flex:none}
+  #rvPanel .rv-stage.late{color:var(--danger-ink)}
+  #rvPanel .rv-sec{display:flex;flex-direction:column;gap:5px;padding-top:6px;border-top:1px dashed var(--chrome-line)}
+  #rvPanel .rv-line{font-size:12px;font-weight:700;color:var(--chrome-ink);line-height:1.45}
+  #rvPanel .rv-line small{display:block;font-weight:600;color:var(--chrome-muted)}
+  #rvPanel .rv-act{width:100%;font:inherit;font-size:13px;font-weight:800;cursor:pointer;text-align:left;
+    border:1px solid var(--line-strong);border-radius:8px;padding:7px 9px;background:var(--surface);color:var(--ink)}
+  #rvPanel .rv-act:hover{border-color:var(--blue)}
+  #rvPanel .rv-act.main{background:var(--blue);border-color:var(--blue);color:var(--surface)}
+  #rvPanel .rv-act:disabled{opacity:.5;cursor:default;border-color:var(--line-strong)}
+  #rvPanel .rv-why{font-size:11px;font-weight:600;color:var(--chrome-muted);margin-top:3px;line-height:1.4}
+  #rvPanel .rv-none{font-size:12px;color:var(--chrome-muted);line-height:1.45}
+  /* ---- 審核的印章（2026-09-28，照 demo/review-look.html 試過的那一套） ----------------
+     刷子從意見欄那顆大綠鈕搬到左邊工具列的「印章」（A）：它改的是「點格子會發生什麼」，
+     那件事在這支程式裡一律住在左邊那一條。進度、完成按鈕、還在等誰住在右邊的「審核」分頁。
+     蓋過的格子＝整格一圈綠、底淡一點綠 —— 每一關、每一種人都是同一個綠（使用者看過勾、印章、綠框三種之後選的）。 */
+  :root{--rv-ink:#1a7f47;--rv-wash:rgba(26,127,71,.10)}
+  /* 畫在 ::before：拼板 的 .cell 上沒人用它（::after 是那一枚標籤、落版 那兩個字只在 #view-sheet 底下）。
+     它是記號不是印出去的東西 —— 列印時 #board .cell::before 那一條本來就把它洗掉了。 */
+  #boardOverview .cell.rv-marked::before{
+    content:"";position:absolute;inset:0;z-index:5;pointer-events:none;
+    box-shadow:inset 0 0 0 4px var(--rv-ink);background:var(--rv-wash);
   }
-  #passBtn[hidden]{display:none}
-  #passBtn:hover{filter:brightness(.97)}
-  #passBtn .ico{font-size:21px;line-height:1;flex:none}
-  #passBtn .tx{display:flex;flex-direction:column;gap:1px;min-width:0}
-  #passBtn .tx b{font-size:14px;font-weight:800}
-  #passBtn .tx small{font-size:11px;font-weight:800;opacity:.8;line-height:1.35}
-  #passBtn.on{background:var(--green-ink,#1a7f47);border-color:var(--green-ink,#1a7f47);color:#fff}
-  #passBtn.on .tx small{opacity:.9}
+  /* 拿著印章、滑過一格蓋得到的：淡的那一圈先讓人看到「按下去會變成這樣」 */
+  #boardOverview.tool-pass .cell.rv-can:not(.rv-marked):hover::before{
+    content:"";position:absolute;inset:0;z-index:5;pointer-events:none;
+    box-shadow:inset 0 0 0 4px rgba(26,127,71,.4);
+  }
+  #rvTip{display:flex;align-items:center;gap:9px;flex:none;border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:700;
+    background:var(--surface-2);border:1px dashed var(--line-strong);color:var(--ink-dim);line-height:1.45}
+  #rvTip[hidden]{display:none}
+  #rvTip svg{width:24px;height:24px;flex:none;color:var(--rv-ink)}
+  #rvTip b{color:var(--ink-strong)}
+  #rvTip.on{background:var(--ok-tint);border:1.5px solid var(--green-rule);color:var(--ok-ink)}
+  #rvTip.on b{color:var(--ok-ink)}
+  /* 審核那一頁最上面那顆印章：按一下拿起來，再按一下放下；拿著的時候是實心藍（藍＝你正在點的東西） */
+  #rvTip{flex-wrap:wrap}
+  #rvTip .rv-stamp{display:flex;align-items:center;gap:8px;width:100%;height:40px;padding:0 12px;border-radius:9px;
+    border:1.5px solid var(--rv-ink);background:var(--surface);color:var(--rv-ink);font:inherit;font-size:13.5px;font-weight:900;cursor:pointer}
+  #rvTip .rv-stamp:hover:not(:disabled){background:var(--accent-tint)}
+  #rvTip .rv-stamp.on{background:var(--blue);border-color:var(--blue);color:#fff}
+  #rvTip .rv-stamp.on svg{color:#fff}
+  #rvTip .rv-stamp:disabled{opacity:.45;cursor:default}
+  #rvTip .rs-n{margin-left:auto;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+  #rvTip .rs-tx{font-size:12px;font-weight:600}
+  .sc-pane[data-pane="review"]{gap:8px}
+  #rvTabN:empty{display:none}          /* 沒有要蓋的格子就不掛數字（空的會畫成一顆空泡泡） */
+  .sc-pane[data-pane="review"] #rvPanel{background:var(--surface-2);border:1px solid var(--line)}
+  /* 格子都蓋完了、只剩「送出」那一下：那一顆一直發光到按下去為止。
+     蓋完了卻忘了按是這一套最容易發生的事 —— 格子上看起來全都好了，而其實什麼都還沒送出去 */
+  #rvPanel .rv-act.nag{animation:rvnag 1.3s ease-in-out infinite;position:relative;padding-right:84px}
+  #rvPanel .rv-act.nag::after{content:"還沒送出";position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    font-size:11px;font-weight:900;padding:1px 7px;border-radius:9px;background:var(--warn,#f5a623);color:#fff}
+  @keyframes rvnag{
+    0%,100%{box-shadow:0 0 0 0 rgba(74,111,220,.55)}
+    50%{box-shadow:0 0 0 7px rgba(74,111,220,0), 0 0 18px 2px rgba(74,111,220,.45)}
+  }
+  /* 人翻到別的分頁去了：審核那一顆分頁跟著閃，告訴他東西還在那裡等 */
+  .sc-tab.nag:not(.on){animation:rvtab 1.3s ease-in-out infinite;color:var(--blue)}
+  @keyframes rvtab{50%{background:var(--accent-tint)}}
+  /* 拿著印章的時候，紙上緣底下那一條：蓋的是哪一關、怎麼按、蓋到第幾格。
+     **疊在紙上**（掛在 #paperBar 底下、position:absolute），不擠版面 —— 擠的話每拿起、放下一次整張版重排一次。 */
+  #paperBar{position:relative}
+  #rvHint{position:absolute;left:0;right:0;top:100%;z-index:30;display:none;align-items:center;gap:16px;
+    padding:7px 14px;background:var(--rv-ink);color:#fff;white-space:nowrap;box-shadow:0 6px 12px -8px rgba(0,0,0,.4)}
+  #rvHint.on{display:flex}
+  #rvHint b{font-size:13.5px;font-weight:900}
+  #rvHint .rh-how{font-size:12.5px;font-weight:600;opacity:.9;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  #rvHint kbd{font:inherit;font-weight:800;padding:0 5px;border-radius:4px;background:rgba(255,255,255,.18)}
+  #rvHint .rh-meter{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
+  #rvHint .rh-pips{display:flex;gap:2px}
+  #rvHint .rh-pips i{width:6px;height:12px;border-radius:2px;background:rgba(255,255,255,.28)}
+  #rvHint .rh-pips i.on{background:#fff}
+  #rvHint .rh-n{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums}
+  #rvHint button{height:26px;padding:0 11px;border-radius:6px;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer}
+  #rvHint .rh-go{border:0;background:#fff;color:var(--rv-ink);font-weight:900}
+  #rvHint .rh-go.nag{animation:rvnag 1.3s ease-in-out infinite}
+  #rvHint .rh-exit{border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff}
+  #rvHint .rh-exit:hover{background:rgba(255,255,255,.12)}
+  @media (prefers-reduced-motion:reduce){
+    #rvPanel .rv-act.nag,#rvHint .rh-go.nag{animation:none;box-shadow:0 0 0 3px rgba(74,111,220,.45)}
+    .sc-tab.nag:not(.on){animation:none;background:var(--accent-tint)}
+  }
+  @media print{#rvHint{display:none !important}}
   #armHint{
     display:none;flex:none;font-size:13.5px;font-weight:800;color:#8a4b00;
     background:var(--warn-tint);border:2px solid var(--warn-line);border-radius:10px;padding:7px 9px;
@@ -1512,7 +1692,7 @@
   /* 品類／支數：貼在那一塊旁邊的小卡。白底 —— 它是「紙上的東西」，不是桌面的控制項，
      所以不跟著深色那一套（深色底上的白卡要自己寫 color，不寫會繼承成看不見的淺灰）。 */
   #itemPop{
-    position:fixed;z-index:420;display:none;width:268px;
+    position:fixed;z-index:420;display:none;width:300px;
     background:var(--surface);color:var(--ink);
     border:1px solid var(--line);border-radius:12px;
     box-shadow:0 12px 32px rgba(16,24,40,.28);padding:10px 12px 11px;
@@ -1570,6 +1750,17 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   #itemPop #catMenu .opt:hover{background:var(--accent-tint)}
+  /* 分類代碼：講的是「這個品類歸誰審」。表上沒有的寫「沒有負責人」、用琥珀色 ——
+     跟商品目錄上「對不上的品牌」同一個顏色：兩個庫之間對不起來的東西。 */
+  #itemPop #catMenu .opt{display:flex;align-items:baseline;gap:8px}
+  #itemPop #catMenu .opt .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  #itemPop #catMenu .opt .cd{flex:none;font-size:11px;font-weight:700;color:var(--muted)}
+  #itemPop #catMenu .opt .cd.none{color:var(--amber)}
+  #itemPop .ip-cat{
+    flex:none;font-size:11px;font-weight:700;line-height:1;padding:4px 6px;border-radius:6px;
+    background:var(--surface-2);color:var(--muted);cursor:default;
+  }
+  #itemPop .ip-cat.none{background:var(--amber-bg);color:var(--amber)}
 
   /* 切在哪個座標：跟開檔那支一樣站在最上面那條，只有 切分 拿起來時才出現 ——
      它是那一顆工具的參數，不是整頁的設定。 */
@@ -1658,6 +1849,8 @@
   .region-label div{font-weight:800;color:var(--ink);line-height:1.4;overflow-wrap:anywhere}
   /* 支數用紅的，跟小地圖同一套：數量是「還有多少要處理」，不是可以點的東西 */
   .region-label .cnt{color:var(--danger-ink)}
+  /* 品類不在分類表上：沒有負責人。琥珀色＝兩個庫之間對不起來的東西（跟商品目錄的品牌那一條同一個顏色） */
+  .nocat{color:var(--amber);text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
   /* 「還沒填品類」是一句話，不是一個品類 —— 淡一階、細一點、字小一點，
      擺在一堆「刮鬍刀(12)」中間要一眼看得出它不同類（`.window-node.unlaid` 那條
      權重比較高，所以 color 要指名）。 */
@@ -1869,6 +2062,9 @@
   .prog-stage.now{color:var(--ink);border:2px solid var(--ink);padding:4px 1px 3px}
   .prog-stage.now.pm{background:color-mix(in srgb, var(--sticky-pm) 40%, var(--surface))}
   .prog-stage.now.design{background:color-mix(in srgb, var(--sticky-design) 40%, var(--surface))}
+  .prog-stage.now.late{border-color:var(--danger);color:var(--danger-ink)}
+  /* 排程上現在是這一關（日期說的）：虛線框。跟實線框（最落後的那一關）不在同一格就是落後了 */
+  .prog-stage.sched:not(.now){border:2px dashed var(--ink-dim);padding:4px 1px 3px;color:var(--ink)}
   @media (max-width:680px){ .prog-stages{grid-template-columns:repeat(5,minmax(0,1fr))} }
   .prog-now{padding:10px 18px 12px;font-size:13.5px;font-weight:800;color:var(--ink);border-bottom:1px solid var(--line)}
   .prog-now .sub{color:var(--muted);font-weight:700;margin-left:10px}
@@ -1899,6 +2095,14 @@
   }
   .prog-blk.done{background:#dff0e5;border-color:var(--green-rule);color:var(--green-ink)}
   .prog-blk.none{background:#e9ecf2;border-color:#cdd4e0;color:#98a1b2}
+  .prog-blk.late{background:var(--amber-bg);border-color:var(--warn-line);color:var(--amber)}
+  /* 一個品類一行：名字｜在哪一關（延遲紅）｜在等誰 */
+  .prog-row.rv .nm{width:92px}
+  .prog-row.rv .n{flex:none;min-width:0;text-align:left;color:var(--ink)}
+  .prog-row.rv .w{flex:1;min-width:0;font-size:12px;font-weight:700;color:var(--muted);text-align:right;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prog-row.rv.late .n{color:var(--danger-ink)}
+  .prog-row.rv.nocat .w{color:var(--amber)}
   .prog-side{font-size:12px;color:var(--muted);margin-top:9px}
   .prog-row{display:flex;align-items:center;gap:9px;padding:7px 4px;border-bottom:1px dashed var(--line);
     cursor:pointer;border-radius:6px}
@@ -2192,9 +2396,9 @@
      滴管＝吸上來。十字游標兩件事長得一樣，而它們的方向是相反的。 */
   #sheetMain.tool-paint,#sheetMain.tool-paint .cell{cursor:var(--cursor-bucket,crosshair)}
   #sheetMain.tool-dropper,#sheetMain.tool-dropper .cell{cursor:var(--cursor-dropper,crosshair)}
-  /* 審核通過用十字就夠了：它只有一個方向（蓋下去），Alt 撤掉是同一件事的反面，
-     而 Alt 按著的時候框子自己會變紅（.sel-box.take）。 */
-  #sheetMain.tool-pass,#sheetMain.tool-pass .cell{cursor:crosshair}
+  /* 印章：游標就是一顆印章，熱點在印面正中間（蓋下去的那一點）。Alt 撤掉是同一件事的反面，
+     Alt 按著的時候框子自己會變紅（.sel-box.take）。 */
+  #sheetMain.tool-pass,#sheetMain.tool-pass .cell{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30'%3E%3Cg stroke='white' stroke-width='2' stroke-linejoin='round'%3E%3Ccircle cx='15' cy='7' r='5' fill='%231a7f47'/%3E%3Crect x='12' y='11' width='6' height='6' fill='%231a7f47'/%3E%3Crect x='5' y='16' width='20' height='7' rx='2' fill='%231a7f47'/%3E%3C/g%3E%3Crect x='6' y='25' width='18' height='3' rx='1' fill='%231a7f47'/%3E%3C/svg%3E") 15 26, crosshair}
 
   /* --- main area --- */
   /* 四周都留一整片空地：不管是最邊邊還是最上面那一格，都能被拖到畫面正中間來看。
@@ -3082,6 +3286,12 @@
     scrollbar-color:var(--chrome-line) transparent;
   }
   #toolRail.off{display:none}
+  /* 拼板 上不是設計的人：工具列只留 選零件 和 印章（其他那幾顆是排版，不歸他） */
+  #toolRail.rv-lite > :not(.tool[data-tool="edit"]):not(.tool[data-tool="pass"]){display:none !important}
+  #toolRail .tool.dim{opacity:.38}
+  /* 印章上那個數字：你還有幾格沒蓋。工具列上唯一會變的字，只在有事要做的時候出現 */
+  #toolRail .tool .rv-left{position:absolute;right:-5px;top:-4px;min-width:17px;height:17px;padding:0 4px;border-radius:9px;
+    background:var(--warn,#f5a623);color:#fff;font-size:10px;font-weight:900;line-height:17px;text-align:center}
   #toolRail .rail-title,#totalRail .rail-title{display:none}
   #toolRail .tool,#totalRail .tool{width:40px;height:40px;border:0;background:transparent;color:var(--chrome-ink);flex:none}
   #toolRail .tool svg{width:20px;height:20px}
@@ -3287,7 +3497,11 @@
   #bannerProg .sp-steps i{display:block;width:7px;height:12px;border-radius:2px;background:var(--chrome-fill-2)}
   #bannerProg .sp-steps i.done{background:var(--chrome-muted)}
   #bannerProg .sp-steps i.now{background:var(--amber)}
+  /* 最落後那一關過了期限＝延遲：紅。排程上「現在該在哪一關」是一圈框 —— 跟琥珀那一格不在同一格就是落後了 */
+  #bannerProg .sp-steps i.now.late{background:var(--danger)}
+  #bannerProg .sp-steps i.sched{box-shadow:inset 0 0 0 1.5px var(--chrome-ink)}
   #bannerProg .sp-turn{font-weight:600;color:var(--amber)}
+  #bannerProg .sp-turn.late{color:var(--danger-ink)}
   #bannerProg .sp-prog{font-variant-numeric:tabular-nums}
 
   /* 已儲存：一個點加一行字 */
@@ -3483,8 +3697,12 @@
          這裡只是「管理／測試貼紙」的入口；真正貼到格子上是 拼板 工具列那顆「貼圖」
          （見 #toolRail），兩邊各管各的，這顆鈕不碰版面。 -->
     <button class="btn" id="stickerLibBtn" hidden>🏷➕ 貼紙庫</button>
+    <!-- 職代（審核第四步）：PM 身分的人（PM、課長、部長、處長）替自己或下屬指定職代。
+         不在下面那一排行銷的按鈕裡。 -->
+    <button class="btn" id="delegBtn" hidden>🤝 職代</button>
     <!-- 這一整排都是行銷的（見 syncListButtons）：講的都是「這本 DM 存不存在、
          什麼時候做」。一開始全部 hidden，登入之後才知道要不要給。 -->
+    <button class="btn" id="rvSetBtn" hidden title="最終審核者設定表、二校要不要主管審">⚙ 審核設定</button>
     <button class="btn danger" id="wipeBtn" hidden
             title="清掉這台瀏覽器存的所有檔期與設定">清空資料</button>
     <button class="btn" id="importBtn" hidden>匯入</button>
@@ -3495,7 +3713,7 @@
     <!-- 撥時鐘：devtool，三個身分、每一頁都看得到（跟著名牌一起被 hostWho 搬）。
          走到第幾關完全由時間決定（見 planSide），而「二改那一關長什麼樣」本來
          只能等到那一天 —— 這是唯一測得到的路。 -->
-    <span id="whoBadge"><b id="whoName"></b><button id="devBtn"></button><button
+    <span id="whoBadge"><b id="whoName"></b><button id="rvBell" hidden></button><button id="devBtn"></button><button
             class="btn" id="logoutBtn" title="回到登入頁換一個人">登出</button></span>
   </div>
   <input type="file" id="importInput" accept=".json,.html,.htm" multiple hidden>
@@ -3615,6 +3833,8 @@
   <datalist id="catList"></datalist>
 
   <div class="panel active" id="view-plans">
+    <!-- 輪到你（審核第四步，見 renderTodo）：卡片前面，這個人今天要做的事 -->
+    <div id="todoList" hidden></div>
     <div id="planList"></div>
   </div>
 
@@ -3740,6 +3960,7 @@
         <button type="button" class="sc-tab" role="tab" data-stab="map">版位</button>
         <button type="button" class="sc-tab" role="tab" data-stab="type">字級</button>
         <button type="button" class="sc-tab" role="tab" data-stab="notes">意見<span class="sc-n" id="notesCount"></span></button>
+        <button type="button" class="sc-tab" role="tab" data-stab="review">審核<span class="sc-n" id="rvTabN"></span></button>
       </div>
       <div id="sidePanes">
         <section class="sc-pane" data-pane="map">
@@ -3796,6 +4017,12 @@
       <button id="typeReset" type="button" title="字級和邊界都交還給預設">全部回預設</button>
     </div>
         </section>
+        <!-- 審核：印章在哪、這一塊輪到你按的完成按鈕、大家到哪了（見 paintRvPanel）。
+             只在 拼板。蓋完了只剩送出的時候，這一頁自己翻出來、那一顆發光（見 rvNag）。 -->
+        <section class="sc-pane" data-pane="review" hidden>
+          <div id="rvTip" hidden></div>
+          <div id="rvPanel" hidden></div>
+        </section>
         <section class="sc-pane" data-pane="notes" hidden>
     <!-- 意見欄：貼紙從這裡拖到格子上，貼上去的每一則都在下面排成一張卡 -->
     <div id="boardRail">
@@ -3809,16 +4036,8 @@
         <div class="hint">把貼紙拖到格子上（或先點貼紙，再點格子）</div>
         <div id="stickRow"></div>
       </div>
-      <!-- 審核通過：站在貼紙那一疊**底下**，大一顆。校對那幾關這是那個人整頁要做的
-           那一件事，不該收在左邊工具列裡等人去找（而 PM 在 拼板 本來連工具列都沒有）。
-           它不是便利貼，所以不做成方的一張、也不歪 —— 一眼要看得出是兩種東西。
-           只有正在審的那個人看得到（見 syncPassTool）。 -->
-      <!-- 怎麼用寫在 title 裡（滑過去才出現）：那一行字只有第一次要看，
-           而它天天都在，久了就是一行雜訊 —— 鈕上留關名就夠了。 -->
-      <button id="passBtn" hidden>
-        <span class="ico">✓</span>
-        <span class="tx"><b></b></span>
-      </button>
+      <!-- 審核那一塊（#rvPanel）和刷子（以前的 #passBtn）2026-09-28 搬走了：
+           刷子是左邊工具列的「印章」，那一塊在「審核」分頁。 -->
       <div id="armHint"></div>
       <div id="railList"></div>
     </div>
@@ -3847,6 +4066,9 @@
            配色要看著真正的貨才配得準）。下緣那一條寫著現在拿著什麼顏色。 -->
       <button class="tool" data-tool="paint" data-key="C"
               title="上色 (C)：點一格上色、拉一個框整批上色。Alt＝清掉底色"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 9l6-6 6 6-6 6z"/><path d="M16 12s2 2.5 2 3.5a2 2 0 01-4 0c0-1 2-3.5 2-3.5z" fill="currentColor"/></svg><span class="swatch"></span></button>
+      <!-- 印章：審核的刷子（一校／二校：已審、製作：標好了、一改／二改：改好了、提明細：送出、蓋章確認：蓋章）。
+           只在 拼板；拿不起來（這一塊沒有要你蓋的）就淡掉，點下去講為什麼（見 syncPassTool）。 -->
+      <button class="tool" data-tool="pass" data-key="A" title="印章 (A)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="3.6"/><rect x="10" y="8.5" width="4" height="5"/><rect x="4" y="13" width="16" height="5.5" rx="1.6"/><rect x="5" y="20" width="14" height="2" rx="1" opacity=".55"/></svg></button>
       <!-- 線以下是開關，不是工具：它們講「開著／關著」，不參與工具的互斥 -->
       <hr class="tr-sep">
       <!-- 貼圖：開／關版面底下那一排貼紙。⚠️ 故意寫「貼圖」不寫「貼紙」：意見欄那疊便利貼也叫貼紙。
@@ -3862,8 +4084,7 @@
       <!-- 集體移動：開著的時候，拖一塊零件＝這個版位裡**每一格**的同一種零件一起走。 -->
       <button id="bulkBtn" class="tgl" data-key="B"
               title="集體移動 (B)：拖一個品名／SKU／價格，整個版位每一格的同一種都跟著走同樣的距離">⧉</button>
-      <!-- ⚠️ 審核通過那一顆不在這裡：它站在意見欄、貼紙那一疊底下（#passBtn）。
-           ⚠️ 縮放的讀數也不在這裡了：搬到紙的上緣那一條（#pbZoom）。 -->
+      <!-- ⚠️ 縮放的讀數不在這裡：搬到紙的上緣那一條（#pbZoom）。 -->
     </div>
     <!-- 畫布這一塊：標題釘在它的左上角，版面在它裡面自己捲 -->
     <div id="sheetPane">
@@ -3885,6 +4106,13 @@
           <button type="button" id="zoomOut" title="縮小 (Ctrl −)">−</button>
           <button type="button" id="zoomVal" title="按一下＝符合視窗 (Ctrl 0)">100%</button>
           <button type="button" id="zoomIn" title="放大 (Ctrl ＋)">＋</button>
+        </div>
+        <!-- 拿著印章的時候疊在紙上的那一條（見 paintRvHint） -->
+        <div id="rvHint">
+          <b id="rhTitle"></b><span class="rh-how" id="rhHow"></span>
+          <span class="rh-meter"><span class="rh-pips" id="rhPips"></span><span class="rh-n" id="rhN"></span>
+            <button type="button" class="rh-go" id="rhGo" hidden></button>
+            <button type="button" class="rh-exit" id="rhExit">放下 Esc</button></span>
         </div>
       </div>
       <main id="sheetMain">
@@ -3958,7 +4186,7 @@
         <div class="prog-side" id="progSides"></div>
       </div>
       <div class="prog-col">
-        <h4>一塊一塊　還差哪裡</h4>
+        <h4 id="progRightHead">一塊一塊　還差哪裡</h4>
         <div id="progPms"></div>
       </div>
     </div>
@@ -3968,11 +4196,22 @@
 <!-- 撥時鐘的小浮層。掛在 body 上（不是名牌底下）：名牌會被搬到三條不同的列裡。 -->
 <!-- 測試工具。一頁一個工具，**跟著名牌走遍三條列**（hostWho）——
      要測的時候人多半在 拼板，退回檔期列表才按得到的開關等於沒有。 -->
+<!-- 審核（第四步）：職代、設定表共用的對話框；🔔 的通知清單 -->
+<div id="rvMask"><div id="rvBox">
+  <div class="rd-top"><span class="rd-title"></span><button class="rd-close" type="button">關閉</button></div>
+  <div class="rd-body"></div>
+</div></div>
+<div id="rvBellPop">
+  <div class="bp-head">通知<button type="button" id="rvBellAll">全部標為已讀</button></div>
+  <div class="bp-list"></div>
+</div>
 <div id="devPop">
   <div class="dev-tabs">
     <button class="dev-tab" data-dev="clock">🕒 時鐘</button>
     <button class="dev-tab" data-dev="demo">🧪 測試商品</button>
     <button class="dev-tab" data-dev="stage">⏩ 快轉</button>
+    <button class="dev-tab" data-dev="who">👤 換人</button>
+    <button class="dev-tab" data-dev="log">📜 紀錄</button>
   </div>
   <div class="dev-pane" data-pane="clock">
   <h5>撥時鐘（測試用）</h5>
@@ -4005,11 +4244,24 @@
 
   <div class="dev-pane" data-pane="stage" hidden>
     <h5>快轉到某一關（測試用）</h5>
-    <div class="cp-sub">照<b>這一檔的時程</b>，把時鐘撥到那一關第一天的 10:00 ——
-      跟撥時鐘是同一件事，只是不必自己去算那一關是哪一天。</div>
+    <div class="cp-sub">把這一檔的<b>審核資料</b>推到那一關 —— 照「每個人都按了」的樣子補
+      （便利貼、誰按的都有）。<b>時鐘不動</b>：要看延遲到「時鐘」那一頁撥。
+      沒有負責人的品類不會動（它們送不進審核）。</div>
     <div class="cp-sub" id="stagePlanName"></div>
     <select id="stagePlan" aria-label="哪一檔"></select>
     <div class="dev-stages" id="stageList"></div>
+  </div>
+  <div class="dev-pane" data-pane="who" hidden>
+    <h5>換人（測試用）</h5>
+    <div class="cp-sub">直接換成另一個人登入，停在同一檔。審核是一個人按完換下一個人，
+      來回登出登入太慢。</div>
+    <div id="devWhoList"></div>
+  </div>
+  <div class="dev-pane" data-pane="log" hidden>
+    <h5>紀錄（Audit Log，實作指南 8.5）</h5>
+    <div class="cp-sub">誰在什麼時候做了什麼：完成按鈕、蓋章、審核、退件、自動略過、延遲、職代、被拒的操作。</div>
+    <button type="button" class="cp-btn" id="devSyncFail">模擬 07:00 差勤同步失敗</button>
+    <div id="devLogList"></div>
   </div>
 </div>
 
@@ -4106,6 +4358,12 @@
      assetKeysOf（一張貼紙用到哪幾張圖）—— 面板上的縮圖用的是烤好的那張。 -->
 <script src="sticker-render.js"></script>
 <script src="supabase-sync.js"></script>
+<!-- 審核系統（《DM 審核流程實作指南 v1.1》）：規則和資料層，雛形 demo/review 和這裡共用同一支。
+     本機模式用自己那一份資料庫（dbKey），不跟雛形的假檔期混在一起。
+     檔案不在的話 window.ReviewStore 是 undefined，這一頁照樣開得起來（審核那幾樣就不出現）。 -->
+<script>window.REVIEW_BACKEND = window.REVIEW_BACKEND || { mode:'local', dbKey:'pm_review_db_v1' };</script>
+<script src="review-rules.js"></script>
+<script src="review-store.js"></script>
 
 <script>
 (function(){
@@ -4362,6 +4620,7 @@ function markDirty(){
   /* 動過手才有東西會覆蓋掉別人 —— 輪詢撞到的時候要靠它決定是「提醒一下」
      還是「停止上傳、問一句」。 */
   planTouched = true;
+  reviewSyncSoon(currentPlan);     // 便利貼、挑貨、加減格：審核那一邊早一點知道（完成按鈕要數的就是這些）
   stampLastBy(currentPlan);        // 誰改的寫進 plan 自己的 JSON，輪詢就講得出名字
   savePending = true;
   setSaveState('dirty');
@@ -4372,6 +4631,7 @@ function markDirty(){
 let saveFailWarned = false;
 function flushSave(){
   clearTimeout(saveTimer); saveTimer = 0;
+  if (currentPlan) reviewSyncSoon(currentPlan);   // 版面變了，審核那一邊跟著（版面不鎖）
   if (!savePending) return;
 
   if (!savePlans()){
@@ -4778,8 +5038,13 @@ function groupLinesHTML(node){
   /* 還沒填的就直說。以前這裡印的是那個位子本身（一行「未命名」）—— 同樣一行字，
      一個是「這一塊放刮鬍刀」，一個是「這一塊還沒人填」，長一樣就分不出來。 */
   if (!gs.length) return '<div class="unfilled">還沒填品類</div>';
-  return gs.map(g => `<div>${g.name}${
+  return gs.map(g => `<div>${catNameHTML(g)}${
     g.count ? `<span class="cnt">(${g.count})</span>` : ''}</div>`).join('');
+}
+/** 品類名字；不在分類表上的畫琥珀色虛線（沒有負責人，送不進審核）。版上、小地圖同一支。 */
+function catNameHTML(g){
+  if (groupCat(g)) return g.name;
+  return `<span class="nocat" title="${escapeHtml(`分類表上沒有「${g.name}」：這幾格沒有商品主辦，送不進審核。在 總體 ✏ 換成表上的分類就好。`)}">${g.name}</span>`;
 }
 
 /* 拖刊頭的時候，列數暫時鎖成拖之前的樣子。
@@ -5935,7 +6200,7 @@ function renderMiniNode(node, wpx, hpx){
        （那個數字是收起來的那一份，改回「刊頭＋商品」才回得來）。 */
     el.innerHTML = mhOnlyBlock(node)
       ? '<div>只有刊頭</div>'
-      : node.groups.map(g => `<div>${g.name}${
+      : node.groups.map(g => `<div>${isBlankGroup(g) ? g.name : catNameHTML(g)}${
       g.count ? `<span class="cnt">(${g.count})</span>` : ''}</div>`).join('');
     /* 這個版位還欠幾則：哪一種、各幾則排在左下角，總數是右上角那顆紅點。
        不必點進去就看得出來哪一塊還有事情沒處理。 */
@@ -6178,9 +6443,6 @@ function progMeasure(plan){
   if (name === '提明細')
     return { kind:'cells', what:'挑貨', verb:'挑好', has: cellPicked,
              white:'還有格子沒挑貨', green:'這一塊都挑好了' };
-  if (REVIEW_STAGES.includes(name))
-    return { kind:'cells', what:name, verb:name + '通過', has: c => passedAt(c, name),
-             white:'還有格子沒通過', green:`這一塊${name}都通過了` };
   if (FIX_STAGES.includes(name))
     return { kind:'notes', what:'意見', white:'還有意見沒處理', green:'沒有要處理的意見' };
   return null;
@@ -6216,7 +6478,7 @@ function progNode(node, byNode){
     /* 只有刊頭的那一塊不在量的範圍裡（progRows 把它濾掉了）。留白的話會被legend
        讀成「還有事沒做」—— 它沒有事，所以跟「還沒排版」同一種灰。 */
     el.className = 'prog-blk' + (mhOnlyBlock(node) ? ' none'
-      : !r ? '' : r.state === 'done' ? ' done' : r.state === 'none' ? ' none' : '');
+      : !r ? '' : r.state === 'done' ? ' done' : r.state === 'none' ? ' none' : r.state === 'late' ? ' late' : '');
     el.textContent = sectionLabel(node);
     el.title = sectionLabel(node) + (r && r.title ? '　' + r.title : '');
     return el;
@@ -6243,6 +6505,9 @@ function progNode(node, byNode){
 function openProgress(){
   if (!currentPlan) return;
   const plan = currentPlan;
+  const rv = rvOf(plan);
+  if (rv && rv.rows && rvStageIndex(plan) >= 0) return openReviewProgress(plan, rv);
+  document.getElementById('progRightHead').textContent = '一塊一塊　還差哪裡';
   const st = stageNow(plan);
   const measure = progMeasure(plan);
   const rows = progRows(measure);
@@ -6377,6 +6642,103 @@ function openProgress(){
   }
   progMask.classList.add('on');
 }
+/** 審核開始之後的進度面板（實作指南 7.4）：**一個品類一行**「冰箱　一校（延遲）」，
+    延遲的排最前面、寫出在等誰；同名品類在不同版位分開列（名字後面接版位）。
+    上面那條十關照舊是**排程**（日期），最落後那一關框起來，排程上「現在」多一圈虛線 ——
+    兩個不在同一格就是落後了。小地圖：有品類延遲的那一塊琥珀色。 */
+function openReviewProgress(plan, v){
+  const pr = v.progress, rows = v.rows || [];
+  const at = STAGES.indexOf(pr.stage);
+  const sched = planStageIndex(plan);
+  const late = rvLate(plan);
+  document.getElementById('progName').textContent = plan.name || '';
+  const strip = document.getElementById('progStages');
+  const nowEl = document.getElementById('progNow');
+  strip.innerHTML = '';
+  const stages = planStages(plan);
+  stages.forEach((x, i) => {
+    const el = document.createElement('div');
+    el.className = 'prog-stage' + (pr.done || i < at ? ' done' : i === at ? ' now ' + STAGE_SIDE[i] + (late ? ' late' : '') : '')
+                 + (i === sched && !pr.done ? ' sched' : '');
+    el.innerHTML = `<b></b><small>${stageRange(x)}</small>`;
+    el.querySelector('b').textContent = STAGES[i];
+    el.title = `${STAGES[i]}　${stageRange(x)}${i === at ? '　← 整本最落後的一關' : ''}${i === sched ? '　← 排程上現在是這一關' : ''}`;
+    strip.appendChild(el);
+  });
+  const last = stages[stages.length - 1].to;
+  const due = pr.due ? new Date(pr.due) : null;
+  nowEl.innerHTML = '';
+  nowEl.append(pr.done ? '已出稿' : `整本最落後：${pr.stage}${late ? '（延遲）' : ''}`);
+  const sub1 = document.createElement('span'); sub1.className = 'sub';
+  sub1.textContent = pr.done ? '' : `${due ? `${fmtMD(due)}(${WD[due.getDay()]}) ${DEADLINE_HOUR}:00 截止` : ''}・排程上現在是 ${STAGES[sched]}`;
+  const sub2 = document.createElement('span'); sub2.className = 'sub';
+  sub2.textContent = `出稿 ${fmtMD(last)}(${WD[last.getDay()]})`;
+  nowEl.append(sub1, sub2);
+  strip.hidden = false; nowEl.hidden = false;
+
+  const lateRows = rows.filter(r => r.late), nocat = rows.filter(r => r.unassigned);
+  document.getElementById('progWhat').textContent = '整本　最落後的一關';
+  const big = document.getElementById('progPct');
+  big.classList.add('words');
+  big.textContent = pr.done ? '已出稿' : pr.stage + (late ? '（延遲）' : '');
+  document.getElementById('progCount').textContent = [
+    pr.done ? '' : `還有 ${pr.inStage}/${pr.total} 格在這一關`,
+    lateRows.length ? `${lateRows.length} 個品類延遲` : '',
+    v.mine ? `待你處理 ${v.mine} 件` : '',
+    nocat.length ? `${nocat.length} 個品類沒有負責人` : '',
+  ].filter(Boolean).join('・');
+  document.getElementById('progBar').hidden = true;
+
+  // 小地圖：照版位上色（有品類延遲＝琥珀、整塊出稿＝綠、沒有格子＝灰）
+  const byBlock = new Map();
+  rows.forEach(r => {
+    const id = r.block_id.slice(plan.id.length + 1);
+    const cur = byBlock.get(id) || { late: false, all: true };
+    cur.late = cur.late || r.late; cur.all = cur.all && r.stage === '出稿';
+    byBlock.set(id, cur);
+  });
+  const byNode = new Map(allBlocks().map(b => {
+    const x = byBlock.get(b.id);
+    return [b, { state: !x ? 'none' : x.late ? 'late' : x.all ? 'done' : 'todo',
+                 title: !x ? '沒有格子' : x.late ? '有品類延遲' : '' }];
+  }));
+  const grid = document.getElementById('progGrid');
+  grid.innerHTML = '';
+  ['front', 'back'].forEach(side => {
+    const wrap = document.createElement('div');
+    wrap.className = 'prog-map';
+    const lb = document.createElement('div');
+    lb.className = 'lb';
+    lb.textContent = side === 'front' ? '正面' : '背面';
+    const page = document.createElement('div');
+    page.className = 'prog-page';
+    page.appendChild(progNode(plan.layout[side], byNode));
+    wrap.appendChild(lb); wrap.appendChild(page);
+    grid.appendChild(wrap);
+  });
+  document.getElementById('progSides').textContent = '琥珀＝有品類延遲　綠＝出稿了　灰＝沒有格子';
+
+  document.getElementById('progRightHead').textContent = '一個品類一行';
+  const host = document.getElementById('progPms');
+  host.innerHTML = '';
+  if (!rows.length){
+    host.innerHTML = '<div class="prog-empty">還沒有格子 —— 填完品類和支數，這裡才算得出進度。</div>';
+  }
+  const dup = new Set(rows.map(r => r.category_name).filter((n, i, a) => a.indexOf(n) !== i));
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'prog-row rv' + (r.late ? ' late' : '') + (r.unassigned ? ' nocat' : '');
+    row.innerHTML = '<span class="nm"></span><span class="n"></span><span class="w"></span>';
+    row.querySelector('.nm').textContent = r.category_name + (dup.has(r.category_name) ? `・${r.block_name}` : '');
+    row.querySelector('.n').textContent = r.text;
+    row.querySelector('.w').textContent = r.wait || '';
+    row.title = `${r.category_name}（${r.block_name}）　${r.text}　${r.wait || ''}　—— 點一下跳到這一塊`;
+    const node = allBlocks().find(b => rvId(plan, b.id) === r.block_id);
+    if (node) row.addEventListener('click', () => { closeProgress(); switchBlock(node); });
+    host.appendChild(row);
+  });
+  progMask.classList.add('on');
+}
 function closeProgress(){ progMask.classList.remove('on'); }
 document.getElementById('progClose').addEventListener('click', closeProgress);
 progMask.addEventListener('click', e => { if (e.target === progMask) closeProgress(); });
@@ -6384,6 +6746,7 @@ progMask.addEventListener('click', e => { if (e.target === progMask) closeProgre
 function switchBlock(block){
   const moved = block !== activeBlock;      // 真的換了一個版位，不是重畫同一個
   activeBlock = block;
+  if (moved){ rvSel = null; syncPassTool(); }   // 意見欄最上面那一塊講的是這一塊
   if (moved) beatNow();
   /* 挑了一塊＝下一步很可能就是切過去看它，所以現在就去拍它（farmTodo 把挑起來的
      那一塊排第一）。不等進 總體 那一發的話，時鐘是從**進這一頁**開始算的，
@@ -7085,7 +7448,7 @@ function makeCard(cell, sp, m){
   el.dataset.cellId = cell.id;
   el.dataset.gi = cell.gi;             // 拼板要靠它認出這一格是哪個品類
   setCellBgEl(el, bgOf(cell));         // 這一格自己的底色（拼板 的 上色 工具）
-  setCellPassEl(el, cell);             // 審核通過那一枚（一校通過…，見 applyPass）
+  setCellRvEl(el, cell);               // 這一格現在在哪一關、等誰（審核那一邊說的，見 setCellRvEl）
   /* 合併：位子表算出來的那一份寫在節點上 —— 畫布多大（fitCellCanvases）和
      這一格幾公分（cellCm）兩邊都要讀它，而 DOM 上的顆數已經不等於位子數了。 */
   if (sp){
@@ -7737,16 +8100,30 @@ async function mergeTwoCells(block, idA, idB){
     return false;
   }
 
+  /* 被併掉的那一格正在退件：退件不能就這樣消失（review-test-later 那一條）。不擋合併（版面不鎖），
+     審核那一邊把退件接到留下來那一格（reviewSkeleton 的 absorbed），這邊把還沒處理的便利貼一起搬過去 ——
+     退件要照便利貼改，便利貼跟著被收起來的話設計不知道要改什麼。 */
+  const vctx = rvCtx();
+  const vrc = vctx && rvCellOf(vctx, victim);
+  const vcy = vrc && vctx.R.cycleOf(vctx.v, vrc);
+  const vOpen = vcy ? notesOf(victim).filter(n => !n.done) : [];
+
   /* 被吃掉的那一格身上有貨或有便利貼：先問一句。東西是**收起來**不是刪掉 ——
      拆開就照原樣回來，所以問的是「要不要先收起來」，不是「要不要丟掉」。 */
-  if (cellPicked(victim) || notesOf(victim).length){
+  if (cellPicked(victim) || notesOf(victim).length || vcy){
     const ok = await modalConfirm({
-      title: '併進來的那一格有東西',
-      body: '那一格的貨和便利貼會先收起來，版上只留下你點的第一格 —— '
-          + '拆開就照原樣回來，⌘/Ctrl+Z 也退得回去。',
+      title: vcy ? '併進來的那一格正在退件' : '併進來的那一格有東西',
+      body: (vcy ? `那一格在退件（${vctx.R.cellStatus(vctx.v, vrc).text}）：退件和${vOpen.length ? ` ${vOpen.length} 張還沒處理的便利貼` : '它'}`
+                 + '會接到留下來那一格，照樣要改完、送回退件的人。其他的貨和便利貼先收起來，'
+                 : '那一格的貨和便利貼會先收起來，')
+          + '版上只留下左上那一格 —— 拆開就照原樣回來，⌘/Ctrl+Z 也退得回去。',
       ok: '合併'
     });
     if (!ok) return false;
+  }
+  if (vOpen.length){
+    victim.notes = notesOf(victim).filter(n => n.done);
+    prim.notes = notesOf(prim).concat(vOpen);
   }
 
   if (dir === 'h') prim.mw = cellSpanW(prim) + cellSpanW(victim);
@@ -9040,7 +9417,7 @@ function syncTools(){
   const rail = document.getElementById('toolRail');
   if (rail) rail.style.display = '';
   /* ✓ 是例外：它不是「這一下做不做得到」的問題，是「現在有沒有這件事」——
-     不是校對關的時候整本 DM 都沒有東西要審（見 syncPassTool）。 */
+     這一塊沒有輪到你審的格子就沒有它（見 syncPassTool／rvBrush）。 */
   syncPassTool();
 }
 
@@ -9100,7 +9477,8 @@ function setTool(name){
 }
 document.querySelectorAll('.tool[data-tool]').forEach(b =>
   b.addEventListener('click', () =>
-    b.dataset.tool === 'sticker' ? toggleStickerDock() : setTool(b.dataset.tool)));
+    b.dataset.tool === 'sticker' ? toggleStickerDock()
+    : b.dataset.tool === 'pass' ? togglePassTool() : setTool(b.dataset.tool)));
 
 /* ==========================================================================
    ZOOM — one path for the wheel, the keyboard and the 縮放 tool's clicks
@@ -9555,9 +9933,9 @@ document.addEventListener('keydown', e => {
   else if (k === 'c' && activeTab === 'board'){ e.preventDefault(); setTool('paint'); }
   // I＝取色，跟 上色 同一條規矩（只有 拼板 有）
   else if (k === 'i' && activeTab === 'board'){ e.preventDefault(); setTool('dropper'); }
-  /* A＝審核通過。只有正在審的那個人有這個工具（見 reviewing），別人按下去
-     不換工具 —— 換了會拿著一個工具列上根本沒有的東西。 */
-  else if (k === 'a' && activeTab === 'board' && reviewing()){ e.preventDefault(); setTool('pass'); }
+  /* A＝審核的刷子（一校／二校：審核完成，蓋章確認：蓋章）。只有這一塊有你要審的格子才有
+     （見 rvBrush），別人按下去不換工具 —— 換了會拿著一個畫面上根本沒有的東西。 */
+  else if (k === 'a' && activeTab === 'board'){ e.preventDefault(); togglePassTool(); }
   /* T＝貼圖。跟 上色 同一條規矩：只有 拼板、只有設計。 */
   else if (k === 't' && activeTab === 'board' && activeMode === 'design'){ e.preventDefault(); toggleStickerDock(); }
 });
@@ -9609,12 +9987,165 @@ function planProgress(pl){
   return total ? { done, total } : null;
 }
 
+/* ==========================================================================
+   審核進度（第二步，2026-09-28）
+   --------------------------------------------------------------------------
+   **走到哪一關由完成按鈕決定，日期只判斷延遲**（實作指南第 7 節）。每一格、每一個版位
+   各自記自己在哪一關，這一份存在審核那一邊（review-store.js），不在 plan 裡 ——
+   plan 誰都寫得動，審核的結果要能在後端驗證（8.3）。
+   ・同步：版面一改（存檔那一下）就把骨架送過去（plan.sync），對法是
+     「檔期/版位」「檔期/格子」（版位 id 每一檔都從 b1 開始）。草稿不送：提交那一下才開始審。
+   ・還沒進過 落版 的版位格子還沒生，但 id 照規矩排（見 buildCells），照同一個規矩算就對得上。
+   ・讀回來的東西放在 RV（一檔一份：最落後那一關、一個品類一行、待我處理幾件），
+     橫幅、進度面板、檔期卡片、🛠 快轉都讀它。沒有審核那一邊（檔案不在）就全部照舊。
+   ⚠️ 沒有負責人的格子（品類不在分類表上）送不進審核，所以它們會把整本卡在提明細 ——
+     那是刻意的：沒人審過的東西不該印出去。畫面上一律琥珀色講清楚是哪幾格。
+   ========================================================================== */
+var RV = new Map();                // var：怕更早的呼叫在宣告之前讀到它（見 paintDevPop 那段）
+const rvOf = plan => (plan && RV && RV.get(plan.id)) || null;
+const rvId = (plan, id) => plan.id + '/' + id;
+const rvYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** 一檔現在最落後的那一關（STAGES 的索引）；還沒有審核資料就是 -1。 */
+function rvStageIndex(plan){
+  const v = rvOf(plan);
+  const pr = v && v.progress;
+  return pr && pr.started ? STAGES.indexOf(pr.stage) : -1;
+}
+/** 最落後那一關過期限了沒（日期只拿來判斷這一件事） */
+function rvLate(plan){
+  const v = rvOf(plan);
+  const pr = v && v.progress;
+  if (!pr || !pr.started || pr.done || !pr.due) return false;
+  return nowMs() > +new Date(pr.due);
+}
+
+function reviewSkeleton(plan){
+  const blocks = [], cells = [], notes = [];
+  let ord = 0;
+  ['front', 'back'].forEach(side => collectBlocks(plan.layout[side], []).forEach(b => {
+    if (mhOnlyBlock(b)) return;
+    const list = (b.sheet && b.sheet.cells) ? b.sheet.cells : buildCells(b);
+    const live = list.filter(c => !c.under);        // 合併掉的那一半不是一格
+    if (!live.length) return;
+    const bid = rvId(plan, b.id);
+    blocks.push({ id: bid, name: sectionLabel(b), ord: ++ord });
+    const seen = {};
+    live.forEach(c => {
+      const g = (b.groups || [])[c.gi] || {};
+      const row = groupCat(g);
+      const k = row ? row.category_id : 'n:' + g.name;
+      seen[k] = (seen[k] || 0) + 1;
+      const entry = { id: rvId(plan, c.id), block_id: bid, category_id: row ? row.category_id : null,
+                      cat_name: g.name || '', idx: seen[k] };
+      /* 併進這一格的那幾格：它們正在退件的話，審核那一邊把退件接到這一格（不然退件就這樣消失了） */
+      const ab = list.filter(z => z.under != null && String(z.under) === String(c.id)).map(z => rvId(plan, z.id));
+      if (ab.length) entry.absorbed = ab;
+      cells.push(entry);
+      /* 便利貼一份影本（正本還是這裡的 cell.notes）：一改送出前「每一張都處理了」、
+         蓋章前「自己貼的調整」都要數得到。⚠️ 用 c.notes 不用 notesOf：後者會順手塞一個空陣列進格子 */
+      (c.notes || []).forEach(n => notes.push({ id: n.id, cell_id: rvId(plan, c.id),
+        author: String(n.whoId || '').split(':')[1] || null, kind: kindOf(n.key).label,
+        text: n.text || '', done: !!n.done, at: n.time || '' }));
+    });
+  }));
+  const creator = USERS.find(u => u.id === plan.createdBy) || usersOf('marketing')[0] || {};
+  return {
+    plan: { id: plan.id, name: plan.name || '', type: plan.type || '', created_by: creator.id || null,
+            schedule: planStages(plan).map(x => ({ stage: x.name, start: rvYmd(x.from), end: rvYmd(x.to) })) },
+    blocks, cells, notes };
+}
+
+const rvSent = new Map();          // 每一檔上次送過去的骨架（一樣就不送）
+const rvQueue = new Set();
+let rvTimer = 0;
+function reviewSyncSoon(plan){
+  if (!plan || !reviewStore()) return;
+  rvQueue.add(plan);
+  clearTimeout(rvTimer);
+  rvTimer = setTimeout(reviewSyncNow, 500);
+}
+async function reviewSyncNow(){
+  clearTimeout(rvTimer);
+  const rs = reviewStore();
+  if (!rs) return;
+  const list = [...rvQueue]; rvQueue.clear();
+  let sent = false;
+  for (const plan of list){
+    if (isDraft(plan) || !plan.durs || !plan.layout) continue;
+    const sk = reviewSkeleton(plan);
+    const sig = JSON.stringify(sk);
+    if (rvSent.get(plan.id) === sig) continue;
+    try {
+      const r = await rs.api.act('plan.sync', { skeleton: sk });
+      if (r && r.ok){ rvSent.set(plan.id, sig); sent = true; }
+    } catch (e){}
+  }
+  /* 沒送東西就不重問：refreshReview 會重畫檔期列表，而重畫列表又會排一次同步。
+     但畫面還是要重畫：挑貨不在骨架裡（送不出東西），而格子上的「挑好了」和
+     「提明細完成：挑好的 N 格」是這一頁自己數的 —— 不重畫的話挑完要等 30 秒輪詢才變，
+     PM 會以為沒挑到（2026-09-28 量到過）。 */
+  if (sent) refreshReview();
+  else if (currentPlan && list.includes(currentPlan)){ paintCellRv(); syncPassTool(); }
+}
+/** 審核那一邊的時鐘對齊這一頁（🛠 → 時鐘撥過的話，延遲要照撥過的時間算） */
+function reviewClockSync(){
+  const rs = reviewStore();
+  if (rs && rs.dev) rs.dev.setClockOffset(nowMs() - Date.now());
+}
+
+let rvBusy = false, rvAgain = false;
+var rvR2Managers = false;          // 設定表的「二校主管審核」（全系統一個，預設關）—— 快轉那一站看它
+async function refreshReview(){
+  const rs = reviewStore();
+  if (!rs || !currentUser) return;
+  if (rvBusy){ rvAgain = true; return; }
+  rvBusy = true;
+  try {
+    const [pl, td, nt] = await Promise.all([rs.api.plans(), rs.api.todo(), rs.api.notifications()]);
+    if (td && td.ok) RV_TODO = td.items;
+    if (nt && nt.ok) RV_NOTES = nt;
+    const mine = new Map();
+    if (td && td.ok) td.items.forEach(it => mine.set(it.plan_id, (mine.get(it.plan_id) || 0) + 1));
+    if (pl && pl.ok) pl.plans.forEach(x => {
+      const v = RV.get(x.id) || {};
+      v.progress = x; v.mine = mine.get(x.id) || 0;
+      RV.set(x.id, v);
+    });
+    if (currentPlan && RV.has(currentPlan.id)){
+      const [r, pv] = await Promise.all([rs.api.progress(currentPlan.id), rs.api.plan(currentPlan.id)]);
+      if (r && r.ok) RV.get(currentPlan.id).rows = r.rows;
+      if (pv && pv.ok) RV.get(currentPlan.id).view = pv;      // 格子、版位、便利貼：完成按鈕和格子上那一枚讀它
+    }
+    const st = await rs.api.settings();
+    if (st && st.ok) rvR2Managers = !!st.settings.r2_managers;
+  } catch (e){}
+  rvBusy = false;
+  paintReview();
+  if (rvAgain){ rvAgain = false; refreshReview(); }
+}
+/** 讀回來之後每一處重畫一次：橫幅、檔期列表（開著才畫）、進度面板（開著才畫）、🛠 快轉 */
+function paintReview(){
+  paintBell();
+  if (listChrome.style.display === 'flex') renderTodo();
+  if (currentPlan) updateProgress();
+  /* 格子上那一枚不分分頁都重畫：落版 和 拼板 是同一批 .cell（hostSheet），在 落版 改完版面、
+     審核那一邊讀回來的時候人還在 落版 —— 只在 拼板 才畫的話，切過去看到的是空的，
+     要等下一次輪詢（30 秒）才補上。 */
+  if (currentPlan) paintCellRv();
+  if (currentPlan && activeTab === 'board') tellBoardRole();
+  syncPassTool();
+  if (listChrome.style.display === 'flex') renderPlans();
+  if (progMask.classList.contains('on')) openProgress();
+  if (devPop && devPop.classList.contains('on')) paintStagePane();
+}
+
 /* 最上面那條列上的狀態（2026-09-14）：關名、十格時程（這本 DM 走到第幾關）、「輪到你」＋倒數、挑好幾格。
    完整那一句（誰的回合、截止、挑好幾格、校對那幾關通過幾格）在滑過去的 title 裡 ——
    那一行字天天都在，而一眼要看到的只有「現在哪一關、輪不輪到我、還剩多久」。
    **現在是哪一關**排在前面：那是這本 DM 現在唯一在動的事，而且它是時間說的。
    進度條在校對那三關量通過幾格（那一關真正在長的數字），其他時候量挑貨。 */
 function updateProgress(){
+  if (rvStageIndex(currentPlan) >= 0) return updateReviewProgress();
   const st = stageNow(currentPlan);
   const p = planProgress(currentPlan);
   const said = [];
@@ -9627,18 +10158,9 @@ function updateProgress(){
     said.push(`現在：${st.name}（${st.by}${myTurn() ? '・輪到你' : ''}）　${when}`);
   }
   if (p) said.push(`挑好 ${p.done}/${p.total} 格`);
-  /* 校對那幾關多一個數字。自己數一遍，不靠上面那個 p —— 這一句對設計也要成立
-     （他等的就是這個數字），而 planProgress 只在有格子的時候才回東西。 */
-  const rst = reviewStage(currentPlan);
-  let rv = null;
-  if (rst){
-    let done = 0, total = 0;
-    allBlocks().forEach(b => (sheetOf(b).cells || []).forEach(c => {
-      total++; if (passedAt(c, rst)) done++;
-    }));
-    if (total){ rv = { done, total }; said.push(`${rst}通過 ${done}/${total} 格`); }
-  }
-  const bar = rv || p;
+  /* 以前校對那幾關多一個「一校通過 n/總」（cell.pass）。2026-09-28 起通過是審核那一邊記的，
+     審核開始之後橫幅走 updateReviewProgress；這一條只剩還沒開始審的檔期（草稿）。 */
+  const bar = p;
   let html = '';
   if (st){
     /* 十格＝十關（提明細 → 出稿）：走完的深、現在這一關琥珀色、還沒到的淡。
@@ -9650,11 +10172,45 @@ function updateProgress(){
           + '</span>'
           + `<span class="sp-turn">${myTurn() ? '輪到你　' : ''}${when}</span>`;
   }
-  if (bar && bar.total) html += `<span class="sp-prog">${rv ? rst + '通過' : '挑好'} ${bar.done}/${bar.total}</span>`;
+  if (bar && bar.total) html += `<span class="sp-prog">挑好 ${bar.done}/${bar.total}</span>`;
   bannerProg.innerHTML = html;
   bannerProg.title = said.join('\n');
   bannerProg.hidden = !html;
   renderPaperBar();         // 紙上緣那一行的「挑好幾格」跟這裡同一個時機會變
+}
+
+/** 審核開始之後的橫幅（第二步）：關名＝**整本最落後的那一關**（完成按鈕推的，不是日期）、
+    十格時程（走完的深、最落後那一關琥珀色，過期限就紅；排程上「現在該在哪一關」多一圈框）、
+    待我處理幾件（沒有就寫倒數）、挑好幾格。完整那一句在 title 裡。 */
+function updateReviewProgress(){
+  const v = rvOf(currentPlan), pr = v.progress;
+  const at = STAGES.indexOf(pr.stage);
+  const late = rvLate(currentPlan);
+  const lateCats = (v.rows || []).filter(r => r.late);
+  const sched = planStageIndex(currentPlan);
+  const due = pr.due ? new Date(pr.due) : null;
+  const left = due ? +due - nowMs() : 0;
+  const when = pr.done ? '已出稿' : late ? '延遲' : due ? fmtCountdown(left) : '';
+  const p = planProgress(currentPlan);
+  const said = [
+    pr.done ? '已出稿' : `整本最落後：${pr.stage}${late ? '（延遲）' : ''}　還有 ${pr.inStage}/${pr.total} 格在這一關`,
+    `排程上現在是：${STAGES[sched]}`,
+  ];
+  if (lateCats.length) said.push('延遲：' + lateCats.map(r => r.category_name).join('、'));
+  if (v.mine) said.push(`待你處理 ${v.mine} 件`);
+  if (p) said.push(`挑好 ${p.done}/${p.total} 格`);
+  const nocat = (v.rows || []).filter(r => r.unassigned);
+  if (nocat.length) said.push('沒有負責人（送不進審核）：' + nocat.map(r => r.category_name).join('、'));
+  let html = `<span class="sp-name">${pr.done ? '已出稿' : pr.stage}</span>`
+    + '<span class="sp-steps" aria-hidden="true">'
+    + STAGES.map((n, i) => `<i class="${pr.done || i < at ? 'done' : i === at ? 'now' + (late ? ' late' : '') : ''}${i === sched && !pr.done ? ' sched' : ''}"></i>`).join('')
+    + '</span>'
+    + `<span class="sp-turn${late ? ' late' : ''}">${v.mine ? `待你 ${v.mine} 件　` : ''}${when}</span>`;
+  if (p && p.total) html += `<span class="sp-prog">挑好 ${p.done}/${p.total}</span>`;
+  bannerProg.innerHTML = html;
+  bannerProg.title = said.join('\n');
+  bannerProg.hidden = false;
+  renderPaperBar();
 }
 
 /* ==========================================================================
@@ -9739,6 +10295,7 @@ submitBtn.addEventListener('click', async () => {
   if (!ok) return;
   currentPlan.submitted = true;
   markDirty();
+  reviewSyncSoon(currentPlan);     // 提交＝開始審核：每一格從提明細開始
   renderSubmitBtn();
   syncTabs();          // 提交那一下，落版／拼板 兩顆就回來了（見 tabAllowed）
   toast(`已提交「${currentPlan.name}」給設計`, 'ok', 2600);
@@ -9763,6 +10320,7 @@ function syncSideCol(){
     map: true,
     type: document.getElementById('typeWrap').classList.contains('on'),
     notes: onBoard,
+    review: onBoard,
   };
   if (!has[sideTab]) sideTab = onBoard ? 'notes' : 'map';
   col.querySelectorAll('.sc-tab').forEach(b => {
@@ -9774,8 +10332,10 @@ function syncSideCol(){
   col.querySelectorAll('.sc-pane').forEach(pn => { pn.hidden = pn.dataset.pane !== sideTab; });
   /* 拼板 左邊那條工具只有設計看得到（以前它是 #typeWrap 的下半截，字級收起來就跟著收）。
      落版 是另一回事：行銷改得動 落版，那邊的工具他真的在用。 */
+  /* 以前 拼板 上不是設計的人整條收掉；印章搬上來之後 PM 在 拼板 也要拿得到它（2026-09-28），
+     所以改成只留 選零件 和 印章（#toolRail.rv-lite） */
   const rail = document.getElementById('toolRail');
-  if (rail) rail.classList.toggle('off', onBoard && activeMode !== 'design');
+  if (rail){ rail.classList.remove('off'); rail.classList.toggle('rv-lite', onBoard && activeMode !== 'design'); }
 }
 
 /** 拼板 紙上緣那一條：正面 › 品類(支數) ▾　版位 W × H cm　刊頭 W × H cm　挑好 n / m。
@@ -9900,9 +10460,11 @@ const VIEWS = {
       markWrap.style.display = 'flex';
       document.getElementById('toolHint').style.display = 'none';
       showBoardOverview();
-      /* 右邊那一欄進 拼板 一律先翻到 意見（2026-09-14 談定）：設計和 PM 在這一頁
-         要做的事是對話，版位和字級是要找才去翻的。 */
-      sideTab = 'notes';
+      /* 右邊那一欄進 拼板 先翻到 意見（2026-09-14 談定）：設計和 PM 在這一頁要做的事是對話。
+         例外（2026-09-29）：這一塊有要你蓋印章的，翻到 審核 —— 印章和送出都在那一頁。
+         只在進來那一下決定，你自己翻走之後不會被拉回去。 */
+      sideTab = rvHasStampWork() ? 'review' : 'notes';
+      rvSideAuto = true;      // 審核資料多半還沒讀到：讀到的那一下再決定一次（syncPassTool）
       syncTypeBar();          // 字級那一頁只有這一頁看得到
     },
     unmount(){
@@ -10264,7 +10826,7 @@ addEventListener('message', e => {
   if (d.stageCrop !== undefined){ setCropZoom(d.stageCrop ? target.id : null); return; }
 
   if (d.ready){                       // iframe 起來了：身分、共用目錄和上次的內容送回去
-    e.source.postMessage({ boardRole: canvasRole(), snapOn: CONFIG.snapOn,
+    e.source.postMessage({ boardRole: canvasRoleFor(target), snapOn: CONFIG.snapOn,
                            catalogue: catalogueOut() || undefined,
                            logos: LOGOS || undefined,
                            /* 底色跟身分一樣要在它一起來的時候就給：版面重畫時畫布是
@@ -10823,8 +11385,9 @@ function markBadge(c){
    資料存在格子上（cell.notes），跟著檔期一起存。
    ========================================================================== */
 
-/* 三種貼紙，但**不是兩邊都看得到**：
-     PM   → 三種都有。補貼紙／補贈品是「請設計補一個東西」，那是 PM 在提需求。
+/* 五種貼紙，但**不是兩邊都看得到**：
+     PM   → 全部。修改／補貼紙／換品是實作指南 8.1 那三種（2026-09-28 補上修改、換品），
+            補貼紙／補贈品是「請設計補一個東西」，那是 PM 在提需求。
      設計 → 只有留言。設計是收需求、回需求的那一方，對自己開「補贈品」講不通，
             但還是需要在某一格留一句話（這裡等圖、這格先別動）。
    誰看得到哪幾種寫在 kindsFor() 裡，NOTE_KINDS 本身是完整的三種 ——
@@ -10832,7 +11395,9 @@ function markBadge(c){
    留言沒有圖示：另外兩種是「要補一個東西」，這一種只是講一句話，沒有東西可以
    畫成符號，硬給一個點反而看起來像少了什麼。 */
 const NOTE_KINDS = [
+  { key:'fix',     icon:'✎', label:'修改',   color:'var(--note-fix)' },
   { key:'sticker', icon:'★', label:'補貼紙', color:'#ffd447' },
+  { key:'swap',    icon:'⇄', label:'換品',   color:'var(--note-swap)' },
   { key:'gift',    icon:'⊕', label:'補贈品', color:'#8ce29b' },
   { key:'other',   icon:'',  label:'留言',   color:'#dfe4ee' }
 ];
@@ -10973,7 +11538,10 @@ NOTE_KINDS.forEach(k => {
    每換一次就重建一次 DOM，拖曳中的狀態、剛按下去的那張都會跟著不見。 */
 function paintStickTray(){
   // 行銷不貼貼紙：便利貼是設計和 PM 之間的對話
-  const allow = new Set(isMkt() ? [] : kindsFor(myRole()).map(k => k.key));
+  /* 行銷身分的人只有坐在最終審核那三關的（行銷處協理、律師）貼得了：退件一定要附一張
+     便利貼寫要改什麼（實作指南 6.1）。其他行銷照舊不貼 —— 便利貼是做這本 DM 的人之間的對話。 */
+  const seat = isMkt() && reviewMe && reviewMe.finalSeats && reviewMe.finalSeats.length;
+  const allow = new Set(isMkt() ? (seat ? ['fix', 'swap', 'other'] : []) : kindsFor(myRole()).map(k => k.key));
   document.querySelectorAll('.stick').forEach(b => {
     b.style.display = allow.has(b.dataset.key) ? '' : 'none';
   });
@@ -11058,6 +11626,7 @@ function dropNote(key, el, cx, cy){
   markDirty();                        // 便利貼不進復原（見 renderRail 那段說明）
   selNote = n.id;
   focusCell = c.id;                 // 貼完就只看這一格，話講完再回去
+  rvSel = String(c.id);             // 意見欄最上面那一塊也講這一格（貼完多半就是要按「送出調整」）
   armKind(null);
   setRail(true);                      // 貼完要看得到那張卡
   paintAllNoteMarks();
@@ -11108,7 +11677,9 @@ function paintNoteMarks(c){
     sig.className = 'cmk-who';
     sig.textContent = whoMark(n.who);
     i.appendChild(sig);
-    i.addEventListener('pointerdown', e => startNoteDrag(e, c, n, i));
+    /* 手上拿著一張貼紙的時候，按在舊的記號上也是「貼一張新的」（會被 fanOut 撥開），不是拖那一張舊的 ——
+       記號就坐在格子中央，要貼第二則的手多半就按在它上面（量到過：貼不上去，還以為沒反應） */
+    i.addEventListener('pointerdown', e => { if (armedKind) return; startNoteDrag(e, c, n, i); });
     el.appendChild(i);
   });
 
@@ -11209,6 +11780,10 @@ function selectNote(c, n, anchorEl){
      不是取消，不然你得點兩下才看得到它。 */
   if (selNote === n.id && notePop){ clearNoteSel(); return; }
   selNote = n.id;
+  /* 點格子上的便利貼記號＝也點了那一格：意見欄最上面那一塊跟著講這一格。
+     記號多半就坐在格子中央，想點格子的手常常點到的是它 */
+  rvSel = String(c.id);
+  paintCellRv(); syncPassTool();
   // 那一則正被篩選擋著（在看別格、或只看某一種）：先把篩選拿掉，不然點了沒東西出來
   const shown = (!focusCell || focusCell === c.id) && (!typeFilter || typeFilter === n.key);
   if (!shown){ focusCell = null; typeFilter = null; }
@@ -11466,6 +12041,8 @@ function noteCard(x){
     if (e.target.closest('.box')) return;
     selNote = sel ? null : n.id;
     if (!focusCell) focusCell = cell.id;            // 從全部點進來 = 只看那一格
+    rvSel = String(cell.id);        // 點便利貼＝點那一格：審核那一塊跟著換（格子中央常常就是記號，點不到格子本身）
+    paintCellRv(); syncPassTool();
     renderRail(); applyFocusCell(); paintAllNoteMarks();
     const t = document.querySelector('.icard.sel textarea');
     if (t) t.focus();
@@ -11839,7 +12416,7 @@ boardOv.addEventListener('mousedown', e => {
 boardOv.addEventListener('click', e => {
   if (boardDragged){ boardDragged = false; return; }   // 那是拖版面，不是點格子
   // 便利貼自己處理點擊（挑出那一則），不要順手把這一格的面板開起來
-  if (e.target.closest('.cmk')) return;
+  if (e.target.closest('.cmk') && !armedKind) return;   // 拿著貼紙按在記號上：照樣是貼（見 paintNoteMarks）
   clearNoteSel();            // 點到便利貼以外的地方＝放開它，意見欄回到全部問題
   const el = e.target.closest('.cell');
   if (!el || !activeBlock) return;
@@ -11858,7 +12435,12 @@ boardOv.addEventListener('click', e => {
   if (activeTool !== 'edit') return;
   /* 行銷：拼板 是看的。整張版看得到、意見欄讀得到，但不開那一格的挑貨面板 ——
      那一格裡面要放什麼是 PM 和設計的事。（落版 照樣改得動，那是他開的檔。） */
+  /* 點一格＝先把它選起來：意見欄最上面那一塊（#rvPanel）講這一格走到哪、輪到你按什麼 */
+  rvSel = String(cells[at].id);
+  paintCellRv(); syncPassTool();
   if (isMkt()){ toast('行銷只能看商品；要改版面請到 落版', 'info', 2000); return; }
+  /* 送出之後上鎖、PM 只動自己的品類（實作指南 4.1、4.2）：不開面板，講一句為什麼 */
+  if (!rvEditable(cells[at])){ toast(rvLockWhy(cells[at]), 'info', 2400); return; }
   hideTip();
   openBoardCell(el, activeBlock, cells, at);
 });
@@ -12206,7 +12788,7 @@ if (!Array.isArray(USERS) || !USERS.length) USERS = seedUsers();
 
 /* 名單照「在流程裡是誰」取名（2026-09-28，跟 demo/review 那一份一樣）：
    測的時候一眼看得出輪到誰、誰審過。**身分（role）還是只有設計／PM／行銷三種** ——
-   課長、部長、協理、律師在這支程式裡都是用 PM 或行銷的身分進來，名字只是講他是誰。
+   課長、部長、處長、協理、律師在這支程式裡都是用 PM 或行銷的身分進來，名字只是講他是誰。
    **舊的九位 id 一個都不動**（便利貼認 id），只把還叫著預設名字的那幾位改名
    （was：以前的預設名；自己改過名的不碰）；其他是新加的 id，名字不重用任何舊 id。
    順序就是登入名單上的順序，每個身分第一位也是 ?as= 挑到的那一位。 */
@@ -12221,7 +12803,9 @@ const ROSTER = [
   { id:'pm-phone',    role:'pm',        name:'手機PM' },
   { id:'pm-3c-mgr',   role:'pm',        name:'3C課長兼筆電PM' },
   { id:'pm-appl-mgr', role:'pm',        name:'家電課長' },
+  { id:'pm-wash-mgr', role:'pm',        name:'洗衣機課長兼部長' },
   { id:'pm-director', role:'pm',        name:'部長兼機上盒PM' },
+  { id:'pm-div-head', role:'pm',        name:'商品處處長' },
   { id:'pm-exec',     role:'pm',        name:'商品處協理' },
   { id:'m1',          role:'marketing', name:'行銷 A' },
   { id:'m2',          role:'marketing', name:'行銷 B' },
@@ -12264,6 +12848,108 @@ const usersOf = role => USERS.filter(u => u.role === role);
 let currentUser = null;                            // 登入之前是 null
 
 const userName = id => (USERS.find(u => u.id === id) || {}).name || '';
+
+/* ==========================================================================
+   審核系統的人和分類表（2026-09-28，《DM 審核流程實作指南 v1.1》第 2 節）
+   --------------------------------------------------------------------------
+   **一格歸誰審，照那一格的品類在分類表上是哪一列**，不照版位（2.2）。
+   分類表的形狀照公司那一頁「商品部門分類列表」：部門 → 子部門（三碼），每一個子部門
+   一列、四個人 —— 商品主辦（PM）／商品課主管／商品部主管／商品處主管。
+   畫面上照公司的叫法寫（課主管、部主管、處主管），不寫指南的「課長、部長」。
+   ⚠️ 這一份是**本機的替身**：正式的那一份是全國電子推過來的（需求書 3.3），
+   接上之後從後端讀，這裡整段拿掉。人刻意排成公司那一頁上真的有的幾種情況：
+     ・一位 PM 管好幾個子部門（冰箱洗衣機PM：冰箱、酒櫃、洗衣機…）
+     ・PM 自己就是課主管（3C課長兼筆電PM 的筆電）→ 蓋章之後課主管那一層自動略過
+     ・課主管＝部主管（洗衣機課長兼部長）→ 他按一次通過，部主管那一層就略過
+     ・PM、課主管、部主管同一人（部長兼機上盒PM 的機上盒）
+     ・處主管（處長）整個大電只有一位（商品處處長）→ 蓋章之後課長 → 部長 → 處長的最後一層
+   ⚠️ **協理不在這四層裡**（2026-09-28）：商品處協理、行銷處協理、律師只在最終審核出現，
+   由設定表指定（REVIEW_SETTINGS），不從這張表推。
+   **分類以代碼為準**：之後公司若在更細的一層（分類、子分類）另外指定人，
+   這張表多幾列就好，格子上記的一樣是代碼。
+   ========================================================================== */
+const userEmail = u => u.email || (u.id + '@example.com');
+const REVIEW_ROLE = { design:'design', pm:'pm', marketing:'mkt' };
+/* 名單就是人員資料：登入頁「＋ 加人」加的人也要進得了審核，所以每次從 USERS 現算，
+   不另外存一份（兩份遲早對不起來）。id 就是員工編號 —— 便利貼認的是它，一個都不換。 */
+const reviewMembers = () => USERS.map(u => ({
+  employee_id: u.id, name: u.name, email: userEmail(u),
+  role: REVIEW_ROLE[u.role] || u.role, is_active: true }));
+
+const REVIEW_CATS = [
+  // 代碼   名稱             商品主辦      課主管          部主管          處主管
+  ['110', '電視',          'pm3',        'pm-3c-mgr',   'pm-director', 'pm-div-head'],
+  ['111', '視訊盒&機上盒', 'pm-director', 'pm-director', 'pm-director', 'pm-div-head'],
+  ['112', '聲霸',          'pm3',        'pm-3c-mgr',   'pm-director', 'pm-div-head'],
+  ['120', '冰箱',          'pm1',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+  ['121', '酒櫃',          'pm1',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+  ['130', '洗衣機',        'pm1',        'pm-wash-mgr', 'pm-wash-mgr', 'pm-div-head'],
+  ['131', '脫水機',        'pm1',        'pm-wash-mgr', 'pm-wash-mgr', 'pm-div-head'],
+  ['132', '乾衣機',        'pm1',        'pm-wash-mgr', 'pm-wash-mgr', 'pm-div-head'],
+  ['140', '空調',          'pm2',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+  ['210', '手機',          'pm-phone',   'pm-3c-mgr',   'pm-director', 'pm-div-head'],
+  ['220', '筆電',          'pm-3c-mgr',  'pm-3c-mgr',   'pm-director', 'pm-div-head'],
+  ['230', '平板',          'pm-phone',   'pm-3c-mgr',   'pm-director', 'pm-div-head'],
+  ['310', '小家電',        'pm2',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+  ['311', '刮鬍刀',        'pm2',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+  ['410', '寢具',          'pm2',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+  ['411', '收納',          'pm2',        'pm-appl-mgr', 'pm-director', 'pm-div-head'],
+].map(([category_id, category_name, owner_id, manager_id, director_id, executive_id]) =>
+  ({ category_id, category_name, owner_id, manager_id, director_id, executive_id }));
+const LEVEL_WORD = { owner_id:'商品主辦', manager_id:'課主管', director_id:'部主管', executive_id:'處主管' };
+/* 最終審核者設定表（2.3）的起始值。之後是行銷在系統裡改，推一次不會蓋掉他改過的。
+   r2_managers＝二校要不要主管審（全系統一個開關，預設關：PM 審完就進二改，部長只看進度）。 */
+const REVIEW_SETTINGS = { r2_managers:false, exec_id:'pm-exec', mkt_exec_id:'m3', lawyer_id:'m-lawyer', design_lead_id:'d-lead' };
+
+const catRow = id => (id && REVIEW_CATS.find(r => r.category_id === id)) || null;
+/** 照名字找代碼：只有剛好一列叫這個名字才算數。同名兩列（不同部門都有「配件」）
+    就不猜 —— 那要從清單上挑（清單上每一筆帶著代碼）。 */
+function catIdForName(name){
+  const n = String(name || '').trim();
+  const rs = REVIEW_CATS.filter(r => r.category_name === n);
+  return rs.length === 1 ? rs[0].category_id : null;
+}
+/** 一個品類在分類表上是哪一列；不在表上就是 null（＝沒有負責人，送不進審核）。
+    先認挑的時候記下來的代碼，再認名字 —— 改名的時候代碼跟著換掉（見 openItemPop）。 */
+const groupCat = g => (g && (catRow(g.catId) || catRow(catIdForName(g.name)))) || null;
+const catPeopleText = row => Object.keys(LEVEL_WORD)
+  .map(f => `${LEVEL_WORD[f]} ${userName(row[f]) || row[f]}`).join('・');
+
+/* 送進審核的資料層：扮演「全國電子把人員和分類表推過來」。本機模式才有這一條路
+   （dev 在接上後端之後是 null，那時候資料由後端的介接寫進去）。 */
+const reviewStore = () => window.ReviewStore || null;
+function pushReviewReference(){
+  const rs = reviewStore();
+  if (!rs || !rs.dev) return;
+  rs.dev.pushReference({
+    members: reviewMembers(),
+    assignments: REVIEW_CATS.map(r => Object.assign({}, r, {
+      owner_name: userName(r.owner_id), manager_name: userName(r.manager_id),
+      director_name: userName(r.director_id), executive_name: userName(r.executive_id) })),
+    reviewerSettings: REVIEW_SETTINGS,
+  });
+}
+/** 審核那一邊認得的「我」（實作指南 8.3：是誰只由登入狀態決定）。
+    這一頁的登入還是假的，所以本機模式用同一個人去登入審核那一邊；
+    接上 Google 之後兩邊是同一個權杖，這一段只剩 whoami。 */
+let reviewMe = null;
+async function reviewSignIn(u){
+  const rs = reviewStore();
+  if (!rs) return;
+  try {
+    pushReviewReference();
+    const same = rs.dev && rs.dev.sessionEmail() === userEmail(u).toLowerCase();
+    const r = rs.dev && !same ? await rs.dev.signInAs(u.id) : await rs.api.whoami();
+    reviewMe = r && r.ok ? r.identity : null;
+  } catch (e){ reviewMe = null; }
+  paintActing();
+  paintStickTray();                 // 最終審核那幾位行銷：貼紙那一疊要出來
+  syncListButtons();
+  reviewClockSync();
+  /* 每一檔都同步一次再問進度：檔期列表上的卡片也要寫得出「最落後是哪一關」 */
+  visiblePlans().forEach(pl => reviewSyncSoon(pl));
+  refreshReview();
+}
 
 /* ⚠️ 這裡曾經有三支在搬「這一格在誰手上」（migratePlan／migrateCellOk／
    migrateCellStage：cell.ok → cell.at → cell.st）。那件事整個沒有了 ——
@@ -12438,6 +13124,7 @@ function setTab(id){
   syncStickerTool();
   syncPassTool();                  // ✓ 也只有 拼板 有，切走要跟著收、跟著放下
   syncSideCol();                   // 右邊那一欄哪幾頁在，跟著分頁走
+  if (id === 'board' && currentPlan) paintCellRv();   // 格子上那一枚照最新的審核資料（卡片沒重建時沒人畫）
 }
 function switchTab(id){ if (id !== activeTab) setTab(id); }
 document.querySelectorAll('.tab').forEach(b => {
@@ -12813,7 +13500,10 @@ async function loadSnaps(plan){
   const blocks = new Map(allBlocks().map(b => [b.id, b]));
   await new Promise(res => {
     let tx;
-    try { tx = db.transaction(SNAP_STORE, 'readonly'); } catch (_){ return res(); }
+    /* readwrite：下面會順手刪掉對不上的那幾份。以前開 readonly，第一份對不上的就丟 ReadOnlyError，
+       游標停在那裡 —— 後面的圖都沒撈回來、也永遠清不掉（2026-09-29 測審核時量到） */
+    try { tx = db.transaction(SNAP_STORE, 'readwrite'); } catch (_){ return res(); }
+    tx.onabort = () => res();
     const st = tx.objectStore(SNAP_STORE);
     const rq = st.openCursor(IDBKeyRange.bound(plan.id + '|', plan.id + '|￿'));
     rq.onsuccess = () => {
@@ -12822,7 +13512,7 @@ async function loadSnaps(plan){
       const rec = cur.value, bid = String(cur.key).slice(String(plan.id).length + 1);
       const blk = blocks.get(bid);
       // 版位不在了、或格子換過了 → 這一份沒有用，順手清掉
-      if (!blk || !rec || rec.sig !== snapSig(blk)) cur.delete();
+      if (!blk || !rec || rec.sig !== snapSig(blk)){ try { cur.delete(); } catch (_){} }
       else if (!SNAPS.has(cur.key)) SNAPS.set(cur.key, new Map(rec.cells));
       cur.continue();
     };
@@ -14496,108 +15186,592 @@ boardEl.addEventListener('pointerdown', e => {
 });
 
 /* ==========================================================================
-   審核通過 —— 校對那幾關，審的人一格一格說「這一格過了」
+   審核（第三步，2026-09-28）：商品 那一頁的完成按鈕、誰動得了哪一格
    --------------------------------------------------------------------------
-   哪幾關要審：一校、二校、審稿（REVIEW_STAGES）。三關的 STAGE_SIDE 都是 pm，
-   所以「看得到那顆鈕的人」＝ myTurn() —— 不必再寫第二套權限，而且撥時鐘撥到
-   別的關那顆鈕就自己消失了（球在誰手上是時間說的，見 planSide）。
-   ⚠️ **只有正在審的那個人看得到那顆鈕**，但**標記誰都看得到**：設計要知道
-   哪幾格已經過了，那正是這件事的用處。
-   標記存在格子上（cell.pass），一關一筆、永久留著 —— 它是一份簽核紀錄，
-   不是一個會被下一關洗掉的狀態。**但版上一次只寫一枚**：走到哪一關就寫哪一關
-   （見 setCellPassEl）。整串疊在一格 3.7cm 的格子上就是一條橫過整格的標籤，
-   而「二校過了的一定也過了一校」照關的順序本來就是自明的。要看完整那一份
-   ——幾關、誰蓋的、什麼時候——滑上去看 title。
+   取代以前的「審核通過」（cell.pass：一關一枚、日期說了算，使用者同意拿掉）。
+   現在每一格、每一塊各自走到哪一關是審核那一邊記的（review-rules.js），這裡只做三件事：
+   ・格子右上角那一枚＝這一格現在的狀態（在哪一關、等誰、延遲），見 setCellRvEl
+   ・意見欄最上面那一塊（#rvPanel）＝輪到你按的完成按鈕，按不下去的寫出還差什麼，見 paintRvPanel
+   ・誰動得了哪一格（rvEditable）：PM 只動自己品類（或代理的）的格子、提明細送出之後上鎖；
+     設計只在設計的關（提明細～製作、一改、二改、退件修改、出稿）動得了版面
+   **判斷一律問規則**（R.can、R.cellStatus），這裡不另外寫一套 —— 畫面算出來的只決定鈕亮不亮，
+   真的按下去審核那一邊會再判斷一次（實作指南 8.3）。
+   刷子＝左邊工具列的「印章」（快捷鍵 A，2026-09-28 從意見欄那顆 #passBtn 搬上去），手勢照舊：點一格＝這一格，
+   拉一個框＝一片。一校／二校蓋「審核完成」、製作「標好了」、一改／二改「改好了」（蓋錯再點一下＝取消），
+   提明細「送出」、蓋章確認「蓋章」（蓋了就撤不掉）。蓋過的格子一圈綠（rvMarked）；完成按鈕在「審核」分頁，
+   蓋完了只剩送出時那一顆發光、分頁自己翻過去（rvNag）。
+   舊檔期裡的 cell.pass 留著不刪（照 cell.pm 那條先例），沒有人讀它；合併照舊往下合（mergePass）。
+   沒有審核資料（草稿、review-*.js 不在、還沒讀到）＝這一整段都不出現，格子照舊誰都動得了。
    ========================================================================== */
-const REVIEW_STAGES = ['一校', '二校', '審稿'];
+var rvSel = null;            // 選起來那一格（主程式的格子 id）；var：paintReview 可能比這一行早跑
+const RR = () => window.ReviewRules || null;
 
-/** 這本 DM 現在這一關要不要審；不要就是空字串。 */
-function reviewStage(plan){
-  if (!plan) return '';
-  const n = STAGES[planStageIndex(plan)];
-  return REVIEW_STAGES.includes(n) ? n : '';
+/** 審核那一邊這一檔的整份資料 ＋ 我是誰。沒有就是 null（上面那幾種情況）。 */
+function rvCtx(){
+  const R = RR(), v = rvOf(currentPlan);
+  if (!R || !v || !v.view || !currentUser) return null;
+  return { R, v: v.view, A: R.actorOf(v.view, currentUser.id, nowMs()), plan: currentPlan, rows: v.rows || [] };
 }
-/** 我現在是不是「正在審的那個人」。myTurn() 已經擋掉行銷（他不在那串關裡）
-    和不是這一關的那一邊，所以這裡不必再問一次身分。 */
-function reviewing(){ return !!reviewStage(currentPlan) && myTurn(); }
+const rvCellOf = (ctx, cell) => (cell && ctx.v.cells.find(x => x.id === rvId(ctx.plan, cell.id))) || null;
+const rvBlockOf = (ctx, block) => (block && ctx.v.blocks.find(x => x.id === rvId(ctx.plan, block.id))) || null;
+/** 這一格是不是我的（我是它的 PM，或正在代理它的 PM） */
+function rvMine(ctx, rc){
+  const o = ctx.R.ownerOf(ctx.v, rc);
+  return !!o && (o === ctx.A.id || ctx.A.delegFor.has(o));
+}
+/** 我是不是任何一個品類的 PM（課長、部長那種只管不挑的人，版上不淡掉任何一格） */
+const rvOwnsAny = ctx => ctx.v.assignments.some(a => a.owner_id === ctx.A.id) || ctx.A.delegFor.size > 0;
 
-const passOf = c => (c && c.pass) || null;
-const passedAt = (c, st) => !!(c && c.pass && c.pass[st]);
-/** 這一格過了哪幾關，照 STAGES 的順序（不照存進去的順序 —— 那是誰先按的順序）。 */
-const passNames = c => { const p = passOf(c); return p ? STAGES.filter(s => p[s]) : []; };
+/** 這一格現在動不動得了版面（挑貨、搬零件）。沒有審核資料就照舊（都動得了）。 */
+function rvEditable(cell){
+  const ctx = rvCtx();
+  if (!ctx) return true;
+  const rc = rvCellOf(ctx, cell);
+  if (!rc) return true;                                    // 剛加的格子還沒同步過去
+  const cy = ctx.R.cycleOf(ctx.v, rc);
+  const b = ctx.v.blocks.find(x => x.id === rc.block_id) || {};
+  if (activeMode === 'pm') return rvMine(ctx, rc) && (rc.stage === '提明細' || !!(cy && cy.state === 'pm_data'));
+  if (activeMode === 'design'){
+    if (cy) return cy.state === 'judge' || cy.state === 'fix';
+    if (rc.stage === '提明細' || rc.stage === '製作') return true;
+    return b.phase === '一改' || b.phase === '二改' || b.phase === '出稿';
+  }
+  return false;
+}
+/** 動不了的時候講一句為什麼（點那一格時的 toast、意見欄那一塊） */
+function rvLockWhy(cell){
+  const ctx = rvCtx();
+  const rc = ctx && rvCellOf(ctx, cell);
+  if (!rc) return '';
+  const st = ctx.R.cellStatus(ctx.v, rc);
+  const owner = ctx.R.ownerOf(ctx.v, rc);
+  if (!owner) return `「${rc.cat_name}」不在分類表上，這一格沒有負責人（在 總體 ✏ 換成表上的分類）`;
+  if (activeMode === 'pm' && !rvMine(ctx, rc)) return `這一格是${ctx.R.memberById(ctx.v, owner).name}負責的（只能看）`;
+  if (activeMode === 'pm') return `這一格已經送出（${st.stage}：${st.text}），要改只能等退回來`;
+  return `這一格在${st.stage}（${st.text}），設計現在不動它`;
+}
+/** 畫布收到的身分：設計在上鎖的格子裡跟 PM 一樣搬不動零件 */
+function canvasRoleFor(cell){
+  const base = canvasRole();
+  return base === 'design' && cell && !rvEditable(cell) ? 'pm' : base;
+}
 
-/** 那一枚標籤：內容用 data-pass，不塞文字節點 —— 那一批 .cell 會原封不動被拿去
+/** 那一枚標籤：內容用 data-rv，不塞文字節點 —— 那一批 .cell 會原封不動被拿去
     當畫布的容器，真的塞一個節點進去它會卡在畫布底下（跟 makeCard 同一個理由）。 */
-function setCellPassEl(el, cell){
+function setCellRvEl(el, cell){
   if (!el) return;
-  const names = passNames(cell);
-  if (!names.length){ el.removeAttribute('data-pass'); el.removeAttribute('title'); return; }
-  /* 版上一次只寫**走到哪了**那一枚，不是一路累加下來的那一串：
-     「一校通過・二校通過」在一格 3.7cm 寬的格子上是一條橫過整格的標籤，而它
-     多講的那一句（二校過了的一定也過了一校）本來就是照關的順序自明的。
-     簽核紀錄沒有少 —— 全部幾關、誰蓋的、什麼時候，都在下面那個 title 裡。 */
-  el.dataset.pass = names[names.length - 1] + '通過';
-  const p = passOf(cell);
-  el.title = names.map(s =>
-    `${s}通過 — ${p[s].by || '?'}　${String(p[s].at || '').slice(0, 16).replace('T', ' ')}`).join('\n');
+  el.classList.remove('rv-notmine', 'rv-sel', 'rv-marked', 'rv-can');
+  const ctx = rvCtx();
+  const rc = ctx && cell && rvCellOf(ctx, cell);
+  if (!rc){ el.removeAttribute('data-rv'); el.removeAttribute('data-rv-tone'); return; }
+  const st = ctx.R.cellStatus(ctx.v, rc);
+  /* 審核那一邊的「還沒挑貨」只知道有沒有送出過商品資料 —— 挑貨是在這一頁做的，
+     挑好了、還沒按提明細完成的那幾格要講對 */
+  let text = st.text;
+  /* 挑好了但還沒蓋印章：寫短一點（蓋了之後規則那邊寫「尚未送出」，送出去才算數） */
+  if (rc.stage === '提明細' && !rc.detailMark && cellPicked(cell) && st.tone !== 'none') text = '挑好了';
+  const late = ctx.rows.some(r => r.late && r.cell_ids.includes(rc.id));
+  el.dataset.rv = `${st.stage}・${text}`;
+  el.dataset.rvTone = late ? 'late' : st.tone;
+  if (activeMode === 'pm' && rvOwnsAny(ctx) && !rvMine(ctx, rc)) el.classList.add('rv-notmine');
+  if (rvSel != null && String(cell.id) === String(rvSel)) el.classList.add('rv-sel');
+  if (rvMarked(ctx, rc)) el.classList.add('rv-marked');
+  if (activeTool === 'pass'){
+    const br = rvBrush();
+    if (br && rvInBrush(ctx, br, rc) && (br.toggle || !rvBrushOn(br, rc))) el.classList.add('rv-can');
+  }
 }
-
-/** 從資料重刷一遍。掛在 rebuildAll 和合併那幾個出口上，理由跟 paintCellBgs 一樣：
-    Ctrl+Z 退掉的可能就是一次蓋章，而那一趟重建多半走「只改大小」的快路
-    （sheetSig 沒變 → makeCard 不會再跑），沒人刷就是「資料退回去了、螢幕上還蓋著」。 */
-function paintCellPasses(){
+/** 從資料重刷一遍：審核那一邊讀回來、Ctrl+Z、合併都經過這裡（跟 paintCellBgs 同一個理由） */
+function paintCellRv(){
   if (!boardEl) return;
   boardEl.querySelectorAll('.cell[data-cell-id]').forEach(el =>
-    setCellPassEl(el, cellById(el.dataset.cellId)));
+    setCellRvEl(el, cellById(el.dataset.cellId)));
 }
 
-/** 意見欄那顆大的給不給看，還有它現在是不是按著的。
-    只在 拼板（那是唯一看得到真正的貨的地方），切走要把工具放下 ——
-    不放的話手上拿著一個看不到的工具（點格子沒反應，而畫面上沒有東西解釋為什麼）。 */
-function syncPassTool(){
-  const btn = document.getElementById('passBtn');
-  const on = activeTab === 'board' && reviewing();
-  if (btn){
-    btn.hidden = !on;
-    const st = reviewStage(currentPlan);
-    if (st){
-      btn.querySelector('b').textContent = st + '通過';
-      btn.title = `${st}通過 (A)：點一格＝這一格過了，再點一下取消；`
-                + `拉一個框＝整批過（Alt＝整批撤掉）`;
-    }
-    btn.classList.toggle('on', activeTool === 'pass');
+/** 提明細完成要送過去的商品資料：這一格挑的第一樣（同一張卡上的規格、顏色是同一個商品） */
+function rvDetailOf(cell){
+  const sku = pickedOf(cell)[0];
+  if (!sku) return null;
+  const cat = catalogueOut() || {};
+  /* 共用的商品目錄沒讀到（CATALOGUE 是 null）的時候，畫布挑的是它自己寫死的那一份（＝DEMO_ROWS），
+     這裡也要查得到 —— 不然挑得到、送不出去，而且被說成「品名空白、價格空白」 */
+  const rows = (cat.rows || []).concat(CATALOGUE ? [] : DEMO_ROWS);
+  const r = rows.find(x => String(x.sku) === String(sku));
+  /* 目錄裡真的找不到（多半是被刪了）：帶著 gone，按鈕照實講，不送一份空白的過去 */
+  if (!r) return { sku: String(sku), brand: '', name: '', spec: '', price: '', info: '', gone: true };
+  return { sku: String(r.sku), brand: (cat.brand || {})[r.name] || r.brand || '', name: r.name || '',
+           spec: [r.spec, r.color].filter(Boolean).join(' '), price: r.price === '' || r.price == null ? '' : +r.price, info: '' };
+}
+
+/** 按下去：先把版面和便利貼對齊（規則要數的便利貼在影本裡），一次送過去，讀回來重畫。 */
+async function rvRun(items, label){
+  const rs = reviewStore();
+  if (!rs || !items.length) return;
+  if (currentPlan){ rvQueue.add(currentPlan); await reviewSyncNow(); }   // 檔期列表上（職代、設定表）沒有要對的版面
+  let res;
+  try {
+    res = items.length === 1 ? { ok: true, results: [await rs.api.act(items[0][0], items[0][1])] }
+                             : await rs.api.actMany(items);
+  } catch (e){ toast('送不出去：' + e.message, 'warn', 2800); return; }
+  if (!res || !res.ok){ toast('審核那一邊不認得你（登出再登入試試）', 'warn', 2800); return; }
+  /* detail.set 那一種不算一件事（它是提明細完成的前一步） */
+  const counted = res.results.filter((r, i) => items[i][0] !== 'detail.set');
+  const good = counted.filter(r => r && r.ok).length;
+  const bad = counted.filter(r => !r || !r.ok);
+  await refreshReview();
+  if (bad.length){
+    const why = [...new Set(bad.map(r => r && (r.reason + (r.missing ? '（' + r.missing.slice(0, 3).join('、') + '）' : ''))).filter(Boolean))];
+    toast(`${label}：${good ? `${good} 個好了、` : ''}${bad.length} 個沒過 —— ${why.slice(0, 2).join('；')}`, good ? 'info' : 'warn', 3600);
+  } else toast(`✓ ${label}${good > 1 ? `（${good} 格）` : ''}`, 'ok', 1700);
+}
+
+/** 刷子現在刷什麼（沒有就是 null）：這一塊在一校／二校、有我要審的格子 → 審核完成；
+    蓋章確認、有我還沒蓋的 → 蓋章。 */
+function rvBrush(){
+  const ctx = rvCtx();
+  if (!ctx || activeTab !== 'board' || !activeBlock) return null;
+  const rb = rvBlockOf(ctx, activeBlock);
+  if (!rb) return null;
+  /* 設計的送法跟 PM 的一校一樣（2026-09-28，使用者要的）：一格一格標、標了還能取消。
+     製作標「標好了」（送出的是標好的那幾格），一改／二改標「改好了」（每一格都標了才送得出去）。 */
+  if (activeMode === 'design'){
+    if (rb.phase === '一改' || rb.phase === '二改') return { label: `${rb.phase}：改好了`, action: 'fix.mark', toggle: true, phase: rb.phase, design: true };
+    if (ctx.v.cells.some(c => c.block_id === rb.id && c.stage === '製作' && !ctx.R.cycleOf(ctx.v, c)))
+      return { label: '製作：標好了', action: 'make.mark', toggle: true, design: true };
+    return null;
   }
-  if (!on && activeTool === 'pass') setTool('edit');
+  const mine = ctx.v.cells.filter(c => c.block_id === rb.id && rvMine(ctx, c));
+  if (!mine.length) return null;
+  if (rb.phase === '二校') return { label: '二校：審核完成', action: 'r2.mark', toggle: true };
+  /* 蓋章確認、提明細的印章也只是「標起來」（2026-09-29，使用者：蓋完就自己送出去不要）——
+     真的送出去是「審核」那一頁的「蓋章送出／提明細完成：標好的 N 格」 */
+  if (rb.phase === '蓋章確認') return { label: '蓋章', action: 'stamp.mark', toggle: true };
+  if (!rb.phase && mine.some(c => ctx.R.stageOf(ctx.v, c) === '一校')) return { label: '一校：審核完成', action: 'review.mark', toggle: true };
+  /* 提明細：標起來，送出是另外一下（2026-09-29 以前是蓋下去就送出）。排在一校後面：審核開始後才加的格子
+     還在提明細的時候，一校那一顆要先拿得到 */
+  if (!rb.phase && mine.some(c => c.stage === '提明細' && !ctx.R.cycleOf(ctx.v, c))) return { label: '提明細', action: 'detail.mark', toggle: true };
+  return null;
 }
-/* 按第二下就放下：它是一個模式，而拿起來的那隻手就該放得下（跟貼紙那一疊同一個手感）。 */
-document.getElementById('passBtn').addEventListener('click', () => {
-  setTool(activeTool === 'pass' ? 'edit' : 'pass');
-});
-
-/** 蓋下去（on）或撤掉（!on）。回傳真的動到幾格。
-    撤掉不看是誰蓋的：三位 PM 對整本 DM 一視同仁（跟「這一格找誰」那件事同一個立場），
-    而蓋錯了要能當場改回來 —— 蓋一次很便宜。 */
-function applyPass(cells, on){
-  const st = reviewStage(currentPlan);
-  if (!st || !cells.length) return 0;
-  let n = 0;
-  cells.forEach(c => {
-    if (on){
-      if (passedAt(c, st)) return;
-      (c.pass || (c.pass = {}))[st] =
-        { by: whoAmI(), byId: whoIdNow(), at: new Date().toISOString() };
-    } else {
-      if (!passedAt(c, st)) return;
-      delete c.pass[st];
-      if (!Object.keys(c.pass).length) delete c.pass;   // 空欄位不留，合併時才不會多一筆
-    }
-    n++;
-    setCellPassEl(cardEl(c.id), c);
+/** 這一顆印章蓋得到這一格嗎（跟 rvBrushCells、進度、那一條的分母同一份判斷） */
+function rvInBrush(ctx, br, rc){
+  if (br.design ? (br.action === 'make.mark' && (rc.stage !== '製作' || ctx.R.cycleOf(ctx.v, rc))) : !rvMine(ctx, rc)) return false;
+  /* 還沒補完一校的格子：改好了、二校審核完成都不算它，它要先補一校 */
+  if ((br.action === 'fix.mark' || br.action === 'r2.mark') && ctx.R.behind(ctx.v, rc)) return false;
+  /* 蓋章：還沒送出的才算（送出了就撤不掉、不在印章的範圍裡）；自己貼了調整便利貼的那一格走「送出調整」 */
+  if (br.action === 'stamp.mark') return !!rc.r3 && !rc.r3.cycle && !rc.r3.stamp && !ctx.R.openOn(ctx.v, rc, ['reject'], ctx.A.id).length;
+  if (br.action === 'detail.mark') return rc.stage === '提明細' && !ctx.R.cycleOf(ctx.v, rc);
+  if (br.action === 'review.mark') return ctx.R.stageOf(ctx.v, rc) === '一校';
+  return true;
+}
+/** 這一格蓋了沒 */
+function rvBrushOn(br, rc){
+  return br.action === 'r2.mark' ? !!(rc.r2 && rc.r2.reviewed)
+       : br.action === 'make.mark' ? !!rc.madeMark
+       : br.action === 'fix.mark' ? !!(rc.fixMark && rc.fixMark[br.phase])
+       : br.action === 'stamp.mark' ? !!(rc.r3 && rc.r3.mark)
+       : br.action === 'detail.mark' ? !!rc.detailMark
+       : !!rc.reviewed;
+}
+/** 這一塊裡這一顆印章蓋得到的格子：幾格、蓋了幾格、還剩幾格（工具列上的數字、那一條、分頁上的數字） */
+function rvBrushScope(br){
+  const ctx = rvCtx();
+  const rb = ctx && br && activeBlock ? rvBlockOf(ctx, activeBlock) : null;
+  if (!rb) return { total: 0, on: 0, left: 0 };
+  const cs = ctx.v.cells.filter(rc => rc.block_id === rb.id && rvInBrush(ctx, br, rc));
+  const on = cs.filter(rc => rvBrushOn(br, rc)).length;
+  return { total: cs.length, on, left: cs.length - on };
+}
+/** 格子上那一圈綠：這一格「這一關該做的那一下」做了沒（跟誰在看無關，大家看到的一樣） */
+function rvMarked(ctx, rc){
+  const rb = ctx.v.blocks.find(x => x.id === rc.block_id) || {};
+  if (rc.stage === '製作') return !!rc.madeMark && !ctx.R.cycleOf(ctx.v, rc);
+  if (rc.stage === '提明細') return !!rc.detailMark && !ctx.R.cycleOf(ctx.v, rc);
+  if (rb.phase === '二校') return !!(rc.r2 && rc.r2.reviewed);
+  if (rb.phase === '一改' || rb.phase === '二改') return !!(rc.fixMark && rc.fixMark[rb.phase]);
+  if (rb.phase === '蓋章確認') return !!(rc.r3 && (rc.r3.stamp || rc.r3.mark) && !rc.r3.cycle);
+  if (!rb.phase && ctx.R.stageOf(ctx.v, rc) === '一校') return !!rc.reviewed;
+  return false;
+}
+/** 刷下去。mode：toggle（點一格）／on（拉框）／off（Alt 拉框） */
+function rvBrushCells(cells, mode){
+  const ctx = rvCtx(), br = rvBrush();
+  if (!ctx || !br) return;
+  const items = [];
+  let noGoods = 0;
+  cells.forEach(cell => {
+    const rc = rvCellOf(ctx, cell);
+    /* PM 的刷子只刷自己的格子；設計的刷子刷這一塊裡還在那一關的格子（rvInBrush） */
+    if (!rc || !rvInBrush(ctx, br, rc)) return;
+    const cur = rvBrushOn(br, rc);
+    if (br.toggle){
+      const want = mode === 'off' ? false : mode === 'on' ? true : !cur;
+      if (want === cur) return;
+      /* 提明細：還沒挑貨的不標（標了也送不出去）；標的時候順手把挑好的那一樣送過去 */
+      if (br.action === 'detail.mark' && want){
+        const d = rvDetailOf(cell);
+        if (!d || d.gone){ noGoods++; return; }
+        items.push(['detail.set', { cell_id: rc.id, detail: d }]);
+      }
+      items.push([br.action, { cell_id: rc.id, done: want }]);
+    } else if (mode !== 'off' && !cur) items.push([br.action, { cell_id: rc.id }]);
   });
-  if (!n) return 0;
-  commitAction();
-  updateProgress();      // 橫幅上那個「一校通過 n/總」就是這一下在長的東西
-  return n;
+  if (!items.length){
+    toast(noGoods ? '這一格還沒挑貨（或商品目錄裡找不到那一樣），挑好了再蓋'
+      : mode === 'off' ? '沒有可以撤的格子' : br.design ? '這裡沒有可以標的格子' : br.toggle ? '這裡沒有你要審的格子' : '這裡沒有你還沒蓋的格子（蓋了就撤不掉）', 'info', 2000);
+    return;
+  }
+  rvRun(items, br.label);
+}
+
+/** 一顆按鈕：按不下去的時候底下寫為什麼、還差什麼（R.can 的 reason／missing） */
+function rvBtn(label, items, chk, main){
+  const wrap = document.createElement('div');
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'rv-act' + (main ? ' main' : '');
+  b.textContent = label;
+  b.disabled = !!chk && !chk.ok;
+  b.addEventListener('click', async () => {
+    if (b.disabled) return;
+    b.disabled = true; b.textContent = label + '…';
+    await rvRun(items, label);
+  });
+  wrap.appendChild(b);
+  if (chk && !chk.ok){
+    const w = document.createElement('div');
+    w.className = 'rv-why';
+    w.textContent = chk.reason + (chk.missing && chk.missing.length
+      ? '：' + chk.missing.slice(0, 4).join('、') + (chk.missing.length > 4 ? '…' : '') : '');
+    wrap.appendChild(w);
+  }
+  return wrap;
+}
+const rvLine = (text, small) => {
+  const d = document.createElement('div');
+  d.className = 'rv-line';
+  d.textContent = text;
+  if (small){ const m = document.createElement('small'); m.textContent = small; d.appendChild(m); }
+  return d;
+};
+
+/** 意見欄最上面那一塊：這一塊走到哪 → 選起來那一格 → 這一塊輪到你按的。
+    按鈕只放「這個人、這一塊、現在」按得到的；主管審核、最終審核在第四步。 */
+function paintRvPanel(){
+  const host = document.getElementById('rvPanel');
+  if (!host) return;
+  const ctx = rvCtx();
+  const rb = ctx && activeBlock ? rvBlockOf(ctx, activeBlock) : null;
+  const show = !!ctx && activeTab === 'board' && !!activeBlock;
+  host.hidden = !show;
+  host.innerHTML = '';
+  if (!show) return;
+  const { R, v, A } = ctx;
+  const head = document.createElement('div');
+  head.className = 'rv-head';
+  head.innerHTML = '<b>審核</b><span class="nm"></span><span class="rv-stage"></span>';
+  head.querySelector('.nm').textContent = sectionLabel(activeBlock);
+  host.appendChild(head);
+  if (!rb){
+    const d = document.createElement('div');
+    d.className = 'rv-none';
+    d.textContent = '這一塊還沒開始審（還沒有格子，或還沒同步過去）。';
+    host.appendChild(d);
+    return;
+  }
+  const bcells = v.cells.filter(c => c.block_id === rb.id);
+  const rows = ctx.rows.filter(r => r.block_id === rb.id);
+  const stageTxt = rb.phase || STAGES[Math.min(...bcells.map(c => STAGES.indexOf(R.stageOf(v, c))))] || '';
+  const late = rows.some(r => r.late);
+  const stEl = head.querySelector('.rv-stage');
+  stEl.textContent = stageTxt + (late ? '（延遲）' : '');
+  stEl.classList.toggle('late', late);
+  const me = A.id;
+  const isPm = activeMode === 'pm', isDesign = activeMode === 'design';
+  const mine = bcells.filter(c => rvMine(ctx, c));
+
+  /* ---- 選起來那一格 ---- */
+  const selCell = rvSel != null ? cellById(rvSel) : null;
+  const rc = selCell && rvCellOf(ctx, selCell);
+  if (rc){
+    const sec = document.createElement('div');
+    sec.className = 'rv-sec rv-cellsec';
+    const st = R.cellStatus(v, rc);
+    const ownerId = R.ownerOf(v, rc);
+    sec.appendChild(rvLine(`${rc.cat_name || ''} 第 ${rc.idx} 格：${st.stage}・${st.text}`,
+      [st.wait ? `等 ${st.wait}` : '', ownerId ? `負責：${R.memberById(v, ownerId).name}` : '沒有負責人'].filter(Boolean).join('　')));
+    /* 品類改過、負責的人換了：講一句，不然新的人看到一格「一校 OK」會以為是自己審的 */
+    const oc = (rc.owner_changes || []).slice(-1)[0];
+    if (oc) sec.appendChild(rvLine('', `負責的人換了：原本是${R.memberById(v, oc.from).name}（${rvWhen(oc.at)}），已經審過的不重來`));
+    const cy = R.cycleOf(v, rc);
+    const can = (a, p) => R.can(v, A, a, p);
+    const id = rc.id;
+    if (cy){
+      // 退件循環：輪到誰就給誰那一顆（實作指南第 6 節）
+      if (cy.state === 'judge' && isDesign){
+        sec.appendChild(rvBtn('設計問題：我自己改', [['cycle.judge', { cell_id: id, kind: '設計問題' }]], can('cycle.judge', { cell_id: id, kind: '設計問題' })));
+        sec.appendChild(rvBtn('商品問題：退回 PM 改資料', [['cycle.judge', { cell_id: id, kind: '商品問題' }]], can('cycle.judge', { cell_id: id, kind: '商品問題' })));
+      }
+      if (cy.state === 'pm_data' && rvMine(ctx, rc)){
+        const d = rvDetailOf(selCell);
+        sec.appendChild(rvBtn('商品資料改好了', (d ? [['detail.set', { cell_id: id, detail: d }]] : []).concat([['cycle.dataDone', { cell_id: id }]]), null, true));
+      }
+      if (cy.state === 'fix' && isDesign) sec.appendChild(rvBtn('修改完成', [['cycle.fixDone', { cell_id: id }]], can('cycle.fixDone', { cell_id: id }), true));
+      if (cy.state === 'pm_confirm' && rvMine(ctx, rc)){
+        sec.appendChild(rvBtn(cy.round === 'r2' ? '確認，送回退件的人' : `蓋章 ${cy.v}，送回退件的人`, [['cycle.confirm', { cell_id: id }]], can('cycle.confirm', { cell_id: id }), true));
+        sec.appendChild(rvBtn('還要改：退回設計（先貼便利貼）', [['cycle.back', { cell_id: id }]], can('cycle.back', { cell_id: id })));
+      }
+      if (cy.state === 'rereview' && cy.by === me){
+        sec.appendChild(rvBtn('重審通過', [['cycle.pass', { cell_id: id }]], can('cycle.pass', { cell_id: id }), true));
+        sec.appendChild(rvBtn('再退件（先貼便利貼）', [['cycle.reject', { cell_id: id }]], can('cycle.reject', { cell_id: id })));
+      }
+    } else if (rc.stage === '提明細' && rvMine(ctx, rc)){
+      const d = rvDetailOf(selCell);
+      sec.appendChild(rvBtn('提明細完成（這一格）', (d ? [['detail.set', { cell_id: id, detail: d }]] : []).concat([['detail.submit', { cell_id: id }]]),
+        !d ? { ok: false, reason: '還沒挑貨', missing: ['點這一格挑商品'] }
+           : d.gone ? { ok: false, reason: '商品目錄裡找不到這個商品', missing: [`編號 ${d.sku}（可能被刪了，點這一格重新挑）`] } : null, true));
+    } else if (rc.stage === '一校' && R.behind(v, rc) && rvMine(ctx, rc)){
+      /* 審核開始後才加的格子：版位的一校早就送出了，這一格自己補（review.late） */
+      sec.appendChild(rvBtn('補完一校（這一格）', [['review.late', { cell_id: id }]], can('review.late', { cell_id: id }), true));
+    } else if (rc.stage === '製作' && isDesign){
+      sec.appendChild(rvBtn(rc.madeMark ? '取消「標好了」' : '標好了（先不送）', [['make.mark', { cell_id: id, done: !rc.madeMark }]], can('make.mark', { cell_id: id, done: !rc.madeMark })));
+      sec.appendChild(rvBtn('送出這一格（製作完成）', [['make.submit', { cell_id: id }]], can('make.submit', { cell_id: id }), true));
+    } else if ((rb.phase === '一改' || rb.phase === '二改') && isDesign && !R.behind(v, rc)){
+      const on = !!(rc.fixMark && rc.fixMark[rb.phase]);
+      sec.appendChild(rvBtn(on ? '取消「改好了」' : `改好了（${rb.phase}）`, [['fix.mark', { cell_id: id, done: !on }]], can('fix.mark', { cell_id: id, done: !on }), !on));
+    } else if (rb.phase === '蓋章確認' && rvMine(ctx, rc) && rc.r3 && !rc.r3.stamp && R.openOn(v, rc, ['reject'], me).length){
+      sec.appendChild(rvBtn('送出調整（這一格退回設計）', [['stamp.reject', { cell_id: id }]], can('stamp.reject', { cell_id: id })));
+    }
+    if (!rvEditable(selCell) && activeMode !== 'marketing'){
+      const w = document.createElement('div');
+      w.className = 'rv-why';
+      w.textContent = rvLockWhy(selCell);
+      sec.appendChild(w);
+    }
+    host.appendChild(sec);
+  }
+
+  /* ---- 這一塊輪到我按的 ---- */
+  const sec = document.createElement('div');
+  sec.className = 'rv-sec';
+  const can = (a, p) => R.can(v, A, a, p);
+  /* 我替哪幾位 PM 按（自己，和正在代理的人）—— 一校完成／二校完成是照 PM 算的 */
+  const pms = R.blockPms(v, rb.id).filter(pid => pid === me || A.delegFor.has(pid));
+  const asLabel = pid => pid === me ? '' : `（代理 ${R.memberById(v, pid).name}）`;
+  if (isPm){
+    const todo = mine.filter(c => c.stage === '提明細' && !R.cycleOf(v, c));
+    if (todo.length){
+      /* 送出的是蓋了印章（標好）的那幾格；沒標的留在 PM 手上。一格一格送在上面「選起來那一格」 */
+      const ready = todo.filter(c => c.detailMark).map(c => ({ c, cell: cellById(c.id.slice(ctx.plan.id.length + 1)) }))
+        .filter(x => x.cell && rvDetailOf(x.cell) && !rvDetailOf(x.cell).gone);
+      const items = [];
+      ready.forEach(x => { items.push(['detail.set', { cell_id: x.c.id, detail: rvDetailOf(x.cell) }]); items.push(['detail.submit', { cell_id: x.c.id }]); });
+      sec.appendChild(rvBtn(`提明細完成：標好的 ${ready.length} 格`, items,
+        ready.length ? null : { ok: false, reason: '還沒有標好的格子', missing: ['用上面的印章「提明細」一格一格標（標錯再點一下取消），或選一格按「提明細完成（這一格）」'] }, true));
+      if (ready.length < todo.length) sec.appendChild(rvLine('', `還有 ${todo.length - ready.length} 格沒標（不會送出）`));
+    }
+    /* 審核開始後才加、已經做好的格子：一次補完一校（一格一格的在上面「選起來那一格」） */
+    const late1 = mine.filter(c => c.stage === '一校' && R.behind(v, c));
+    if (late1.length)
+      sec.appendChild(rvBtn(`補完一校：審核開始後加的 ${late1.length} 格`, late1.map(c => ['review.late', { cell_id: c.id }]), null, true));
+    if (!rb.phase && mine.some(c => R.stageOf(v, c) === '一校'))
+      pms.forEach(pid => sec.appendChild(rvBtn('一校完成' + asLabel(pid), [['block.review1', { block_id: rb.id, as_pm: pid }]], can('block.review1', { block_id: rb.id, as_pm: pid }), true)));
+    if (rb.phase === '二校')
+      pms.forEach(pid => sec.appendChild(rvBtn('二校完成' + asLabel(pid), [['block.r2pm', { block_id: rb.id, as_pm: pid }]], can('block.r2pm', { block_id: rb.id, as_pm: pid }), true)));
+    if (rb.phase === '蓋章確認'){
+      /* 印章只是標起來，這一顆才是真的蓋下去（撤不掉，主管那邊跟著開始）。沒標的留著 */
+      const left = mine.filter(c => c.r3 && !c.r3.stamp && !c.r3.cycle && !R.openOn(v, c, ['reject'], me).length);
+      const marked = left.filter(c => c.r3.mark);
+      if (left.length){
+        sec.appendChild(rvBtn(`蓋章送出：標好的 ${marked.length} 格`, marked.map(c => ['stamp', { cell_id: c.id }]),
+          marked.length ? null : { ok: false, reason: '還沒有標好的格子', missing: ['用上面的印章「蓋章」一格一格標（標錯再點一下取消）'] }, true));
+        if (marked.length < left.length) sec.appendChild(rvLine('', `還有 ${left.length - marked.length} 格沒標（不會送出）`));
+      }
+    }
+  }
+  if (isDesign){
+    const make = bcells.filter(c => c.stage === '製作' && !R.cycleOf(v, c));
+    if (make.length){
+      /* 送出的是標好的那幾格（沒標的留在設計手上）；一格一格送在上面「選起來那一格」 */
+      const marked = make.filter(c => c.madeMark);
+      sec.appendChild(rvBtn(`送出製作完成：標好的 ${marked.length} 格`, marked.map(c => ['make.submit', { cell_id: c.id }]),
+        marked.length ? null : { ok: false, reason: '還沒有標好的格子', missing: [rb.phase
+          ? '選那一格按「標好了」或「送出這一格」（版位已經過了一校，刷子現在是「改好了」）'
+          : '用刷子「製作：標好了」一格一格標，或選一格按「送出這一格」'] }, true));
+      if (marked.length < make.length) sec.appendChild(rvLine('', `還有 ${make.length - marked.length} 格沒標（不會送出）`));
+    }
+    if (rb.phase === '一改'){
+      sec.appendChild(rvBtn(rb.masthead_ok ? '刊頭：已確認（按一下取消）' : '刊頭確認完成', [['block.masthead', { block_id: rb.id, ok: !rb.masthead_ok }]], null));
+      sec.appendChild(rvBtn('一改完成', [['block.fix1', { block_id: rb.id }]], can('block.fix1', { block_id: rb.id }), true));
+    }
+    if (rb.phase === '二改'){
+      sec.appendChild(rvBtn(rb.mh2_ok ? '刊頭與整體版面：已確認（按一下取消）' : '刊頭與整體版面確認完成', [['block.mh2', { block_id: rb.id, ok: !rb.mh2_ok }]], null));
+      sec.appendChild(rvBtn('二改完成', [['block.fix2', { block_id: rb.id }]], can('block.fix2', { block_id: rb.id }), true));
+    }
+  }
+  /* 二校的主管（設定表開了「二校主管審核」才有）：這一塊裡輪到我這一層的格子一次送出，
+     貼了便利貼的＝退件，其他＝通過（跟雛形同一種按法） */
+  for (const L of [3, 2]){
+    const pend = bcells.filter(c => R.mgrOf(v, c, L) === me && R.mgrPendingLevel(v, c) === L);
+    if (!pend.length) continue;
+    const rej = pend.filter(c => R.openOn(v, c, ['reject'], me).length).length;
+    sec.appendChild(rvBtn(rej ? `二校${R.LEVEL_NAME[L]}審核：${pend.length - rej} 格通過、${rej} 格退件`
+                              : `二校${R.LEVEL_NAME[L]}審核：全部通過（${pend.length} 格）`,
+      [['mgr.submit', { block_id: rb.id, level: L }]], can('mgr.submit', { block_id: rb.id, level: L }), true));
+    sec.appendChild(rvLine('', '要退件的格子先貼一張便利貼寫要改什麼'));
+  }
+
+  /* ---- 整份 DM：蓋章之後的主管（照管理範圍、跨版位）、送最終審核、審稿、出稿 ---- */
+  const psec = document.createElement('div');
+  psec.className = 'rv-sec';
+  const f = v.flow, pid = ctx.plan.id;
+  for (const L of [3, 2, 1]){
+    const pend = v.cells.filter(c => R.mgrOf(v, c, L) === me && R.mgr3PendingLevel(v, c) === L);
+    if (!pend.length) continue;
+    const rej = pend.filter(c => R.openOn(v, c, ['reject'], me).length).length;
+    psec.appendChild(rvBtn(rej ? `蓋章後${R.LEVEL_NAME[L]}審核：${pend.length - rej} 格通過、${rej} 格退件`
+                               : `蓋章後${R.LEVEL_NAME[L]}審核：全部通過（${pend.length} 格）`,
+      [['mgr3.submit', { plan_id: pid, level: L }]], can('mgr3.submit', { plan_id: pid, level: L }), true));
+  }
+  if (f && f.confirmed && !f.sent && activeMode === 'marketing')
+    psec.appendChild(rvBtn('送最終審核', [['final.send', { plan_id: pid }]], can('final.send', { plan_id: pid }), true));
+  if (f && f.current){
+    const seat = f.seats[f.current - 1];
+    if (seat && seat.id === me && seat.state === 'todo'){
+      const rej = v.cells.filter(c => !(c.fin && c.fin.cycle) && R.openOn(v, c, ['reject'], me).length).length;
+      psec.appendChild(rvBtn(rej ? `審稿（${seat.label}）：${rej} 格退件、其餘通過` : `審稿通過（${seat.label}，整份 DM）`,
+        [['final.submit', { plan_id: pid }]], can('final.submit', { plan_id: pid }), true));
+    }
+  }
+  if (f && f.finalDone && !f.published && isDesign)
+    psec.appendChild(rvBtn('出稿完成', [['publish', { plan_id: pid }]], can('publish', { plan_id: pid }), true));
+  if (psec.childNodes.length) psec.insertBefore(rvLine('整份 DM', '貼了便利貼的格子＝退件，其他＝通過'), psec.firstChild);
+
+  if (!sec.childNodes.length && !psec.childNodes.length){
+    const w = [...new Set(rows.map(r => r.wait).filter(Boolean))];
+    sec.appendChild(rvLine('這一塊現在沒有你要按的。', w.length ? '現在：' + w.slice(0, 3).join('、') : ''));
+  }
+  /* 這一塊的送出鈕排在「選起來那一格」前面：印章就在這一頁最上面，拿印章、蓋、送出，
+     眼睛不必往下找（2026-09-29，使用者要的：不要左右來回） */
+  const cellSec = host.querySelector('.rv-cellsec');
+  if (sec.childNodes.length) host.insertBefore(sec, cellSec);
+  if (psec.childNodes.length) host.insertBefore(psec, cellSec);
+}
+
+/** 刷子那一顆給不給看、是不是按著的；順手重畫意見欄最上面那一塊。
+    只在 拼板，切走要把工具放下 —— 不放的話手上拿著一個看不到的工具。 */
+/* 函式不是 var：開機很早 setTool → syncPassTool 就會用到它，var 那時候還是 undefined */
+function rvStampSvg(){ return '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5.5" r="3.6"/><rect x="10" y="8.5" width="4" height="5"/><rect x="4" y="13" width="16" height="5.5" rx="1.6"/><rect x="5" y="20" width="14" height="2" rx="1" opacity=".55"/></svg>'; }
+function syncPassTool(){
+  paintRvPanel();
+  const br = rvBrush();
+  const sc = rvBrushScope(br);
+  const onBoard = activeTab === 'board';
+  const tool = document.querySelector('.tool[data-tool="pass"]');
+  if (tool){
+    tool.style.display = onBoard ? '' : 'none';
+    tool.classList.toggle('dim', !br);
+    tool.title = !br ? '印章 (A)：這一塊現在沒有要你蓋的格子'
+      : br.toggle ? `${br.label} (A)：點一格＝蓋這一格，再點一下取消；拉一個框＝整片（Alt＝整片取消）。蓋了還沒送出，隨時改得回來`
+      : `${br.label} (A)：點一格＝蓋這一格，拉一個框＝整片蓋（蓋了就撤不掉${br.action === 'stamp' ? '；有自己貼的調整便利貼的格子不會蓋' : ''}）`;
+    let badge = tool.querySelector('.rv-left');
+    const n = br && activeTool !== 'pass' ? sc.left : 0;
+    if (n){ if (!badge){ badge = document.createElement('span'); badge.className = 'rv-left'; tool.appendChild(badge); } badge.textContent = n; }
+    else if (badge) badge.remove();
+  }
+  const tn = document.getElementById('rvTabN');
+  if (tn){ tn.textContent = br && sc.left ? sc.left : ''; tn.classList.toggle('hot', !!(br && sc.left)); }
+  const tip = document.getElementById('rvTip');
+  if (tip){
+    tip.hidden = !onBoard || !rvCtx();
+    tip.classList.toggle('on', activeTool === 'pass' && !!br);
+    /* 印章本人也在這一頁（左邊工具列那一顆照留，兩顆是同一個工具）：拿印章、蓋、按送出都在右邊 */
+    const holding = activeTool === 'pass' && !!br;
+    tip.innerHTML = `<button type="button" class="rv-stamp${holding ? ' on' : ''}"${br ? '' : ' disabled'}>${rvStampSvg()}`
+      + `<span class="rs-t"></span><span class="rs-n"></span></button><span class="rs-tx"></span>`;
+    tip.querySelector('.rs-t').textContent = !br ? '印章' : holding ? `放下印章（${br.label}）` : `拿起印章・${br.label}`;
+    tip.querySelector('.rs-n').textContent = br && sc.total ? `標了 ${sc.on} / ${sc.total}` : '';
+    tip.querySelector('.rs-tx').innerHTML = !br ? '這一塊現在沒有要你蓋的格子。'
+      : holding ? '點格子蓋，拉一個框蓋一片，蓋錯再點一下取消。蓋完按下面的送出。'
+      : `拿起來之後點格子蓋（快捷鍵 A，左邊工具列也有一顆）。蓋了只是標起來，按下面的送出才算數。`;
+  }
+  paintRvHint(br, sc);
+  if (!br && activeTool === 'pass') setTool('edit');
+  rvSideAutoPick();
+  rvNag();
+}
+/** 拿起／放下印章。按第二下就放下：它是一個模式，拿起來的那隻手就該放得下。
+    拿不起來（這一塊沒有要你蓋的）講一句為什麼 —— 淡掉的鈕按了沒反應，看起來像壞掉。 */
+function togglePassTool(){
+  if (activeTool === 'pass'){ setTool('edit'); return; }
+  if (!rvBrush()){ toast('這一塊現在沒有要你蓋的格子', 'info', 1800); return; }
+  setTool('pass');
+}
+/** 拿著印章的時候疊在紙上的那一條：蓋的是哪一關、怎麼按、蓋到第幾格 */
+function paintRvHint(br, sc){
+  const el = document.getElementById('rvHint');
+  if (!el) return;
+  const on = !!br && activeTool === 'pass' && activeTab === 'board';
+  el.classList.toggle('on', on);
+  if (!on) return;
+  document.getElementById('rhTitle').textContent = `印章・${br.label}`;
+  document.getElementById('rhHow').innerHTML = br.toggle
+    ? '點一格＝蓋，再點一下取消・拉一個框＝整片・<kbd>Alt</kbd>＋拉框＝整片取消'
+    : `點一格＝蓋（蓋了撤不掉）・拉一個框＝整片蓋${br.action === 'stamp' ? '・有調整便利貼的格子不蓋' : ''}`;
+  /* 一格一根：格子太多（六十幾格）就只寫數字，一排細條擠在一起看不出什麼 */
+  document.getElementById('rhPips').innerHTML = sc.total <= 48
+    ? Array.from({ length: sc.total }, (_, i) => `<i class="${i < sc.on ? 'on' : ''}"></i>`).join('') : '';
+  document.getElementById('rhN').textContent = `${sc.on} / ${sc.total}`;
+}
+document.getElementById('rhExit').addEventListener('click', () => setTool('edit'));
+/* 審核那一頁最上面那顆印章（節點每次重畫都換掉，所以掛在外面那一層） */
+document.getElementById('rvTip').addEventListener('click', e => { if (e.target.closest('.rv-stamp')) togglePassTool(); });
+document.getElementById('rhGo').addEventListener('click', () => {
+  const b = document.querySelector('#rvPanel .rv-act.nag');
+  if (b) b.click();
+});
+/* 格子都蓋完了、只剩「送出」那一下：那一顆發光、審核分頁閃、那一條上多一顆捷徑。
+   剛變成這樣的那一刻（rvNagKey 換了）再多做一件事：右邊那一欄翻到審核、那一顆捲進畫面、講一句。
+   只在那一刻做一次 —— 每重畫一次就把人拉回審核分頁的話，他想去意見欄補一句都去不了。
+   哪幾顆算「送出」：一校／二校／一改／二改完成（按得下去＝該蓋的都蓋了），
+   以及製作的「送出製作完成」（要**全部**標好才算 —— 標幾格送幾格是合法的，那不是忘了）。 */
+var rvNagKey = null;
+/** 這一塊有沒有要你蓋印章的格子（進 拼板 時右邊翻到哪一頁看它） */
+function rvHasStampWork(){ const br = rvBrush(); return !!br && rvBrushScope(br).total > 0; }
+/* 進 拼板 那一下審核資料常常還沒讀到（開檔、換人重開都是），當場問不出有沒有要蓋的 ——
+   讀到的那一下再決定一次，只一次；人自己點了右邊的分頁就不再動它 */
+var rvSideAuto = false;
+function rvSideAutoPick(){
+  if (!rvSideAuto || activeTab !== 'board' || !rvCtx() || !activeBlock || !rvBlockOf(rvCtx(), activeBlock)) return;
+  rvSideAuto = false;
+  if (sideTab === 'notes' && rvHasStampWork()) setSideTab('review');
+}
+document.getElementById('sideTabs').addEventListener('click', () => { rvSideAuto = false; }, true);
+function rvNag(){
+  const host = document.getElementById('rvPanel');
+  let hit = null;
+  if (host && !host.hidden && activeTab === 'board'){
+    const br = rvBrush(), sc = rvBrushScope(br);
+    host.querySelectorAll('.rv-act.main:not(:disabled)').forEach(b => {
+      const t = b.textContent;
+      const ready = /^(一校完成|二校完成|一改完成|二改完成)/.test(t)
+        || (/^(送出製作完成|提明細完成：標好的|蓋章送出：標好的)/.test(t) && br && /^(make|detail|stamp)\.mark$/.test(br.action) && sc.total > 0 && !sc.left);
+      if (ready && !hit){ hit = b; b.classList.add('nag'); }
+    });
+  }
+  const tab = document.querySelector('#sideTabs .sc-tab[data-stab="review"]');
+  if (tab) tab.classList.toggle('nag', !!hit);
+  const go = document.getElementById('rhGo');
+  if (go){ go.hidden = !hit; go.classList.toggle('nag', !!hit); if (hit) go.textContent = `全部蓋完了・${hit.textContent}`; }
+  const key = hit ? `${currentPlan && currentPlan.id}|${activeBlock && activeBlock.id}|${hit.textContent}` : null;
+  if (key && key !== rvNagKey){
+    const col = document.getElementById('sideCol');
+    if (col && col.classList.contains('mini')) setRail(true);
+    setSideTab('review');
+    const label = hit.textContent;
+    requestAnimationFrame(() => { const b = document.querySelector('#rvPanel .rv-act.nag'); if (b) b.scrollIntoView({ block: 'nearest' }); });
+    toast(`全部蓋完了 —— 記得按「${label}」送出`, 'info', 3600);
+  }
+  rvNagKey = key;
 }
 
 /* 手勢整套照 上色 那一顆抄（同一個 .sel-box、同一支 paintCellsIn）：點一格是一格、
@@ -14609,7 +15783,7 @@ function drawPassBox(box){
   const el = passDrag.box;
   el.style.left = box.l + 'px'; el.style.top = box.t + 'px';
   el.style.width = (box.r - box.l) + 'px'; el.style.height = (box.b - box.t) + 'px';
-  el.classList.toggle('take', passDrag.undo);      // Alt＝撤掉，框子跟著變紅
+  el.classList.toggle('take', passDrag.undo);      // Alt＝取消，框子跟著變紅
   const hit = new Set(paintCellsIn(box).map(c => String(c.id)));
   boardEl.querySelectorAll('.cell[data-cell-id]').forEach(cel =>
     cel.classList.toggle('paint-aim', hit.has(String(cel.dataset.cellId))));
@@ -14621,27 +15795,24 @@ function endPassDrag(cancel){
   const d = passDrag;
   passDrag = null;
   if (cancel) return;
-  const st = reviewStage(currentPlan);
-  /* 沒拖動就是點一格 —— 同一個手勢的兩種用法。
-     **點在已經過了的那一格上＝取消**：蓋錯一格是最常發生的事，而按著 Alt 再點
-     等於要先知道有 Alt 這回事。拉框不這樣（一片格子有的過了有的沒過，
-     逐格反轉的結果沒有人預測得到）：拉框就是整批蓋，Alt 才是整批撤。 */
+  /* 沒拖動就是點一格 —— 同一個手勢的兩種用法。點在已經審過的那一格上＝取消（蓋章沒有取消）。 */
   if (!d.moved){
     if (!d.cell) return;
-    const on = d.undo ? false : !passedAt(d.cell, st);
-    applyPass([d.cell], on);
+    rvSel = String(d.cell.id);
+    rvBrushCells([d.cell], d.undo ? 'off' : 'toggle');
     return;
   }
-  const n = applyPass(paintCellsIn(d.last), !d.undo);
-  if (n > 1) toast(d.undo ? `${n} 格撤掉${st}通過` : `${n} 格${st}通過`, 'ok', 1600);
+  rvBrushCells(paintCellsIn(d.last), d.undo ? 'off' : 'on');
 }
+/* ⚠️ 捕獲階段：格子上的便利貼記號自己接 pointerdown（拖便利貼），拿著刷子的時候
+   按在記號上也要算刷子的 —— 不然剛貼完一則、從那一格拉框，刷子什麼都沒刷到（量到過）。 */
 boardEl.addEventListener('pointerdown', e => {
   if (activeTool !== 'pass' || activeTab !== 'board' || e.button !== 0) return;
   if (handMode) return;
   if (e.target.closest('.grip, .rowbtns, .masthead, #boardStage')) return;
-  /* 不是你審的那一關那顆鈕根本不在，走到這裡本來就該過 —— 但時鐘撥得動，
-     關可能剛好在手上換掉了，所以再問一次（syncPassTool 也會把工具放下）。 */
-  if (!reviewing()){ toast('現在這一關不是你審', 'info', 1800); return; }
+  /* 刷子是照「這一塊有沒有你要審的」給的，而審核那一邊隨時會往前走（別人按了完成），
+     所以按下去再問一次（syncPassTool 也會把工具放下）。 */
+  if (!rvBrush()){ toast('這一塊現在沒有你要審的格子', 'info', 1800); return; }
   e.preventDefault();
   e.stopPropagation();
   const box = document.createElement('div');
@@ -14651,7 +15822,7 @@ boardEl.addEventListener('pointerdown', e => {
   passDrag = { x:e.clientX, y:e.clientY, box, moved:false, undo:e.altKey,
                cell: cel ? cellById(cel.dataset.cellId) : null, last:null };
   passDrag.last = dragBoxOf(passDrag, e);
-});
+}, true);
 document.addEventListener('pointermove', e => {
   if (!passDrag) return;
   if (!passDrag.moved &&
@@ -14662,6 +15833,336 @@ document.addEventListener('pointermove', e => {
   drawPassBox(passDrag.last);
 });
 document.addEventListener('pointerup', () => endPassDrag(false));
+
+/* ==========================================================================
+   審核（第四步，2026-09-28）：輪到你、通知、職代、設定表
+   --------------------------------------------------------------------------
+   規則裡本來就有的東西（R.todo、通知、職代、最終審核者設定表），這裡給它們畫面：
+   ・檔期列表最上面「輪到你」：審核那一邊說輪到我的每一件事，點一下開到那一檔、那一塊、那一格
+   ・名牌旁邊的 🔔：站內通知（輪到你、退件、延遲…），點一則跳過去、順手標成已讀
+   ・🤝 職代：看誰在代理誰、替自己（或下屬）指定職代、取消（PM 身分的人才有這顆）
+   ・⚙ 審核設定：最終審核者設定表 ＋「二校主管審核」那個開關（行銷改，別人只看）
+   主管審核、最終審核、出稿的按鈕在意見欄那一塊（paintRvPanel 的「整份 DM」那一段）。
+   ⚠️ 這幾樣都只在審核那一邊接得上的時候出現（reviewStore()）；沒有就整段安靜地不在。
+   ========================================================================== */
+var RV_TODO = [];                       // var：paintReview 可能比這一行早跑
+/** 時間寫成這台電腦的「月-日 時:分」（存的是 UTC 的 ISO，直接切字串會差 8 小時） */
+function rvWhen(iso){
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  const z = x => String(x).padStart(2, '0');
+  return `${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+var RV_NOTES = { items: [], unread: 0 };
+
+/** 跳到審核那一邊的某一檔／某一塊／某一格（id 都是「檔期/…」那一種） */
+function rvGo(planId, bid, cid){
+  const plan = visiblePlans().find(p => p.id === planId);
+  if (!plan){ toast('找不到這一檔（可能還沒同步過來）', 'warn', 2400); return; }
+  if (currentPlan !== plan) openPlan(plan);
+  const local = x => (x && x.startsWith(planId + '/')) ? x.slice(planId.length + 1) : '';
+  const lb = local(bid), lc = local(cid);
+  const blk = allBlocks().find(b => b.id === lb) || (lc && allBlocks().find(b => lc.startsWith(b.id + '-c'))) || null;
+  if (tabAllowed('board')) switchTab('board');
+  if (blk && blk !== activeBlock) switchBlock(blk);
+  if (lc){ rvSel = lc; paintCellRv(); }
+  syncPassTool();
+}
+/** 通知上那個連結（#/plan/<檔期>/<審核那一邊的 id>、#/delegates、#/settings） */
+function rvFollow(link){
+  const l = String(link || '');
+  if (l.startsWith('#/delegates')) return openDelegDlg();
+  if (l.startsWith('#/settings')) return openSettingsDlg();
+  const m = l.match(/^#\/plan\/([^/]+)(?:\/(.+))?$/);
+  if (!m) return;
+  const rest = m[2] || '';
+  const isCell = /-c\d+$/.test(rest);
+  rvGo(m[1], isCell ? '' : rest, isCell ? rest : '');
+}
+
+/* ---- 輪到你 ---------------------------------------------------------------- */
+function renderTodo(){
+  const host = document.getElementById('todoList');
+  if (!host) return;
+  const items = RV_TODO || [];
+  host.hidden = !items.length;
+  host.innerHTML = '';
+  if (!items.length) return;
+  const h = document.createElement('div');
+  h.className = 'td-head';
+  h.textContent = `輪到你（${items.length}）`;
+  host.appendChild(h);
+  const md = s => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()} ${DEADLINE_HOUR}:00`; };
+  items.slice(0, 12).forEach(it => {
+    const late = !!it.due && nowMs() > +new Date(it.due);
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'td-row' + (late ? ' late' : '') + (it.back ? ' back' : '');
+    row.innerHTML = '<span class="st"></span><span class="tt"></span><span class="dt"></span><span class="du"></span>';
+    row.querySelector('.st').textContent = it.stage || '';
+    row.querySelector('.tt').textContent = `${it.plan_name}・${it.title}`;
+    row.querySelector('.dt').textContent = (it.detail || '') + (it.acting ? `（代理 ${it.acting.name}）` : '');
+    row.querySelector('.du').textContent = late ? '延遲' : it.due ? md(it.due) + ' 截止' : '';
+    row.addEventListener('click', () => rvGo(it.plan_id, it.block_id, (it.cell_ids || [])[0]));
+    host.appendChild(row);
+  });
+  if (items.length > 12){
+    const more = document.createElement('div');
+    more.className = 'td-more';
+    more.textContent = `還有 ${items.length - 12} 件（照截止時間排）`;
+    host.appendChild(more);
+  }
+}
+
+/* ---- 🔔 通知 --------------------------------------------------------------- */
+function paintBell(){
+  const b = document.getElementById('rvBell');
+  if (!b) return;
+  b.hidden = !reviewStore() || !currentUser;
+  const n = RV_NOTES.unread || 0;
+  b.innerHTML = '🔔' + (n ? `<i>${n > 99 ? '99+' : n}</i>` : '');
+  b.classList.toggle('has', !!n);
+  b.title = n ? `${n} 則新通知` : '通知';
+  const pop = document.getElementById('rvBellPop');
+  if (pop && pop.classList.contains('on')) paintBellPop();
+}
+function paintBellPop(){
+  const pop = document.getElementById('rvBellPop');
+  const list = pop.querySelector('.bp-list');
+  list.innerHTML = '';
+  const items = RV_NOTES.items || [];
+  if (!items.length){ list.innerHTML = '<div class="bp-empty">沒有通知</div>'; return; }
+  items.slice(0, 40).forEach(n => {
+    const r = document.createElement('button');
+    r.type = 'button';
+    r.className = 'bp-row' + (n.read ? '' : ' unread');
+    r.innerHTML = '<span class="tx"></span><span class="at"></span>';
+    r.querySelector('.tx').textContent = n.text;
+    r.querySelector('.at').textContent = rvWhen(n.at);
+    r.addEventListener('click', async () => {
+      closeBellPop();
+      if (!n.read){ await reviewStore().api.markRead([n.id]); }
+      rvFollow(n.link);
+      refreshReview();
+    });
+    list.appendChild(r);
+  });
+}
+function openBellPop(){
+  const pop = document.getElementById('rvBellPop');
+  const b = document.getElementById('rvBell');
+  pop.classList.add('on');
+  paintBellPop();
+  const r = b.getBoundingClientRect();
+  pop.style.top = (r.bottom + 6) + 'px';
+  pop.style.left = Math.max(8, Math.min(window.innerWidth - pop.offsetWidth - 8, r.right - pop.offsetWidth)) + 'px';
+}
+function closeBellPop(){ const pop = document.getElementById('rvBellPop'); if (pop) pop.classList.remove('on'); }
+document.getElementById('rvBell').addEventListener('click', e => {
+  e.stopPropagation();
+  const pop = document.getElementById('rvBellPop');
+  pop.classList.contains('on') ? closeBellPop() : openBellPop();
+});
+document.getElementById('rvBellAll').addEventListener('click', async () => {
+  await reviewStore().api.markRead(null);
+  await refreshReview();
+});
+document.addEventListener('mousedown', e => {
+  const pop = document.getElementById('rvBellPop');
+  if (pop && pop.classList.contains('on') && !e.target.closest('#rvBellPop, #rvBell')) closeBellPop();
+});
+
+/* ---- 對話框（職代、設定表共用一個殼） --------------------------------------- */
+const rvMask = document.getElementById('rvMask');
+function rvDlg(title){
+  rvMask.querySelector('.rd-title').textContent = title;
+  const body = rvMask.querySelector('.rd-body');
+  body.innerHTML = '';
+  rvMask.classList.add('on');
+  return body;
+}
+function closeRvDlg(){ rvMask.classList.remove('on'); }
+rvMask.querySelector('.rd-close').addEventListener('click', closeRvDlg);
+rvMask.addEventListener('click', e => { if (e.target === rvMask) closeRvDlg(); });
+const rvEl = (tag, cls, text) => { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; };
+const toLocalDT = d => { const z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+
+/* ---- ⚙ 審核設定（最終審核者設定表，2.3） ------------------------------------- */
+const RV_SET_FIELDS = [
+  ['exec_id', '商品處協理', '最終審核第 1 關（協理不是四層裡的一層，一定要指定）'],
+  ['mkt_exec_id', '行銷處協理', '最終審核第 2 關'],
+  ['lawyer_id', '律師', '最終審核第 3 關'],
+  ['design_lead_id', '設計主管', '設計相關的延遲通知會副本給他'],
+];
+async function openSettingsDlg(){
+  const rs = reviewStore();
+  if (!rs) return;
+  const d = await rs.api.settings();
+  if (!d || !d.ok){ toast('讀不到設定表', 'warn', 2000); return; }
+  const canEdit = activeMode === 'marketing';
+  const body = rvDlg('審核設定');
+  body.appendChild(rvEl('p', 'rd-sub', canEdit ? '由行銷維護。沒填完之前，最終審核送不出去。' : '由行銷維護，你只能看。'));
+  if (d.missing && d.missing.length) body.appendChild(rvEl('div', 'rd-warn', '還沒填完：' + d.missing.join('、')));
+  const form = rvEl('form', 'rd-form');
+  RV_SET_FIELDS.forEach(([k, label, note]) => {
+    const f = rvEl('label', 'rd-field');
+    const t = rvEl('span', null, label); t.appendChild(rvEl('small', null, note));
+    const sel = document.createElement('select');
+    sel.name = k; sel.disabled = !canEdit;
+    sel.appendChild(new Option('（還沒指定）', ''));
+    d.members.forEach(m => sel.appendChild(new Option(`${m.name}　${ROLE_LABEL[m.role === 'mkt' ? 'marketing' : m.role] || m.role}`, m.employee_id)));
+    sel.value = d.settings[k] || '';
+    f.append(t, sel);
+    form.appendChild(f);
+  });
+  /* 二校要不要主管審：全系統一個開關，預設關（實作指南 4.5） */
+  const sw = rvEl('label', 'rd-field rd-check');
+  const st = rvEl('span', null, '二校主管審核');
+  st.appendChild(rvEl('small', null, '開＝PM 審完之後還要課長 → 部長審，可以退件。關（預設）＝每位 PM 按了二校完成就進二改，部長只看進度。全系統一個設定。'));
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.name = 'r2_managers'; cb.checked = !!d.settings.r2_managers; cb.disabled = !canEdit;
+  const row = rvEl('span', 'rd-checkrow'); row.append(cb, document.createTextNode(' 二校要主管審核'));
+  sw.append(st, row);
+  form.appendChild(sw);
+  if (canEdit){
+    const ok = rvEl('button', 'rd-ok', '儲存');
+    ok.type = 'submit';
+    form.appendChild(ok);
+  }
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const patch = {};
+    form.querySelectorAll('select').forEach(s => { patch[s.name] = s.value; });
+    patch.r2_managers = cb.checked;
+    await rvRun([['settings.save', { patch }]], '審核設定');
+    closeRvDlg();
+  });
+  body.appendChild(form);
+}
+
+/* ---- 🤝 職代（8.2） ------------------------------------------------------- */
+const DELEG_STATUS = { active: '生效中', future: '還沒開始', ended: '已結束', cancelled: '已取消', overridden: '被覆寫' };
+async function openDelegDlg(){
+  const rs = reviewStore();
+  if (!rs) return;
+  const d = await rs.api.delegations();
+  if (!d || !d.ok){ toast('讀不到職代資料', 'warn', 2000); return; }
+  const body = rvDlg('職代');
+  body.appendChild(rvEl('p', 'rd-sub', '職代可以代替原 PM 做任何 PM 的工作（提明細、一校、二校、蓋章），他做的一律算 PM 那一層。'
+    + '每天 07:00 差勤帶進來的是預設，PM 自己或上層主管可以另外指定（覆寫預設）；請假這件事本身改不了。'));
+  const tbl = rvEl('div', 'rd-list');
+  if (!d.list.length) tbl.appendChild(rvEl('div', 'rd-empty', '現在沒有任何職代紀錄。'));
+  d.list.forEach(x => {
+    const r = rvEl('div', 'rd-row' + (x.status === 'active' ? ' on' : ''));
+    r.appendChild(rvEl('b', null, `${x.from_name} → ${x.to_name}`));
+    r.appendChild(rvEl('span', null, `${rvWhen(x.start)} ～ ${rvWhen(x.end)}`));
+    r.appendChild(rvEl('span', 'rd-tag', DELEG_STATUS[x.status] || x.status));
+    r.appendChild(rvEl('span', 'rd-dim', x.source === 'sync' ? '差勤帶入' : `${x.by_name || ''}指定`));
+    if (x.canCancel){
+      const c = rvEl('button', 'rd-mini', '取消');
+      c.type = 'button';
+      c.addEventListener('click', async () => { await rvRun([['deleg.cancel', { id: x.id }]], '取消職代'); openDelegDlg(); });
+      r.appendChild(c);
+    }
+    tbl.appendChild(r);
+  });
+  body.appendChild(tbl);
+  if (!d.canFor.length){ body.appendChild(rvEl('p', 'rd-sub', '你不能替任何人指定職代（PM 本人或他的課長、部長、處長才可以）。')); return; }
+  const form = rvEl('form', 'rd-form rd-inline');
+  const selFrom = document.createElement('select'); selFrom.name = 'from';
+  d.canFor.forEach(x => selFrom.appendChild(new Option(`${x.name}（${x.categories.join('、')}）`, x.id)));
+  const selTo = document.createElement('select'); selTo.name = 'to';
+  /* 職代那一欄不列原 PM 自己：預設就停在自己的話，按下去第一件事是被擋（不能代理自己） */
+  const fillTo = () => {
+    const keep = selTo.value;
+    selTo.innerHTML = '';
+    d.people.filter(m => m.employee_id !== selFrom.value).forEach(m => selTo.appendChild(new Option(m.name, m.employee_id)));
+    if ([...selTo.options].some(o => o.value === keep)) selTo.value = keep;
+  };
+  fillTo();
+  selFrom.addEventListener('change', fillTo);
+  const now0 = new Date(nowMs());
+  const end0 = new Date(nowMs() + 86400000); end0.setHours(DEADLINE_HOUR, 0, 0, 0);
+  const inS = document.createElement('input'); inS.type = 'datetime-local'; inS.value = toLocalDT(now0);
+  const inE = document.createElement('input'); inE.type = 'datetime-local'; inE.value = toLocalDT(end0);
+  const lab = (t, el) => { const l = rvEl('label', 'rd-field'); l.append(rvEl('span', null, t), el); return l; };
+  const err = rvEl('div', 'rd-err');
+  const ok = rvEl('button', 'rd-ok', '指定職代'); ok.type = 'submit';
+  form.append(lab('原 PM', selFrom), lab('職代', selTo), lab('開始', inS), lab('結束', inE), ok, err);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (selFrom.value === selTo.value){ err.textContent = '不能指定自己當自己的職代。'; return; }
+    await rvRun([['deleg.add', { from_id: selFrom.value, to_id: selTo.value,
+      start: new Date(inS.value).toISOString(), end: new Date(inE.value).toISOString() }]], '指定職代');
+    openDelegDlg();
+  });
+  body.appendChild(rvEl('h4', 'rd-h', '指定一位職代'));
+  body.appendChild(form);
+}
+document.getElementById('delegBtn').addEventListener('click', openDelegDlg);
+document.getElementById('rvSetBtn').addEventListener('click', openSettingsDlg);
+
+/** 名牌上寫「代理 誰」：代理中的人最容易忘記自己按下去算誰的 */
+function paintActing(){
+  const wn = document.getElementById('whoName');
+  if (!wn) return;
+  const act = (reviewMe && reviewMe.acting) || [];
+  if (act.length){
+    wn.dataset.acting = act.map(a => a.from.name).join('、');
+    wn.title = act.map(a => `代理 ${a.from.name}（${a.categories.map(c => c.name).join('、')}）到 ${rvWhen(a.end)}`).join('\n');
+  } else { delete wn.dataset.acting; wn.removeAttribute('title'); }
+}
+
+/* ---- 🛠 換人、紀錄 --------------------------------------------------------- */
+function paintWhoPane(){
+  const host = document.getElementById('devWhoList');
+  if (!host) return;
+  host.innerHTML = '';
+  ROLE_ORDER.forEach(role => {
+    const g = rvEl('div', 'dw-group');
+    g.appendChild(rvEl('b', null, ROLE_LABEL[role]));
+    usersOf(role).forEach(u => {
+      const b = rvEl('button', 'dw-user' + (currentUser && u.id === currentUser.id ? ' me' : ''), u.name);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        const q = new URLSearchParams();
+        q.set('user', u.id);
+        if (currentPlan) q.set('plan', currentPlan.id);
+        flushSave();
+        location.href = location.pathname + '?' + q.toString();
+      });
+      g.appendChild(b);
+    });
+    host.appendChild(g);
+  });
+}
+function paintLogPane(){
+  const host = document.getElementById('devLogList');
+  const rs = reviewStore();
+  if (!host) return;
+  host.innerHTML = '';
+  if (!rs || !rs.dev){ host.appendChild(rvEl('div', 'rd-empty', '審核那一邊沒有接上。')); return; }
+  const rows = rs.dev.allAudit().slice(0, 80);
+  if (!rows.length) host.appendChild(rvEl('div', 'rd-empty', '還沒有紀錄。'));
+  rows.forEach(a => {
+    const r = rvEl('div', 'dl-row' + (a.result === '失敗' ? ' fail' : ''));
+    r.appendChild(rvEl('span', 'at', rvWhen(a.at)));
+    r.appendChild(rvEl('b', null, a.what));
+    r.appendChild(rvEl('span', null, [a.who_name, a.target, a.detail].filter(Boolean).join('・')));
+    host.appendChild(r);
+  });
+}
+document.getElementById('devSyncFail').addEventListener('click', () => {
+  const rs = reviewStore();
+  if (!rs || !rs.dev) return;
+  const n = rs.dev.syncFail();
+  toast(`模擬 07:00 差勤同步失敗：通知了 ${n} 位課長`, 'ok', 2400);
+  paintLogPane();
+  refreshReview();
+});
+
+/* 別人按了完成、延遲到了，這一頁要自己知道：30 秒問一次（分頁切走就不問） */
+setInterval(() => { if (currentUser && !document.hidden) refreshReview(); }, 30000);
 document.addEventListener('pointercancel', () => endPassDrag(true));
 
 /* ==========================================================================
@@ -14888,27 +16389,46 @@ function scoreCat(c, q){
   return k === q.length ? 1 : -1;
 }
 
-/** 品類清單本人：沒打字就整份列出來，打了字就照相似度排。
+/** 清單上的每一筆：**分類表排最前面**（每一筆帶代碼 —— 格子歸誰審就是照它），
+    接著才是這一本用過的、商品目錄的、內建的那幾份裡表上沒有的名字。
+    表上沒有的照樣挑得到、打得進去（2026-09-28 談定的：愈自由愈好），
+    只是標「沒有負責人」：那幾格找不到 PM，送不進審核。 */
+function catChoices(){
+  const out = REVIEW_CATS.map(r => ({ name: r.category_name, id: r.category_id }));
+  catOptions().forEach(n => { if (!REVIEW_CATS.some(r => r.category_name === n)) out.push({ name: n, id: null }); });
+  return out;
+}
+
+/** 品類清單本人：沒打字就整份列出來，打了字就照相似度排（打代碼也找得到）。
     它是「讓你想起來有哪些」，不是自動完成 —— 沒有反白、沒有上下鍵、Enter 不會替你選，
     打什麼就是什麼。跟你打的字一模一樣的那一筆不列（那一筆是廢話）。 */
 function renderCatMenu(){
   const menu = document.getElementById('catMenu');
   const input = itemPop.querySelector('.ip-add .ip-name');
   const q = input.value.trim();
+  const score = c => c.id && c.id.startsWith(q) ? 3 : scoreCat(c.name, q);
   const shown = (q
-    ? catOptions().map(c => ({ c, s: scoreCat(c, q) })).filter(o => o.s > 0)
+    ? catChoices().map(c => ({ c, s: score(c) })).filter(o => o.s > 0)
         .sort((a, b) => b.s - a.s).map(o => o.c)
-    : catOptions()
-  ).filter(c => c !== q);
+    : catChoices()
+  ).filter(c => c.name !== q);
   menu.innerHTML = '';
   shown.forEach(c => {
     const o = document.createElement('div');
     o.className = 'opt';
-    o.textContent = c;
+    const nm = document.createElement('span');
+    nm.className = 'nm'; nm.textContent = c.name;
+    const cd = document.createElement('span');
+    cd.className = 'cd' + (c.id ? '' : ' none');
+    cd.textContent = c.id || '沒有負責人';
+    o.title = c.id ? catPeopleText(catRow(c.id)) : '分類表上沒有這個分類：挑得進去，但那幾格沒有商品主辦，送不進審核';
+    o.appendChild(nm); o.appendChild(cd);
     // mousedown 比 input 失焦早一步 —— 用 click 的話焦點先跑掉，選單已經重畫了
     o.addEventListener('mousedown', e => {
       e.preventDefault();
-      input.value = c;
+      input.value = c.name;
+      /* 記下挑的是哪一列：同名的兩列（不同部門）只有這一下分得出來 */
+      if (c.id) input.dataset.cat = c.id; else delete input.dataset.cat;
       renderCatMenu();
       itemPop.querySelector('.ip-add .ip-qty').focus();   // 接著就是填支數
     });
@@ -14929,6 +16449,9 @@ function applyItems(){
   if (itemNode) itemNode.name = realGroups(itemNode).map(g => g.name).join('・') || '未命名';
   commitAction();
   rebuildAll(activeBlock && activeBlock.id);
+  /* rebuildAll 只在 落版／拼板 重畫小地圖（見 applyBlockKind 那一條）：總體 改完品類，
+     右邊那張小地圖還寫著舊的名字（還有「沒有負責人」的琥珀虛線） */
+  if (activeTab === 'total') renderMinimap();
   const node = allBlocks().find(b => b.id === id);
   const el = node && totalHost.querySelector(`.window-node[data-block-id="${id}"]`);
   if (node && el) openItemPop(node, el); else closeItemPop();
@@ -14963,8 +16486,18 @@ function openItemPop(node, el){
     const rename = () => {
       const v = nm.value.trim();
       if (!v || v === g.name) return;
+      const was = (groupCat(g) || {}).owner_id;
       g.name = v;
+      /* 換了名字就是換了一個分類：舊的代碼留著的話，格子還會算在原本那位 PM 頭上 */
+      const id = catIdForName(v);
+      if (id) g.catId = id; else delete g.catId;
       applyItems();
+      /* 換了負責的人要講出來（review-test-later 那一條）：改的人當場知道，兩位 PM 由審核那一邊通知 */
+      const to = (groupCat(g) || {}).owner_id;
+      if (was && to && was !== to)
+        toast(`負責的人換了：${userName(was) || was} → ${userName(to) || to}（已經審過的格子不重來，兩位都會收到通知）`, 'info', 4200);
+      else if (was && !to)
+        toast(`「${v}」不在分類表上：這 ${g.count} 格沒有負責人，送不進審核（換成表上的分類就好）`, 'warn', 4200);
     };
     nm.addEventListener('keydown', e => {
       e.stopPropagation();
@@ -14996,7 +16529,16 @@ function openItemPop(node, el){
     del.title = `拿掉「${g.name}」，它的 ${g.count} 格也一起拿掉`;
     del.addEventListener('click', () => { setGroupCount(node, gi, 0); applyItems(); });
 
-    row.appendChild(nm); row.appendChild(qty); row.appendChild(del);
+    /* 這一個品類歸誰：代碼（滑過去看四位負責人），或琥珀色的「沒有負責人」。
+       寫在這裡是因為這裡就是填品類的地方 —— 填錯當下就看得到，不必等到送審才發現。 */
+    const cr = groupCat(g);
+    const tag = document.createElement('span');
+    tag.className = 'ip-cat' + (cr ? '' : ' none');
+    tag.textContent = cr ? cr.category_id : '沒有負責人';
+    tag.title = cr ? `${cr.category_name}（${cr.category_id}）\n${catPeopleText(cr)}`
+                   : `分類表上沒有「${g.name}」：這幾格沒有商品主辦，送不進審核。換成表上的分類就好。`;
+
+    row.appendChild(nm); row.appendChild(tag); row.appendChild(qty); row.appendChild(del);
     list.appendChild(row);
   });
   if (!gs.length){
@@ -15029,18 +16571,24 @@ itemPop.querySelector('.ip-plus').addEventListener('click', () => {
   if (!name) { nameEl.focus(); return; }
   /* 切出來那塊空的「未命名 0 支」是個位子，不是一個品類：填第一個品類時
      就地改掉它，不要在它旁邊再長一個。 */
+  const catId = nameEl.dataset.cat || catIdForName(name);
   const blank = itemNode.groups.findIndex(g => !g.count && (!g.name || g.name === '未命名'));
   if (blank >= 0) itemNode.groups[blank].name = name;
   else itemNode.groups.push({ name, count: 0 });
+  const g = itemNode.groups[blank >= 0 ? blank : itemNode.groups.length - 1];
+  if (catId) g.catId = catId; else delete g.catId;
   setGroupCount(itemNode, blank >= 0 ? blank : itemNode.groups.length - 1, qty);
-  nameEl.value = ''; qtyEl.value = '';
+  nameEl.value = ''; qtyEl.value = ''; delete nameEl.dataset.cat;
   applyItems();
 });
 /* 打完按 Enter 就等於按那顆 ＋。上面已經編好的那兩欄（改名、改支數）Enter 都算數，
    只有「加一格新的」這一列非得用滑鼠去點那顆 ＋ 不可 —— 一塊版位要填好幾個品類，
    而打字的手停在鍵盤上，按了 Enter 沒反應看起來就是「填不進去」。
    支數空著就是 1（跟那顆 ＋ 同一條規矩），所以在品類那一欄直接 Enter 也走得通。 */
-itemPop.querySelector('.ip-add .ip-name').addEventListener('input', renderCatMenu);
+itemPop.querySelector('.ip-add .ip-name').addEventListener('input', e => {
+  delete e.target.dataset.cat;     // 自己動手改了字，就不再是清單上挑的那一列
+  renderCatMenu();
+});
 itemPop.querySelectorAll('.ip-add input').forEach(inp => {
   inp.addEventListener('keydown', e => {
     if (e.key !== 'Enter') return;
@@ -15688,7 +17236,9 @@ function fmtCountdown(ms){
   return `倒數 ${Math.ceil(h/24)} 天`;
 }
 function tickPill(el){
-  el.textContent = `● ${el.dataset.stage}截止 ${fmtCountdown(+el.dataset.deadline - nowMs())}`;
+  /* 審核開始之後，最落後那一關過了期限＝延遲（不是「倒數 1 分」—— fmtCountdown 不收負數） */
+  el.textContent = el.dataset.late ? `● ${el.dataset.stage}延遲`
+    : `● ${el.dataset.stage}截止 ${fmtCountdown(+el.dataset.deadline - nowMs())}`;
 }
 /** Banner line for the editor, e.g. 8/01(六)–8/06(四). */
 function planRangeLabel(plan){
@@ -15711,8 +17261,13 @@ const planList = document.getElementById('planList');
 function buildPlanCard(plan, now, past){
   const stages = planStages(plan);
   const out = stages[stages.length - 1].to;
-  const curIdx = currentStageOf(plan);
+  /* 審核開始之後，卡片上的「現在哪一關」是**整本最落後的那一關**（完成按鈕推的）；
+     還沒開始審（草稿、還沒同步到）才照日期。 */
+  const rvAt = rvStageIndex(plan);
+  const curIdx = rvAt >= 0 ? rvAt : currentStageOf(plan);
   const live = curIdx >= 0 ? stages[curIdx] : null;
+  const late = rvLate(plan);
+  const rvv = rvOf(plan);
 
   const card = document.createElement('div');
   card.className = 'plan-card';
@@ -15759,11 +17314,18 @@ function buildPlanCard(plan, now, past){
   }
   if (live){
     const cd = document.createElement('span');
-    cd.className = 'pill count';
+    cd.className = 'pill count' + (late ? ' late' : '');
     cd.dataset.deadline = stageDeadline(live).getTime();
     cd.dataset.stage = live.name;
+    if (late) cd.dataset.late = '1';
     tickPill(cd);
     head.appendChild(cd);
+  }
+  if (rvv && rvv.mine){
+    const me = document.createElement('span');
+    me.className = 'pill mine';
+    me.textContent = `待你 ${rvv.mine} 件`;
+    head.appendChild(me);
   }
   const outEl = document.createElement('span');
   outEl.className = 'plan-out';
@@ -15810,6 +17372,7 @@ function buildPlanCard(plan, now, past){
     chip.className = 'stage-chip';
     if (curIdx < 0 ? stageDeadline(sg) < now : i < curIdx) chip.classList.add('done');
     else if (i === curIdx) chip.classList.add('now');
+    if (i === curIdx && late) chip.classList.add('late');
     chip.innerHTML = `<div class="n"></div><div class="d"></div>`;
     chip.querySelector('.n').textContent = sg.name;
     chip.querySelector('.d').textContent = stageRange(sg);
@@ -15833,6 +17396,7 @@ function visiblePlans(){
 }
 
 function renderPlans(){
+  renderTodo();             // 輪到你（審核那一邊說的；還沒讀到就是空的，收起來）
   planList.innerHTML = '';
   syncListButtons();        // 過往檔期／回收桶那兩顆上的數字跟著檔期走
   /* ⚠️ 不要叫 now：那是全域那支「現在幾點」（撥得動的那一個），
@@ -16057,6 +17621,8 @@ function appendCardMap(card, plan){
    輪不輪到你）和 ✓ 那顆鈕。版位底色不必動 —— 那講的是挑貨，跟時間無關。 */
 function applyClock(ms){
   setNowOffset(ms);
+  reviewClockSync();               // 延遲照撥過的時間算
+  refreshReview();
   renderDevBtn();
   renderPlans();
   if (currentPlan) updateProgress();
@@ -16093,7 +17659,7 @@ const devBtn = document.getElementById('devBtn');
 
 /* 停在哪一頁記在這台電腦：測東西的時候多半連著開同一個工具。 */
 const DEV_TAB_KEY = 'pm_dev_tab_v1';
-const DEV_TABS = ['clock', 'demo', 'stage'];
+const DEV_TABS = ['clock', 'demo', 'stage', 'who', 'log'];
 let devTab = 'clock';
 try { const t = localStorage.getItem(DEV_TAB_KEY); if (DEV_TABS.includes(t)) devTab = t; } catch (_){}
 function setDevTab(name){
@@ -16124,15 +17690,18 @@ function paintDevPop(){
     : '現在沒有加。';
   /* 只在浮層開著的時候畫：renderDevBtn 在開機很早就會被叫，那時候 currentPlan、plans 那幾個 let
      還在下面沒宣告到 —— 讀它們就是 ReferenceError，整支程式停在那一行。 */
-  if (devPop.classList.contains('on')) paintStagePane();
+  if (devPop.classList.contains('on')){
+    paintStagePane();
+    if (devTab === 'who') paintWhoPane();
+    if (devTab === 'log') paintLogPane();
+  }
 }
 
-/* 快轉（2026-09-28）：照某一檔的時程，一顆一關，按下去就把時鐘撥到那一關第一天的 10:00。
-   撥時鐘本來就做得到，但要先知道「二校是哪一天」—— 那要去翻檔期表，而測的人想的是關，不是日期。
+/* 快轉：一顆一站，按下去把那一檔的**審核資料**推到那一站（見 fastForwardTo）。
+   2026-09-28 上午它還是「把時鐘撥到那一關第一天」—— 那時候走到哪一關是日期說的；
+   第二步之後走到哪一關是完成按鈕推的，撥時鐘只會讓每一格變成「延遲」，不會往前走。
    ・開著一檔（編輯器裡）就是那一檔；在檔期列表上用下拉挑（預設第一個還沒出稿的）。
-   ・10:00 不是 00:00：那一天前一關的 18:00 截止還沒過的話，0 點撥過去還算在前一關。
-   ・0 天的關（開檔表上天數填 0）沒有自己的一天，撥過去永遠落在前一關 —— 那一顆反灰，不假裝撥得到。
-   ・現在這一關亮琥珀（＝現在），撥完浮層不收，看得到亮的那一顆跟著跳。 */
+   ・現在最落後的那一站亮琥珀，快轉完浮層不收，看得到亮的那一顆跟著跳。 */
 var stagePlanId = null;   // var 不是 let：理由同上，怕被更早的呼叫讀到
 function stagePlanOf(){
   const ps = visiblePlans();
@@ -16140,9 +17709,40 @@ function stagePlanOf(){
   if (!ps.some(pl => pl.id === stagePlanId)) stagePlanId = ((ps.find(pl => !isFinished(pl)) || ps[0]) || {}).id || null;
   return ps.find(pl => pl.id === stagePlanId) || null;
 }
-function stageJumpAt(st){
-  const d = new Date(st.from); d.setHours(10, 0, 0, 0);
-  return d;
+/* 快轉的站（2026-09-28 改成推資料，照 demo/review 那一顆）：十關之外，二校和蓋章確認
+   多一站「等主管審」（PM 都按完、主管還沒審）—— 那兩關裡面還有一段主管的事，停在中間才看得到「待課長審」。
+   二校那一站只在設定表開了「二校主管審核」時列出來（關著的時候 PM 按完就進二改，停不到中間）。 */
+const FF_STOPS = [['提明細', '提明細'], ['製作', '製作'], ['一校', '一校'], ['一改', '一改'],
+  ['二校', '二校'], ['二校主管', '二校・等主管審'], ['二改', '二改'], ['蓋章確認', '蓋章確認'],
+  ['蓋章輪主管', '蓋章完・等主管審'], ['商品部確認完成', '商品部確認完成'], ['審稿', '審稿'], ['出稿', '出稿']];
+/** 快轉的時候這一格填什麼商品：挑了貨就用挑的那一樣（商品目錄查得到的話帶品名、價格），沒挑就補一個假的 */
+function ffDetailFor(plan){
+  const rows = (CATALOGUE && CATALOGUE.rows) || [];
+  return rc => {
+    const cid = rc.id.slice(plan.id.length + 1);
+    let cell = null;
+    allBlocksOf(plan).some(b => (cell = ((b.sheet && b.sheet.cells) || []).find(c => c.id === cid)));
+    const sku = cell && pickedOf(cell)[0];
+    const r = sku && rows.find(x => String(x.sku) === String(sku));
+    return r ? { sku: String(r.sku), brand: r.brand || '', name: r.name || '', spec: r.spec || '', price: +r.price || 1, info: '' }
+             : { sku: 'FF-' + rc.id.replace(/[^\w-]/g, ''), brand: '', name: (rc.cat_name || '商品') + '（快轉補的）', spec: '', price: 1990, info: '' };
+  };
+}
+const allBlocksOf = plan => collectBlocks(plan.layout.front, []).concat(collectBlocks(plan.layout.back, []));
+async function fastForwardTo(plan, target){
+  const rs = reviewStore();
+  if (!rs || !rs.dev) return toast('審核那一邊沒有接上', 'warn', 2000);
+  if (isDraft(plan)) return toast('草稿還沒提交，還沒開始審', 'warn', 2200);
+  rvQueue.add(plan);
+  await reviewSyncNow();           // 先對一次版面：快轉的是現在這一份格子
+  const order = FF_STOPS.map(x => x[0]);
+  const cur = STAGES[rvStageIndex(plan)];
+  /* 只推得往前：要往回就先放回提明細再推（跟一路點過來的一樣） */
+  if (cur && order.indexOf(target) <= order.indexOf(cur)) rs.dev.fastForward(plan.id, '提明細', {});
+  if (target !== '提明細') rs.dev.fastForward(plan.id, target, { designer: (usersOf('design')[0] || {}).id, detailFor: ffDetailFor(plan) });
+  await refreshReview();
+  const v = rvOf(plan), nocat = ((v && v.rows) || []).filter(r => r.unassigned);
+  toast(`快轉到 ${FF_STOPS.find(x => x[0] === target)[1]}${nocat.length ? `（${nocat.map(r => r.category_name).join('、')}沒有負責人，停在提明細）` : ''}`, 'ok', 2600);
 }
 function paintStagePane(){
   const list = document.getElementById('stageList');
@@ -16155,18 +17755,12 @@ function paintStagePane(){
   if (!sel.hidden) sel.innerHTML = ps.map(pl => `<option value="${escapeHtml(pl.id)}"${plan && pl.id === plan.id ? ' selected' : ''}>${escapeHtml(pl.name)}</option>`).join('');
   if (!plan){ name.textContent = '還沒有檔期。'; list.innerHTML = ''; return; }
   name.innerHTML = sel.hidden ? `這一檔：<b>${escapeHtml(plan.name)}</b>` : '哪一檔：';
-  const st = planStages(plan);
-  const ix = autoStageIndex(plan);
-  list.innerHTML = st.map((x, i) => {
-    const at = stageJumpAt(x);
-    const dead = autoStageAt(plan, at) !== i;
-    return `<button type="button" data-stagejump="${i}" class="${i === ix ? 'here' : ''}"${dead ? ' disabled title="這一檔這一關是 0 天，沒有自己的一天"' : ` title="撥到 ${fmtMDWx(at)} 10:00"`}>`
-      + `${escapeHtml(STAGES[i])}<small>${fmtMDWx(x.from)}</small></button>`;
-  }).join('');
-}
-/* 某個時間點落在哪一關（跟 autoStageIndex 同一條規矩，只是不讀 now()） */
-function autoStageAt(plan, t){
-  return planStages(plan).findIndex(st => stageDeadline(st) >= t);
+  /* 亮的那一顆＝整本最落後的那一關（審核資料說的），不是日期 */
+  const here = STAGES[rvStageIndex(plan)] || '';
+  const ok = !isDraft(plan) && !!reviewStore();
+  list.innerHTML = FF_STOPS.filter(([k]) => k !== '二校主管' || rvR2Managers).map(([k, label]) =>
+    `<button type="button" data-ffstop="${k}" class="${k === here ? 'here' : ''}"${ok ? '' : ' disabled'}`
+    + ` title="${ok ? `把審核資料推到「${label}」` : '草稿還沒提交（或審核那一邊沒接上）'}">${escapeHtml(label)}</button>`).join('');
 }
 
 
@@ -16247,15 +17841,10 @@ devPop.addEventListener('click', e => {
   const t = e.target.closest('.dev-tab');
   if (t){ setDevTab(t.dataset.dev); return; }
   if (e.target.closest('#demoSwitch')) setDemoRows(!demoRowsOn);
-  const j = e.target.closest('[data-stagejump]');
+  const j = e.target.closest('[data-ffstop]');
   if (j && !j.disabled){
     const plan = stagePlanOf();
-    if (!plan) return;
-    const i = +j.dataset.stagejump;
-    const at = stageJumpAt(planStages(plan)[i]);
-    applyClock(+at - Date.now());
-    document.getElementById('clockAt').value = toLocalInput(now());
-    toast(`快轉到 ${STAGES[i]}：現在是 ${fmtMDWx(now())} 10:00`, 'ok', 2200);
+    if (plan) fastForwardTo(plan, j.dataset.ffstop);
   }
 });
 document.getElementById('stagePlan').addEventListener('change', e => {
@@ -16303,6 +17892,13 @@ function syncListButtons(){
   /* 貼紙庫同一條理由：版面素材，只有設計放得上去。 */
   const sb = document.getElementById('stickerLibBtn');
   if (sb && !window.__PICK_HTML) sb.hidden = activeMode !== 'design';
+  /* 審核那兩顆：設定表是行銷維護的（別人從 🔔 的連結進得去，只能看）；
+     職代是 PM 身分的人（PM、課長、部長、處長）的事 */
+  const rvOn = !!reviewStore();
+  const sbtn = document.getElementById('rvSetBtn');
+  if (sbtn) sbtn.hidden = !mkt || !rvOn;
+  const dbtn = document.getElementById('delegBtn');
+  if (dbtn) dbtn.hidden = activeMode !== 'pm' || !rvOn;
   ['wipeBtn','importBtn','newPlanBtn'].forEach(id => {
     const b = document.getElementById(id);
     if (b) b.hidden = !mkt;
@@ -16779,7 +18375,8 @@ const PlanForm = (function(){
   function cloneSkeleton(node){
     if (!node) return null;
     if (!node.children){
-      const groups = (node.groups || []).map(g => ({ name: g.name || '未命名', count: g.count || 0 }));
+      const groups = (node.groups || []).map(g => Object.assign({ name: g.name || '未命名', count: g.count || 0 },
+                                                             g.catId ? { catId: g.catId } : null));
       return blk(node.name || '未命名',
                  groups.length ? groups : [{ name:'未命名', count:0 }],
                  node.size,
@@ -17418,7 +19015,10 @@ function tellBoardRole(){
     .concat([...boardEl.querySelectorAll('.ccanvas')]);   // 版上那些畫布也是它
   frames.forEach(f => {
     if (!f || !f.src || !f.contentWindow) return;
-    try { f.contentWindow.postMessage({ boardRole: canvasRole() }, '*'); } catch(_){}
+    /* 版上的畫布照那一格自己的鎖（見 canvasRoleFor）；挑貨面板只開得了動得了的格子 */
+    const cel = f.id === 'boardFrame' ? null : f.closest('.cell[data-cell-id]');
+    const role = cel ? canvasRoleFor(cellById(cel.dataset.cellId)) : canvasRole();
+    try { f.contentWindow.postMessage({ boardRole: role }, '*'); } catch(_){}
   });
 }
 
@@ -17578,11 +19178,13 @@ function addUser(role){
   if (!names.length) return;
   names.forEach((name, i) => USERS.push({ id: role[0] + Date.now() + i, role, name }));
   saveUsers();
+  pushReviewReference();           // 新加的人也要進得了審核那一邊的人員資料
   renderLogin();
 }
 
 function login(u){
   currentUser = u;
+  reviewSignIn(u);                 // 不 await：審核那一邊慢一點不該擋住這一頁開起來
   activeMode = u.role;
   try { localStorage.setItem(USER_AT_KEY, u.id); } catch (e){}
   loginGate.hidden = true;
@@ -17711,7 +19313,7 @@ function rebuildAll(keepId, undoFrom){
      → 卡片還是原來那幾顆，makeCard 不會再跑一次）—— 不在這裡從資料刷一遍，
      資料已經退回去了、螢幕上還是新顏色。 */
   paintCellBgs();
-  paintCellPasses();                // 退掉的也可能是一次「通過」，同一個理由
+  paintCellRv();                    // 格子換過（加減格、合併）：那一枚照審核那一邊重畫
   syncPaintPop();                   // 退掉的也可能是「存進色盤」那一步
   syncStickerTool();
   syncPassTool();
@@ -17787,6 +19389,8 @@ function openPlan(plan){
      永遠沒有東西可以蓋**，而那是使用者最常遇到的一次。不 await：撈到就補上，
      撈不到也不能擋住檔期開起來。 */
   loadSnaps(plan);
+  reviewSyncSoon(plan);            // 開檔就對一次版面，再問進度
+  refreshReview();
   /* 設計開檔期就先去拿貼紙清單（不 await）：人多半是先看一眼 總體 才切到 拼板，
      等切過去的時候那一排已經好了 —— 而不是切過去才開始問伺服器。 */
   if (activeMode === 'design') refreshStickerLib();
@@ -18414,7 +20018,7 @@ function afterMerge(planId, report){
     /* 對方上的色也是合進來的東西之一。上面那幾條路（thumbs、redrawSheet）都不會
        重生卡片，所以要在這裡從資料把每一格的底色刷一遍。 */
     paintCellBgs();
-    paintCellPasses();              // 對方剛蓋的「通過」同理（合併會往下合，見 mergePass）
+    paintCellRv();              // 對方剛蓋的「通過」同理（合併會往下合，見 mergePass）
     if (paintPop.classList.contains('on')) renderPaintPop();   // 色盤也可能是合進來的
   }
   savePlans();
@@ -18674,7 +20278,7 @@ async function adoptRemote(by){
   document.getElementById('bannerName').textContent = currentPlan.name;
   setBannerRange(currentPlan);
   paintCellBgs();                   // 他上過色的話，那也是「他那一份」的一部分
-  paintCellPasses();                // 他蓋過的「通過」同理
+  paintCellRv();                // 他蓋過的「通過」同理
   if (paintPop.classList.contains('on')) renderPaintPop();
   remoteHit = null;
   renderRemoteBar();
